@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Secrets — NEVER commit these
+credentials.json
+token.json
+.env
+*.key
+
+# Local database (regenerates on first run)
+familyhub.db
+*.db
+demo_events.json
+
+# Logs / OS junk
+*.log
+nohup.out
+.DS_Store
+
+# User photos (the slideshow folder fills up locally)
+static/photos/*
+!static/photos/.gitkeep

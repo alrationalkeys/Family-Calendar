@@ -1,0 +1,7 @@
+[Unit]
+Description=FamilyHub database backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/familyhub
+ExecStart=/home/pi/familyhub/.venv/bin/python backup.py --keep 14

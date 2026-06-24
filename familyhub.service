@@ -1,0 +1,16 @@
+# Pi systemd service — auto-starts FamilyHub on boot.
+# Install: sudo cp familyhub.service /etc/systemd/system/ && sudo systemctl enable --now familyhub
+[Unit]
+Description=FamilyHub wall display
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/familyhub
+Environment=ANTHROPIC_API_KEY=your-key-here
+ExecStart=/home/pi/familyhub/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

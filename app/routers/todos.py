@@ -1,0 +1,65 @@
+"""To-do list with category/color, recurrence, and edit/delete."""
+from fastapi import APIRouter
+from pydantic import BaseModel
+from datetime import date
+from ..db import get_db
+from ..services.recurrence import next_occurrence
+
+router = APIRouter()
+
+
+class Todo(BaseModel):
+    title: str
+    category_id: int | None = None
+    color: str | None = None
+    due_date: str | None = None
+    recurrence: str | None = None
+
+
+@router.get("/")
+def list_todos():
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM todos ORDER BY done, created_at DESC")]
+
+
+@router.post("/")
+def add_todo(t: Todo):
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO todos (title, category_id, color, due_date, recurrence) VALUES (?,?,?,?,?)",
+            (t.title, t.category_id, t.color, t.due_date, t.recurrence))
+        return {"id": cur.lastrowid}
+
+
+@router.put("/{todo_id}")
+def update_todo(todo_id: int, t: Todo):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE todos SET title=?, category_id=?, color=?, due_date=?, recurrence=? WHERE id=?",
+            (t.title, t.category_id, t.color, t.due_date, t.recurrence, todo_id))
+        return {"id": todo_id}
+
+
+@router.post("/{todo_id}/toggle")
+def toggle(todo_id: int):
+    with get_db() as conn:
+        row = conn.execute("SELECT done, recurrence, due_date FROM todos WHERE id=?",
+                           (todo_id,)).fetchone()
+        rec = row["recurrence"]
+        if rec and not row["done"]:
+            base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()
+            nxt = next_occurrence(rec, base)
+            conn.execute("UPDATE todos SET due_date=?, done=0 WHERE id=?",
+                         (nxt.isoformat() if nxt else None, todo_id))
+            return {"id": todo_id, "recurred": True, "next": nxt.isoformat() if nxt else None}
+        new = 0 if row["done"] else 1
+        conn.execute("UPDATE todos SET done=? WHERE id=?", (new, todo_id))
+        return {"id": todo_id, "done": new}
+
+
+@router.delete("/{todo_id}")
+def delete(todo_id: int):
+    with get_db() as conn:
+        conn.execute("DELETE FROM todos WHERE id=?", (todo_id,))
+        return {"deleted": todo_id}

@@ -26,9 +26,10 @@ def _settings():
 
 
 @router.get("/events")
-def events(days: int = 30, person_id: int | None = None):
+def events(days: int = 30, back: int = 0, person_id: int | None = None):
     """Merged feed: synced sources + local events + ICS feeds + holidays.
-    Pass person_id to show only one person's events (theirs + unassigned)."""
+    Pass person_id to show only one person's events (theirs + unassigned).
+    `back` extends the window into the past so old events stay visible."""
     merged = []
     with get_db() as conn:
         sources = [dict(r) for r in conn.execute("SELECT * FROM cal_sources")]
@@ -38,17 +39,17 @@ def events(days: int = 30, person_id: int | None = None):
         cfg = json.loads(s["config"])
         try:
             if s["kind"] == "google":
-                merged += google_sync.fetch_google_events(days_ahead=days, **cfg)
+                merged += google_sync.fetch_google_events(days_ahead=days, days_back=back, **cfg)
             elif s["kind"] == "caldav":
-                merged += caldav_sync.fetch_caldav_events(days_ahead=days, **cfg)
+                merged += caldav_sync.fetch_caldav_events(days_ahead=days, days_back=back, **cfg)
             elif s["kind"] == "ics":
-                merged += ics_feed.fetch_ics_events(days_ahead=days, label=s["label"], **cfg)
+                merged += ics_feed.fetch_ics_events(days_ahead=days, days_back=back, label=s["label"], **cfg)
         except Exception as e:
             merged.append({"title": f"[sync error: {s['label']}: {e}]",
                            "start": None, "source": s["kind"], "all_day": False})
     # Local events (with recurrence expansion + resolved color)
-    start = date.today()
-    end = start + timedelta(days=days)
+    start = date.today() - timedelta(days=back)
+    end = date.today() + timedelta(days=days)
     for r in local_rows:
         r["color"] = color_for(r, cats, ppl)
         r["source"] = "local"

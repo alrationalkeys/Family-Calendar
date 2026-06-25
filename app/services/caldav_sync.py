@@ -18,15 +18,16 @@ except ImportError:
 
 
 def fetch_caldav_events(url: str, username: str, password: str,
-                        days_ahead: int = 30) -> List[Dict]:
+                        days_ahead: int = 30, days_back: int = 0) -> List[Dict]:
     """Return normalized events from a CalDAV server."""
     if caldav is None:
         raise RuntimeError("pip install caldav icalendar")
 
     client = caldav.DAVClient(url=url, username=username, password=password)
     principal = client.principal()
-    start = datetime.now()
-    end = start + timedelta(days=days_ahead)
+    base = datetime.now()
+    start = base - timedelta(days=days_back)
+    end = base + timedelta(days=days_ahead)
 
     events: List[Dict] = []
     for cal in principal.calendars():

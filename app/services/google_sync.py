@@ -37,13 +37,14 @@ def _service(token_path: str = "token.json", creds_path: str = "credentials.json
     return build("calendar", "v3", credentials=creds)
 
 
-def fetch_google_events(days_ahead: int = 30, **kw) -> List[Dict]:
+def fetch_google_events(days_ahead: int = 30, days_back: int = 0, **kw) -> List[Dict]:
     svc = _service(**kw)
     now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days_back)
     end = now + timedelta(days=days_ahead)
     result = svc.events().list(
         calendarId="primary",
-        timeMin=now.isoformat(),
+        timeMin=start.isoformat(),
         timeMax=end.isoformat(),
         singleEvents=True,
         orderBy="startTime",

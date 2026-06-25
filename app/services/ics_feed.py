@@ -60,13 +60,14 @@ def _parse_dt(value, params):
     return None, all_day
 
 
-def fetch_ics_events(url, days_ahead=30, label="feed", color=None):
+def fetch_ics_events(url, days_ahead=30, days_back=1, label="feed", color=None):
     req = urllib.request.Request(url.replace("webcal://", "https://"),
                                  headers={"User-Agent": "FamilyHub/1.0"})
     with urllib.request.urlopen(req, timeout=8) as r:
         text = r.read().decode("utf-8", "ignore")
 
     now = dt.datetime.now()
+    start = now - dt.timedelta(days=max(days_back, 1))
     end = now + dt.timedelta(days=days_ahead)
     events, cur = [], None
     for line in _unfold(text):
@@ -74,7 +75,7 @@ def fetch_ics_events(url, days_ahead=30, label="feed", color=None):
             cur = {}
         elif line == "END:VEVENT" and cur is not None:
             s = cur.get("start")
-            if s and now - dt.timedelta(days=1) <= s <= end:
+            if s and start <= s <= end:
                 events.append({
                     "title": cur.get("summary", label),
                     "start": s.isoformat(),

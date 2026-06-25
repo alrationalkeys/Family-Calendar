@@ -93,6 +93,39 @@
   .mdot{height:5px; border-radius:3px; background:var(--accent,#4f86c6); flex:none}
   .mmore{font-size:10px; color:var(--ink-dim)}
 
+  /* calendar nav toolbar */
+  .cal-tools{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); flex:none}
+  .cal-tools button{background:var(--panel2); border:1px solid var(--line); color:var(--ink); font:inherit; font-weight:600; border-radius:8px; cursor:pointer}
+  .cal-tools .nav{display:flex; gap:6px}
+  .cal-tools .nav button{width:36px; height:36px; font-size:22px; line-height:1; display:flex; align-items:center; justify-content:center}
+  .cal-tools .today{padding:0 16px; height:36px; font-size:14px}
+  .cal-tools button:active{transform:scale(.95)}
+  .cal-tools .period{font-size:18px; font-weight:700; letter-spacing:-.01em; margin-left:2px}
+  .calbody{flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0}
+
+  /* day/week hourly time-grid */
+  .tg{flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0}
+  .tg-head{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none}
+  .tg-head .cnr{border-bottom:1px solid var(--line)}
+  .tg-head .dcol{padding:7px 2px; text-align:center; cursor:pointer; border-left:1px solid var(--line); border-bottom:1px solid var(--line)}
+  .tg-head .dcol .dn{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.06em}
+  .tg-head .dcol .dd{font-size:18px; font-weight:700; margin-top:1px}
+  .tg-head .dcol.today .dd{color:var(--now)}
+  .tg-allday{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto}
+  .tg-allday .lbl{font-size:9px; color:var(--ink-dim); padding:5px 4px 0; text-transform:uppercase; text-align:right; letter-spacing:.04em}
+  .tg-allday .adcol{border-left:1px solid var(--line); padding:3px; display:flex; flex-direction:column; gap:3px; min-height:24px}
+  .adev{font-size:11px; font-weight:600; background:var(--panel2); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+  .tg-body{flex:1; overflow-y:auto; position:relative; min-height:0}
+  .tg-cols{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); position:relative}
+  .tg-gut .gh{height:var(--hpx,46px); font-size:11px; color:var(--ink-dim); text-align:right; padding-right:7px; transform:translateY(-7px)}
+  .tg-day{position:relative; border-left:1px solid var(--line);
+    background-image:repeating-linear-gradient(var(--line) 0 1px, transparent 1px var(--hpx,46px))}
+  .tg-ev{position:absolute; left:3px; right:3px; background:var(--panel2); border-left:3px solid var(--accent,#4f86c6);
+    border-radius:6px; padding:3px 7px; font-size:11px; font-weight:600; line-height:1.18; overflow:hidden; cursor:pointer}
+  .tg-ev .tm{display:block; font-size:9px; color:var(--ink-dim); font-weight:500}
+  .tg-now{position:absolute; height:2px; background:var(--now); box-shadow:0 0 8px var(--now); z-index:3; pointer-events:none}
+  .tg-now::before{content:""; position:absolute; left:-4px; top:-3px; width:9px; height:9px; border-radius:50%; background:var(--now)}
+
   #sleep{position:fixed; inset:0; background:#000; z-index:50; opacity:0; pointer-events:none; transition:opacity 1.2s}
   #sleep.on{opacity:1; pointer-events:auto}
   #sleep img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 2s}
@@ -160,7 +193,14 @@
       <button class="gear" id="gear" title="Settings">&#9881;</button>
     </div>
   </header>
-  <section class="main" id="main"></section>
+  <section class="main" id="main">
+    <div class="cal-tools">
+      <div class="nav"><button id="nav-prev" title="Previous">&#8249;</button><button id="nav-next" title="Next">&#8250;</button></div>
+      <button class="today" id="nav-today">Today</button>
+      <div class="period" id="period"></div>
+    </div>
+    <div class="calbody" id="calbody"></div>
+  </section>
   <aside class="side">
     <div class="card" id="panel-todos" style="flex:1.1"><h2>To-Do</h2><div class="body" id="todos"></div></div>
     <div class="card" id="panel-groceries" style="flex:1.1"><h2>Groceries</h2><div class="body" id="groceries"></div></div>
@@ -242,7 +282,15 @@
 <script>
 const $ = s => document.querySelector(s);
 let view = "week";
+let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
+const START_HOUR = 6, END_HOUR = 23, HOURPX = 46;   // visible 6am–11pm
+function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function evStart(ev){ // local Date; date-only all-day strings parsed in local tz (no UTC shift)
+  const s=ev.start; if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+  return new Date(s);
+}
 
 function tick(){
   const n=new Date();
@@ -251,7 +299,7 @@ function tick(){
   $("#date").firstChild.textContent=n.toLocaleDateString([],{month:"long",day:"numeric"});
   $("#dow").textContent=n.toLocaleDateString([],{weekday:"long",year:"numeric"});
   $("#sdate").textContent=n.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
-  if(view==="day") placeNowLine();
+  placeNow();
 }
 
 document.querySelectorAll(".tabs button").forEach(b=>{
@@ -259,80 +307,122 @@ document.querySelectorAll(".tabs button").forEach(b=>{
 });
 function setActive(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.v===v)); }
 
-function render(){ if(view==="day")renderDay(); else if(view==="week")renderWeek(); else renderMonth(); }
+function render(){
+  updatePeriod();
+  if(view==="day") renderGrid([new Date(cursor)]);
+  else if(view==="week") renderGrid(weekDays(cursor));
+  else renderMonth();
+}
 function evColor(ev){ return ev.color || "#4f86c6"; }
+function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;}); }
+function hourLabel(h){ const hh=h%24; return (hh%12||12)+(hh<12?'am':'pm'); }
 
-function renderDay(date){
-  const main=$("#main"); main.innerHTML='<div class="rail" id="rail"></div>';
-  const rail=$("#rail"); const S=6,E=22; const day=date||new Date();
-  for(let h=S;h<=E;h++){
-    const r=document.createElement("div"); r.className="hour"; r.dataset.h=h;
-    r.innerHTML=`<div class="t">${(h%12||12)}${h<12?'a':'p'}</div><div class="slot"></div>`;
-    rail.appendChild(r);
-  }
-  cache.events.filter(e=>sameDay(e.start,day)).forEach(ev=>{
-    const d=new Date(ev.start); if(isNaN(d))return;
-    const h=ev.all_day?S:d.getHours();
-    const slot=rail.querySelector(`.hour[data-h="${Math.min(Math.max(h,S),E)}"] .slot`); if(!slot)return;
-    const el=document.createElement("div"); el.className="ev"; el.style.setProperty("--accent",evColor(ev));
-    const tm=ev.all_day?"All day":d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
-    el.innerHTML=`<div class="who">${ev.source} · ${tm}</div>${ev.title}`;
-    if(ev.source!=="holiday"&&ev.source!=="demo"){ el.style.cursor="pointer"; el.onclick=()=>openEditor(ev); }
-    slot.appendChild(el);
+function renderGrid(daysArr){
+  const body=$("#calbody"); const cols=daysArr.length; const hrs=END_HOUR-START_HOUR;
+  let head='<div class="cnr"></div>';
+  daysArr.forEach(d=>{
+    head+=`<div class="dcol${sameDay(d,new Date())?' today':''}" data-iso="${d.toISOString()}">`
+        +`<div class="dn">${d.toLocaleDateString([],{weekday:'short'})}</div>`
+        +`<div class="dd">${d.getDate()}</div></div>`;
   });
-  placeNowLine();
-}
-function placeNowLine(){
-  const rail=$("#rail"); if(!rail)return;
-  rail.querySelector(".nowline")?.remove();
-  const n=new Date(),h=n.getHours();
-  const row=rail.querySelector(`.hour[data-h="${h}"]`); if(!row)return;
-  const line=document.createElement("div"); line.className="nowline";
-  line.style.top=(row.offsetTop+row.offsetHeight*(n.getMinutes()/60))+"px";
-  rail.appendChild(line);
-}
-
-function renderWeek(){
-  const main=$("#main"); main.innerHTML='<div class="week" id="week"></div>';
-  const wk=$("#week"); const start=weekStart(new Date());
-  for(let i=0;i<7;i++){
-    const d=new Date(start); d.setDate(start.getDate()+i);
-    const col=document.createElement("div"); col.className="wday"+(sameDay(d,new Date())?" today":"");
-    col.innerHTML=`<div class="head"><div class="dn">${d.toLocaleDateString([],{weekday:"short"})}</div><div class="dd">${d.getDate()}</div></div><div class="evs"></div>`;
-    const evs=col.querySelector(".evs");
-    cache.events.filter(e=>sameDay(e.start,d)).forEach(ev=>{
-      const dt=new Date(ev.start);
-      const el=document.createElement("div"); el.className="wev"; el.style.setProperty("--accent",evColor(ev));
-      const tm=ev.all_day?"All day":dt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
-      el.innerHTML=`<span class="tm">${tm}</span>${ev.title}`;
-      if(ev.source!=="holiday"&&ev.source!=="demo"){ el.style.cursor="pointer"; el.onclick=(e)=>{e.stopPropagation();openEditor(ev);}; }
-      evs.appendChild(el);
+  let allday='<div class="lbl">all-day</div>';
+  daysArr.forEach(d=>{
+    let cell='';
+    cache.events.filter(e=>e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
+      cell+=`<div class="adev" data-id="${encodeURIComponent(ev.id||'')}" style="--accent:${evColor(ev)}">${esc(ev.title)}</div>`;
     });
-    col.querySelector(".head").onclick=()=>{ view="day"; setActive("day"); renderDay(d); };
-    wk.appendChild(col);
+    allday+=`<div class="adcol">${cell}</div>`;
+  });
+  let gut=''; for(let h=START_HOUR;h<END_HOUR;h++) gut+=`<div class="gh">${hourLabel(h)}</div>`;
+  let dayCols=''; daysArr.forEach((d,i)=> dayCols+=`<div class="tg-day" data-col="${i}"></div>`);
+  body.innerHTML=
+    `<div class="tg" style="--cols:${cols};--hpx:${HOURPX}px">`
+    +`<div class="tg-head">${head}</div>`
+    +`<div class="tg-allday">${allday}</div>`
+    +`<div class="tg-body"><div class="tg-cols" id="tgcols" style="height:${hrs*HOURPX}px">`
+    +`<div class="tg-gut">${gut}</div>${dayCols}</div></div></div>`;
+  // place timed events into each day column
+  daysArr.forEach((d,i)=>{
+    const col=body.querySelector(`.tg-day[data-col="${i}"]`);
+    cache.events.filter(e=>!e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
+      const sdt=evStart(ev); if(!sdt||isNaN(sdt))return;
+      const sh=sdt.getHours()+sdt.getMinutes()/60; if(sh>=END_HOUR)return;
+      const edt=ev.end?new Date(ev.end):null;
+      const dur=(edt&&!isNaN(edt))?Math.max((edt-sdt)/3600000,0.25):1;
+      const top=Math.max(0,sh-START_HOUR)*HOURPX;
+      const h=Math.max(16,Math.min(dur,END_HOUR-Math.max(sh,START_HOUR))*HOURPX);
+      const el=document.createElement("div"); el.className="tg-ev"; el.style.setProperty("--accent",evColor(ev));
+      el.style.top=top+"px"; el.style.height=h+"px";
+      el.innerHTML=`<span class="tm">${sdt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}</span>${esc(ev.title)}`;
+      el.onclick=(e)=>{e.stopPropagation();openEditor(ev);};
+      col.appendChild(el);
+    });
+  });
+  // all-day chips clickable
+  body.querySelectorAll(".adev").forEach(el=>{
+    el.onclick=(e)=>{ e.stopPropagation(); const id=decodeURIComponent(el.dataset.id);
+      const ev=cache.events.find(x=>String(x.id||'')===id && x.all_day); if(ev)openEditor(ev); };
+  });
+  // day header → jump into that day
+  body.querySelectorAll(".dcol").forEach(el=>{
+    el.onclick=()=>{ cursor=new Date(el.dataset.iso); view="day"; setActive("day"); render(); };
+  });
+  // current-time line, only when the visible range includes today
+  if(daysArr.some(d=>sameDay(d,new Date()))){
+    const line=document.createElement("div"); line.className="tg-now"; line.style.left="54px"; line.style.right="0";
+    $("#tgcols").appendChild(line); placeNow();
   }
+  // open scrolled near the workday / now
+  const tb=body.querySelector(".tg-body");
+  if(tb){ const nh=Math.min(Math.max(new Date().getHours(),START_HOUR),END_HOUR);
+    tb.scrollTop=Math.max(0,(nh-START_HOUR-1))*HOURPX; }
+}
+function placeNow(){
+  const cols=$("#tgcols"); if(!cols)return; const line=cols.querySelector(".tg-now"); if(!line)return;
+  const n=new Date(); const h=n.getHours()+n.getMinutes()/60;
+  if(h<START_HOUR||h>END_HOUR){ line.style.display="none"; return; }
+  line.style.display=""; line.style.top=((h-START_HOUR)*HOURPX)+"px";
 }
 
 function renderMonth(){
-  const main=$("#main");
-  main.innerHTML='<div class="month"><div class="mdow"></div><div class="mgrid" id="mgrid"></div></div>';
-  const dow=main.querySelector(".mdow");
+  const body=$("#calbody");
+  body.innerHTML='<div class="month"><div class="mdow"></div><div class="mgrid" id="mgrid"></div></div>';
+  const dow=body.querySelector(".mdow");
   ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(d=>{const s=document.createElement("span");s.textContent=d;dow.appendChild(s);});
-  const grid=$("#mgrid"); const now=new Date();
-  const first=new Date(now.getFullYear(),now.getMonth(),1);
+  const grid=$("#mgrid"); const ref=new Date(cursor);
+  const first=new Date(ref.getFullYear(),ref.getMonth(),1);
   const gridStart=new Date(first); gridStart.setDate(1-first.getDay());
   for(let i=0;i<42;i++){
     const d=new Date(gridStart); d.setDate(gridStart.getDate()+i);
     const cell=document.createElement("div");
-    cell.className="mcell"+(d.getMonth()!==now.getMonth()?" dim":"")+(sameDay(d,now)?" today":"");
+    cell.className="mcell"+(d.getMonth()!==ref.getMonth()?" dim":"")+(sameDay(d,new Date())?" today":"");
     cell.innerHTML=`<div class="num">${d.getDate()}</div>`;
-    const dayEvs=cache.events.filter(e=>sameDay(e.start,d));
+    const dayEvs=cache.events.filter(e=>sameDay(evStart(e),d));
     dayEvs.slice(0,3).forEach(ev=>{const dot=document.createElement("div");dot.className="mdot";dot.style.setProperty("--accent",evColor(ev));cell.appendChild(dot);});
     if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3}`;cell.appendChild(m);}
-    cell.onclick=()=>{ view="day"; setActive("day"); renderDay(d); };
+    cell.onclick=()=>{ cursor=new Date(d); view="day"; setActive("day"); render(); };
     grid.appendChild(cell);
   }
 }
+
+function updatePeriod(){
+  const p=$("#period"); if(!p)return;
+  if(view==="day"){ p.textContent=cursor.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"}); }
+  else if(view==="week"){ const ds=weekDays(cursor), a=ds[0], b=ds[6];
+    const m1=a.toLocaleDateString([],{month:"short"}), m2=b.toLocaleDateString([],{month:"short"});
+    p.textContent = (m1===m2) ? `${m1} ${a.getDate()} – ${b.getDate()}` : `${m1} ${a.getDate()} – ${m2} ${b.getDate()}`;
+  } else { p.textContent=cursor.toLocaleDateString([],{month:"long",year:"numeric"}); }
+}
+function navStep(dir){
+  const c=new Date(cursor);
+  if(view==="day") c.setDate(c.getDate()+dir);
+  else if(view==="week") c.setDate(c.getDate()+7*dir);
+  else c.setMonth(c.getMonth()+dir);
+  cursor=c; render();
+}
+$("#nav-prev").onclick=()=>{ navStep(-1); resetSleep(); };
+$("#nav-next").onclick=()=>{ navStep(1); resetSleep(); };
+$("#nav-today").onclick=()=>{ cursor=new Date(); render(); resetSleep(); };
 
 function renderTodos(todos){
   const box=$("#todos"); box.innerHTML="";
@@ -374,7 +464,7 @@ async function load(){
   try{
     const [dash,cal]=await Promise.all([
       fetch("/api/dashboard").then(r=>r.json()),
-      fetch("/api/calendar/events").then(r=>r.json()).catch(()=>({events:[]}))
+      fetch("/api/calendar/events?days=120&back=45").then(r=>r.json()).catch(()=>({events:[]}))
     ]);
     cache.dash=dash; cache.events=cal.events||[];
     render();
@@ -451,13 +541,19 @@ function applyPanels(){
 /* ---- event editor ---- */
 let editing = null;
 function openEditor(ev){
-  // holidays and demo events aren't editable (no real source to write back to)
-  if(ev.source==="holiday" || ev.source==="demo"){ return; }
-  editing = ev;
+  // Every event opens a popup. Holidays/demo and source-less events are
+  // read-only (nothing to write back to); real events are editable.
+  const editable = !!ev.id && ev.source!=="holiday" && ev.source!=="demo" && ev.source!=="local";
+  editing = editable ? ev : null;
+  $(".ev-title").textContent = editable ? "Edit event" : (ev.title || "Event");
   $("#ev-name").value = ev.title || "";
-  const d = ev.start ? new Date(ev.start) : new Date();
-  $("#ev-date").value = isNaN(d) ? "" : d.toISOString().slice(0,10);
-  $("#ev-time").value = (ev.all_day || isNaN(d)) ? "" : d.toTimeString().slice(0,5);
+  const d = ev.start ? evStart(ev) : new Date();
+  const valid = d && !isNaN(d);
+  $("#ev-date").value = valid ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}` : "";
+  $("#ev-time").value = (ev.all_day || !valid) ? "" : d.toTimeString().slice(0,5);
+  $("#ev-name").disabled = $("#ev-date").disabled = $("#ev-time").disabled = !editable;
+  $("#ev-del").style.display = editable ? "" : "none";
+  $("#ev-save").style.display = editable ? "" : "none";
   $("#ev-modal").classList.add("on"); $("#ev-overlay").classList.add("on");
 }
 function closeEditor(){ editing=null; $("#ev-modal").classList.remove("on"); $("#ev-overlay").classList.remove("on"); }

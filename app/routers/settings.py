@@ -15,6 +15,8 @@ DEFAULTS = {
     "panels": {"todos": True, "groceries": True, "meals": True},
     "holidays": {"us_federal": False, "christian": False, "jewish": False, "observances": False},
     "effects": True,
+    "dayStart": 6,    # first hour shown in the day/week time-grid (0–23)
+    "dayEnd": 23,     # last hour shown (1–24)
 }
 
 

@@ -152,6 +152,10 @@
   .sd-colors .sw{width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer}
   .sd-colors .sw.sel{border-color:var(--ink); transform:scale(1.1)}
   .sd-toggles{display:flex; flex-direction:column; gap:12px}
+  .sd-hours{display:flex; align-items:center; gap:10px}
+  .sd-hours select{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    font:inherit; font-size:15px; font-weight:600; padding:10px; border-radius:9px; cursor:pointer}
+  .sd-hours span{color:var(--ink-dim); font-size:13px}
   .sd-toggles label{display:flex; align-items:center; gap:10px; font-size:15px; cursor:pointer}
   .sd-toggles input{width:20px; height:20px; accent-color:var(--now)}
   .sd-close{width:100%; background:var(--now); color:#1a1205; border:0; border-radius:12px; font:inherit;
@@ -237,6 +241,14 @@
     </div>
   </div>
 
+  <div class="sd-group"><label>Calendar hours</label>
+    <div class="sd-hours">
+      <select id="day-start"></select>
+      <span>to</span>
+      <select id="day-end"></select>
+    </div>
+  </div>
+
   <div class="sd-group"><label>Show panels</label>
     <div class="sd-toggles" id="sd-panels">
       <label><input type="checkbox" data-panel="todos"> To-Do</label>
@@ -284,7 +296,16 @@ const $ = s => document.querySelector(s);
 let view = "week";
 let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
-const START_HOUR = 6, END_HOUR = 23, HOURPX = 46;   // visible 6am–11pm
+let START_HOUR = 6, END_HOUR = 23;   // visible window, overridden by settings
+const HOURPX = 46;
+function syncHours(){
+  const s = FH.get();
+  let a = parseInt(s.dayStart, 10); if(isNaN(a)) a = 6;
+  let b = parseInt(s.dayEnd, 10);   if(isNaN(b)) b = 23;
+  a = Math.min(Math.max(a, 0), 23);
+  b = Math.min(Math.max(b, a + 1), 24);   // end always after start
+  START_HOUR = a; END_HOUR = b;
+}
 function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function evStart(ev){ // local Date; date-only all-day strings parsed in local tz (no UTC shift)
   const s=ev.start; if(!s) return null;
@@ -308,6 +329,7 @@ document.querySelectorAll(".tabs button").forEach(b=>{
 function setActive(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.v===v)); }
 
 function render(){
+  syncHours();
   updatePeriod();
   if(view==="day") renderGrid([new Date(cursor)]);
   else if(view==="week") renderGrid(weekDays(cursor));
@@ -517,8 +539,20 @@ document.querySelectorAll("#sd-holidays input").forEach(cb=>{
 });
 $("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); Seasonal.start(e.target.checked); };
 
+// day-hours selects
+function fmtHour(h){ return h===24 ? "12am" : (h%12||12)+(h<12?"am":"pm"); }
+(function buildHourSelects(){
+  const ss=$("#day-start"), es=$("#day-end");
+  for(let h=0;h<=23;h++){ const o=document.createElement("option"); o.value=h; o.textContent=fmtHour(h); ss.appendChild(o); }
+  for(let h=1;h<=24;h++){ const o=document.createElement("option"); o.value=h; o.textContent=fmtHour(h); es.appendChild(o); }
+  ss.onchange=()=>{ let a=+ss.value, b=+es.value; if(b<=a) b=a+1; FH.save({dayStart:a,dayEnd:b}); syncSettingsUI(); render(); };
+  es.onchange=()=>{ let a=+ss.value, b=+es.value; if(b<=a) a=b-1; FH.save({dayStart:a,dayEnd:b}); syncSettingsUI(); render(); };
+})();
+
 function syncSettingsUI(){
   const s=FH.get();
+  $("#day-start").value = s.dayStart ?? 6;
+  $("#day-end").value   = s.dayEnd ?? 23;
   document.querySelectorAll(".sd-seg").forEach(seg=>{
     const key=seg.dataset.key;
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.val===s[key]));

@@ -11,6 +11,8 @@ const FH = (() => {
     panels: { todos: true, groceries: true, meals: true },
     holidays: { us_federal: false, christian: false, jewish: false, observances: false },
     effects: true,
+    dayStart: 6,             // first hour in the day/week time-grid (0–23)
+    dayEnd: 23,              // last hour shown (1–24)
   };
 
   const FONTS = {

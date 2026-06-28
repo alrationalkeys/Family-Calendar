@@ -223,13 +223,23 @@ document.querySelectorAll(".seg button").forEach(b=>{
   };
 });
 
+function plusHourLocal(start){ // 1h later, kept in LOCAL time (no UTC shift)
+  const d=new Date(new Date(start).getTime()+3600000), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
+}
 async function saveEvent(){
   const title=$("#e_title").value.trim(); if(!title)return;
-  const start=`${$("#e_date").value}T${$("#e_time").value}:00`;
-  const end=new Date(new Date(start).getTime()+3600000).toISOString().slice(0,19);
-  await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({title,start,end})}).catch(()=>{});
-  toast("Event added"); $("#e_title").value="";
+  const date=$("#e_date").value, time=$("#e_time").value;
+  if(!date||!time){ toast("Pick a date and time"); return; }
+  const start=`${date}T${time}:00`, end=plusHourLocal(start);
+  try{
+    const r=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({title,start,end})});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){ toast(data.detail||data.error||"Couldn't add event"); return; }
+    toast(data.warning || (data.target==="local" ? "Event added" : "Event added to Google"));
+    $("#e_title").value="";
+  }catch(e){ toast("Couldn't reach the server"); }
 }
 async function saveTodo(){
   const title=$("#t_title").value.trim(); if(!title)return;

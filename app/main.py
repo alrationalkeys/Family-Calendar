@@ -42,6 +42,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def no_cache_html(request, call_next):
+    """Don't let browsers cache the HTML shell, so a `git pull` is reflected on
+    the next refresh without a hard-reload. Static JS/CSS can still be cached."""
+    resp = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
+
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 app.include_router(chores.router, prefix="/api/chores", tags=["chores"])

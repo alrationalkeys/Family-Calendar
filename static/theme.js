@@ -12,7 +12,9 @@ const FH = (() => {
     holidays: { us_federal: false, christian: false, jewish: false, observances: false },
     effects: true,
     dayStart: 6,             // first hour in the day/week time-grid (0–23)
-    dayEnd: 23,              // last hour shown (1–24)
+    dayEnd: 20,              // last hour shown (1–24)
+    hourPx: 46,              // zoom: pixel height of one hour row (26–120)
+    panelSizes: [1.1, 1.1, 0.9],   // relative heights of the side panels
   };
 
   const FONTS = {

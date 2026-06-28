@@ -65,13 +65,27 @@ def fetch_google_events(days_ahead: int = 30, days_back: int = 0, **kw) -> List[
     return events
 
 
+def _gtime(iso: str) -> Dict:
+    """Build a Google start/end object from an ISO string.
+    Date-only ('2026-06-29') -> all-day {date}. A datetime without a timezone
+    is assumed local and given the machine's UTC offset, which Google requires
+    (a bare dateTime with no offset/timeZone is rejected with a 400)."""
+    s = (iso or "").strip()
+    if len(s) == 10 and s.count("-") == 2:
+        return {"date": s}
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.astimezone()        # attach local offset, e.g. 14:00 -> 14:00-04:00
+    return {"dateTime": dt.isoformat()}
+
+
 def create_google_event(title: str, start_iso: str, end_iso: str, **kw) -> Dict:
     """Two-way sync: write an event back to Google. Skylight can't do this cleanly."""
     svc = _service(**kw)
     body = {
         "summary": title,
-        "start": {"dateTime": start_iso},
-        "end": {"dateTime": end_iso},
+        "start": _gtime(start_iso),
+        "end": _gtime(end_iso),
     }
     return svc.events().insert(calendarId="primary", body=body).execute()
 
@@ -83,9 +97,9 @@ def update_google_event(event_id: str, title=None, start_iso=None, end_iso=None,
     if title is not None:
         body["summary"] = title
     if start_iso:
-        body["start"] = {"dateTime": start_iso}
+        body["start"] = _gtime(start_iso)
     if end_iso:
-        body["end"] = {"dateTime": end_iso}
+        body["end"] = _gtime(end_iso)
     return svc.events().patch(calendarId="primary", eventId=event_id, body=body).execute()
 
 

@@ -15,8 +15,10 @@ DEFAULTS = {
     "panels": {"todos": True, "groceries": True, "meals": True},
     "holidays": {"us_federal": False, "christian": False, "jewish": False, "observances": False},
     "effects": True,
-    "dayStart": 6,    # first hour shown in the day/week time-grid (0–23)
-    "dayEnd": 23,     # last hour shown (1–24)
+    "dayStart": 6,         # first hour shown in the day/week time-grid (0–23)
+    "dayEnd": 20,          # last hour shown (1–24)
+    "hourPx": 46,          # zoom: pixel height of one hour row (26–120)
+    "panelSizes": [1.1, 1.1, 0.9],   # relative heights of the side panels
 }
 
 

@@ -61,6 +61,7 @@ def fetch_google_events(days_ahead: int = 30, days_back: int = 0, **kw) -> List[
             "end": endt,
             "source": "google",
             "all_day": "date" in item["start"],
+            "description": item.get("description"),
         }
         cid = item.get("colorId")
         if cid in GOOGLE_COLORS:
@@ -139,7 +140,7 @@ def _rrule(recurrence: str, all_day: bool):
 
 
 def create_google_event(title: str, start_iso: str, end_iso: str,
-                        recurrence=None, color=None, **kw) -> Dict:
+                        recurrence=None, color=None, description=None, **kw) -> Dict:
     """Two-way sync: write an event back to Google. Skylight can't do this cleanly.
     Carries recurrence (as an RRULE) and color (snapped to Google's palette)."""
     svc = _service(**kw)
@@ -149,6 +150,8 @@ def create_google_event(title: str, start_iso: str, end_iso: str,
         "start": _gtime(start_iso),
         "end": _gtime(end_iso),
     }
+    if description:
+        body["description"] = description
     rr = _rrule(recurrence, all_day)
     if rr:
         body["recurrence"] = rr
@@ -159,12 +162,14 @@ def create_google_event(title: str, start_iso: str, end_iso: str,
 
 
 def update_google_event(event_id: str, title=None, start_iso=None, end_iso=None,
-                        recurrence=None, color=None, **kw):
+                        recurrence=None, color=None, description=None, **kw):
     """Patch an existing Google event (two-way edit)."""
     svc = _service(**kw)
     body = {}
     if title is not None:
         body["summary"] = title
+    if description is not None:
+        body["description"] = description
     if start_iso:
         body["start"] = _gtime(start_iso)
     if end_iso:

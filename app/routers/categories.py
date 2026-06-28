@@ -65,3 +65,13 @@ def update_person(pid: int, p: Person):
     with get_db() as conn:
         conn.execute("UPDATE people SET name=?, color=? WHERE id=?", (p.name, p.color, pid))
         return {"id": pid, "name": p.name, "color": p.color}
+
+
+@router.delete("/people/{pid}")
+def delete_person(pid: int):
+    """Remove a person and unassign them from any chores/events they owned."""
+    with get_db() as conn:
+        conn.execute("UPDATE chores SET person_id=NULL WHERE person_id=?", (pid,))
+        conn.execute("UPDATE local_events SET person_id=NULL WHERE person_id=?", (pid,))
+        conn.execute("DELETE FROM people WHERE id=?", (pid,))
+        return {"deleted": pid}

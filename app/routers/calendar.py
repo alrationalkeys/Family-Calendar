@@ -82,6 +82,7 @@ class NewEvent(BaseModel):
     person_id: int | None = None
     category_id: int | None = None
     color: str | None = None
+    description: str | None = None
     recurrence: str | None = None
     target: str = "auto"  # "auto" | "google" | "local"
 
@@ -94,9 +95,9 @@ def _has_source(kind: str) -> bool:
 def _add_local_event(ev: "NewEvent") -> dict:
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,recurrence) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (ev.title, ev.start, ev.end, int(ev.all_day), ev.person_id, ev.category_id, ev.color, ev.recurrence))
+            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (ev.title, ev.start, ev.end, int(ev.all_day), ev.person_id, ev.category_id, ev.color, ev.description, ev.recurrence))
         return {"id": cur.lastrowid, "target": "local"}
 
 
@@ -109,7 +110,8 @@ def add_event(ev: NewEvent):
     if want_google:
         try:
             res = google_sync.create_google_event(ev.title, ev.start, ev.end,
-                                                   recurrence=ev.recurrence, color=ev.color)
+                                                   recurrence=ev.recurrence, color=ev.color,
+                                                   description=ev.description)
             return {"id": res.get("id"), "target": "google"}
         except Exception as e:
             # don't lose the event — fall back to a local copy and report it
@@ -131,6 +133,7 @@ class EditEvent(BaseModel):
     start: str | None = None
     end: str | None = None
     color: str | None = None
+    description: str | None = None
     recurrence: str | None = None
     target: str = "google"   # "google" | "icloud"
 
@@ -139,7 +142,8 @@ class EditEvent(BaseModel):
 def edit_event(ev: EditEvent):
     if ev.target == "google":
         return google_sync.update_google_event(ev.event_id, ev.title, ev.start, ev.end,
-                                               recurrence=ev.recurrence, color=ev.color)
+                                               recurrence=ev.recurrence, color=ev.color,
+                                               description=ev.description)
     if ev.target == "icloud":
         cfg = _caldav_cfg()
         if not cfg:

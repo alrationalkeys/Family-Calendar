@@ -20,6 +20,7 @@ class LocalEvent(BaseModel):
     person_id: int | None = None
     category_id: int | None = None
     color: str | None = None
+    description: str | None = None
     recurrence: str | None = None
     reminder_minutes: int | None = None
 
@@ -44,10 +45,10 @@ def list_events(days: int = 60):
 def add_event(e: LocalEvent):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,recurrence,reminder_minutes) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence,reminder_minutes) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (e.title, e.start, e.end, int(e.all_day), e.person_id, e.category_id,
-             e.color, e.recurrence, e.reminder_minutes))
+             e.color, e.description, e.recurrence, e.reminder_minutes))
         eid = cur.lastrowid
         _schedule_reminder(conn, eid, e)
         return {"id": eid}
@@ -58,9 +59,9 @@ def update_event(event_id: int, e: LocalEvent):
     with get_db() as conn:
         conn.execute(
             "UPDATE local_events SET title=?,start=?,end=?,all_day=?,person_id=?,category_id=?,"
-            "color=?,recurrence=?,reminder_minutes=? WHERE id=?",
+            "color=?,description=?,recurrence=?,reminder_minutes=? WHERE id=?",
             (e.title, e.start, e.end, int(e.all_day), e.person_id, e.category_id,
-             e.color, e.recurrence, e.reminder_minutes, event_id))
+             e.color, e.description, e.recurrence, e.reminder_minutes, event_id))
         conn.execute("DELETE FROM notifications WHERE kind='reminder' AND body=?", (str(event_id),))
         _schedule_reminder(conn, event_id, e)
         return {"id": event_id}

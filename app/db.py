@@ -42,6 +42,7 @@ def _migrate(conn):
         "todos":     [("category_id", "INTEGER"), ("color", "TEXT"),
                       ("due_date", "TEXT"), ("recurrence", "TEXT")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT")],
+        "local_events": [("description", "TEXT")],
     }
     for table, cols in adds.items():
         for col, typ in cols:
@@ -118,6 +119,7 @@ def init_db():
                 person_id INTEGER REFERENCES people(id),
                 category_id INTEGER REFERENCES categories(id),
                 color TEXT,
+                description TEXT,
                 recurrence TEXT,            -- 'daily'/'weekly'/'weekly:SA'/'monthly'
                 reminder_minutes INTEGER,   -- minutes before to notify (NULL = none)
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP

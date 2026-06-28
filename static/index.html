@@ -204,6 +204,9 @@
   .ev-field label{font-size:13px; color:var(--ink-dim); font-weight:600}
   #ev-modal select{background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink);
     font:inherit; font-size:15px; padding:10px; flex:1; max-width:62%}
+  .ev-colors{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; flex:1}
+  .ev-colors .sw{width:28px; height:28px; border-radius:50%; border:3px solid transparent; cursor:pointer}
+  .ev-colors .sw.sel{border-color:var(--ink); transform:scale(1.12)}
   #ev-recur-box{border-top:1px solid var(--line); margin-top:4px; padding-top:13px}
   .ev-mlabel{display:block; font-size:13px; color:var(--ink-dim); font-weight:600; margin-bottom:8px}
   .ev-mrow{display:grid; grid-template-columns:repeat(6,1fr); gap:6px}
@@ -324,6 +327,9 @@
       <option value="90">1.5 hours</option><option value="120">2 hours</option>
       <option value="180">3 hours</option><option value="240">4 hours</option>
     </select>
+  </div>
+  <div class="ev-field" id="ev-color-row"><label>Color</label>
+    <div class="ev-colors" id="ev-colors"></div>
   </div>
   <div id="ev-recur-box">
     <div class="ev-field"><label>Repeat</label>
@@ -741,6 +747,16 @@ function nextDayStr(s){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+1
 function plusMinutesLocal(start, mins){ const d=new Date(new Date(start).getTime()+mins*60000);
   return `${dateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; }
 
+// event color swatches (built once); chosenEvColor null = use default resolution
+let chosenEvColor = null;
+(function(){ const box=$("#ev-colors");
+  ACCENTS.forEach(c=>{ const s=document.createElement("div"); s.className="sw"; s.style.background=c; s.dataset.c=c;
+    s.onclick=()=>{ chosenEvColor = (chosenEvColor===c) ? null : c; syncEvColors(); };
+    box.appendChild(s);
+  });
+})();
+function syncEvColors(){ document.querySelectorAll("#ev-colors .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===chosenEvColor)); }
+
 // month skip buttons (built once)
 (function(){ const row=$("#ev-month-row");
   ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].forEach((n,i)=>{
@@ -799,6 +815,7 @@ function openCreate(prefDate, prefTime){
   $("#ev-date").value=dateStr(d);
   $("#ev-time").value=prefTime||"09:00";
   $("#ev-dur").value="60";
+  chosenEvColor=null; syncEvColors(); $("#ev-color-row").style.display="flex";
   $("#ev-recur-box").style.display=""; parseRecToUI(null);
   updateAllDayUI();
   $("#ev-del").style.display="none"; $("#ev-save").style.display="";
@@ -822,6 +839,8 @@ function openEditor(ev){
   $("#ev-time").value=(ev.all_day||!valid)?"":d.toTimeString().slice(0,5);
   $("#ev-dur").value="60";
   $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=!editable;
+  chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
+  $("#ev-color-row").style.display = editable ? "flex" : "none";
   if(modalMode==="edit-local"){ $("#ev-recur-box").style.display=""; parseRecToUI(ev.recurrence); }
   else { $("#ev-recur-box").style.display="none"; }
   updateAllDayUI();
@@ -848,16 +867,18 @@ $("#ev-save").onclick=async()=>{
   const t=eventTimes();
   try{
     if(modalMode==="create"){
-      await fetch("/api/events/",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, recurrence:buildRecFromUI()})});
+      // target "auto": goes to Google (with RRULE + color) if connected, else local
+      await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day,
+          recurrence:buildRecFromUI(), color:chosenEvColor, target:"auto"})});
     } else if(modalMode==="edit-local"){
       await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, recurrence:buildRecFromUI(),
-          person_id:editing.person_id, category_id:editing.category_id, color:editing.color})});
+          person_id:editing.person_id, category_id:editing.category_id, color:chosenEvColor})});
     } else if(editing){
       const target = modalMode==="edit-icloud" ? "icloud" : "google";
       await fetch("/api/calendar/events",{method:"PUT",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({event_id:editing.id, title, start:t.start, end:t.end, target})});
+        body:JSON.stringify({event_id:editing.id, title, start:t.start, end:t.end, color:chosenEvColor, target})});
     }
   }catch(e){}
   closeEditor(); load();

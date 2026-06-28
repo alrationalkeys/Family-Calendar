@@ -166,6 +166,15 @@
   .sd-seg button{flex:1; min-width:72px; background:var(--panel2); border:1px solid var(--line); color:var(--ink-dim);
     font:inherit; font-size:14px; font-weight:600; padding:10px 8px; border-radius:9px; cursor:pointer}
   .sd-seg button.active{background:var(--now); border-color:var(--now); color:#1a1205}
+  .sd-people-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line)}
+  .sd-people-row:first-child{border-top:0}
+  .sd-people-row .pdot{width:18px; height:18px; border-radius:50%; flex:none}
+  .sd-people-row .pname{flex:1; font-size:15px}
+  .sd-people-row .pdel{background:none; border:0; color:var(--ink-dim); font-size:18px; cursor:pointer; padding:2px 6px}
+  .np-name{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink);
+    font:inherit; font-size:15px; padding:11px; margin:10px 0}
+  .sd-addbtn{width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--ink); font:inherit;
+    font-size:14px; font-weight:600; padding:11px; border-radius:10px; cursor:pointer; margin-top:10px}
   .sd-colors{display:flex; gap:10px; flex-wrap:wrap}
   .sd-colors .sw{width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer}
   .sd-colors .sw.sel{border-color:var(--ink); transform:scale(1.1)}
@@ -264,6 +273,13 @@
     <div class="sd-colors" id="sd-accent"></div>
   </div>
 
+  <div class="sd-group"><label>People</label>
+    <div id="sd-people"></div>
+    <input id="np-name" class="np-name" placeholder="Add a person…">
+    <div class="sd-colors" id="np-colors"></div>
+    <button class="sd-addbtn" id="np-add">Add person</button>
+  </div>
+
   <div class="sd-group"><label>Font</label>
     <div class="sd-seg" data-key="font">
       <button data-val="inter">Inter</button><button data-val="serif">Serif</button>
@@ -328,6 +344,9 @@
       <option value="180">3 hours</option><option value="240">4 hours</option>
     </select>
   </div>
+  <div class="ev-field" id="ev-person-row"><label>Person</label>
+    <select id="ev-person"></select>
+  </div>
   <div class="ev-field" id="ev-color-row"><label>Color</label>
     <div class="ev-colors" id="ev-colors"></div>
   </div>
@@ -361,6 +380,7 @@ const $ = s => document.querySelector(s);
 let view = "week";
 let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
+let people = [];   // family members, from the dashboard feed
 let START_HOUR = 6, END_HOUR = 20;   // visible window, overridden by settings
 let HOURPX = 46;                     // zoom level (hour-row height), from settings
 const ZOOM_MIN = 26, ZOOM_MAX = 120;
@@ -635,6 +655,7 @@ async function load(){
       fetch("/api/calendar/events?days=120&back=45").then(r=>r.json()).catch(()=>({events:[]}))
     ]);
     cache.dash=dash; cache.events=cal.events||[];
+    people = dash.people || [];
     render();
     renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
   }catch(e){console.error(e);}
@@ -667,6 +688,38 @@ $("#settings-overlay").onclick=closeSettings;
 const accBox=$("#sd-accent");
 ACCENTS.forEach(c=>{ const s=document.createElement("div"); s.className="sw"; s.style.background=c;
   s.dataset.c=c; s.onclick=()=>{ FH.save({accent:c}); syncSettingsUI(); }; accBox.appendChild(s); });
+
+/* ---- people management (settings) ---- */
+let npColor = ACCENTS[1];
+const npBox=$("#np-colors");
+ACCENTS.forEach((c,i)=>{ const s=document.createElement("div"); s.className="sw"+(i===1?" sel":""); s.style.background=c;
+  s.dataset.c=c; s.onclick=()=>{ npColor=c; npBox.querySelectorAll(".sw").forEach(x=>x.classList.toggle("sel",x.dataset.c===c)); };
+  npBox.appendChild(s); });
+
+async function refreshPeople(){
+  try{ people = await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
+  renderPeopleList();
+}
+function renderPeopleList(){
+  const box=$("#sd-people"); if(!box) return;
+  if(!people.length){ box.innerHTML='<div class="empty">No people yet</div>'; return; }
+  box.innerHTML="";
+  people.forEach(p=>{
+    const row=document.createElement("div"); row.className="sd-people-row";
+    row.innerHTML=`<span class="pdot" style="background:${p.color||'#888'}"></span><span class="pname">${esc(p.name)}</span><button class="pdel" title="Remove">&times;</button>`;
+    row.querySelector(".pdel").onclick=async()=>{
+      await fetch(`/api/categories/people/${p.id}`,{method:"DELETE"}).catch(()=>{});
+      refreshPeople();
+    };
+    box.appendChild(row);
+  });
+}
+$("#np-add").onclick=async()=>{
+  const name=$("#np-name").value.trim(); if(!name) return;
+  await fetch("/api/categories/people",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name, color:npColor})}).catch(()=>{});
+  $("#np-name").value=""; refreshPeople();
+};
 
 // segmented controls (theme/font/density)
 document.querySelectorAll(".sd-seg").forEach(seg=>{
@@ -704,6 +757,7 @@ function syncSettingsUI(){
     seg.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.val===s[key]));
   });
   document.querySelectorAll("#sd-accent .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===s.accent));
+  renderPeopleList();
   document.querySelectorAll("#sd-panels input").forEach(cb=>cb.checked=!!s.panels[cb.dataset.panel]);
   document.querySelectorAll("#sd-holidays input").forEach(cb=>cb.checked=!!s.holidays[cb.dataset.hol]);
   const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
@@ -756,6 +810,16 @@ let chosenEvColor = null;
   });
 })();
 function syncEvColors(){ document.querySelectorAll("#ev-colors .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===chosenEvColor)); }
+function fillPersonOptions(sel){
+  $("#ev-person").innerHTML = `<option value="">Anyone</option>`+
+    people.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  $("#ev-person").value = sel!=null ? String(sel) : "";
+}
+// picking a person colors the event with their color (Google has no person field)
+$("#ev-person").onchange=()=>{
+  const p=people.find(x=>String(x.id)===$("#ev-person").value);
+  if(p && p.color){ chosenEvColor=p.color; syncEvColors(); }
+};
 
 // month skip buttons (built once)
 (function(){ const row=$("#ev-month-row");
@@ -816,6 +880,7 @@ function openCreate(prefDate, prefTime){
   $("#ev-time").value=prefTime||"09:00";
   $("#ev-dur").value="60";
   chosenEvColor=null; syncEvColors(); $("#ev-color-row").style.display="flex";
+  fillPersonOptions(null); $("#ev-person-row").style.display="flex";
   $("#ev-recur-box").style.display=""; parseRecToUI(null);
   updateAllDayUI();
   $("#ev-del").style.display="none"; $("#ev-save").style.display="";
@@ -841,6 +906,7 @@ function openEditor(ev){
   $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=!editable;
   chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
   $("#ev-color-row").style.display = editable ? "flex" : "none";
+  fillPersonOptions(ev.person_id); $("#ev-person-row").style.display = editable ? "flex" : "none";
   if(modalMode==="edit-local"){ $("#ev-recur-box").style.display=""; parseRecToUI(ev.recurrence); }
   else { $("#ev-recur-box").style.display="none"; }
   updateAllDayUI();
@@ -865,16 +931,17 @@ function eventTimes(){
 $("#ev-save").onclick=async()=>{
   const title=$("#ev-name").value.trim(); if(!title) return;
   const t=eventTimes();
+  const personId = $("#ev-person").value ? parseInt($("#ev-person").value) : null;
   try{
     if(modalMode==="create"){
       // target "auto": goes to Google (with RRULE + color) if connected, else local
       await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day,
-          recurrence:buildRecFromUI(), color:chosenEvColor, target:"auto"})});
+          recurrence:buildRecFromUI(), color:chosenEvColor, person_id:personId, target:"auto"})});
     } else if(modalMode==="edit-local"){
       await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, recurrence:buildRecFromUI(),
-          person_id:editing.person_id, category_id:editing.category_id, color:chosenEvColor})});
+          person_id:personId, category_id:editing.category_id, color:chosenEvColor})});
     } else if(editing){
       const target = modalMode==="edit-icloud" ? "icloud" : "google";
       await fetch("/api/calendar/events",{method:"PUT",headers:{"Content-Type":"application/json"},

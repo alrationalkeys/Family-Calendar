@@ -49,7 +49,12 @@
   .main{background:var(--panel); border-radius:var(--r); overflow:hidden; display:flex; flex-direction:column}
   .side{display:flex; flex-direction:column; gap:0; overflow:hidden}
   .card{background:var(--panel); border-radius:var(--r); padding:15px 18px; display:flex; flex-direction:column; min-height:0; overflow:hidden}
-  .card h2{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:10px; font-weight:600; display:flex; justify-content:space-between}
+  .card h2{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:10px; font-weight:600; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none}
+  .card h2 .caret{font-size:9px; letter-spacing:0; transition:transform .2s}
+  .card.collapsed{flex:0 0 auto !important; min-height:0}
+  .card.collapsed h2{margin-bottom:0}
+  .card.collapsed .body{display:none}
+  .card.collapsed h2 .caret{transform:rotate(-90deg)}
   .card .body{overflow-y:auto}
   .list-row{display:flex; align-items:center; gap:11px; padding:7px 0; border-top:1px solid var(--line); cursor:pointer}
   .list-row:first-child{border-top:0}
@@ -91,6 +96,10 @@
   .mcell.today{outline:2px solid var(--now)}
   .mcell .num{font-size:14px; font-weight:600}
   .mdot{height:5px; border-radius:3px; background:var(--accent,#4f86c6); flex:none}
+  .mev{font-size:11px; font-weight:600; line-height:1.2; padding:1px 5px; border-radius:4px; flex:none; cursor:pointer;
+    background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6);
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+  .mev .mt{color:var(--ink-dim); font-weight:500; margin-right:3px}
   .mmore{font-size:10px; color:var(--ink-dim)}
 
   /* calendar nav toolbar */
@@ -122,13 +131,14 @@
   .tg-allday{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto}
   .tg-allday .lbl{font-size:9px; color:var(--ink-dim); padding:5px 4px 0; text-transform:uppercase; text-align:right; letter-spacing:.04em}
   .tg-allday .adcol{border-left:1px solid var(--line); padding:3px; display:flex; flex-direction:column; gap:3px; min-height:24px}
-  .adev{font-size:11px; font-weight:600; background:var(--panel2); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+  .adev{font-size:11px; font-weight:600; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
   .tg-body{flex:1; overflow-y:auto; position:relative; min-height:0}
   .tg-cols{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); position:relative}
   .tg-gut .gh{height:var(--hpx,46px); font-size:11px; color:var(--ink-dim); text-align:right; padding-right:7px; transform:translateY(-7px)}
   .tg-day{position:relative; border-left:1px solid var(--line);
     background-image:repeating-linear-gradient(var(--line) 0 1px, transparent 1px var(--hpx,46px))}
-  .tg-ev{position:absolute; left:3px; right:3px; background:var(--panel2); border-left:3px solid var(--accent,#4f86c6);
+  .tg-ev{position:absolute; left:3px; right:3px; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel));
+    border-left:3px solid var(--accent,#4f86c6);
     border-radius:6px; padding:3px 7px; font-size:11px; font-weight:600; line-height:1.18; overflow:hidden; cursor:pointer}
   .tg-ev .tm{display:block; font-size:9px; color:var(--ink-dim); font-weight:500}
   .tg-now{position:absolute; height:2px; background:var(--now); box-shadow:0 0 8px var(--now); z-index:3; pointer-events:none}
@@ -215,11 +225,11 @@
     <div class="calbody" id="calbody"></div>
   </section>
   <aside class="side">
-    <div class="card" id="panel-todos"><h2>To-Do</h2><div class="body" id="todos"></div></div>
+    <div class="card" id="panel-todos"><h2 data-panel="todos"><span>To-Do</span><span class="caret">&#9662;</span></h2><div class="body" id="todos"></div></div>
     <div class="resizer" data-above="0" data-below="1"></div>
-    <div class="card" id="panel-groceries"><h2>Groceries</h2><div class="body" id="groceries"></div></div>
+    <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span>Groceries</span><span class="caret">&#9662;</span></h2><div class="body" id="groceries"></div></div>
     <div class="resizer" data-above="1" data-below="2"></div>
-    <div class="card" id="panel-meals"><h2>Today's Meals</h2><div class="body" id="meals"></div></div>
+    <div class="card" id="panel-meals"><h2 data-panel="meals"><span>Today's Meals</span><span class="caret">&#9662;</span></h2><div class="body" id="meals"></div></div>
   </aside>
 </div>
 
@@ -437,9 +447,16 @@ function renderMonth(){
     const cell=document.createElement("div");
     cell.className="mcell"+(d.getMonth()!==ref.getMonth()?" dim":"")+(sameDay(d,new Date())?" today":"");
     cell.innerHTML=`<div class="num">${d.getDate()}</div>`;
-    const dayEvs=cache.events.filter(e=>sameDay(evStart(e),d));
-    dayEvs.slice(0,3).forEach(ev=>{const dot=document.createElement("div");dot.className="mdot";dot.style.setProperty("--accent",evColor(ev));cell.appendChild(dot);});
-    if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3}`;cell.appendChild(m);}
+    const dayEvs=cache.events.filter(e=>sameDay(evStart(e),d))
+      .sort((a,b)=>(a.all_day?0:1)-(b.all_day?0:1) || (a.start||"").localeCompare(b.start||""));
+    dayEvs.slice(0,3).forEach(ev=>{
+      const chip=document.createElement("div"); chip.className="mev"; chip.style.setProperty("--accent",evColor(ev));
+      const sdt=evStart(ev); const tm=(!ev.all_day && sdt && !isNaN(sdt)) ? sdt.toLocaleTimeString([],{hour:"numeric"}) : "";
+      chip.innerHTML=`${tm?`<span class="mt">${tm}</span>`:""}${esc(ev.title)}`;
+      chip.onclick=(e)=>{ e.stopPropagation(); openEditor(ev); };
+      cell.appendChild(chip);
+    });
+    if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3} more`;cell.appendChild(m);}
     cell.onclick=()=>{ cursor=new Date(d); view="day"; setActive("day"); render(); };
     grid.appendChild(cell);
   }
@@ -654,7 +671,22 @@ function applyPanels(){
   document.querySelectorAll(".resizer").forEach(rz=>{
     rz.style.display=(vis[+rz.dataset.above] && vis[+rz.dataset.below])?"":"none";
   });
+  // restore collapsed state
+  const col=FH.get().collapsed || {};
+  $("#panel-todos").classList.toggle("collapsed", !!col.todos);
+  $("#panel-groceries").classList.toggle("collapsed", !!col.groceries);
+  $("#panel-meals").classList.toggle("collapsed", !!col.meals);
 }
+// collapse/expand a panel when its header is tapped
+document.querySelectorAll(".card h2[data-panel]").forEach(h=>{
+  h.onclick=()=>{
+    const card=h.closest(".card"); const key=h.dataset.panel;
+    const now=!card.classList.contains("collapsed");
+    card.classList.toggle("collapsed", now);
+    FH.save({collapsed:{...(FH.get().collapsed||{}), [key]:now}});
+    resetSleep();
+  };
+});
 
 /* ---- boot ---- */
 /* ---- event editor ---- */

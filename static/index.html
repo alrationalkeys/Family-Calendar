@@ -135,6 +135,7 @@
   .tg-head .dcol .dn{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.06em}
   .tg-head .dcol .dd{font-size:18px; font-weight:700; margin-top:1px}
   .tg-head .dcol.today .dd{color:var(--now)}
+  .tg-head .dcol .dwx{font-size:11px; color:var(--ink-dim); margin-top:2px; white-space:nowrap}
   .tg-allday{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto; padding-right:var(--sbw,0px)}
   .tg-allday .lbl{font-size:9px; color:var(--ink-dim); padding:5px 4px 0; text-transform:uppercase; text-align:right; letter-spacing:.04em}
   .tg-allday .adcol{border-left:1px solid var(--line); padding:3px; display:flex; flex-direction:column; gap:3px; min-height:24px}
@@ -391,6 +392,7 @@ let view = "week";
 let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
 let people = [];   // family members, from the dashboard feed
+let forecast = {}; // date 'YYYY-MM-DD' -> {high, low, icon, desc}
 let START_HOUR = 6, END_HOUR = 20;   // visible window, overridden by settings
 let HOURPX = 46;                     // zoom level (hour-row height), from settings
 const ZOOM_MIN = 26, ZOOM_MAX = 120;
@@ -445,9 +447,11 @@ function renderGrid(daysArr){
   const body=$("#calbody"); const cols=daysArr.length; const hrs=END_HOUR-START_HOUR;
   let head='<div class="cnr"></div>';
   daysArr.forEach(d=>{
+    const wx=forecast[dateStr(d)];
+    const wxhtml = wx ? `<div class="dwx">${wx.icon} ${wx.high}°/${wx.low}°</div>` : "";
     head+=`<div class="dcol${sameDay(d,new Date())?' today':''}" data-iso="${d.toISOString()}">`
         +`<div class="dn">${d.toLocaleDateString([],{weekday:'short'})}</div>`
-        +`<div class="dd">${d.getDate()}</div></div>`;
+        +`<div class="dd">${d.getDate()}</div>${wxhtml}</div>`;
   });
   let allday='<div class="lbl">all-day</div>';
   daysArr.forEach(d=>{
@@ -1064,6 +1068,13 @@ async function loadWeather(){
       + `<span class="hl">H ${w.high}°<br>L ${w.low}°</span>`;
   }catch(e){ $("#wx").innerHTML = ""; }
 }
+async function loadForecast(){
+  try{
+    const r = await fetch("/api/weather/forecast?days=10").then(r=>r.json());
+    forecast = r.days || {};
+    if($(".tg")) render();   // refresh headers with weather
+  }catch(e){}
+}
 
 /* measure the OS scrollbar width so the calendar header/all-day row reserve the
    same gutter as the scrolling body, keeping day columns aligned */
@@ -1080,9 +1091,10 @@ async function loadWeather(){
   await FH.load();
   applyPanels();
   Seasonal.start(FH.get().effects !== false);
-  tick(); load(); loadPhotos(); loadWeather(); checkNotifications(); resetSleep();
+  tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
   setInterval(tick,1000); setInterval(load,60000); setInterval(loadPhotos,300000);
   setInterval(loadWeather, 600000);   // weather every 10 min
+  setInterval(loadForecast, 1800000); // forecast every 30 min
   setInterval(checkNotifications, 30000);  // reminders every 30s
 })();
 </script>

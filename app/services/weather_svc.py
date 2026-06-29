@@ -42,3 +42,28 @@ def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+def get_forecast(lat=DEFAULT_LAT, lon=DEFAULT_LON, days=7):
+    """Multi-day forecast keyed by date -> {high, low, desc, icon}.
+    Used to show per-day weather on the week/day calendar views."""
+    days = max(1, min(days, 16))
+    url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+           "&daily=temperature_2m_max,temperature_2m_min,weather_code"
+           f"&temperature_unit=fahrenheit&timezone=auto&forecast_days={days}")
+    try:
+        with urllib.request.urlopen(url, timeout=6) as r:
+            data = json.loads(r.read())
+        daily = data["daily"]
+        out = {}
+        for i, day in enumerate(daily["time"]):
+            code = daily["weather_code"][i]
+            desc, icon = CODE.get(code, ("", "\U0001F321️"))
+            out[day] = {
+                "high": round(daily["temperature_2m_max"][i]),
+                "low": round(daily["temperature_2m_min"][i]),
+                "desc": desc, "icon": icon,
+            }
+        return {"days": out}
+    except Exception as e:
+        return {"error": str(e), "days": {}}

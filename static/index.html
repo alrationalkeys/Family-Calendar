@@ -793,7 +793,7 @@ function renderFx(){
     row.querySelector("input").onchange=(e)=>{
       FH.save({effectPrefs:{...(FH.get().effectPrefs||{}), [f.k]:e.target.checked}}); applySeasonal();
     };
-    row.querySelector(".prev").onclick=()=>{ Seasonal.preview(f.k); resetSleep(); };
+    row.querySelector(".prev").onclick=()=>{ closeSettings(); Seasonal.preview(f.k); resetSleep(); };
     box.appendChild(row);
   });
 }

@@ -49,7 +49,7 @@ async def no_cache_html(request, call_next):
     the next refresh without a hard-reload. Static JS/CSS can still be cached."""
     resp = await call_next(request)
     path = request.url.path
-    if path == "/" or path.endswith(".html"):
+    if path == "/" or path.endswith((".html", ".js", ".css")):
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 

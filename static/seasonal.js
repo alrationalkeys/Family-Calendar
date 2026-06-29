@@ -9,6 +9,9 @@
 const Seasonal = (() => {
   let canvas, ctx, raf, particles = [], mode = "none", running = false;
   let fireworkTimer = null;
+  let intense = false;   // preview / "make it obvious" mode: more + bigger particles
+  const N = (base) => Math.round(base * (intense ? 2.4 : 1));
+  const BIG = (r) => intense ? r * 1.8 : r;
 
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -42,8 +45,8 @@ const Seasonal = (() => {
 
   // ---- particle factories ----
   function snowflake() {
-    return { x: Math.random()*canvas.width, y: -10, r: 1+Math.random()*3,
-      sx: -0.5+Math.random(), sy: 0.5+Math.random()*1.5, o: 0.4+Math.random()*0.5 };
+    return { x: Math.random()*canvas.width, y: -10, r: BIG(2+Math.random()*4),
+      sx: -0.5+Math.random(), sy: 0.8+Math.random()*2, o: 0.6+Math.random()*0.4 };
   }
   function petal() {
     const p = snowflake(); p.color = ["#f7c9d9","#ffd9b3","#e7c6ff"][Math.floor(Math.random()*3)];
@@ -51,17 +54,17 @@ const Seasonal = (() => {
   }
   function leaf() {
     const p = snowflake(); p.color = ["#d2691e","#cd853f","#b8860b","#a0522d"][Math.floor(Math.random()*4)];
-    p.r = 3+Math.random()*4; p.sy *= 0.8; return p;
+    p.r = BIG(4+Math.random()*5); p.sy *= 0.8; return p;
   }
   function bat() {
-    return { x: Math.random()*canvas.width, y: Math.random()*canvas.height*0.5,
-      sx: 1+Math.random()*1.5, sy: -0.3+Math.random()*0.6, flap: Math.random()*6, r: 8+Math.random()*6 };
+    return { x: Math.random()*canvas.width, y: Math.random()*canvas.height*0.6,
+      sx: 1+Math.random()*1.5, sy: -0.3+Math.random()*0.6, flap: Math.random()*6, r: BIG(10+Math.random()*8) };
   }
   function burst() {
     const cx = canvas.width*(0.2+Math.random()*0.6), cy = canvas.height*(0.15+Math.random()*0.35);
-    const hue = Math.floor(Math.random()*360), n = 40+Math.floor(Math.random()*30);
+    const hue = Math.floor(Math.random()*360), n = N(50)+Math.floor(Math.random()*30);
     const out = [];
-    for (let i=0;i<n;i++){ const a=(Math.PI*2*i)/n, sp=1+Math.random()*4;
+    for (let i=0;i<n;i++){ const a=(Math.PI*2*i)/n, sp=(intense?2:1)+Math.random()*(intense?6:4);
       out.push({ x:cx, y:cy, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, hue }); }
     return out;
   }
@@ -69,15 +72,15 @@ const Seasonal = (() => {
   function seed() {
     particles = [];
     clearInterval(fireworkTimer);   // always reset so switching modes is clean
-    if (mode === "snow") for (let i=0;i<90;i++) particles.push(snowflake());
-    else if (mode === "petals") for (let i=0;i<50;i++) particles.push(petal());
+    if (mode === "snow") for (let i=0;i<N(110);i++) particles.push(snowflake());
+    else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
     else if (mode === "halloween") {
-      for (let i=0;i<40;i++) particles.push(leaf());
-      for (let i=0;i<5;i++) particles.push(bat());
+      for (let i=0;i<N(45);i++) particles.push(leaf());
+      for (let i=0;i<N(6);i++) particles.push(bat());
     }
     else if (mode === "fireworks") {
-      clearInterval(fireworkTimer);
-      fireworkTimer = setInterval(()=>{ if (running) particles.push(...burst()); }, 900);
+      particles.push(...burst());   // one immediately so it's instant
+      fireworkTimer = setInterval(()=>{ if (running) particles.push(...burst()); }, intense ? 450 : 900);
     }
   }
 
@@ -88,10 +91,10 @@ const Seasonal = (() => {
     if (mode === "fireworks") {
       particles = particles.filter(p => p.life > 0);
       particles.forEach(p => {
-        p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.life -= 0.012;
+        p.x += p.vx; p.y += p.vy; p.vy += 0.04; p.life -= 0.010;
         ctx.globalAlpha = Math.max(p.life,0);
-        ctx.fillStyle = `hsl(${p.hue},90%,60%)`;
-        ctx.beginPath(); ctx.arc(p.x,p.y,2,0,7); ctx.fill();
+        ctx.fillStyle = `hsl(${p.hue},95%,62%)`;
+        ctx.beginPath(); ctx.arc(p.x,p.y, intense?3.5:2.2, 0,7); ctx.fill();
       });
       ctx.globalAlpha = 1;
     } else if (mode === "halloween") {
@@ -148,6 +151,7 @@ const Seasonal = (() => {
 
   function start(enabled, prefs) {
     lastEnabled = enabled; lastPrefs = prefs || {};
+    intense = false;
     clearTimeout(previewTimer);
     setup();
     mode = detect();
@@ -162,6 +166,7 @@ const Seasonal = (() => {
   function preview(which, seconds) {
     clearTimeout(previewTimer);
     setup();
+    intense = true;            // over-exaggerate so it's unmistakable
     mode = which;
     santaHat(which === "snow");
     running = true; seed();

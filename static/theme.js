@@ -11,6 +11,7 @@ const FH = (() => {
     panels: { todos: true, groceries: true, meals: true },
     holidays: { us_federal: false, christian: false, jewish: false, observances: false },
     effects: true,
+    effectPrefs: { snow: true, fireworks: true, halloween: true, petals: true },
     dayStart: 6,             // first hour in the day/week time-grid (0–23)
     dayEnd: 20,              // last hour shown (1–24)
     hourPx: 46,              // zoom: pixel height of one hour row (26–120)
@@ -29,7 +30,8 @@ const FH = (() => {
 
   function apply(s) {
     settings = { ...DEFAULTS, ...s, panels: { ...DEFAULTS.panels, ...(s.panels||{}) },
-                 holidays: { ...DEFAULTS.holidays, ...(s.holidays||{}) } };
+                 holidays: { ...DEFAULTS.holidays, ...(s.holidays||{}) },
+                 effectPrefs: { ...DEFAULTS.effectPrefs, ...(s.effectPrefs||{}) } };
     const r = document.documentElement;
     r.setAttribute("data-theme", settings.theme);
     r.style.setProperty("--now", settings.accent);

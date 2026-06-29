@@ -68,6 +68,7 @@ const Seasonal = (() => {
 
   function seed() {
     particles = [];
+    clearInterval(fireworkTimer);   // always reset so switching modes is clean
     if (mode === "snow") for (let i=0;i<90;i++) particles.push(snowflake());
     else if (mode === "petals") for (let i=0;i<50;i++) particles.push(petal());
     else if (mode === "halloween") {
@@ -143,18 +144,34 @@ const Seasonal = (() => {
     date.appendChild(hat);
   }
 
-  function start(enabled) {
+  let lastEnabled = true, lastPrefs = {}, previewTimer = null;
+
+  function start(enabled, prefs) {
+    lastEnabled = enabled; lastPrefs = prefs || {};
+    clearTimeout(previewTimer);
     setup();
     mode = detect();
-    santaHat(enabled && new Date().getMonth()===11);
+    if (lastPrefs[mode] === false) mode = "none";   // this effect turned off
+    santaHat(enabled && new Date().getMonth()===11 && lastPrefs.snow !== false);
     if (!enabled || reduced || mode === "none") { stop(); ctx && ctx.clearRect(0,0,canvas.width,canvas.height); return; }
     running = true; seed();
     cancelAnimationFrame(raf); step();
+  }
+  // Force a specific effect on screen for a few seconds, regardless of date —
+  // used by the settings "Preview" buttons so you can see each one in action.
+  function preview(which, seconds) {
+    clearTimeout(previewTimer);
+    setup();
+    mode = which;
+    santaHat(which === "snow");
+    running = true; seed();
+    cancelAnimationFrame(raf); step();
+    previewTimer = setTimeout(() => start(lastEnabled, lastPrefs), (seconds || 12) * 1000);
   }
   function stop() {
     running = false; cancelAnimationFrame(raf); clearInterval(fireworkTimer);
     if (ctx) ctx.clearRect(0,0,canvas.width,canvas.height);
   }
 
-  return { start, stop, detect };
+  return { start, stop, detect, preview };
 })();

@@ -9,6 +9,7 @@
     --r:14px;
     --font:"Inter","Segoe UI",system-ui,sans-serif;
     --density:1;
+    --np-accent:#1db954;   /* Spotify green for the Now Playing widget */
   }
   html[data-theme="dark"]{
     --bg:#14171c; --panel:#1b1f26; --panel2:#222834; --line:#2b313b;
@@ -72,6 +73,26 @@
   .qty{font-size:13px; color:var(--ink-dim)}
   .dot{width:9px; height:9px; border-radius:50%; flex:none}
   .empty{color:var(--ink-dim); font-size:14px; font-style:italic; padding:4px 0}
+
+  /* Now Playing — Echo Show 15 style music widget */
+  .np{background:linear-gradient(135deg, color-mix(in srgb, var(--np-accent) 13%, var(--panel)), var(--panel)); flex:none}
+  .np h2 .np-src{font-size:10px; letter-spacing:.14em; color:var(--np-accent); font-weight:700; text-transform:uppercase}
+  .np-body{display:flex; flex-direction:column; gap:11px}
+  .np-top{display:flex; align-items:center; gap:13px; min-width:0}
+  .np-art{width:60px; height:60px; border-radius:10px; background:var(--panel2) center/cover no-repeat; flex:none;
+    box-shadow:0 4px 14px rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; color:var(--ink-dim); font-size:24px}
+  .np-meta{min-width:0; flex:1}
+  .np-track{font-size:17px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .np-artist{font-size:13px; color:var(--ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+  .np-bar{height:4px; border-radius:3px; background:var(--panel2); overflow:hidden}
+  .np-fill{height:100%; width:0; background:var(--np-accent); border-radius:3px; transition:width .3s linear}
+  .np-times{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-dim); margin-top:-4px; font-feature-settings:"tnum" 1}
+  .np-controls{display:flex; align-items:center; justify-content:center; gap:22px; padding-top:2px}
+  .np-controls button{background:none; border:0; color:var(--ink); font-size:18px; cursor:pointer; line-height:1; padding:4px; opacity:.85}
+  .np-controls button:active{transform:scale(.9)}
+  .np-controls .np-main{width:46px; height:46px; border-radius:50%; background:var(--np-accent); color:#062b16;
+    display:flex; align-items:center; justify-content:center; opacity:1;
+    box-shadow:0 4px 14px color-mix(in srgb, var(--np-accent) 45%, transparent)}
 
   .rail{flex:1; overflow-y:auto; padding:6px 0; position:relative}
   .hour{display:grid; grid-template-columns:62px 1fr; min-height:52px; border-top:1px solid var(--line)}
@@ -265,6 +286,25 @@
     <div class="calbody" id="calbody"></div>
   </section>
   <aside class="side">
+    <div class="card np" id="panel-np" style="display:none">
+      <h2><span>Now Playing</span><span class="np-src">Spotify</span></h2>
+      <div class="np-body">
+        <div class="np-top">
+          <div class="np-art noart" id="np-art">&#9835;</div>
+          <div class="np-meta">
+            <div class="np-track" id="np-track"></div>
+            <div class="np-artist" id="np-artist"></div>
+          </div>
+        </div>
+        <div class="np-bar"><div class="np-fill" id="np-fill"></div></div>
+        <div class="np-times"><span id="np-cur">0:00</span><span id="np-dur">0:00</span></div>
+        <div class="np-controls">
+          <button id="np-prev" title="Previous">&#9198;</button>
+          <button id="np-play" class="np-main" title="Play/Pause">&#9654;</button>
+          <button id="np-next" title="Next">&#9197;</button>
+        </div>
+      </div>
+    </div>
     <div class="card" id="panel-todos"><h2 data-panel="todos"><span>To-Do</span><span class="h2r"><button class="addbtn" data-add="todo" title="Add to-do">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="todos"></div></div>
     <div class="resizer" data-above="0" data-below="1"></div>
     <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span>Groceries</span><span class="h2r"><button class="addbtn" data-add="grocery" title="Add item">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="groceries"></div></div>
@@ -1100,6 +1140,49 @@ async function loadForecast(){
   }catch(e){}
 }
 
+/* ---- now playing (Spotify) ---- */
+let np = {is_playing:false, progress_ms:0, duration_ms:0, at:0};
+async function loadMusic(){
+  const card = $("#panel-np");
+  try{
+    const m = await fetch("/api/music/now").then(r=>r.json());
+    // Keep the wall clean: only show the widget when something is actually playing.
+    if(!m.track){ card.style.display="none"; return; }
+    card.style.display="";
+    $("#np-track").textContent  = m.track  || "";
+    $("#np-artist").textContent = m.artist || "";
+    const art = $("#np-art");
+    if(m.art_url){ art.style.backgroundImage=`url("${m.art_url}")`; art.classList.remove("noart"); art.textContent=""; }
+    else { art.style.backgroundImage=""; art.classList.add("noart"); art.innerHTML="&#9835;"; }
+    np = {is_playing:!!m.is_playing, progress_ms:m.progress_ms||0, duration_ms:m.duration_ms||0, at:Date.now()};
+    $("#np-play").innerHTML = m.is_playing ? "&#10074;&#10074;" : "&#9654;";
+    paintProgress();
+  }catch(e){ card.style.display="none"; }
+}
+function fmtMs(ms){ const s=Math.max(0,Math.floor(ms/1000)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function paintProgress(){
+  if($("#panel-np").style.display==="none") return;
+  let prog = np.progress_ms + (np.is_playing ? Date.now()-np.at : 0);
+  if(np.duration_ms) prog = Math.min(prog, np.duration_ms);
+  const pct = np.duration_ms ? (prog/np.duration_ms*100) : 0;
+  $("#np-fill").style.width = pct+"%";
+  $("#np-cur").textContent = fmtMs(prog);
+  $("#np-dur").textContent = fmtMs(np.duration_ms);
+}
+async function musicCmd(path){
+  try{ await fetch("/api/music/"+path,{method:"POST"}); }catch(e){}
+  setTimeout(loadMusic, 350);   // let Spotify settle, then re-sync
+}
+$("#np-prev").onclick=()=>{ musicCmd("previous"); resetSleep(); };
+$("#np-next").onclick=()=>{ musicCmd("next"); resetSleep(); };
+$("#np-play").onclick=()=>{
+  const cur = np.progress_ms + (np.is_playing ? Date.now()-np.at : 0);   // freeze at displayed spot
+  const willPlay = !np.is_playing;
+  np = {...np, is_playing:willPlay, progress_ms:cur, at:Date.now()};
+  $("#np-play").innerHTML = willPlay ? "&#10074;&#10074;" : "&#9654;";   // optimistic
+  musicCmd(willPlay ? "play" : "pause"); resetSleep();
+};
+
 /* measure the OS scrollbar width so the calendar header/all-day row reserve the
    same gutter as the scrolling body, keeping day columns aligned */
 (function(){
@@ -1115,10 +1198,12 @@ async function loadForecast(){
   await FH.load();
   applyPanels();
   applySeasonal();
-  tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
+  tick(); load(); loadPhotos(); loadWeather(); loadForecast(); loadMusic(); checkNotifications(); resetSleep();
   setInterval(tick,1000); setInterval(load,60000); setInterval(loadPhotos,300000);
   setInterval(loadWeather, 600000);   // weather every 10 min
   setInterval(loadForecast, 1800000); // forecast every 30 min
+  setInterval(loadMusic, 5000);       // now playing every 5s
+  setInterval(paintProgress, 1000);   // smooth progress between polls
   setInterval(checkNotifications, 30000);  // reminders every 30s
 })();
 </script>

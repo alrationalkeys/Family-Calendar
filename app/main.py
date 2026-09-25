@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards)
+                      events, notifications, rewards, music)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -66,6 +66,7 @@ app.include_router(weather.router, prefix="/api/weather", tags=["weather"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
+app.include_router(music.router, prefix="/api/music", tags=["music"])
 app.include_router(photos.router, prefix="/api/photos", tags=["photos"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 

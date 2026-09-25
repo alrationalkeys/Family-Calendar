@@ -64,10 +64,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - DONE + tested: all views, lists, meals, color coding, sleep slideshow, phone app, quick-add saves,
   theme/light-dark, customization, holiday presets, seasonal effects, recurrence (chores/todos),
   edit/delete (all item types + calendar events), calendar source management, vision quick-add,
-  voice input, weather, optional PIN auth, DB backup, Now Playing music widget (Spotify).
+  voice input, weather, optional PIN auth, DB backup.
 - NEEDS CREDS to light up: Google (`credentials.json`/`token.json`), iCloud (app-specific password
-  via /api/sources/caldav), AI text/vision quick-add (`ANTHROPIC_API_KEY`), Now Playing music widget
-  (`SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`). Weather works with no key.
+  via /api/sources/caldav), AI text/vision quick-add (`ANTHROPIC_API_KEY`). Weather works with no key.
 - Calendar events render once a source is connected (see README).
 
 ## Newer endpoints
@@ -78,9 +77,6 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/rewards/` — chore-star economy: balances, define rewards, grant, redeem
 - `/api/ai/vision` — photo (base64) -> extracted events
 - `/api/weather` — Open-Meteo, no key needed, defaults to Socastee SC
-- `/api/music/now` + `/play` `/pause` `/next` `/previous` — Spotify "Now Playing" widget
-  (Echo Show 15 style). Reads current track; controls need Spotify Premium. Degrades to an
-  empty state (widget auto-hides) when the three SPOTIFY_* env vars are absent.
 - recurrence: chores/todos/events with `recurrence` roll forward / expand
 
 ## Reminders & notifications

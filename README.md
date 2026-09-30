@@ -18,9 +18,12 @@ Runs on a Raspberry Pi, controlled from any phone on your network.
 | Raspberry Pi 5 (4GB) | $75 | 4GB is the floor for kiosk Chromium. Or reuse a spare PC/monitor. |
 | 27W USB-C PSU | $12 | Pi 5 needs 5V/5A |
 | microSD 32GB+ or NVMe | $10–25 | |
-| 15.6" IPS HDMI monitor | $70 | Non-touch. Skip touch ($90–130) since you drive it from your phone. |
+| 15.6" IPS HDMI monitor | $70 | Non-touch is fine — you can drive it from your phone. |
+| 15.6" touchscreen (if you want tap-on-wall) | $120–160 | Optional upgrade; the UI has full touch (tap/swipe/pinch). See `hardware/`. |
 | Filament | ~$5 | Your printer; bezel + wall cleat + stand |
-| **Total** | **~$175** | vs $160 Skylight + $39/yr forever |
+| **Total** | **~$175** (non-touch) / **~$225** (touch) | vs $160 Skylight + $39/yr forever |
+
+Full parts list, touchscreen picks, and parametric 3D-print files are in [`hardware/`](hardware/).
 
 > If you reuse an existing monitor and a Pi Zero 2 W (~$15, unaffected by the RAM
 > price spike), you can land under $100.

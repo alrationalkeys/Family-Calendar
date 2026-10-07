@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards)
+                      events, notifications, rewards, display)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -29,7 +29,23 @@ from fastapi import Depends
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    # background loop: enforce the display on/off schedule even with no client polling
+    import asyncio
+    from .services import display_svc
+
+    async def _display_loop():
+        while True:
+            try:
+                display_svc.tick()
+            except Exception:
+                pass
+            await asyncio.sleep(20)
+
+    task = asyncio.create_task(_display_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
 
 
 app = FastAPI(title="FamilyHub", version="0.1.0", lifespan=lifespan,
@@ -66,6 +82,7 @@ app.include_router(weather.router, prefix="/api/weather", tags=["weather"])
 app.include_router(events.router, prefix="/api/events", tags=["events"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
+app.include_router(display.router, prefix="/api/display", tags=["display"])
 app.include_router(photos.router, prefix="/api/photos", tags=["photos"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 

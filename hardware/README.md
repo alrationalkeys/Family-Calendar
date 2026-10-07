@@ -46,6 +46,11 @@ Customizer) to render each piece.
 | `cleat_frame` | 1 | French-cleat half that mounts to the bezel back. |
 | `stand_foot` | 2 | Optional easel feet for the countertop / Echo-Show look. |
 
+The bezel has **cooling vents** (top wall + side louvres) on by default — set `vents = false`
+to disable, or tune `vent_w` / `vent_len` / `vent_gap` / `vent_rows`. Heat rises out the top,
+so mount the frame with the vented edge up. (Idea borrowed from a wall build that left a heat
+void behind the screen — same goal, done in the frame itself.)
+
 ### Step 1 — measure your monitor
 Edit the **YOUR MONITOR** block at the top of the `.scad`:
 - `mon_w`, `mon_h`, `mon_t` — outer width, height, thickness (mm).

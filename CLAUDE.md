@@ -64,7 +64,8 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - DONE + tested: all views, lists, meals, color coding, sleep slideshow, phone app, quick-add saves,
   theme/light-dark, customization, holiday presets, seasonal effects, recurrence (chores/todos),
   edit/delete (all item types + calendar events), calendar source management, vision quick-add,
-  voice input, weather, optional PIN auth, DB backup.
+  voice input, weather, optional PIN auth, DB backup, day/night hero banner,
+  scheduled screen-off + wake webhook, live kids' scoreboard.
 - NEEDS CREDS to light up: Google (`credentials.json`/`token.json`), iCloud (app-specific password
   via /api/sources/caldav), AI text/vision quick-add (`ANTHROPIC_API_KEY`). Weather works with no key.
 - Calendar events render once a source is connected (see README).
@@ -76,7 +77,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/notifications/due` + `/digest` — reminders & morning summary (frontend polls)
 - `/api/rewards/` — chore-star economy: balances, define rewards, grant, redeem
 - `/api/ai/vision` — photo (base64) -> extracted events
-- `/api/weather` — Open-Meteo, no key needed, defaults to Socastee SC
+- `/api/weather` — Open-Meteo, no key needed, defaults to Socastee SC (now also returns sunrise/sunset)
+- `/api/chores/scoreboard` — per-person star balance + today's chore progress (live kids' leaderboard)
+- `/api/display/*` — scheduled screen-off: `state` (wall polls), `wake` (PIR/HA webhook), `sleep`,
+  `config` (GET/PUT the night window). On a Pi it cuts the backlight via `vcgencmd display_power`;
+  override with `FAMILYHUB_SCREEN_ON_CMD` / `FAMILYHUB_SCREEN_OFF_CMD` for Wayland/non-Pi.
 - recurrence: chores/todos/events with `recurrence` roll forward / expand
 
 ## Reminders & notifications

@@ -73,6 +73,46 @@
   .dot{width:9px; height:9px; border-radius:50%; flex:none}
   .empty{color:var(--ink-dim); font-size:14px; font-style:italic; padding:4px 0}
 
+  /* day/night hero banner behind the header */
+  header{position:relative; isolation:isolate}
+  header.has-hero{min-height:118px; border-radius:var(--r); overflow:hidden; padding:16px 20px}
+  .hero{position:absolute; inset:0; z-index:-1; background:#0b1020; display:none}
+  header.has-hero .hero{display:block}
+  .hero .layer{position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.5s}
+  .hero .grad{position:absolute; inset:0; transition:background 2s}
+  .hero .scrim{position:absolute; inset:0;
+    background:linear-gradient(90deg, rgba(0,0,0,.5), rgba(0,0,0,.12) 42%, rgba(0,0,0,.5))}
+  header.has-hero .date, header.has-hero .clock{color:#fff}
+  header.has-hero .date small{color:#dfe3ea}
+  header.has-hero .wx{color:#eef} header.has-hero .wx .t{color:#fff}
+  header.has-hero .gear{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.28); color:#fff}
+  header.has-hero .tabs{background:rgba(0,0,0,.32)} header.has-hero .tabs button{color:#dfe3ea}
+  header.has-hero .tabs button.active{background:rgba(255,255,255,.22); color:#fff}
+
+  /* scheduled screen-off (night blackout; taps wake it) */
+  #screenoff{position:fixed; inset:0; background:#000; z-index:60; opacity:0; pointer-events:none; transition:opacity 1s}
+  #screenoff.on{opacity:1; pointer-events:auto; cursor:none}
+
+  /* kids' scoreboard */
+  .sb .body{display:flex; flex-direction:column; gap:11px}
+  .sb-row{display:flex; align-items:center; gap:11px}
+  .sb-rank{font-size:15px; width:20px; text-align:center; flex:none}
+  .sb-av{width:30px; height:30px; border-radius:50%; flex:none; display:flex; align-items:center;
+    justify-content:center; color:#fff; font-weight:700; font-size:13px}
+  .sb-main{flex:1; min-width:0}
+  .sb-name{font-size:14px; font-weight:600; display:flex; justify-content:space-between; gap:8px}
+  .sb-stars{color:var(--now); font-weight:700; font-size:13px; white-space:nowrap}
+  .sb-bar{height:6px; border-radius:4px; background:var(--panel2); overflow:hidden; margin-top:5px}
+  .sb-fill{height:100%; border-radius:4px; transition:width .5s}
+  .sb-sub{font-size:11px; color:var(--ink-dim); margin-top:3px}
+
+  /* settings text input (banner URLs, times) */
+  .sd-text{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    color:var(--ink); font:inherit; font-size:14px; padding:8px 10px; margin-top:8px}
+  .sd-row{display:flex; gap:10px; align-items:center; margin-top:8px}
+  .sd-row input[type=time]{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    color:var(--ink); font:inherit; padding:7px 9px}
+
   .rail{flex:1; overflow-y:auto; padding:6px 0; position:relative}
   .hour{display:grid; grid-template-columns:62px 1fr; min-height:52px; border-top:1px solid var(--line)}
   .hour:first-child{border-top:0}
@@ -242,6 +282,12 @@
 <body>
 <div class="wrap">
   <header>
+    <div class="hero" id="hero" aria-hidden="true">
+      <div class="grad" id="hero-grad"></div>
+      <div class="layer" id="hero-day"></div>
+      <div class="layer" id="hero-night"></div>
+      <div class="scrim"></div>
+    </div>
     <div class="date" id="date">—<small id="dow">loading</small></div>
     <div class="right">
       <div class="tabs">
@@ -265,6 +311,7 @@
     <div class="calbody" id="calbody"></div>
   </section>
   <aside class="side">
+    <div class="card sb" id="panel-scoreboard" style="display:none"><h2 data-panel="scoreboard"><span>Scoreboard</span><span class="caret">&#9662;</span></h2><div class="body" id="scoreboard"></div></div>
     <div class="card" id="panel-todos"><h2 data-panel="todos"><span>To-Do</span><span class="h2r"><button class="addbtn" data-add="todo" title="Add to-do">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="todos"></div></div>
     <div class="resizer" data-above="0" data-below="1"></div>
     <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span>Groceries</span><span class="h2r"><button class="addbtn" data-add="grocery" title="Add item">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="groceries"></div></div>
@@ -319,9 +366,34 @@
 
   <div class="sd-group"><label>Show panels</label>
     <div class="sd-toggles" id="sd-panels">
+      <label><input type="checkbox" data-panel="scoreboard"> Scoreboard</label>
       <label><input type="checkbox" data-panel="todos"> To-Do</label>
       <label><input type="checkbox" data-panel="groceries"> Groceries</label>
       <label><input type="checkbox" data-panel="meals"> Meals</label>
+    </div>
+  </div>
+
+  <div class="sd-group"><label>Day/night banner</label>
+    <div class="sd-toggles">
+      <label><input type="checkbox" id="hero-enabled"> Show a house photo behind the header</label>
+    </div>
+    <input class="sd-text" id="hero-day-url" placeholder="Day image URL  (e.g. /photos/house-day.jpg)">
+    <input class="sd-text" id="hero-night-url" placeholder="Night image URL  (e.g. /photos/house-night.jpg)">
+  </div>
+
+  <div class="sd-group"><label>Night screen-off</label>
+    <div class="sd-toggles">
+      <label><input type="checkbox" id="disp-enabled"> Turn the screen off overnight</label>
+    </div>
+    <div class="sd-row">
+      <span style="color:var(--ink-dim); font-size:13px">Off from</span>
+      <input type="time" id="disp-start">
+      <span style="color:var(--ink-dim); font-size:13px">to</span>
+      <input type="time" id="disp-end">
+    </div>
+    <div style="color:var(--ink-dim); font-size:12px; margin-top:8px">
+      Tap the screen to wake it. A motion sensor can wake it too by POSTing to
+      <code>/api/display/wake</code>.
     </div>
   </div>
 
@@ -344,6 +416,7 @@
   <button class="sd-close" id="sd-close">Done</button>
 </div>
 <div id="sleep"><div class="ovl"><div class="t" id="sclock">--:--</div><div class="d" id="sdate"></div></div></div>
+<div id="screenoff" title="Tap to wake"></div>
 
 <!-- event editor / creator modal -->
 <div id="ev-overlay"></div>
@@ -431,6 +504,7 @@ function tick(){
   $("#dow").textContent=n.toLocaleDateString([],{weekday:"long",year:"numeric"});
   $("#sdate").textContent=n.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
   placeNow();
+  updateHeroPhase();
 }
 
 document.querySelectorAll(".tabs button").forEach(b=>{
@@ -678,6 +752,7 @@ async function load(){
     people = dash.people || [];
     render();
     renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
+    loadScoreboard();
   }catch(e){console.error(e);}
 }
 
@@ -821,6 +896,10 @@ function syncSettingsUI(){
   document.querySelectorAll("#sd-panels input").forEach(cb=>cb.checked=!!s.panels[cb.dataset.panel]);
   document.querySelectorAll("#sd-holidays input").forEach(cb=>cb.checked=!!s.holidays[cb.dataset.hol]);
   const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
+  $("#hero-enabled").checked = !!s.heroEnabled;
+  $("#hero-day-url").value   = s.heroDay || "";
+  $("#hero-night-url").value = s.heroNight || "";
+  syncDispUI();
   renderFx();
   applyPanels();
 }
@@ -836,8 +915,10 @@ function applyPanels(){
   document.querySelectorAll(".resizer").forEach(rz=>{
     rz.style.display=(vis[+rz.dataset.above] && vis[+rz.dataset.below])?"":"none";
   });
+  $("#panel-scoreboard").style.display = p.scoreboard ? "" : "none";
   // restore collapsed state
   const col=FH.get().collapsed || {};
+  $("#panel-scoreboard").classList.toggle("collapsed", !!col.scoreboard);
   $("#panel-todos").classList.toggle("collapsed", !!col.todos);
   $("#panel-groceries").classList.toggle("collapsed", !!col.groceries);
   $("#panel-meals").classList.toggle("collapsed", !!col.meals);
@@ -1090,6 +1171,7 @@ async function loadWeather(){
     if (w.error || w.temp === undefined) { $("#wx").innerHTML = ""; return; }
     $("#wx").innerHTML = `<span>${w.icon}</span><span class="t">${w.temp}°</span>`
       + `<span class="hl">H ${w.high}°<br>L ${w.low}°</span>`;
+    if (w.sunrise || w.sunset) { heroSun = { sunrise:w.sunrise, sunset:w.sunset }; updateHeroPhase(); }
   }catch(e){ $("#wx").innerHTML = ""; }
 }
 async function loadForecast(){
@@ -1099,6 +1181,108 @@ async function loadForecast(){
     if($(".tg")) render();   // refresh headers with weather
   }catch(e){}
 }
+
+/* ---- day/night hero banner ---- */
+let heroSun = { sunrise:null, sunset:null };   // ISO local times from weather
+function applyHero(){
+  const s=FH.get();
+  document.querySelector("header").classList.toggle("has-hero", !!s.heroEnabled);
+  $("#hero-day").style.backgroundImage   = s.heroDay   ? `url("${s.heroDay}")`   : "";
+  $("#hero-night").style.backgroundImage = s.heroNight ? `url("${s.heroNight}")` : "";
+  updateHeroPhase();
+}
+function nightFraction(){
+  // 0 = full day, 1 = full night, ~1h crossfade around sunrise/sunset
+  const now=new Date(); const mins=now.getHours()*60+now.getMinutes();
+  const toMin=(iso,def)=>{ if(!iso) return def; const t=iso.slice(11,16).split(":"); return (+t[0])*60+(+t[1]); };
+  const sr=toMin(heroSun.sunrise, 7*60), ss=toMin(heroSun.sunset, 19*60), fade=60;
+  if(mins < sr-fade/2) return 1;
+  if(mins < sr+fade/2) return (sr+fade/2-mins)/fade;   // dawn 1->0
+  if(mins < ss-fade/2) return 0;
+  if(mins < ss+fade/2) return (mins-(ss-fade/2))/fade; // dusk 0->1
+  return 1;
+}
+function updateHeroPhase(){
+  const s=FH.get(); if(!s.heroEnabled) return;
+  const n=nightFraction();
+  $("#hero-day").style.opacity   = 1-n;
+  $("#hero-night").style.opacity = n;
+  const day  ="linear-gradient(120deg,#7fb6f0,#bfe0ff 55%,#e9f3ff)";
+  const dusk ="linear-gradient(120deg,#2a3a63,#7a5b8c 55%,#e08a5b)";
+  const night="linear-gradient(120deg,#0b1020,#132544 55%,#1b2b4a)";
+  $("#hero-grad").style.background = n>0.6 ? night : (n>0.25 ? dusk : day);
+  // gradient only shows when no photos are set; photos cover it otherwise
+  $("#hero-grad").style.opacity = (s.heroDay || s.heroNight) ? 0 : 1;
+}
+
+/* ---- scheduled screen-off + wake ---- */
+async function loadDisplayState(){
+  try{
+    const st=await fetch("/api/display/state").then(r=>r.json());
+    $("#screenoff").classList.toggle("on", !st.on);
+  }catch(e){}
+}
+async function wakeDisplay(){
+  $("#screenoff").classList.remove("on");
+  try{ await fetch("/api/display/wake",{method:"POST"}); }catch(e){}
+}
+$("#screenoff").addEventListener("click", wakeDisplay);
+$("#screenoff").addEventListener("touchstart", wakeDisplay, {passive:true});
+
+/* ---- kids' scoreboard ---- */
+async function loadScoreboard(){
+  if(!FH.get().panels.scoreboard){ return; }
+  try{
+    const r=await fetch("/api/chores/scoreboard").then(r=>r.json());
+    renderScoreboard(r.scoreboard||[]);
+  }catch(e){}
+}
+function renderScoreboard(rows){
+  const el=$("#scoreboard"); if(!el) return;
+  if(!rows.length){ el.innerHTML='<div class="empty">No chores assigned yet</div>'; return; }
+  const medal=["\u{1F947}","\u{1F948}","\u{1F949}"];
+  el.innerHTML="";
+  rows.forEach((p,i)=>{
+    const row=document.createElement("div"); row.className="sb-row";
+    const rank = i<3 ? medal[i] : (i+1);
+    const sub = `${p.done_today}/${p.total_today} today` + (p.earned_today?` · +${p.earned_today}★`:"");
+    row.innerHTML =
+      `<div class="sb-rank">${rank}</div>`+
+      `<div class="sb-av" style="background:${esc(p.color)}">${esc((p.name||"?").slice(0,1).toUpperCase())}</div>`+
+      `<div class="sb-main">`+
+        `<div class="sb-name"><span>${esc(p.name)}</span><span class="sb-stars">★ ${p.stars}</span></div>`+
+        `<div class="sb-bar"><div class="sb-fill" style="width:${p.pct}%;background:${esc(p.color)}"></div></div>`+
+        `<div class="sb-sub">${sub}</div>`+
+      `</div>`;
+    el.appendChild(row);
+  });
+}
+
+/* ---- night screen-off settings (stored server-side via /api/display/config) ---- */
+let dispCfg = null;
+async function loadDispConfig(){
+  try{ dispCfg = await fetch("/api/display/config").then(r=>r.json()); }catch(e){ dispCfg=null; }
+  syncDispUI();
+}
+function syncDispUI(){
+  if(!dispCfg) return;
+  const en=$("#disp-enabled"), st=$("#disp-start"), nd=$("#disp-end");
+  if(en) en.checked = !!dispCfg.enabled;
+  if(st) st.value = dispCfg.off_start || "22:00";
+  if(nd) nd.value = dispCfg.off_end || "06:30";
+}
+async function saveDispConfig(patch){
+  try{ dispCfg = await fetch("/api/display/config",{method:"PUT",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify({...(dispCfg||{}),...patch})}).then(r=>r.json()); }
+  catch(e){}
+  loadDisplayState();
+}
+$("#disp-enabled").onchange=e=>saveDispConfig({enabled:e.target.checked});
+$("#disp-start").onchange =e=>saveDispConfig({off_start:e.target.value});
+$("#disp-end").onchange   =e=>saveDispConfig({off_end:e.target.value});
+$("#hero-enabled").onchange  =e=>{ FH.save({heroEnabled:e.target.checked}); applyHero(); };
+$("#hero-day-url").onchange  =e=>{ FH.save({heroDay:e.target.value.trim()}); applyHero(); };
+$("#hero-night-url").onchange=e=>{ FH.save({heroNight:e.target.value.trim()}); applyHero(); };
 
 /* measure the OS scrollbar width so the calendar header/all-day row reserve the
    same gutter as the scrolling body, keeping day columns aligned */
@@ -1115,11 +1299,14 @@ async function loadForecast(){
   await FH.load();
   applyPanels();
   applySeasonal();
+  applyHero();
   tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
+  loadDispConfig(); loadDisplayState();
   setInterval(tick,1000); setInterval(load,60000); setInterval(loadPhotos,300000);
   setInterval(loadWeather, 600000);   // weather every 10 min
   setInterval(loadForecast, 1800000); // forecast every 30 min
   setInterval(checkNotifications, 30000);  // reminders every 30s
+  setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
 })();
 </script>
 </body>

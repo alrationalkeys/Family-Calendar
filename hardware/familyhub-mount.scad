@@ -55,6 +55,13 @@ back_lip= 4;     // rear retaining lip that keeps the screen from falling out
 corner  = 6;     // outer corner radius
 $fn     = 48;
 
+/* [Heat vents] */
+vents     = true;  // cut cooling slots in the top + side walls (heat rises out the top)
+vent_w    = 4;     // slot width
+vent_len  = 26;    // slot length (along the wall)
+vent_gap  = 6;     // gap between slots
+vent_rows = 2;     // rows of slots on each side wall
+
 /* [French cleat] */
 cleat_len   = 160;  // length of each cleat bar
 cleat_h     = 30;   // height of the cleat bar
@@ -99,6 +106,25 @@ module port_cut(p) {
       cube([d, ow, oh]);
 }
 
+// cooling slots through a wall. Heat rises, so the heavy venting is along the
+// TOP wall; a couple of rows on each side wall help convection.
+module vent_cuts() {
+  z0 = wall + clear + 2;                 // start above the front lip
+  zspan = max(1, frame_depth - z0 - 2);
+  // --- top wall: a run of slots across the width (heat rises out here) ---
+  n_top = floor((cav_w - vent_gap) / (vent_w + vent_gap));
+  run_w = n_top*(vent_w+vent_gap) - vent_gap;
+  for (i = [0:n_top-1])
+    translate([-run_w/2 + i*(vent_w+vent_gap), out_h/2 - wall - 1, z0])
+      cube([vent_w, wall + 3, zspan]);
+  // --- side walls: vent_rows louvre slots, long vertically, stacked across depth ---
+  slot_h = max(6, cav_h - 2*vent_gap - 2*corner);
+  for (sx = [-1, 1])
+    for (r = [0:vent_rows-1])
+      translate([sx*(out_w/2 - wall/2), 0, z0 + vent_w/2 + r*(vent_w+vent_gap)])
+        cube([wall + 3, slot_h, vent_w], center=true);
+}
+
 module bezel_full() {
   difference() {
     // outer shell
@@ -114,6 +140,9 @@ module bezel_full() {
 
     // port cutouts
     for (p = ports) port_cut(p);
+
+    // cooling vents
+    if (vents) vent_cuts();
   }
 
   // rear retaining lip: thin inward flange at the very back on top+sides

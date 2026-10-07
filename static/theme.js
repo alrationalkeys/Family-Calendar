@@ -8,7 +8,10 @@ const FH = (() => {
     accent: "#e9a23b",
     font: "inter",           // inter | serif | rounded | mono
     density: "comfortable",  // compact | comfortable | spacious
-    panels: { todos: true, groceries: true, meals: true },
+    panels: { scoreboard: false, todos: true, groceries: true, meals: true },
+    heroEnabled: false,      // day/night house banner behind the header
+    heroDay: "",             // image URL shown in daytime
+    heroNight: "",           // image URL shown at night
     holidays: { us_federal: false, christian: false, jewish: false, observances: false },
     effects: true,
     effectPrefs: { snow: true, fireworks: true, halloween: true, petals: true },
@@ -32,6 +35,8 @@ const FH = (() => {
     settings = { ...DEFAULTS, ...s, panels: { ...DEFAULTS.panels, ...(s.panels||{}) },
                  holidays: { ...DEFAULTS.holidays, ...(s.holidays||{}) },
                  effectPrefs: { ...DEFAULTS.effectPrefs, ...(s.effectPrefs||{}) } };
+    // migrate: older caches may lack the scoreboard panel key
+    if (settings.panels.scoreboard === undefined) settings.panels.scoreboard = false;
     const r = document.documentElement;
     r.setAttribute("data-theme", settings.theme);
     r.style.setProperty("--now", settings.accent);

@@ -25,7 +25,7 @@ CODE = {
 def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
            "&current=temperature_2m,weather_code"
-           "&daily=temperature_2m_max,temperature_2m_min,weather_code"
+           "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset"
            "&temperature_unit=fahrenheit&timezone=auto&forecast_days=1")
     try:
         with urllib.request.urlopen(url, timeout=6) as r:
@@ -39,6 +39,9 @@ def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
             "desc": desc, "icon": icon,
             "high": round(daily["temperature_2m_max"][0]),
             "low": round(daily["temperature_2m_min"][0]),
+            # local ISO times, e.g. "2026-10-07T07:12" \u2014 used by the day/night hero banner
+            "sunrise": (daily.get("sunrise") or [None])[0],
+            "sunset": (daily.get("sunset") or [None])[0],
         }
     except Exception as e:
         return {"error": str(e)}

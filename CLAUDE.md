@@ -8,8 +8,11 @@ subscription-free alternative to Skylight Calendar. Runs on a Raspberry Pi (or a
 machine), shown full-screen on a wall touchscreen, controlled from phones on the LAN.
 
 Two interfaces:
-- **Wall display** — `static/index.html`, served at `/`. Glanceable, dark. Week/month/day
-  views with tap-to-drill, to-do + grocery + meal side panels, sleep-mode photo slideshow.
+- **Wall display** — `static/index.html`, served at `/`. Glanceable, dark. A bottom nav bar
+  switches between pages: **Calendar** (week/month/day + glance side panels), **Home**
+  (smart-home tiles — Home Assistant, Phase 2 placeholder for now), **Chores** (checklist +
+  scoreboard), **Lists** (groceries + to-do), **Photos**. Sleep-mode photo slideshow + night
+  screen-off.
 - **Phone app** — `static/phone.html`, served at `/phone.html`. Input-focused PWA. A natural-language
   "quick add" box (AI routes text to the right place) plus manual forms. Color picker on every input.
 
@@ -65,7 +68,8 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   theme/light-dark, customization, holiday presets, seasonal effects, recurrence (chores/todos),
   edit/delete (all item types + calendar events), calendar source management, vision quick-add,
   voice input, weather, optional PIN auth, DB backup, day/night hero banner,
-  scheduled screen-off + wake webhook, live kids' scoreboard.
+  scheduled screen-off + wake webhook, live kids' scoreboard,
+  bottom-nav multi-page shell (Calendar/Home/Chores/Lists/Photos), chore check-off celebration.
 - NEEDS CREDS to light up: Google (`credentials.json`/`token.json`), iCloud (app-specific password
   via /api/sources/caldav), AI text/vision quick-add (`ANTHROPIC_API_KEY`). Weather works with no key.
 - Calendar events render once a source is connected (see README).

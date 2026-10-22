@@ -43,8 +43,9 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [x] Bottom-nav multi-page shell
 - [x] Chore check-off celebration
 - [x] Day/night hero banner · scheduled screen-off + wake · kids' scoreboard
-- [ ] Agenda view (4th calendar view)
-- [ ] Offline caching (service worker: cached calendar/weather, sync on reconnect)
+- [x] Agenda view (4th calendar view)
+- [x] Offline caching — localStorage data cache (calendar/weather/lists fall back when the
+  net drops, with an "offline" badge) + a service worker for the app shell
 - [ ] On-screen keyboard for tap-to-add
 - [ ] Phone page covers **all settings** + photo upload (`familyhub.local`)
 - [ ] Portrait/rotatable layout (landscape ships first)

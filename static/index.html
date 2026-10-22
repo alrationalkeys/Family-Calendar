@@ -65,6 +65,9 @@
   .clock{font-size:28px; font-weight:300; color:var(--ink-dim)}
   .gear{background:var(--panel); border:1px solid var(--line); color:var(--ink-dim); width:42px; height:42px; border-radius:10px; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center}
   .gear:active{transform:scale(.95)}
+  .off-badge{font-size:11px; font-weight:700; letter-spacing:.02em; color:#fff; background:#e0533d;
+    padding:4px 9px; border-radius:999px; white-space:nowrap}
+  header.has-hero .off-badge{box-shadow:0 1px 6px rgba(0,0,0,.4)}
   .wx{display:flex; align-items:center; gap:8px; font-size:20px; color:var(--ink-dim)}
   .wx .t{font-size:24px; font-weight:600; color:var(--ink)}
   .wx .hl{font-size:13px; line-height:1.1}
@@ -335,6 +338,7 @@
         <button data-v="agenda">Agenda</button>
       </div>
       <div class="clock" id="clock">--:--</div>
+      <span class="off-badge" id="offline-badge" hidden>offline</span>
       <div class="wx" id="wx"></div>
       <button class="gear" id="gear" title="Settings">&#9881;</button>
     </div>
@@ -871,13 +875,39 @@ function sameDay(a,b){ if(!a)return false; const x=new Date(a),y=new Date(b);
   return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate(); }
 function weekStart(d){ const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s; }
 
+/* ---- offline cache: keep working if the internet (or server) drops ----
+   Each fetch's last good JSON is saved locally; if a later fetch fails we fall
+   back to that copy and flag the display as showing cached data. */
+function cacheGet(k){ try{ const c=localStorage.getItem("fhcache:"+k); return c?JSON.parse(c):null; }catch(e){ return null; } }
+function cacheSet(k,v){ try{ localStorage.setItem("fhcache:"+k, JSON.stringify({t:Date.now(),v})); }catch(e){} }
+async function cachedFetch(url, key){
+  try{
+    const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); cacheSet(key, j); return {data:j, stale:false, t:Date.now()};
+  }catch(e){
+    const c=cacheGet(key); if(c) return {data:c.v, stale:true, t:c.t};
+    throw e;
+  }
+}
+let offlineSince=null;
+function setOffline(stale, t){
+  const b=$("#offline-badge"); if(!b) return;
+  if(stale){
+    const mins=t?Math.round((Date.now()-t)/60000):0;
+    b.textContent = mins>0 ? `offline · updated ${mins<60?mins+"m":Math.round(mins/60)+"h"} ago` : "offline";
+    b.hidden=false;
+  } else { b.hidden=true; }
+}
+
 async function load(){
   try{
-    const [dash,cal]=await Promise.all([
-      fetch("/api/dashboard").then(r=>r.json()),
-      fetch("/api/calendar/events?days=120&back=45").then(r=>r.json()).catch(()=>({events:[]}))
+    const [dashR,calR]=await Promise.all([
+      cachedFetch("/api/dashboard","dash"),
+      cachedFetch("/api/calendar/events?days=120&back=45","events").catch(()=>({data:{events:[]},stale:true,t:0}))
     ]);
+    const dash=dashR.data, cal=calR.data;
     cache.dash=dash; cache.events=cal.events||[];
+    setOffline(dashR.stale || calR.stale, Math.min(dashR.t||Date.now(), calR.t||Date.now()));
     people = dash.people || [];
     render();
     renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
@@ -1297,7 +1327,7 @@ if("Notification" in window && Notification.permission==="default"){
 /* ---- weather ---- */
 async function loadWeather(){
   try{
-    const w = await fetch("/api/weather").then(r=>r.json());
+    const w = (await cachedFetch("/api/weather","weather")).data;
     if (w.error || w.temp === undefined) { $("#wx").innerHTML = ""; return; }
     $("#wx").innerHTML = `<span>${w.icon}</span><span class="t">${w.temp}°</span>`
       + `<span class="hl">H ${w.high}°<br>L ${w.low}°</span>`;
@@ -1306,7 +1336,7 @@ async function loadWeather(){
 }
 async function loadForecast(){
   try{
-    const r = await fetch("/api/weather/forecast?days=10").then(r=>r.json());
+    const r = (await cachedFetch("/api/weather/forecast?days=10","forecast")).data;
     forecast = r.days || {};
     if($(".tg")) render();   // refresh headers with weather
   }catch(e){}
@@ -1484,6 +1514,7 @@ $("#hero-night-url").onchange=e=>{ FH.save({heroNight:e.target.value.trim()}); a
 
 /* ---- boot ---- */
 (async()=>{
+  if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
   applyPanels();
   applySeasonal();

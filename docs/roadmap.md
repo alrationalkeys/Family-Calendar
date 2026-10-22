@@ -72,11 +72,14 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [ ] Local voice control (no cloud if possible)
 
 ## Hardware
-- **Wall screen:** **wired 15.6" IPS capacitive touchscreen** (10-pt, HDMI, VESA 75×75), ~$150
-  — e.g. HOWENS 15.6". Confirm it ships a **USB touch cable** + reviews show touch on a Pi.
+- **Wall screen:** **HOWENS 15.6" IPS capacitive touchscreen** (ASIN B0D2D8CCY1), ~$150.
+  Confirmed: FHD 1920×1080, 10-pt capacitive, VESA 75×75, **36.5 × 23 × 1 cm**, ports on the
+  **bottom edge** (USB-B touch, audio, VGA, DVI, HDMI, DC 12V). Box includes HDMI cable, USB
+  touch cable, 12V DC power brick, remote. Amazon confirms Raspberry Pi compatible.
 - **Screen brain:** **Pi 5 4GB** (~$60) drives the monitor + runs FamilyHub in kiosk Chromium.
-  Plus 27W USB-C PSU ($12), 64GB microSD ($12), active cooler ($8), **micro-HDMI→HDMI** cable ($8),
-  USB-A→USB-C for the touch line (often in the box).
+  Plus 27W USB-C PSU ($12), 64GB microSD ($12), active cooler ($8), and a **micro-HDMI→HDMI
+  adapter ($6)** — the Pi 5 is micro-HDMI; the monitor's included HDMI cable is full-size.
+  Touch plugs into a Pi USB-A port with the included USB-B cable (no extra cable needed).
 - **HA brain:** existing **Pi 5 8GB**, headless, in a cupboard.
 - **Couch control:** your **phone** (Home Assistant app + FamilyHub web). No portable screen.
 - **Mounting:** the **VESA 75×75** makes this easy — a cheap VESA wall bracket, or 3D-print a VESA

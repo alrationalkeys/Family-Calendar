@@ -59,6 +59,18 @@
   .bottomnav button.active{background:var(--panel2); color:var(--ink)}
   .bottomnav button:active{transform:scale(.95)}
   .confetti{position:fixed; z-index:70; width:9px; height:9px; border-radius:2px; pointer-events:none}
+
+  /* on-screen keyboard (touch wall has no physical keyboard) */
+  #osk{position:fixed; left:0; right:0; bottom:0; z-index:58; background:var(--panel2);
+    border-top:1px solid var(--line); padding:8px 8px 10px; display:none; box-shadow:0 -10px 30px rgba(0,0,0,.4)}
+  #osk.on{display:block}
+  .osk-row{display:flex; gap:6px; justify-content:center; margin:6px 0}
+  .osk-key{flex:1 1 0; max-width:94px; min-height:52px; background:var(--panel); border:1px solid var(--line);
+    border-radius:9px; color:var(--ink); font:inherit; font-size:20px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none}
+  .osk-key:active{background:var(--now); color:#fff}
+  .osk-key.wide{flex:1.6 1 0; max-width:150px; font-size:15px}
+  .osk-key.space{flex:6 1 0; max-width:none}
   .date{font-size:30px; font-weight:700; letter-spacing:-.02em}
   .date small{display:block; font-size:13px; font-weight:500; color:var(--ink-dim); letter-spacing:.18em; text-transform:uppercase; margin-top:2px}
   .right{display:flex; align-items:center; gap:18px}
@@ -457,6 +469,12 @@
       <label><input type="checkbox" data-panel="todos"> To-Do</label>
       <label><input type="checkbox" data-panel="groceries"> Groceries</label>
       <label><input type="checkbox" data-panel="meals"> Meals</label>
+    </div>
+  </div>
+
+  <div class="sd-group"><label>On-screen keyboard</label>
+    <div class="sd-toggles">
+      <label><input type="checkbox" id="kbd-enabled"> Pop up a keyboard when I tap a text field</label>
     </div>
   </div>
 
@@ -1056,6 +1074,7 @@ function syncSettingsUI(){
   document.querySelectorAll("#sd-panels input").forEach(cb=>cb.checked=!!s.panels[cb.dataset.panel]);
   document.querySelectorAll("#sd-holidays input").forEach(cb=>cb.checked=!!s.holidays[cb.dataset.hol]);
   const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
+  $("#kbd-enabled").checked = s.onscreenKbd!==false;
   $("#hero-enabled").checked = !!s.heroEnabled;
   $("#hero-day-url").value   = s.heroDay || "";
   $("#hero-night-url").value = s.heroNight || "";
@@ -1501,6 +1520,81 @@ $("#disp-end").onchange   =e=>saveDispConfig({off_end:e.target.value});
 $("#hero-enabled").onchange  =e=>{ FH.save({heroEnabled:e.target.checked}); applyHero(); };
 $("#hero-day-url").onchange  =e=>{ FH.save({heroDay:e.target.value.trim()}); applyHero(); };
 $("#hero-night-url").onchange=e=>{ FH.save({heroNight:e.target.value.trim()}); applyHero(); };
+$("#kbd-enabled").onchange   =e=>{ FH.save({onscreenKbd:e.target.checked}); if(!e.target.checked) oskHide(); };
+
+/* ---- on-screen keyboard ---- */
+let oskTarget=null, oskMode="abc", oskShift=false, oskEl=null;
+const OSK_LAYOUT={
+  abc:[["q","w","e","r","t","y","u","i","o","p"],
+       ["a","s","d","f","g","h","j","k","l"],
+       ["⇧","z","x","c","v","b","n","m","⌫"],
+       ["123","space","return","⌄"]],
+  num:[["1","2","3","4","5","6","7","8","9","0"],
+       ["-","/",":",";","(",")","$","&","@"],
+       ["#",".",",","?","!","'","⌫"],
+       ["ABC","space","return","⌄"]],
+};
+function oskBuild(){
+  oskEl=document.createElement("div"); oskEl.id="osk";
+  document.body.appendChild(oskEl);
+  // keep taps from blurring the focused field
+  oskEl.addEventListener("mousedown", e=>e.preventDefault());
+  oskEl.addEventListener("touchstart", e=>{ if(e.target.classList.contains("osk-key")) e.preventDefault(); }, {passive:false});
+  oskRender();
+}
+function oskRender(){
+  if(!oskEl) return;
+  const rows=OSK_LAYOUT[oskMode];
+  oskEl.innerHTML="";
+  rows.forEach(r=>{
+    const row=document.createElement("div"); row.className="osk-row";
+    r.forEach(k=>{
+      const b=document.createElement("div"); b.className="osk-key";
+      if(k==="space"){ b.classList.add("space"); b.textContent="space"; }
+      else if(["⇧","⌫","123","ABC","return","⌄"].includes(k)){ b.classList.add("wide");
+        b.textContent = k==="return"?"return" : k==="⌄"?"⌄ hide" : k; }
+      else b.textContent = (oskShift && oskMode==="abc") ? k.toUpperCase() : k;
+      b.onclick=()=>oskPress(k);
+      row.appendChild(b);
+    });
+    oskEl.appendChild(row);
+  });
+}
+function oskInsert(ch){
+  const t=oskTarget; if(!t) return;
+  const s=t.selectionStart, e=t.selectionEnd;
+  if(s==null){ t.value+=ch; }
+  else { t.value=t.value.slice(0,s)+ch+t.value.slice(e); try{ const p=s+ch.length; t.setSelectionRange(p,p); }catch(_){} }
+  t.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function oskDelete(){
+  const t=oskTarget; if(!t) return;
+  const s=t.selectionStart, e=t.selectionEnd;
+  if(s==null){ t.value=t.value.slice(0,-1); }
+  else if(s!==e){ t.value=t.value.slice(0,s)+t.value.slice(e); try{t.setSelectionRange(s,s);}catch(_){} }
+  else if(s>0){ t.value=t.value.slice(0,s-1)+t.value.slice(s); try{t.setSelectionRange(s-1,s-1);}catch(_){} }
+  t.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function oskPress(k){
+  if(k==="⌫") oskDelete();
+  else if(k==="space") oskInsert(" ");
+  else if(k==="return"){ if(oskTarget) oskTarget.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true})); }
+  else if(k==="⇧"){ oskShift=!oskShift; oskRender(); }
+  else if(k==="123"){ oskMode="num"; oskRender(); }
+  else if(k==="ABC"){ oskMode="abc"; oskRender(); }
+  else if(k==="⌄") oskHide();
+  else { oskInsert((oskShift&&oskMode==="abc")?k.toUpperCase():k); if(oskShift){ oskShift=false; oskRender(); } }
+}
+function oskShow(el){ if(!oskEl) oskBuild(); oskTarget=el; oskMode="abc"; oskShift=false; oskRender(); oskEl.classList.add("on"); }
+function oskHide(){ if(oskEl) oskEl.classList.remove("on"); oskTarget=null; }
+const OSK_SEL="input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]):not([type=date]):not([type=time]):not([type=file]), textarea";
+document.addEventListener("focusin", e=>{
+  if(!FH.get().onscreenKbd) return;
+  if(e.target.matches && e.target.matches(OSK_SEL)) oskShow(e.target);
+});
+document.addEventListener("focusout", ()=>{
+  setTimeout(()=>{ const a=document.activeElement; if(!a || !(a.matches&&a.matches(OSK_SEL))) oskHide(); }, 150);
+});
 
 /* measure the OS scrollbar width so the calendar header/all-day row reserve the
    same gutter as the scrolling body, keeping day columns aligned */

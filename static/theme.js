@@ -9,6 +9,7 @@ const FH = (() => {
     font: "inter",           // inter | serif | rounded | mono
     density: "comfortable",  // compact | comfortable | spacious
     panels: { scoreboard: false, todos: true, groceries: true, meals: true },
+    onscreenKbd: true,       // show the on-screen keyboard when a field is tapped
     heroEnabled: false,      // day/night house banner behind the header
     heroDay: "",             // image URL shown in daytime
     heroNight: "",           // image URL shown at night

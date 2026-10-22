@@ -13,6 +13,7 @@ DEFAULTS = {
     "font": "inter",
     "density": "comfortable",
     "panels": {"scoreboard": False, "todos": True, "groceries": True, "meals": True},
+    "onscreenKbd": True,
     "heroEnabled": False,
     "heroDay": "",
     "heroNight": "",

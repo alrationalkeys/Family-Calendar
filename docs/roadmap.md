@@ -46,7 +46,7 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [x] Agenda view (4th calendar view)
 - [x] Offline caching — localStorage data cache (calendar/weather/lists fall back when the
   net drops, with an "offline" badge) + a service worker for the app shell
-- [ ] On-screen keyboard for tap-to-add
+- [x] On-screen keyboard for tap-to-add (pops up on any text field; settings toggle)
 - [ ] Phone page covers **all settings** + photo upload (`familyhub.local`)
 - [ ] Portrait/rotatable layout (landscape ships first)
 - [ ] Verify real iCloud + Google two-way sync

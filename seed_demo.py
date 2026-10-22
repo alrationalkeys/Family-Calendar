@@ -1,116 +1,110 @@
+#!/usr/bin/env python3
 """
-Demo seed — fills FamilyHub with realistic sample data so the app looks alive
-when you show it to someone (before real calendars are connected).
+Load a believable sample family into FamilyHub so the wall isn't empty when you
+try it out. Great for a test drive on a laptop/Surface before real data.
 
-Run from the project root:
     python seed_demo.py
 
-Safe to re-run: it clears demo data first. Does NOT touch real calendar sources.
+This REPLACES the content tables (people, events, chores, lists, meals, stars)
+with demo data. To get back to a clean slate, just delete familyhub.db and
+restart — nothing here touches your real calendars or settings sources.
 """
-import datetime as dt
+from datetime import date, datetime, timedelta
 from app.db import init_db, get_db
 
-init_db()
-
-today = dt.date.today()
-
-
-def iso(day_offset, hour, minute=0):
-    d = today + dt.timedelta(days=day_offset)
-    return dt.datetime(d.year, d.month, d.day, hour, minute).isoformat()
+TABLES = ["reward_ledger", "chores", "meals", "todos", "groceries", "local_events",
+          "people", "categories"]
 
 
-def date_only(day_offset):
-    return (today + dt.timedelta(days=day_offset)).isoformat()
+def iso(d, t=None):
+    return d.isoformat() + (f"T{t}:00" if t else "")
 
 
-with get_db() as conn:
-    # wipe previous demo rows so re-running stays clean
-    for t in ("people", "categories", "chores", "meals", "todos", "groceries"):
-        conn.execute(f"DELETE FROM {t}")
+def main():
+    init_db()
+    today = date.today()
+    with get_db() as conn:
+        for t in TABLES:
+            conn.execute(f"DELETE FROM {t}")
 
-    # --- people ---
-    conn.execute("INSERT INTO people (name,color) VALUES (?,?),(?,?)",
-                 ("Mom", "#d96b8a", "Dad", "#4f86c6"))
+        # People (sample — swap for your real family later, in Settings)
+        people = {}
+        for name, color in [("Mom", "#e05a9c"), ("Dad", "#4f86c6"),
+                            ("Ella", "#9b59b6"), ("Max", "#3bb273")]:
+            cur = conn.execute("INSERT INTO people (name,color) VALUES (?,?)", (name, color))
+            people[name] = cur.lastrowid
 
-    # --- categories ---
-    cats = [("Work", "#7c5cff"), ("Kids", "#5cb88a"),
-            ("Appointments", "#e9a23b"), ("Sports", "#e0533d"),
-            ("Social", "#3db5c9")]
-    conn.executemany("INSERT INTO categories (name,color) VALUES (?,?)", cats)
-    # map names to ids
-    cat = {r["name"]: r["id"] for r in conn.execute("SELECT id,name FROM categories")}
+        # Categories
+        for cname, ccolor in [("School", "#e9a23b"), ("Sports", "#2ca8a8"), ("Family", "#c0689b")]:
+            conn.execute("INSERT INTO categories (name,color) VALUES (?,?)", (cname, ccolor))
 
-    # --- todos (with category colors) ---
-    todos = [
-        ("Schedule oil change", cat["Appointments"]),
-        ("RSVP to birthday party", cat["Social"]),
-        ("Print field trip form", cat["Kids"]),
-        ("Finish quarterly report", cat["Work"]),
-    ]
-    conn.executemany("INSERT INTO todos (title,category_id) VALUES (?,?)", todos)
+        # Calendar events across this week (local events show without any sync)
+        def ev(title, day_offset, t=None, end=None, person=None, allday=0, rec=None):
+            d = today + timedelta(days=day_offset)
+            conn.execute(
+                "INSERT INTO local_events (title,start,end,all_day,person_id,color,recurrence) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (title, iso(d, t), iso(d, end) if end else None, allday,
+                 people.get(person), None, rec))
+        ev("Soccer practice", 0, "16:00", "17:00", "Max")
+        ev("Dinner with the Parkers", 0, "19:00", "21:00", "Dad")
+        ev("Trash day", 1, allday=1, rec="weekly")
+        ev("Dentist — Ella", 1, "09:30", "10:15", "Ella")
+        ev("Swim meet", 2, "10:00", "12:00", "Max")
+        ev("Book club", 3, "18:30", "20:00", "Mom")
+        ev("Date night", 4, "18:30", "22:00", "Mom")
+        ev("School closed", 5, allday=1)
+        ev("Grandma visits", 6, allday=1, person="Family" if False else None)
 
-    # --- groceries ---
-    groceries = [
-        ("Milk", "2 gal", cat["Kids"]),
-        ("Eggs", "1 dozen", None),
-        ("Coffee", None, None),
-        ("Chicken breast", "3 lb", None),
-        ("Bananas", None, cat["Kids"]),
-        ("Dish soap", None, None),
-    ]
-    conn.executemany("INSERT INTO groceries (item,qty,category_id) VALUES (?,?,?)", groceries)
+        # Chores (with stars) — some recurring
+        chores = [
+            ("Feed the dog", "Max", 2, "daily"),
+            ("Make your bed", "Ella", 1, "daily"),
+            ("Homework", "Ella", 3, None),
+            ("Take out trash", "Max", 2, "weekly"),
+            ("Load the dishwasher", "Ella", 2, "daily"),
+            ("Tidy your room", "Max", 2, None),
+        ]
+        for title, person, stars, rec in chores:
+            conn.execute(
+                "INSERT INTO chores (title,person_id,color,due_date,recurrence,stars) "
+                "VALUES (?,?,?,?,?,?)",
+                (title, people[person], None, today.isoformat(), rec, stars))
 
-    # --- meals (today + next few days) ---
-    meals = [
-        (date_only(0), "breakfast", "Pancakes", cat["Kids"]),
-        (date_only(0), "dinner", "Taco night", cat["Kids"]),
-        (date_only(1), "dinner", "Grilled salmon", None),
-        (date_only(2), "dinner", "Spaghetti", cat["Kids"]),
-        (date_only(3), "dinner", "Pizza Friday", cat["Social"]),
-    ]
-    conn.executemany("INSERT INTO meals (date,slot,title,category_id) VALUES (?,?,?,?)", meals)
+        # Star ledger: a few earned TODAY (drives today's progress) + older balance.
+        # Today's entries omit `at` so the default UTC timestamp lands on today.
+        for person, earns in [("Max", [2, 2, 2]), ("Ella", [1, 3])]:
+            for s in earns:
+                conn.execute("INSERT INTO reward_ledger (person_id,stars,reason) VALUES (?,?,?)",
+                             (people[person], s, "chore: demo"))
+        # older balance padding (date irrelevant to balance)
+        past = (datetime.now() - timedelta(days=4)).isoformat()
+        conn.execute("INSERT INTO reward_ledger (person_id,stars,reason,at) VALUES (?,?,?,?)",
+                     (people["Max"], 29, "chore: earlier this week", past))
+        conn.execute("INSERT INTO reward_ledger (person_id,stars,reason,at) VALUES (?,?,?,?)",
+                     (people["Ella"], 25, "chore: earlier this week", past))
 
-    # --- chores ---
-    people = {r["name"]: r["id"] for r in conn.execute("SELECT id,name FROM people")}
-    chores = [
-        ("Take out trash", people["Dad"], 1),
-        ("Walk the dog", people["Mom"], 1),
-        ("Load dishwasher", people["Dad"], 0),
-    ]
-    conn.executemany("INSERT INTO chores (title,person_id,stars) VALUES (?,?,?)", chores)
+        # Groceries
+        for item, qty in [("Milk", "2"), ("Eggs", ""), ("Bread", ""), ("Bananas", ""),
+                          ("Coffee", ""), ("Chicken", "2 lb"), ("Spinach", "")]:
+            conn.execute("INSERT INTO groceries (item,qty) VALUES (?,?)", (item, qty))
 
-print("Seeded people, categories, todos, groceries, meals, and chores.")
+        # To-dos
+        for t in ["Call the dentist", "Pay the electric bill", "RSVP to the birthday party",
+                  "Return library books"]:
+            conn.execute("INSERT INTO todos (title) VALUES (?)", (t,))
 
-# --- demo calendar events (written to demo_events.json) ---
-# Served by the calendar endpoint only when no real Google/iCloud source is connected.
-import json as _json
+        # Meals for the week
+        meals = ["Tacos", "Spaghetti & meatballs", "Sheet-pan chicken", "Breakfast for dinner",
+                 "Stir-fry", "Pizza night", "Pot roast"]
+        for i, m in enumerate(meals):
+            d = (today + timedelta(days=i)).isoformat()
+            conn.execute("INSERT INTO meals (date,slot,title) VALUES (?,?,?)", (d, "dinner", m))
 
-demo_events = [
-    {"title": "Soccer practice", "start": iso(0, 17, 0), "end": iso(0, 18, 30),
-     "source": "demo", "all_day": False, "color": "#e0533d"},
-    {"title": "Dentist — Emma", "start": iso(1, 9, 0), "end": iso(1, 10, 0),
-     "source": "demo", "all_day": False, "color": "#e9a23b"},
-    {"title": "Team standup", "start": iso(1, 11, 0), "end": iso(1, 11, 30),
-     "source": "demo", "all_day": False, "color": "#7c5cff"},
-    {"title": "Lunch with Sarah", "start": iso(2, 12, 30), "end": iso(2, 13, 30),
-     "source": "demo", "all_day": False, "color": "#3db5c9"},
-    {"title": "Piano lesson", "start": iso(2, 16, 0), "end": iso(2, 17, 0),
-     "source": "demo", "all_day": False, "color": "#5cb88a"},
-    {"title": "Date night", "start": iso(4, 19, 0), "end": iso(4, 21, 0),
-     "source": "demo", "all_day": False, "color": "#d96b8a"},
-    {"title": "Kids' game day", "start": iso(6, 10, 0), "end": iso(6, 12, 0),
-     "source": "demo", "all_day": False, "color": "#e0533d"},
-    {"title": "Grandma visiting", "start": date_only(6), "end": date_only(6),
-     "source": "demo", "all_day": True, "color": "#3db5c9"},
-    {"title": "Quarterly review", "start": iso(8, 14, 0), "end": iso(8, 15, 0),
-     "source": "demo", "all_day": False, "color": "#7c5cff"},
-]
-with open("demo_events.json", "w") as f:
-    _json.dump(demo_events, f, indent=2)
+    print("Demo family loaded: 4 people, a week of events, 6 chores, stars, "
+          "groceries, to-dos, and meals.\nStart the app and open it. "
+          "Delete familyhub.db to reset.")
 
-print(f"Wrote {len(demo_events)} demo calendar events to demo_events.json")
-print("\nDemo ready. Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000")
-print("Wall:  http://localhost:8000/   ·   Phone:  http://localhost:8000/phone.html")
-print("\nTo clear the demo later: delete familyhub.db and demo_events.json,")
-print("then connect a real calendar.")
+
+if __name__ == "__main__":
+    main()

@@ -518,6 +518,10 @@
     <div id="sd-fxlist"></div>
   </div>
 
+  <div class="sd-group"><label>Trouble?</label>
+    <button class="sd-addbtn" id="sd-reload">&#8635; Reload the display</button>
+  </div>
+
   <button class="sd-close" id="sd-close">Done</button>
 </div>
 <div id="sleep"><div class="ovl"><div class="t" id="sclock">--:--</div><div class="d" id="sdate"></div></div></div>
@@ -955,6 +959,7 @@ function closeSettings(){ $("#settings-drawer").classList.remove("on"); $("#sett
 
 $("#gear").onclick=openSettings;
 $("#sd-close").onclick=closeSettings;
+$("#sd-reload").onclick=()=>location.reload();
 $("#settings-overlay").onclick=closeSettings;
 
 // build accent swatches

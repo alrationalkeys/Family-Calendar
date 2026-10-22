@@ -19,7 +19,20 @@ Surface's touchscreen makes it a realistic trial of the real wall experience.
    (If PowerShell blocks the activate script, run once:
    `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then retry.)
 
-## Run it
+## Load sample data (recommended for a demo)
+So the wall isn't empty when you first open it — adds a sample family, a week of
+events, chores with stars, lists and meals:
+```powershell
+python seed_demo.py
+```
+(To reset to a clean slate later, delete `familyhub.db` and restart.)
+
+## Easiest way to run it
+**Double-click `start-familyhub.bat`** (first run sets everything up automatically),
+then open Edge to `http://localhost:8000`. Or for instant full-screen,
+double-click **`start-familyhub-kiosk.bat`**.
+
+## Or run it by hand
 
 ```powershell
 uvicorn app.main:app --host 0.0.0.0 --port 8000

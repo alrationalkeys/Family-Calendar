@@ -25,7 +25,7 @@ Takes about five seconds. The one cable tucks behind.
 
 ## If it freezes or looks stuck
 1. Give it a moment — it might just be loading.
-2. Tap the **gear icon** (top right) and close it again — that refreshes things.
+2. Tap the **gear icon** (top right) → **"↻ Reload the display."** That fixes most hiccups.
 3. Still stuck? **Unplug the power for 10 seconds, then plug it back in.** It starts
    itself back up in under a minute. Nothing gets lost — everything's saved.
 

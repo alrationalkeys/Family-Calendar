@@ -162,6 +162,16 @@
   .wev{background:var(--panel2); border-left:3px solid var(--accent,#4f86c6); border-radius:6px; padding:5px 8px; font-size:12px; font-weight:600; line-height:1.25}
   .wev .tm{display:block; font-size:10px; color:var(--ink-dim); font-weight:500}
 
+  .agenda{flex:1; overflow-y:auto; padding:2px}
+  .agenda-day{position:sticky; top:0; background:var(--panel); z-index:1; font-size:12px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-dim); padding:14px 12px 6px}
+  .agenda-day.today{color:var(--now)}
+  .agenda-ev{display:flex; align-items:center; gap:12px; padding:11px 12px; border-top:1px solid var(--line); cursor:pointer}
+  .agenda-time{font-size:13px; color:var(--ink-dim); width:78px; flex:none; font-feature-settings:"tnum" 1}
+  .agenda-dot{width:10px; height:10px; border-radius:50%; flex:none}
+  .agenda-title{font-size:16px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .agenda-ev:active{background:var(--panel2)}
+
   .month{flex:1; display:flex; flex-direction:column; padding:8px}
   .mdow{display:grid; grid-template-columns:repeat(7,1fr); padding:0 4px 8px}
   .mdow span{text-align:center; font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em}
@@ -322,6 +332,7 @@
         <button data-v="day">Day</button>
         <button data-v="week" class="active">Week</button>
         <button data-v="month">Month</button>
+        <button data-v="agenda">Agenda</button>
       </div>
       <div class="clock" id="clock">--:--</div>
       <div class="wx" id="wx"></div>
@@ -589,7 +600,40 @@ function render(){
   updatePeriod();
   if(view==="day") renderGrid([new Date(cursor)]);
   else if(view==="week") renderGrid(weekDays(cursor));
+  else if(view==="agenda") renderAgenda();
   else renderMonth();
+}
+function renderAgenda(){
+  const body=$("#calbody");
+  const wrap=document.createElement("div"); wrap.className="agenda";
+  const start=new Date(cursor); start.setHours(0,0,0,0);
+  const horizon=new Date(start); horizon.setDate(horizon.getDate()+60);
+  const evs=cache.events.map(e=>({e,s:evStart(e)}))
+    .filter(x=>x.s && !isNaN(x.s) && x.s>=start && x.s<horizon)
+    .sort((a,b)=> (a.s-b.s) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
+  if(!evs.length){
+    wrap.innerHTML='<div class="empty" style="padding:22px 14px">Nothing coming up in the next 60 days.</div>';
+    body.innerHTML=""; body.appendChild(wrap); return;
+  }
+  let lastKey=""; const todayKey=new Date().toDateString();
+  evs.forEach(({e,s})=>{
+    const key=s.toDateString();
+    if(key!==lastKey){
+      lastKey=key;
+      const isToday=key===todayKey;
+      const hd=document.createElement("div"); hd.className="agenda-day"+(isToday?" today":"");
+      hd.textContent = isToday ? "Today" : s.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
+      wrap.appendChild(hd);
+    }
+    const row=document.createElement("div"); row.className="agenda-ev";
+    const time = e.all_day ? "All day" : s.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    row.innerHTML=`<span class="agenda-time">${time}</span>`
+      +`<span class="agenda-dot" style="background:${esc(evColor(e))}"></span>`
+      +`<span class="agenda-title">${esc(e.title)}</span>`;
+    row.onclick=()=>{ openEditor(e); resetSleep(); };
+    wrap.appendChild(row);
+  });
+  body.innerHTML=""; body.appendChild(wrap);
 }
 function evColor(ev){ return ev.color || "#4f86c6"; }
 function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;}); }
@@ -704,12 +748,14 @@ function updatePeriod(){
   else if(view==="week"){ const ds=weekDays(cursor), a=ds[0], b=ds[6];
     const m1=a.toLocaleDateString([],{month:"short"}), m2=b.toLocaleDateString([],{month:"short"});
     p.textContent = (m1===m2) ? `${m1} ${a.getDate()} – ${b.getDate()}` : `${m1} ${a.getDate()} – ${m2} ${b.getDate()}`;
-  } else { p.textContent=cursor.toLocaleDateString([],{month:"long",year:"numeric"}); }
+  } else if(view==="agenda"){ p.textContent = "Upcoming"; }
+  else { p.textContent=cursor.toLocaleDateString([],{month:"long",year:"numeric"}); }
 }
 function navStep(dir){
   const c=new Date(cursor);
   if(view==="day") c.setDate(c.getDate()+dir);
   else if(view==="week") c.setDate(c.getDate()+7*dir);
+  else if(view==="agenda") c.setDate(c.getDate()+14*dir);
   else c.setMonth(c.getMonth()+dir);
   cursor=c; render();
 }

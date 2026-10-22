@@ -26,8 +26,9 @@ help. Lift it off the wall, set it on the counter, still does it all.
 | Smart home | Through **Home Assistant** on the spare **Pi 5 8GB** |
 | Alarm | **Qolsys IQ Panel** via HA + `qolsysgw` (have dealer code). Start **status-only**, add arm/**disarm** behind a PIN pad |
 | TVs | **Roku** (Hisense/TCL) via HA's built-in Roku integration — local ECP, auto-discovered. Need "Fast TV Start" on each TV to power on |
-| Screen | **~15.6" Android tablet** (matches the 15" Skylight) — wireless + battery, runs FamilyHub in a kiosk browser. Budget off-brand at 15"; reliable fallback is an 11" Samsung Galaxy Tab A9+ |
-| Backend host | **No 2nd Pi needed** — FamilyHub runs on the 8GB Pi (isolated from HA) or a cheap Pi Zero 2 W; the tablet just displays it |
+| Screen | **Wired 15.6" IPS capacitive touchscreen** (10-pt, HDMI, VESA 75×75) on the wall — matches the 15" Skylight, which is itself plug-in (no battery). ~$150 (e.g. HOWENS 15.6"). Confirm the box has a USB touch cable + reviews show Pi touch works |
+| Couch control | **Your phone** — Home Assistant app + FamilyHub web page on the LAN. No portable screen needed; the wall screen stays wired |
+| Screen brain | **Pi 5 4GB** drives the monitor + runs FamilyHub in kiosk Chromium. HA stays on the separate **8GB Pi** |
 | Navigation | **Bottom nav bar**: Calendar · Home · Chores · Lists · Photos *(built)* |
 | Disk encryption | Skip on the wall tablet (low value, headless hassle) |
 
@@ -71,18 +72,19 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [ ] Local voice control (no cloud if possible)
 
 ## Hardware
-- **Wall screen:** **~15.6" Android tablet** (wireless + battery) running FamilyHub in a kiosk
-  browser (e.g. Fully Kiosk Browser). Matches the 15" Skylight; carry it wall ↔ counter, charge
-  on the mount. Search Amazon: `15.6 inch Android tablet`. Reliable smaller option: 11" Samsung
-  Galaxy Tab A9+.
-- **FamilyHub backend:** the existing **Pi 5 8GB** (FamilyHub in a container, isolated from HA) or
-  a cheap **Pi Zero 2 W** for strict separation. **No second full Pi needed.**
-- **HA brain:** **Pi 5 8GB**, headless, in a cupboard. (Shared with FamilyHub backend if containerized.)
-- **Mounting:** 3D-printed **magnetic tablet wall mount** + **counter tilt stand** — the parametric
-  files in `hardware/` get re-sized to the tablet's dimensions once it's chosen. You have the printer.
-- **Battery care (optional):** a smart plug to top the tablet to ~80% avoids 24/7-charging wear.
+- **Wall screen:** **wired 15.6" IPS capacitive touchscreen** (10-pt, HDMI, VESA 75×75), ~$150
+  — e.g. HOWENS 15.6". Confirm it ships a **USB touch cable** + reviews show touch on a Pi.
+- **Screen brain:** **Pi 5 4GB** (~$60) drives the monitor + runs FamilyHub in kiosk Chromium.
+  Plus 27W USB-C PSU ($12), 64GB microSD ($12), active cooler ($8), **micro-HDMI→HDMI** cable ($8),
+  USB-A→USB-C for the touch line (often in the box).
+- **HA brain:** existing **Pi 5 8GB**, headless, in a cupboard.
+- **Couch control:** your **phone** (Home Assistant app + FamilyHub web). No portable screen.
+- **Mounting:** the **VESA 75×75** makes this easy — a cheap VESA wall bracket, or 3D-print a VESA
+  plate (wall) + tilt stand (counter). Parametric files in `hardware/` get sized to this screen.
+- **Screen sleep:** the Pi-side `vcgencmd` night screen-off we already built applies here.
 
-> Cost: ~$150–200 once, then **$0/yr** — vs Skylight ~$300 + ~$40–80/yr forever.
+> Cost: ~$240 once, then **$0/yr** — vs Skylight ~$300 + ~$40–80/yr forever. Full 15" size, wired
+> like the Skylight itself.
 
 ## How we work
 - Dev branch `claude/tender-fermi-1g1upo` (never `main`). Small, reviewable commits.

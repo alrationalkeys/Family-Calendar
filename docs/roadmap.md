@@ -26,7 +26,8 @@ help. Lift it off the wall, set it on the counter, still does it all.
 | Smart home | Through **Home Assistant** on the spare **Pi 5 8GB** |
 | Alarm | **Qolsys IQ Panel** via HA + `qolsysgw` (have dealer code). Start **status-only**, add arm/**disarm** behind a PIN pad |
 | TVs | **Roku** (Hisense/TCL) via HA's built-in Roku integration — local ECP, auto-discovered. Need "Fast TV Start" on each TV to power on |
-| Battery/UPS | **Skip for v1** (unplug/replug is fine) |
+| Screen | **~15.6" Android tablet** (matches the 15" Skylight) — wireless + battery, runs FamilyHub in a kiosk browser. Budget off-brand at 15"; reliable fallback is an 11" Samsung Galaxy Tab A9+ |
+| Backend host | **No 2nd Pi needed** — FamilyHub runs on the 8GB Pi (isolated from HA) or a cheap Pi Zero 2 W; the tablet just displays it |
 | Navigation | **Bottom nav bar**: Calendar · Home · Chores · Lists · Photos *(built)* |
 | Disk encryption | Skip on the wall tablet (low value, headless hassle) |
 
@@ -70,12 +71,18 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [ ] Local voice control (no cloud if possible)
 
 ## Hardware
-- **Wall screen:** 15.6" capacitive **touchscreen** (Pi-friendly).
-- **Screen brain:** a **second Raspberry Pi** (4GB is plenty) — the 8GB is now the HA box.
-- **HA brain:** existing **Pi 5 8GB** (headless, in a cupboard).
-- **Mounting:** 3D-printed bezel + French cleat (wall) + tilt stand (counter) — parametric files
-  in `hardware/`. You have the printer, so just filament + M3 screws + anchors.
-- See `README.md` → `hardware/` for the full parts list and current Amazon picks.
+- **Wall screen:** **~15.6" Android tablet** (wireless + battery) running FamilyHub in a kiosk
+  browser (e.g. Fully Kiosk Browser). Matches the 15" Skylight; carry it wall ↔ counter, charge
+  on the mount. Search Amazon: `15.6 inch Android tablet`. Reliable smaller option: 11" Samsung
+  Galaxy Tab A9+.
+- **FamilyHub backend:** the existing **Pi 5 8GB** (FamilyHub in a container, isolated from HA) or
+  a cheap **Pi Zero 2 W** for strict separation. **No second full Pi needed.**
+- **HA brain:** **Pi 5 8GB**, headless, in a cupboard. (Shared with FamilyHub backend if containerized.)
+- **Mounting:** 3D-printed **magnetic tablet wall mount** + **counter tilt stand** — the parametric
+  files in `hardware/` get re-sized to the tablet's dimensions once it's chosen. You have the printer.
+- **Battery care (optional):** a smart plug to top the tablet to ~80% avoids 24/7-charging wear.
+
+> Cost: ~$150–200 once, then **$0/yr** — vs Skylight ~$300 + ~$40–80/yr forever.
 
 ## How we work
 - Dev branch `claude/tender-fermi-1g1upo` (never `main`). Small, reviewable commits.

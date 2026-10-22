@@ -4,16 +4,18 @@ Everything you need to turn a Raspberry Pi + a 15.6" touchscreen into the wall
 display. The print files are parametric OpenSCAD (`familyhub-mount.scad`) so they
 fit *your* exact monitor.
 
-## Shopping list (touch build, ~$210–250)
+## Shopping list (confirmed build, ~$248)
 
 | Part | ~Cost | Notes |
 |---|---|---|
-| Raspberry Pi 5 (4GB) | $75 | 4GB floor for kiosk Chromium. |
-| 27W USB-C PSU (5V/5A) | $12 | Get the official Pi 5 supply. |
-| microSD 32GB+ (A2) | $10–25 | Or an NVMe HAT + SSD for snappier boots. |
-| 15.6" IPS **touchscreen** monitor | $120–160 | See picks below. |
-| Filament (PLA/PETG) | ~$5 | Bezel + French cleat + optional stand. |
-| M3 screws + wall anchors | ~$5 | For the cleat. |
+| **HOWENS 15.6" IPS touchscreen** (B0D2D8CCY1) | $150 | VESA 75×75, HDMI+USB touch+12V brick in box. |
+| Raspberry Pi 5 (4GB) | $60 | Drives the screen + runs FamilyHub. |
+| 27W USB-C PSU (5V/5A) | $12 | Official Pi 5 supply. |
+| microSD 64GB (A2) | $12 | Or an NVMe HAT + SSD for snappier boots. |
+| Pi 5 active cooler | $8 | It runs warm behind the screen. |
+| **micro-HDMI → HDMI adapter** | $6 | Pi 5 is micro-HDMI; the monitor's cable is full-size. |
+| Filament (PLA/PETG) | ~$5 | Back case + cleats + stand (you have the printer). |
+| M4 + M2.5 screws, wall anchors | ~$6 | M4 for VESA/cleat, M2.5 for the Pi. |
 
 ## Touchscreen picks (all known to play nice with a Pi)
 
@@ -34,48 +36,49 @@ separate USB-touch cable) back to the Pi — make sure that cable is included.
 > video cable that matches the Pi 5's full-size HDMI (you may need a
 > micro-HDMI→HDMI or USB-C cable).
 
-## The printed parts
+## The printed parts (tuned for the HOWENS 15.6" + Pi 5)
 
-Open `familyhub-mount.scad` in OpenSCAD (free). Set the `part` dropdown (or the
-Customizer) to render each piece.
+Clean, Skylight-style install: the **Pi and all cabling hide in a back case** that bolts to
+the screen's **VESA 75×75** holes, and the whole display **lifts off a French cleat** onto a
+counter stand — no tools. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 
 | Part | Qty | What it is |
 |---|---|---|
-| `bezel` | 1 | Frame the screen drops into; front lip hides the black border. |
-| `cleat_wall` | 1 | French-cleat half that screws to the wall. |
-| `cleat_frame` | 1 | French-cleat half that mounts to the bezel back. |
-| `stand_foot` | 2 | Optional easel feet for the countertop / Echo-Show look. |
+| `back_case` | 1 | Box that bolts to the VESA holes — holds the Pi 5, vents heat, hides every cable, routes them down to the bottom ports. |
+| `cleat_case` | 1 | French-cleat half that bolts to the back case. |
+| `cleat_wall` | 1 | French-cleat half that screws to the wall (the display hangs on it). |
+| `stand` | 1 | Counter easel; its tongue mates `cleat_case`, so the display drops from wall → stand in seconds. |
+| `frame_seg` | 2–4 | **Optional** cosmetic front frame. 365mm > the Kobra's 250mm bed, so it prints as **joinable segments** (2 long + 2 short) you pin/glue at the corners. |
+| `test_vesa` / `test_pi` | 1 ea | Small coupons — **print these first**. |
 
-The bezel has **cooling vents** (top wall + side louvres) on by default — set `vents = false`
-to disable, or tune `vent_w` / `vent_len` / `vent_gap` / `vent_rows`. Heat rises out the top,
-so mount the frame with the vented edge up. (Idea borrowed from a wall build that left a heat
-void behind the screen — same goal, done in the frame itself.)
+> **Bed-size reality (Anycubic Kobra S1 ≈ 250mm):** the back case, cleats, and stand all
+> fit. A one-piece 365mm front frame does **not** — that's why the frame is segmented, and
+> why the clean look is built around the *back case* (the front just uses the monitor's own
+> slim bezel unless you want the framed look).
 
-### Step 1 — measure your monitor
-Edit the **YOUR MONITOR** block at the top of the `.scad`:
-- `mon_w`, `mon_h`, `mon_t` — outer width, height, thickness (mm).
-- `lip` — the black border width; the frame overlaps this. Keep it ≤ the
-  narrowest border so you don't cover pixels.
-- `ports[]` — one row per connector: `[side, position_from_left/top, width, height]`.
-  Measure to the center of each port and add ~2mm slack.
+### Step 1 — print the test coupons first (~15 min)
+Render `test_vesa` and `test_pi`, print both, and check: VESA screws thread into the
+monitor's holes, and a Pi 5 bolts onto the standoff pattern. Tweak `vesa` / `pi_hx` / `pi_hy`
+if anything's off before the big print.
 
-### Step 2 — test the fit cheaply
-Set `test_corner = true`, render (`F6`), export, and print just one corner
-(~20 min). Check that the screen slides in and the lip sits flat. Adjust `clear`
-(looser/tighter) or `lip` and reprint the corner until it's right.
+### Step 2 — print the case + mounts
+- `back_case`: **front-plate-down (cavity up)**, 0.2mm, 3 perimeters, 20% infill, no supports (~5–6h).
+- `cleat_case`, `cleat_wall`, `stand`: flat; the 45° cleat bevels self-support.
+- Vents are on by default (`vent = true`) — mount the case **vents-up** so Pi heat rises out.
 
-### Step 3 — print for real
-- **Bezel:** face-down, 0.2mm layers, 3 perimeters, 15–20% infill, no supports.
-  A 15.6" frame is a long print (≈8–12h) — run it once the corner fits.
-- **Cleats:** flat, same settings. The 45° bevels self-support.
-- **Stand feet:** print two, on their flat side.
+### Step 3 — assemble & mount
+1. Bolt `back_case` to the screen's **VESA 75** holes (M4).
+2. Mount the Pi 5 on the standoffs (M2.5); plug in HDMI (via the micro-HDMI adapter), the
+   USB touch cable, and power. Route all cables out the bottom slot.
+3. Bolt `cleat_case` to the case's rear bosses.
+4. **Wall:** screw `cleat_wall` to studs/anchors (use a level) → hang the display on it.
+   **Counter:** drop the display's `cleat_case` onto the `stand` tongue.
 
-### Step 4 — mount
-- **Wall:** screw `cleat_wall` to studs/anchors (use a level), attach
-  `cleat_frame` to the bezel back, hang it — it lifts off for cable access.
-- **Counter:** clip the two `stand_foot` pieces onto the bezel's bottom edge.
+### Step 4 (optional) — the framed look
+Print `frame_seg` ×2 long + ×2 short, pin/glue at the corners, and set it over the front.
+Tune `frame_face` (border width) and `frame_lip` (overlap — keep ≤ the screen's real black border).
 
 ## Wiring
-Pi 5 → monitor over HDMI (or USB-C). USB-C or the USB-touch cable → a Pi USB
-port for touch. PSU → Pi. That's it — the wall app is at `http://localhost:8000`
-(see the top-level README for software setup and `kiosk.sh` for full-screen boot).
+Pi 5 **micro-HDMI → (adapter) → HDMI** into the monitor · monitor's **USB-B touch cable → a
+Pi USB-A port** · monitor's **12V DC brick** (its own power) · **27W USB-C** to the Pi. All
+cables tuck through the back-case bottom slot. Wall app boots full-screen via `kiosk.sh`.

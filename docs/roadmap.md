@@ -35,8 +35,9 @@ help. Lift it off the wall, set it on the counter, still does it all.
 ## Phases
 
 ### Phase 0 — housekeeping
-- [ ] `.env` + `.env.example` (secrets gitignored, server-side only)
-- [ ] One-page **README for the family** (how to use, wall↔counter, what to do if it freezes)
+- [x] `.env.example` (secrets gitignored, server-side only) → `.env.example`
+- [x] One-page **README for the family** → `docs/family-guide.md`
+- [x] 3D-print enclosure retargeted to the HOWENS screen (back case hides Pi + cables, VESA mount, cleat, stand) → `hardware/`
 
 ### Phase 1 — finish the calendar (comes first, fully working)
 - [x] Bottom-nav multi-page shell

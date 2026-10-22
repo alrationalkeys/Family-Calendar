@@ -1,223 +1,168 @@
 // ============================================================================
-// FamilyHub wall display — parametric mount kit (OpenSCAD)
+// FamilyHub wall display — enclosure + mount kit (OpenSCAD)
+// Targeted to the HOWENS 15.6" touchscreen (ASIN B0D2D8CCY1):
+//   screen 365 x 230 x 10 mm, VESA 75x75, ports on the BOTTOM edge.
 //
-//   * bezel        : a snug frame the touchscreen drops into, front lip overlaps
-//                    the screen's black border, rear lip retains it.
-//   * cleat_wall   : French-cleat half that screws to the wall.
-//   * cleat_frame  : French-cleat half that screws/glues to the bezel back.
-//   * stand_foot   : desk/counter easel foot (print TWO) for the "on a stand" look.
+// GOAL: a clean, Skylight-like install where the Raspberry Pi and every cable
+// are hidden behind the screen, and the whole thing lifts off the wall onto a
+// counter stand with no tools.
 //
-// HOW TO USE
-//   1. Measure your monitor and edit the "YOUR MONITOR" block below.
-//   2. Set `part` to the piece you want, or use the Customizer.
-//   3. F6 (render) -> Export as STL -> slice -> print.
+// PARTS (set `part` below, F6 to render, export STL):
+//   back_case   : box that bolts to the screen's VESA holes, holds the Pi 5,
+//                 vents the heat, and routes all cables down to the bottom ports.
+//   cleat_case  : French-cleat half that bolts to the back_case.
+//   cleat_wall  : French-cleat half that screws to the wall. (case hangs on it)
+//   stand       : counter easel — its cleat tongue mates cleat_case, so the same
+//                 display drops from wall to stand in seconds.
+//   frame_seg   : OPTIONAL cosmetic front-frame edge piece. The 365mm frame is
+//                 bigger than the 250mm bed, so it prints as joinable segments.
+//   test_vesa / test_pi : small coupons — PRINT THESE FIRST to check hole fit.
 //
-// PRINT NOTES
-//   - PLA/PETG both fine. 0.2mm layers, 3 perimeters, 15-20% infill.
-//   - Bezel & cleats print flat, face down, no supports needed.
-//   - Stand feet print on their flat side; the 45deg back leg is self-supporting.
-//   - Print ONE bezel first as a "corner test" (set test_corner=true) to check the
-//     fit before committing to the ~10h full frame print.
+// PRINT: PLA/PETG, 0.2mm, 3 perimeters, 20% infill.
+//   back_case front-plate-down (cavity up) — no supports.
+//   cleats & stand flat; frame segments face-down.
+//   Always print test_vesa + test_pi first (~15 min) before the ~6h case.
 // ============================================================================
 
 /* [What to render] */
-part = "bezel";     // [bezel, cleat_wall, cleat_frame, stand_foot, all_preview]
-test_corner = false; // bezel only: print just one corner to test fit fast
+part = "back_case"; // [back_case, cleat_case, cleat_wall, stand, frame_seg, test_vesa, test_pi, preview]
 
-/* ======================= YOUR MONITOR (edit these) ======================= */
-// Outer dimensions of the whole monitor slab, in millimeters.
-mon_w = 360;   // width
-mon_h = 230;   // height
-mon_t = 11;    // thickness (deepest point incl. any rear bump)
+/* [Screen — HOWENS 15.6in, edit if yours differs] */
+screen_w = 365;
+screen_h = 230;
+screen_t = 10;       // panel thickness (1cm)
+vesa     = 75;       // VESA square (75x75)
 
-// The black border around the glass on the FRONT. The frame lip overlaps this,
-// so keep lip <= the smallest border or you'll cover live pixels.
-lip   = 7;
+/* [Raspberry Pi 5 mounting] */
+pi_hx = 58;          // hole spacing, long axis
+pi_hy = 49;          // hole spacing, short axis
+pi_screw = 2.5;      // M2.5 self-tap pilot
 
-// Ports to cut out of the frame wall. One row per port:
-//   [ side, center_position, opening_width, opening_height ]
-//   side = "bottom" | "top" | "left" | "right"
-//   center_position = distance (mm) from the LEFT edge (for top/bottom)
-//                     or from the TOP edge (for left/right) to the port center.
-//   Measure to the middle of each connector. Add a couple mm of slack.
-ports = [
-  ["bottom", 300, 22, mon_t + 4],   // e.g. USB-C (power + touch)
-  ["bottom", 260, 22, mon_t + 4],   // e.g. USB-C / HDMI
-  ["bottom", 220, 16, mon_t + 4],   // e.g. mini-HDMI
-  ["right",  120, 10, 10],          // e.g. power button / wheel
-];
-/* ========================================================================= */
-
-/* [Fit & frame] */
-clear   = 0.5;   // clearance per side around the monitor (loosen if too tight)
-wall    = 3.2;   // frame wall thickness
-back_lip= 4;     // rear retaining lip that keeps the screen from falling out
-corner  = 6;     // outer corner radius
-$fn     = 48;
-
-/* [Heat vents] */
-vents     = true;  // cut cooling slots in the top + side walls (heat rises out the top)
-vent_w    = 4;     // slot width
-vent_len  = 26;    // slot length (along the wall)
-vent_gap  = 6;     // gap between slots
-vent_rows = 2;     // rows of slots on each side wall
+/* [Back case] */
+case_w = 120;        // must clear the Pi board (85mm) — keep > 100
+case_h = 108;
+case_d = 34;         // depth: Pi + connectors + cable room
+wall   = 3;
+fp     = 3;          // front plate thickness (bolts to VESA)
+corner = 7;
+vent   = true;
+$fn    = 48;
 
 /* [French cleat] */
-cleat_len   = 160;  // length of each cleat bar
-cleat_h     = 30;   // height of the cleat bar
-cleat_thick = 12;   // material thickness of the cleat
-cleat_gap   = 2;    // hanging clearance between the two halves
+cleat_len   = 96;    // fits across the case back
+cleat_h     = 26;
+cleat_thick = 12;
+cleat_gap   = 2;     // hanging clearance
 
-/* [Stand] */
-stand_angle = 15;   // lean-back angle from vertical (deg)
-stand_depth = 90;   // how far the foot reaches back
-stand_wall  = 5;    // foot thickness
+/* [Counter stand] */
+stand_lean  = 12;    // degrees back from vertical
+stand_base  = 120;   // base depth (front-to-back footprint)
+stand_wall  = 6;
 
-// ---- derived ----
-cav_w = mon_w + 2*clear;             // inner cavity the monitor sits in
-cav_h = mon_h + 2*clear;
-cav_t = mon_t + clear;
-out_w = cav_w + 2*wall;              // frame outer size
-out_h = cav_h + 2*wall;
-frame_depth = cav_t + wall;          // front face -> back opening
+/* [Optional front frame] */
+frame_face  = 16;    // how wide the visible frame border is
+frame_lip   = 7;     // overlap onto the screen's black border (<= real border)
+seg_len     = 220;   // length of one printed segment (< bed size)
 
-// rounded rectangle helper
-module rrect(w, h, r) {
-  hull() for (x=[-1,1], y=[-1,1])
-    translate([x*(w/2-r), y*(h/2-r)]) circle(r);
-}
+// ---------- helpers ----------
+module rrect(w, h, r){ hull() for(x=[-1,1],y=[-1,1]) translate([x*(w/2-r), y*(h/2-r)]) circle(r); }
 
-// ---------------------------------------------------------------- bezel
-module port_cut(p) {
-  side = p[0]; pos = p[1]; ow = p[2]; oh = p[3];
-  // cut through the wall on the given side; generous depth so it always clears
-  d = wall + cav_t + 4;
-  if (side=="bottom")
-    translate([-out_w/2 + pos, -out_h/2 - 1, wall + clear])
-      cube([ow, d, oh]);
-  else if (side=="top")
-    translate([-out_w/2 + pos, out_h/2 + 1 - d, wall + clear])
-      cube([ow, d, oh]);
-  else if (side=="left")
-    translate([-out_w/2 - 1, out_h/2 - pos - ow, wall + clear])
-      cube([d, ow, oh]);
-  else if (side=="right")
-    translate([out_w/2 + 1 - d, out_h/2 - pos - ow, wall + clear])
-      cube([d, ow, oh]);
-}
-
-// cooling slots through a wall. Heat rises, so the heavy venting is along the
-// TOP wall; a couple of rows on each side wall help convection.
-module vent_cuts() {
-  z0 = wall + clear + 2;                 // start above the front lip
-  zspan = max(1, frame_depth - z0 - 2);
-  // --- top wall: a run of slots across the width (heat rises out here) ---
-  n_top = floor((cav_w - vent_gap) / (vent_w + vent_gap));
-  run_w = n_top*(vent_w+vent_gap) - vent_gap;
-  for (i = [0:n_top-1])
-    translate([-run_w/2 + i*(vent_w+vent_gap), out_h/2 - wall - 1, z0])
-      cube([vent_w, wall + 3, zspan]);
-  // --- side walls: vent_rows louvre slots, long vertically, stacked across depth ---
-  slot_h = max(6, cav_h - 2*vent_gap - 2*corner);
-  for (sx = [-1, 1])
-    for (r = [0:vent_rows-1])
-      translate([sx*(out_w/2 - wall/2), 0, z0 + vent_w/2 + r*(vent_w+vent_gap)])
-        cube([wall + 3, slot_h, vent_w], center=true);
-}
-
-module bezel_full() {
-  difference() {
-    // outer shell
-    linear_extrude(frame_depth) rrect(out_w, out_h, corner);
-
-    // hollow the monitor cavity (open to the back)
-    translate([0,0,wall])
-      linear_extrude(frame_depth) rrect(cav_w, cav_h, max(1, corner-wall));
-
-    // front viewing window (leaves the `lip` overlap on all sides)
-    translate([0,0,-1])
-      linear_extrude(wall+2) rrect(cav_w - 2*lip, cav_h - 2*lip, max(1, corner-wall-lip));
-
-    // port cutouts
-    for (p = ports) port_cut(p);
-
-    // cooling vents
-    if (vents) vent_cuts();
-  }
-
-  // rear retaining lip: thin inward flange at the very back on top+sides
-  // (bottom left open so ports/cables clear and the screen slides in)
-  difference() {
-    translate([0,0,frame_depth])
-      linear_extrude(back_lip) rrect(cav_w + 2*wall, cav_h + 2*wall, corner);
-    translate([0,0,frame_depth-1])
-      linear_extrude(back_lip+2) rrect(cav_w - 2, cav_h - 2, max(1,corner-wall));
-    // leave the bottom edge open
-    translate([0, -cav_h/2 - wall, frame_depth-1])
-      cube([cav_w+2*wall+2, 2*wall+4, back_lip+4], center=true);
+// ---------- back case ----------
+module back_case(){
+  difference(){
+    union(){
+      // solid front plate
+      linear_extrude(fp) rrect(case_w, case_h, corner);
+      // perimeter walls
+      translate([0,0,fp-0.01])
+        linear_extrude(case_d-fp)
+          difference(){ rrect(case_w, case_h, corner); offset(-wall) rrect(case_w, case_h, corner); }
+      // Pi standoffs (6mm tall posts)
+      for(x=[-pi_hx/2, pi_hx/2], y=[-pi_hy/2, pi_hy/2])
+        translate([x, y, fp]) cylinder(h=6, d=6);
+      // bosses the cleat_case bolts into (from inside, through the back wall)
+      for(x=[-cleat_len/2+10, cleat_len/2-10])
+        translate([x, -case_h/2+wall+6, case_d-10]) cylinder(h=10, d=9);
+    }
+    // VESA holes through the front plate, countersunk on the cavity side for M4 heads
+    for(x=[-vesa/2, vesa/2], y=[-vesa/2, vesa/2])
+      translate([x, y, -1]){ cylinder(h=fp+2, d=4.5); translate([0,0,fp-1.6]) cylinder(h=2, d1=4.5, d2=8.5); }
+    // Pi pilot holes
+    for(x=[-pi_hx/2, pi_hx/2], y=[-pi_hy/2, pi_hy/2])
+      translate([x, y, fp-1]) cylinder(h=8, d=pi_screw-0.2);
+    // cleat boss pilot holes (drilled from the OUTSIDE/back)
+    for(x=[-cleat_len/2+10, cleat_len/2-10])
+      translate([x, -case_h/2+wall+6, case_d-11]) cylinder(h=13, d=3.2);
+    // cable slot — bottom wall, cables run up from the screen's bottom ports
+    translate([-23, -case_h/2-wall-2, fp+8]) cube([46, wall+4, case_d-fp-6]);
+    // vents: slots in the top wall + a grille on the back
+    if(vent){
+      for(i=[-3:3]) translate([i*10, case_h/2-wall-1, fp+6]) cube([4, wall+3, case_d-fp-8]);
+      for(ix=[-2:2]) for(iy=[-1:1])
+        translate([ix*16, iy*16+8, case_d-1]) cube([4, 11, wall+3], center=true);
+    }
   }
 }
 
-// quick corner-only test coupon
-module bezel_corner_test() {
-  intersection() {
-    bezel_full();
-    translate([-out_w/2, out_h/2 - 70, -1]) cube([70, 70, frame_depth+back_lip+2]);
-  }
-}
-
-// ---------------------------------------------------------------- cleats
-// A French cleat: two bars with mating 45deg faces. The wall bar's bevel faces
-// up-and-in; the frame bar's bevel faces down-and-in so it hooks over.
-module cleat_bar(mirror45=false) {
-  difference() {
+// ---------- French cleat pair ----------
+// 45deg mating faces. Wall half bevels up-and-in; case half bevels down-and-in.
+module cleat_bar(flip=false){
+  difference(){
     cube([cleat_len, cleat_thick, cleat_h]);
-    // 45deg cut across the thickness
-    translate([-1, mirror45 ? -1 : cleat_thick, mirror45 ? cleat_h : 0])
-      rotate([mirror45 ? -45 : 45, 0, 0])
-        cube([cleat_len+2, cleat_h*2, cleat_h*2]);
-    // countersunk screw holes
-    for (x = [cleat_len*0.15, cleat_len*0.5, cleat_len*0.85])
-      translate([x, cleat_thick/2, -1]) {
-        cylinder(h=cleat_h+2, d=4.2);
-        translate([0,0,cleat_h-3]) cylinder(h=4, d1=4.2, d2=8);
-      }
+    translate([-1, flip ? -1 : cleat_thick, flip ? cleat_h : 0])
+      rotate([flip ? -45 : 45, 0, 0]) cube([cleat_len+2, cleat_h*2, cleat_h*2]);
+    for(x=[cleat_len*0.2, cleat_len*0.8])         // screw holes
+      translate([x, cleat_thick/2, -1]){ cylinder(h=cleat_h+2, d=4.2); translate([0,0,cleat_h-3]) cylinder(h=4, d1=4.2, d2=8); }
   }
 }
-module cleat_wall()  { cleat_bar(mirror45=false); }
-module cleat_frame() { cleat_bar(mirror45=true);  }
+module cleat_wall(){ cleat_bar(flip=false); }   // screws to the wall
+module cleat_case(){ cleat_bar(flip=true);  }   // bolts to the back_case bosses
 
-// ---------------------------------------------------------------- stand
-// Easel foot: vertical face the bezel rests against, angled back leg, and a
-// bottom lip the frame's lower edge sits into. Print two, one per side.
-module stand_foot() {
-  h = out_h * 0.55;
-  lean = tan(stand_angle);
-  linear_extrude(stand_wall)
-  polygon([
-    [0,0],
-    [stand_depth, 0],
-    [0, h*0.35],                       // toe / base
-    [ -0, 0]
-  ]);
-  // upright + back leg as a 2D profile, extruded
-  linear_extrude(stand_wall)
-  polygon([
-    [0, 0],
-    [0, h],
-    [10, h],
-    [10 + h*lean, 0]
-  ]);
-  // bottom retaining lip
-  translate([-6, 0, 0]) cube([6, 14, stand_wall + mon_t + clear]);
+// ---------- counter stand ----------
+// A wedge whose upright carries a cleat tongue; the display's cleat_case hooks
+// onto it, leaning back `stand_lean` degrees. Wide base keeps the big screen stable.
+module stand(){
+  h = 150;
+  // base + back leg as a solid wedge, then a cleat tongue on the upright face
+  rotate([0,0,0]){
+    // triangular side profile, extruded across a wide base
+    linear_extrude(cleat_len+30, center=true)
+      polygon([[0,0],[stand_base,0],[0,h]]);
+  }
+  // cleat tongue (same geometry as cleat_wall) on the near-vertical face,
+  // tilted to the lean angle
+  translate([6,0,h*0.62])
+    rotate([0,stand_lean,0]) translate([0,-cleat_len/2-15, -cleat_h/2])
+      rotate([90,0,90]) cleat_wall();
+  // lip at the base front so the screen's bottom edge can rest (ports stay clear above it)
+  translate([stand_base-8,-(cleat_len+30)/2,0]) cube([8, cleat_len+30, screen_t+8]);
 }
 
-// ---------------------------------------------------------------- dispatch
-if (part == "bezel")        { if (test_corner) bezel_corner_test(); else bezel_full(); }
-else if (part == "cleat_wall")  cleat_wall();
-else if (part == "cleat_frame") cleat_frame();
-else if (part == "stand_foot")  stand_foot();
-else if (part == "all_preview") {
-  bezel_full();
-  translate([0, 0, frame_depth+back_lip+10]) { color("tan") cleat_frame(); }
+// ---------- optional cosmetic front frame (segmented) ----------
+// One edge piece; print 2 long (top/bottom, joined at center) + 2 sides, then
+// glue/pin at the corners. Overlaps the screen border by `frame_lip`.
+module frame_seg(len=seg_len){
+  difference(){
+    cube([len, frame_face, fp+screen_t+2]);
+    translate([-1, frame_lip, fp]) cube([len+2, frame_face, screen_t+4]); // screen sits in here
+    // corner alignment-pin holes at each end
+    for(x=[6, len-6]) translate([x, frame_face/2, -1]) cylinder(h=fp+3, d=3);
+  }
 }
+
+// ---------- test coupons ----------
+module test_vesa(){ difference(){ cube([vesa+24, vesa+24, fp], center=true);
+  for(x=[-vesa/2,vesa/2],y=[-vesa/2,vesa/2]) translate([x,y,-fp]) cylinder(h=fp*3,d=4.5); } }
+module test_pi(){ difference(){ translate([0,0,fp/2]) cube([pi_hx+24, pi_hy+24, fp], center=true);
+  for(x=[-pi_hx/2,pi_hx/2],y=[-pi_hy/2,pi_hy/2]){ translate([x,y,fp]) cylinder(h=6,d=6);
+    translate([x,y,-1]) cylinder(h=10,d=pi_screw-0.2);} } }
+
+// ---------- dispatch ----------
+if(part=="back_case")      back_case();
+else if(part=="cleat_case") cleat_case();
+else if(part=="cleat_wall") cleat_wall();
+else if(part=="stand")      stand();
+else if(part=="frame_seg")  frame_seg();
+else if(part=="test_vesa")  test_vesa();
+else if(part=="test_pi")    test_pi();
+else if(part=="preview"){ back_case(); translate([0,0,case_d+8]) color("tan") cleat_case(); }

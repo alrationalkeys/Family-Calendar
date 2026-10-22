@@ -50,7 +50,8 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [ ] Phone page covers **all settings** + photo upload (`familyhub.local`)
 - [ ] Portrait/rotatable layout (landscape ships first)
 - [ ] Verify real iCloud + Google two-way sync
-- [ ] **Hardening:** Tailscale, local HTTPS (Caddy), stronger auth + lockout
+- [x] **Hardening:** constant-time PIN + per-IP brute-force lockout (`app/auth.py`); Tailscale +
+  local HTTPS (Caddy) guide → `docs/hardening.md` + `Caddyfile`
 
 ### Phase 2 — smart home control center (through HA)
 - [ ] HA WebSocket client (URL + long-lived token in `.env`), instant updates

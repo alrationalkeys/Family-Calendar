@@ -1,0 +1,14 @@
+# FamilyHub — local HTTPS reverse proxy (see docs/hardening.md)
+# Install Caddy, drop this at /etc/caddy/Caddyfile, `sudo systemctl restart caddy`.
+# Serves encrypted https on the LAN with Caddy's own local CA — no external cert.
+
+familyhub.local {
+    tls internal
+    reverse_proxy 127.0.0.1:8000
+}
+
+# If you don't have mDNS/familyhub.local resolving yet, you can use the Pi's IP:
+# 192.168.1.50 {
+#     tls internal
+#     reverse_proxy 127.0.0.1:8000
+# }

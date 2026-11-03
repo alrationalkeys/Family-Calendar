@@ -1,0 +1,22 @@
+# Railway deploy config for FamilyHub.
+# Railway auto-detects the Python app from requirements.txt (Nixpacks builder)
+# and runs the start command below, binding to the $PORT Railway provides.
+#
+# IMPORTANT for persistence: SQLite is the only DB wired up, and Railway's
+# container filesystem is EPHEMERAL — it resets on every deploy. To keep your
+# data, attach a Railway Volume (dashboard -> service -> Volumes) mounted at
+# /data, then set the env var  FAMILYHUB_DB=/data/familyhub.db .
+# Without a volume the app still runs fine, it just starts empty each deploy.
+#
+# See docs/railway-deploy.md for the full walkthrough + the privacy note
+# (reads are public unless you lock them down).
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5

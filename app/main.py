@@ -26,9 +26,30 @@ from .auth import pin_guard
 from fastapi import Depends
 
 
+def _maybe_seed_demo():
+    """On a fresh cloud/test deploy the app would otherwise be empty. If
+    SEED_DEMO is set (e.g. on Railway) AND there's no data yet, load the sample
+    family once so the wall/phone has something to show. Never overwrites real
+    data — it only runs when the people table is empty."""
+    import os
+    if os.getenv("SEED_DEMO", "").lower() not in ("1", "true", "yes", "on"):
+        return
+    try:
+        from .db import get_db
+        with get_db() as conn:
+            empty = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 0
+        if empty:
+            import seed_demo
+            seed_demo.main()
+    except Exception:
+        # seeding is a convenience; never let it stop the app from booting
+        pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _maybe_seed_demo()
     # background loop: enforce the display on/off schedule even with no client polling
     import asyncio
     from .services import display_svc

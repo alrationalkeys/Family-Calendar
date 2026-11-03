@@ -54,6 +54,14 @@ def media(payload: dict):
     return ha_svc.media(eid, action, p.get("value", ""))
 
 
+@router.get("/media_info")
+def media_info(entity_id: str):
+    """The TV's installed channels + current source/power/mute, for the remote."""
+    if not entity_id:
+        raise HTTPException(400, "entity_id required")
+    return ha_svc.media_info(entity_id)
+
+
 @router.post("/alarm")
 def alarm(payload: dict):
     """Arm/disarm the Qolsys IQ Panel. Disarm (and typically arm) need the panel

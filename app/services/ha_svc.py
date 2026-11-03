@@ -325,10 +325,36 @@ def media(entity_id: str, action: str, value: str = "") -> dict:
     if a == "app" and value:
         return call_service("media_player", "select_source", entity_id, {"source": value})
     navmap = {"up": "up", "down": "down", "left": "left", "right": "right",
-              "ok": "select", "back": "back", "home": "home"}
+              "ok": "select", "back": "back", "home": "home",
+              "info": "info", "replay": "instantreplay",
+              "rewind": "reverse", "forward": "forward"}
     if a in navmap:
         return call_service("remote", "send_command", remote_eid, {"command": navmap[a]})
     return {"ok": False, "reason": f"unknown media action {action}"}
+
+
+# A believable set of installed channels for the demo TV.
+_DEMO_APPS = ["Live TV", "Netflix", "YouTube", "Hulu", "Disney+", "Prime Video",
+              "Max", "Spotify", "Plex", "YouTube TV", "Peacock", "Apple TV"]
+
+
+def media_info(entity_id: str) -> dict:
+    """What's installed / playing on a TV, for the on-screen remote:
+    the real channel (app) list, the current source, power + mute state."""
+    if demo_mode():
+        cur = _DEMO.get(entity_id) or {}
+        return {"state": cur.get("state", "off"), "source": None,
+                "sources": _DEMO_APPS, "volume": None, "muted": False, "demo": True}
+    try:
+        s = _request(f"/api/states/{entity_id}") or {}
+        attrs = s.get("attributes", {}) or {}
+        return {"state": s.get("state", ""), "source": attrs.get("source"),
+                "sources": attrs.get("source_list") or [],
+                "volume": attrs.get("volume_level"),
+                "muted": bool(attrs.get("is_volume_muted")), "demo": False}
+    except Exception:
+        return {"state": "", "source": None, "sources": [], "volume": None,
+                "muted": False, "reason": "can't reach Home Assistant"}
 
 
 def status() -> dict:

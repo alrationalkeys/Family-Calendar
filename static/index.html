@@ -157,8 +157,11 @@
   .dpad .right{grid-area:2/3} .dpad .down{grid-area:3/2}
   .dpad .ok{background:var(--now); color:#fff; border-radius:50%; font-weight:700}
   .remote-row{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px}
-  .remote-apps{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:12px 0 4px}
+  .remote-chan-label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin:14px 2px 8px; text-align:left}
+  .remote-apps{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:0 0 4px; max-height:168px; overflow-y:auto}
   .remote-apps .rbtn{font-size:14px; padding:10px}
+  .remote-apps .rbtn.cur{background:var(--now); color:#1a1205}
+  .remote-apps .loading{grid-column:1/-1; color:var(--ink-dim); font-size:13px; text-align:center; padding:8px}
 
   .bottomnav{display:flex; gap:8px; background:var(--panel); border-radius:var(--r); padding:8px}
   .bottomnav button{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; cursor:pointer;
@@ -688,13 +691,19 @@
     <div class="remote-row">
       <button class="rbtn" data-m="back">&#8592; Back</button>
       <button class="rbtn" data-m="home">&#127968; Home</button>
+      <button class="rbtn" data-m="info">&#9733; Options</button>
+    </div>
+    <div class="remote-row">
+      <button class="rbtn" data-m="replay">&#8634; Replay</button>
       <button class="rbtn" data-m="play_pause">&#9199;</button>
+      <button class="rbtn" data-m="forward">&#9193;</button>
     </div>
     <div class="remote-row">
       <button class="rbtn" data-m="vol_down">&#128264; &minus;</button>
       <button class="rbtn" data-m="mute">&#128263;</button>
       <button class="rbtn" data-m="vol_up">&#128266; &plus;</button>
     </div>
+    <div class="remote-chan-label">Channels</div>
     <div class="remote-apps" id="remote-apps"></div>
     <button class="pin-x" id="remote-close">Close</button>
   </div>
@@ -1972,17 +1981,25 @@ $("#pinpad").onclick=(e)=>{ if(e.target.id==="pinpad") closePinPad(); };
 /* ---- TV / Roku remote ---- */
 const REMOTE_APPS=["Netflix","YouTube","Hulu","Disney+","Prime Video","Spotify"];
 let remoteEid=null;
-function openRemote(eid, name){
+async function openRemote(eid, name){
   remoteEid=eid;
   $("#remote-name").textContent=name||"TV";
   const apps=$("#remote-apps");
+  apps.innerHTML='<div class="loading">Loading channels…</div>';
+  $("#remote").classList.add("on");
+  let info=null;
+  try{ info=await fetch("/api/ha/media_info?entity_id="+encodeURIComponent(eid)).then(r=>r.json()); }catch(e){}
+  if(remoteEid!==eid) return;                    // closed/opened another while loading
+  const list=(info&&info.sources&&info.sources.length)?info.sources:REMOTE_APPS;
+  const cur=info&&info.source;
   apps.innerHTML="";
-  REMOTE_APPS.forEach(a=>{
-    const b=document.createElement("button"); b.className="rbtn"; b.textContent=a;
+  list.slice(0,12).forEach(a=>{
+    const b=document.createElement("button");
+    b.className="rbtn"+(a===cur?" cur":"");
+    b.textContent=a;
     b.onclick=()=>sendRemote("app", a);
     apps.appendChild(b);
   });
-  $("#remote").classList.add("on");
 }
 function closeRemote(){ $("#remote").classList.remove("on"); remoteEid=null; }
 async function sendRemote(action, value){

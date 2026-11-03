@@ -17,6 +17,9 @@ with nothing exposed to the internet.
 3. Install the Tailscale app on your phone, sign in.
 4. Reach the hub at its Tailscale name/IP. Done — end-to-end encrypted, no open ports.
 
+**Full walkthrough** (MagicDNS, real HTTPS via `tailscale serve`, dropping the
+public Railway URL, troubleshooting): see `docs/tailscale.md`.
+
 ## 3. Local HTTPS with Caddy
 On the LAN, FamilyHub speaks plain HTTP. Put **Caddy** in front for encrypted traffic
 (and so the service worker / PWA features work on phones, not just localhost).

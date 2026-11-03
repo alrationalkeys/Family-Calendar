@@ -47,11 +47,13 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [x] Offline caching — localStorage data cache (calendar/weather/lists fall back when the
   net drops, with an "offline" badge) + a service worker for the app shell
 - [x] On-screen keyboard for tap-to-add (pops up on any text field; settings toggle)
-- [ ] Phone page covers **all settings** + photo upload (`familyhub.local`)
+- [x] Phone page covers **all settings** (appearance, panels, holidays, effects, screen-off,
+  family members) → `static/phone.html` Settings view. *(Photo upload from phone still to add.)*
 - [ ] Portrait/rotatable layout (landscape ships first)
 - [ ] Verify real iCloud + Google two-way sync
-- [x] **Hardening:** constant-time PIN + per-IP brute-force lockout (`app/auth.py`); Tailscale +
-  local HTTPS (Caddy) guide → `docs/hardening.md` + `Caddyfile`
+- [x] **Hardening:** constant-time PIN + per-IP brute-force lockout (`app/auth.py`); optional
+  read-lock login gate for public URLs (`FAMILYHUB_LOCK_READS`, `static/auth.js`); Tailscale +
+  local HTTPS (Caddy) guides → `docs/hardening.md`, `docs/tailscale.md`, `Caddyfile`
 
 ### Phase 2 — smart home control center (through HA)
 - [x] **HA bridge + Home tab:** REST client (`app/services/ha_svc.py`, URL + long-lived
@@ -64,8 +66,9 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [x] Graceful "Home Assistant offline" card
 - [ ] HA **WebSocket** client for instant push updates (currently polls on tab open)
 - [ ] Configure tiles/rooms from the phone (group by *room*, not just type)
-- [ ] **Roku TVs:** power/volume/app-launch/on-screen remote + "Movie Time" scene
-- [ ] **Status bar** on the calendar: alarm state, open doors/garage, temps, alerts
+- [x] **Roku TVs:** on-screen remote — power/volume/mute/D-pad/back/home/play + app launch
+  (Netflix/YouTube/…) via `/api/ha/media`. *(A dedicated "Movie Time" scene still to add.)*
+- [x] **Status bar** on the calendar: alarm state, open doors/garage, temps (taps to Home)
 - [ ] **Two-way:** expose next event / chores left / grocery count back to HA for automations
 - [x] HA setup checklist → `docs/home-assistant-setup.md`
 

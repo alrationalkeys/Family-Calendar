@@ -440,6 +440,47 @@
   .ev-mrow button{background:var(--panel2); border:1px solid var(--line); color:var(--ink-dim); font:inherit;
     font-size:12px; font-weight:600; padding:8px 0; border-radius:8px; cursor:pointer}
   .ev-mrow button.on{background:#e0533d; border-color:#e0533d; color:#fff}
+
+  /* =================== MOBILE / PORTRAIT (phones) =================== */
+  @media(max-width:760px){
+    html,body{overflow-x:hidden}
+    .wrap{padding:10px; gap:10px; height:100dvh}
+    /* header shrinks + wraps */
+    header{flex-wrap:wrap; gap:8px 10px}
+    .date{font-size:21px; letter-spacing:-.01em}
+    .right{gap:10px 12px; flex-wrap:wrap}
+    .clock{font-size:19px}
+    .wx{font-size:14px; gap:5px}
+    .tabs button{padding:7px 10px; font-size:13px}
+    .gear{width:36px; height:36px; font-size:18px}
+    /* let each page scroll vertically */
+    .page{overflow-y:auto; -webkit-overflow-scrolling:touch}
+    /* calendar: stack the grid above the side panels instead of side-by-side */
+    .cal-page{grid-template-columns:1fr}
+    .cal-page.active{display:flex; flex-direction:column}
+    .main{flex:none; height:64vh; min-height:340px}
+    .side{display:block; overflow:visible; margin-top:10px}
+    .side .card{margin-bottom:10px}
+    .resizer{display:none}
+    .cal-tools{flex-wrap:wrap; gap:8px; padding:9px 10px}
+    .cal-tools .period{order:5; width:100%; margin-left:0}
+    .cal-tools .zoom{margin-left:auto}
+    /* smart-home + lists tighten up */
+    .tile-grid{grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px}
+    .cc-kpis{grid-template-columns:repeat(2,1fr)}
+    .cc-greet{font-size:20px}
+    /* bottom nav fits five items */
+    .bottomnav{gap:3px; padding:6px}
+    .bottomnav button{padding:5px 1px}
+    .bottomnav button .ico{font-size:20px}
+    .bottomnav button .lbl{font-size:10px}
+  }
+  /* very narrow: drop the weather chips in the header so the clock/tabs fit */
+  @media(max-width:460px){
+    .wx{display:none}
+    .date{font-size:19px}
+    .tabs button{padding:6px 8px; font-size:12px}
+  }
 </style>
 </head>
 <body>

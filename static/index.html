@@ -660,7 +660,8 @@
 
   <div class="sd-group"><label>Seasonal effects</label>
     <div class="sd-toggles" id="sd-effects">
-      <label><input type="checkbox" data-fx="effects"> Enable seasonal effects (show by date)</label>
+      <label><input type="checkbox" data-fx="effects"> Enable seasonal effects</label>
+      <label><input type="checkbox" id="sd-weatherfx"> Match the live weather (rain, snow, fog)</label>
     </div>
     <div id="sd-fxlist"></div>
   </div>
@@ -1236,8 +1237,17 @@ document.querySelectorAll("#sd-panels input").forEach(cb=>{
 document.querySelectorAll("#sd-holidays input").forEach(cb=>{
   cb.onchange=()=>{ const h={...FH.get().holidays,[cb.dataset.hol]:cb.checked}; FH.save({holidays:h}); load(); };
 });
-function applySeasonal(){ Seasonal.start(FH.get().effects!==false, FH.get().effectPrefs||{}); }
+let lastWeatherCode=null;
+function applySeasonal(){
+  const s=FH.get();
+  // live weather effects take over when enabled and we have a reading; otherwise date-based
+  if(s.weatherFx!==false && lastWeatherCode!=null)
+    Seasonal.applyWeather(lastWeatherCode, s.effects!==false, s.effectPrefs||{});
+  else
+    Seasonal.start(s.effects!==false, s.effectPrefs||{});
+}
 $("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); applySeasonal(); };
+$("#sd-weatherfx").onchange=(e)=>{ FH.save({weatherFx:e.target.checked}); applySeasonal(); };
 
 const FX=[{k:"snow",n:"Snow ❄️"},{k:"fireworks",n:"Fireworks 🎆"},{k:"halloween",n:"Bats & leaves 🦇"},{k:"petals",n:"Spring petals 🌸"}];
 function renderFx(){
@@ -1278,6 +1288,7 @@ function syncSettingsUI(){
   document.querySelectorAll("#sd-panels input").forEach(cb=>cb.checked=!!s.panels[cb.dataset.panel]);
   document.querySelectorAll("#sd-holidays input").forEach(cb=>cb.checked=!!s.holidays[cb.dataset.hol]);
   const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
+  const wfx=$("#sd-weatherfx"); if(wfx) wfx.checked=s.weatherFx!==false;
   $("#kbd-enabled").checked = s.onscreenKbd!==false;
   $("#hero-enabled").checked = !!s.heroEnabled;
   $("#hero-day-url").value   = s.heroDay || "";
@@ -1555,6 +1566,7 @@ async function loadWeather(){
     $("#wx").innerHTML = `<span>${w.icon}</span><span class="t">${w.temp}°</span>`
       + `<span class="hl">H ${w.high}°<br>L ${w.low}°</span>`;
     if (w.sunrise || w.sunset) { heroSun = { sunrise:w.sunrise, sunset:w.sunset }; updateHeroPhase(); }
+    if (w.code !== undefined) { lastWeatherCode = w.code; applySeasonal(); }   // drive live weather effects
   }catch(e){ $("#wx").innerHTML = ""; }
 }
 async function loadForecast(){

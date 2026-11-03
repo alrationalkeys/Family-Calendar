@@ -60,6 +60,14 @@ const Seasonal = (() => {
     return { x: Math.random()*canvas.width, y: Math.random()*canvas.height*0.6,
       sx: 1+Math.random()*1.5, sy: -0.3+Math.random()*0.6, flap: Math.random()*6, r: BIG(10+Math.random()*8) };
   }
+  function raindrop() {
+    return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height,
+      len: BIG(9+Math.random()*13), sp: (intense?11:7)+Math.random()*6, o: 0.22+Math.random()*0.3 };
+  }
+  function fogblob() {
+    return { x: Math.random()*canvas.width, y: canvas.height*(0.25+Math.random()*0.7),
+      r: BIG(70+Math.random()*130), sp: 0.15+Math.random()*0.4, o: 0.035+Math.random()*0.05 };
+  }
   function burst() {
     const cx = canvas.width*(0.2+Math.random()*0.6), cy = canvas.height*(0.15+Math.random()*0.35);
     const hue = Math.floor(Math.random()*360), n = N(50)+Math.floor(Math.random()*30);
@@ -73,6 +81,8 @@ const Seasonal = (() => {
     particles = [];
     clearInterval(fireworkTimer);   // always reset so switching modes is clean
     if (mode === "snow") for (let i=0;i<N(110);i++) particles.push(snowflake());
+    else if (mode === "rain" || mode === "thunder") for (let i=0;i<N(180);i++) particles.push(raindrop());
+    else if (mode === "fog") for (let i=0;i<N(14);i++) particles.push(fogblob());
     else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
     else if (mode === "halloween") {
       for (let i=0;i<N(45);i++) particles.push(leaf());
@@ -95,6 +105,31 @@ const Seasonal = (() => {
         ctx.globalAlpha = Math.max(p.life,0);
         ctx.fillStyle = `hsl(${p.hue},95%,62%)`;
         ctx.beginPath(); ctx.arc(p.x,p.y, intense?3.5:2.2, 0,7); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    } else if (mode === "rain" || mode === "thunder") {
+      if (mode === "thunder") maybeFlash();
+      const light = document.documentElement.getAttribute("data-theme")==="light";
+      ctx.strokeStyle = light ? "rgba(90,120,160,.55)" : "rgba(180,200,230,.5)";
+      ctx.lineWidth = intense ? 2 : 1.3;
+      particles.forEach(p => {
+        p.y += p.sp; p.x += 1.4;
+        if (p.y > canvas.height+20) { p.y = -20; p.x = Math.random()*canvas.width; }
+        ctx.globalAlpha = p.o;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x-2, p.y - p.len); ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      if (flashAlpha > 0) {
+        ctx.globalAlpha = flashAlpha; ctx.fillStyle = "#fff";
+        ctx.fillRect(0,0,canvas.width,canvas.height); ctx.globalAlpha = 1; flashAlpha -= 0.06;
+      }
+    } else if (mode === "fog") {
+      const light = document.documentElement.getAttribute("data-theme")==="light";
+      particles.forEach(p => {
+        p.x += p.sp; if (p.x - p.r > canvas.width) p.x = -p.r;
+        ctx.globalAlpha = p.o;
+        ctx.fillStyle = light ? "rgba(140,150,165,1)" : "rgba(200,205,215,1)";
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
       });
       ctx.globalAlpha = 1;
     } else if (mode === "halloween") {
@@ -147,6 +182,22 @@ const Seasonal = (() => {
     date.appendChild(hat);
   }
 
+  let flashAlpha = 0, nextFlash = 0;
+  function maybeFlash() {
+    const t = performance.now();
+    if (t > nextFlash) { flashAlpha = 0.55; nextFlash = t + 3500 + Math.random()*6000; }
+  }
+
+  // Map a WMO weather code (from /api/weather) to an ambient effect.
+  function weatherMode(code) {
+    if (code == null) return "none";
+    if ([71,72,73,74,75,76,77,85,86].includes(code)) return "snow";
+    if ([95,96,99].includes(code)) return "thunder";
+    if ([51,52,53,54,55,56,57,61,62,63,64,65,66,67,80,81,82].includes(code)) return "rain";
+    if ([45,48].includes(code)) return "fog";
+    return "none";   // clear / cloudy -> no overlay
+  }
+
   let lastEnabled = true, lastPrefs = {}, previewTimer = null;
 
   function start(enabled, prefs) {
@@ -173,10 +224,23 @@ const Seasonal = (() => {
     cancelAnimationFrame(raf); step();
     previewTimer = setTimeout(() => start(lastEnabled, lastPrefs), (seconds || 12) * 1000);
   }
+  // Drive the overlay from the LIVE weather instead of the date.
+  function applyWeather(code, enabled, prefs) {
+    lastEnabled = enabled; lastPrefs = prefs || {};
+    intense = false; clearTimeout(previewTimer);
+    setup();
+    mode = enabled ? weatherMode(code) : "none";
+    if (mode === "snow" && lastPrefs.snow === false) mode = "none";
+    santaHat(false);
+    if (!enabled || reduced || mode === "none") { stop(); ctx && ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+    running = true; seed();
+    cancelAnimationFrame(raf); step();
+  }
+
   function stop() {
     running = false; cancelAnimationFrame(raf); clearInterval(fireworkTimer);
     if (ctx) ctx.clearRect(0,0,canvas.width,canvas.height);
   }
 
-  return { start, stop, detect, preview };
+  return { start, stop, detect, preview, applyWeather, weatherMode };
 })();

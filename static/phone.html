@@ -183,6 +183,7 @@
   <div class="form sect">
     <h2>Seasonal effects</h2>
     <label class="chk"><input type="checkbox" id="set-effects"> Enable seasonal effects</label>
+    <label class="chk"><input type="checkbox" id="set-weatherfx"> Match the live weather (rain/snow/fog)</label>
     <hr>
     <label class="chk"><input type="checkbox" data-eff="snow"> Snow (winter)</label>
     <label class="chk"><input type="checkbox" data-eff="fireworks"> Fireworks (July 4 / NYE)</label>
@@ -514,6 +515,7 @@ function loadSettingsUI(){
   });
   // effects
   $("#set-effects").checked=!!s.effects; $("#set-effects").onchange=e=>FH.save({effects:e.target.checked});
+  $("#set-weatherfx").checked=s.weatherFx!==false; $("#set-weatherfx").onchange=e=>FH.save({weatherFx:e.target.checked});
   document.querySelectorAll("#view-settings input[data-eff]").forEach(c=>{
     c.checked=!!(s.effectPrefs||{})[c.dataset.eff];
     c.onchange=()=>saveNested("effectPrefs",c.dataset.eff,c.checked);

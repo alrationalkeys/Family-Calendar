@@ -15,6 +15,7 @@ const FH = (() => {
     heroNight: "",           // image URL shown at night
     holidays: { us_federal: false, christian: false, jewish: false, observances: false },
     effects: true,
+    weatherFx: true,         // drive ambient effects from live weather (rain/snow/fog) instead of date
     effectPrefs: { snow: true, fireworks: true, halloween: true, petals: true },
     dayStart: 6,             // first hour in the day/week time-grid (0–23)
     dayEnd: 20,              // last hour shown (1–24)

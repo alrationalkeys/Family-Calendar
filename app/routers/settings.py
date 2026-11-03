@@ -19,6 +19,7 @@ DEFAULTS = {
     "heroNight": "",
     "holidays": {"us_federal": False, "christian": False, "jewish": False, "observances": False},
     "effects": True,
+    "weatherFx": True,
     "effectPrefs": {"snow": True, "fireworks": True, "halloween": True, "petals": True},
     "dayStart": 6,         # first hour shown in the day/week time-grid (0–23)
     "dayEnd": 20,          # last hour shown (1–24)

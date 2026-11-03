@@ -36,6 +36,7 @@ def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
         desc, icon = CODE.get(code, ("", "\U0001F321\ufe0f"))
         return {
             "temp": round(cur["temperature_2m"]),
+            "code": code,                 # raw WMO weather code -> drives live weather effects
             "desc": desc, "icon": icon,
             "high": round(daily["temperature_2m_max"][0]),
             "low": round(daily["temperature_2m_min"][0]),

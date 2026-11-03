@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards, display)
+                      events, notifications, rewards, display, ha)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -85,6 +85,7 @@ app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
 app.include_router(display.router, prefix="/api/display", tags=["display"])
 app.include_router(photos.router, prefix="/api/photos", tags=["photos"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(ha.router, prefix="/api/ha", tags=["home-assistant"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

@@ -36,6 +36,7 @@ app/
     meals.py           meal planner
     categories.py      color categories + people management
     ai.py              /parse, /route, /quick-add
+    ha.py              Home Assistant tab: tiles, toggle, scenes, alarm PIN pad
     photos.py          slideshow photo feed
   services/
     google_sync.py     Google Calendar API (read + write)
@@ -43,6 +44,7 @@ app/
     ai_parse.py        text -> events
     ai_route.py        text -> {kind, items} classifier (event/todo/grocery/meal)
     color.py           central color resolver
+    ha_svc.py          Home Assistant REST client (+ demo mode)
 static/
   index.html           wall display
   phone.html           phone control app
@@ -83,6 +85,10 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/ai/vision` — photo (base64) -> extracted events
 - `/api/weather` — Open-Meteo, no key needed, defaults to Socastee SC (now also returns sunrise/sunset)
 - `/api/chores/scoreboard` — per-person star balance + today's chore progress (live kids' leaderboard)
+- `/api/ha/*` — Home Assistant bridge for the Home tab: `status`, `home` (grouped tiles),
+  `toggle` (lights/switches/covers/locks/scenes), `service` (escape hatch), `alarm`
+  (arm/disarm w/ PIN). Runs in **demo mode** (sample devices) unless `HA_URL`+`HA_TOKEN`
+  are set; force demo with `HA_DEMO=1`. HA talks to the gear; token stays server-side.
 - `/api/display/*` — scheduled screen-off: `state` (wall polls), `wake` (PIR/HA webhook), `sleep`,
   `config` (GET/PUT the night window). On a Pi it cuts the backlight via `vcgencmd display_power`;
   override with `FAMILYHUB_SCREEN_ON_CMD` / `FAMILYHUB_SCREEN_OFF_CMD` for Wayland/non-Pi.

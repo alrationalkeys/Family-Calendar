@@ -54,15 +54,20 @@ help. Lift it off the wall, set it on the counter, still does it all.
   local HTTPS (Caddy) guide → `docs/hardening.md` + `Caddyfile`
 
 ### Phase 2 — smart home control center (through HA)
-- [ ] HA WebSocket client (URL + long-lived token in `.env`), instant updates
-- [ ] **Home tab:** big touch tiles grouped by room, configured from the phone (live list from HA)
-- [ ] **Alarm:** status in the top bar; arm/disarm with a **PIN pad** (`qolsysgw`)
+- [x] **HA bridge + Home tab:** REST client (`app/services/ha_svc.py`, URL + long-lived
+  token in `.env`) feeds big touch tiles grouped by type (lights, plugs, climate, doors,
+  media, scenes, sensors). **Demo mode** (no creds, or `HA_DEMO=1`) shows sample devices so
+  the tab is fully explorable before the HA Pi exists → `app/routers/ha.py`, `#page-home`
+- [x] **Alarm:** tile + arm/disarm with an on-screen **PIN pad** (`/api/ha/alarm`, code
+  passed straight to HA, never stored). *(Live arm/disarm needs `qolsysgw` on the HA Pi.)*
+- [x] Tap-to-toggle lights/switches/fans/covers/locks; one-tap **scenes**
+- [x] Graceful "Home Assistant offline" card
+- [ ] HA **WebSocket** client for instant push updates (currently polls on tab open)
+- [ ] Configure tiles/rooms from the phone (group by *room*, not just type)
 - [ ] **Roku TVs:** power/volume/app-launch/on-screen remote + "Movie Time" scene
-- [ ] One-tap **scenes** (Good Night, Leaving, Movie Time, …)
 - [ ] **Status bar** on the calendar: alarm state, open doors/garage, temps, alerts
 - [ ] **Two-way:** expose next event / chores left / grocery count back to HA for automations
-- [ ] Graceful "Home Assistant offline" state
-- [ ] HA setup checklist → `docs/home-assistant-setup.md` *(done)*
+- [x] HA setup checklist → `docs/home-assistant-setup.md`
 
 ### Phase 2.5 — security & network monitor
 - [ ] **Security page:** devices on *your* LAN (name/vendor/IP) + **unknown-device alerts**

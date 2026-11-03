@@ -875,13 +875,14 @@ function render(){
 function renderAgenda(){
   const body=$("#calbody");
   const wrap=document.createElement("div"); wrap.className="agenda";
-  const start=new Date(cursor); start.setHours(0,0,0,0);
-  const horizon=new Date(start); horizon.setDate(horizon.getDate()+60);
+  // agenda follows the same week as the Week view, so the header shows its dates
+  const start=weekStart(cursor);
+  const horizon=new Date(start); horizon.setDate(horizon.getDate()+7);
   const evs=cache.events.map(e=>({e,s:evStart(e)}))
     .filter(x=>x.s && !isNaN(x.s) && x.s>=start && x.s<horizon)
     .sort((a,b)=> (a.s-b.s) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
   if(!evs.length){
-    wrap.innerHTML='<div class="empty" style="padding:22px 14px">Nothing coming up in the next 60 days.</div>';
+    wrap.innerHTML='<div class="empty" style="padding:22px 14px">Nothing scheduled this week. Tap &rsaquo; for next week.</div>';
     body.innerHTML=""; body.appendChild(wrap); return;
   }
   let lastKey=""; const todayKey=new Date().toDateString();
@@ -1011,20 +1012,22 @@ function renderMonth(){
   }
 }
 
+function weekRangeLabel(d){
+  const ds=weekDays(d), a=ds[0], b=ds[6];
+  const m1=a.toLocaleDateString([],{month:"short"}), m2=b.toLocaleDateString([],{month:"short"});
+  return (m1===m2) ? `${m1} ${a.getDate()} – ${b.getDate()}` : `${m1} ${a.getDate()} – ${m2} ${b.getDate()}`;
+}
 function updatePeriod(){
   const p=$("#period"); if(!p)return;
   if(view==="day"){ p.textContent=cursor.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"}); }
-  else if(view==="week"){ const ds=weekDays(cursor), a=ds[0], b=ds[6];
-    const m1=a.toLocaleDateString([],{month:"short"}), m2=b.toLocaleDateString([],{month:"short"});
-    p.textContent = (m1===m2) ? `${m1} ${a.getDate()} – ${b.getDate()}` : `${m1} ${a.getDate()} – ${m2} ${b.getDate()}`;
-  } else if(view==="agenda"){ p.textContent = "Upcoming"; }
+  else if(view==="week" || view==="agenda"){ p.textContent = weekRangeLabel(cursor); }
   else { p.textContent=cursor.toLocaleDateString([],{month:"long",year:"numeric"}); }
 }
 function navStep(dir){
   const c=new Date(cursor);
   if(view==="day") c.setDate(c.getDate()+dir);
   else if(view==="week") c.setDate(c.getDate()+7*dir);
-  else if(view==="agenda") c.setDate(c.getDate()+14*dir);
+  else if(view==="agenda") c.setDate(c.getDate()+7*dir);
   else c.setMonth(c.getMonth()+dir);
   cursor=c; render();
 }

@@ -49,6 +49,15 @@
   .ph-card code{background:var(--panel2); padding:2px 6px; border-radius:5px; font-size:13px}
   .photo-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px}
   .photo-grid img{width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:10px}
+  /* ---- calendar status bar (smart-home glance) ---- */
+  .homebar{display:none; flex:none; gap:10px; align-items:center; padding:7px 14px; background:var(--panel2);
+           border-bottom:1px solid var(--line); font-size:13.5px; overflow-x:auto; white-space:nowrap; cursor:pointer}
+  .homebar.show{display:flex}
+  .homebar .hb{display:inline-flex; align-items:center; gap:6px; color:var(--ink-dim)}
+  .homebar .hb b{color:var(--ink); font-weight:600}
+  .homebar .hb.armed b{color:#3bb273}
+  .homebar .hb.warn{color:#e0a44a}
+  .homebar .hb-sep{opacity:.3}
   /* ---- Home / smart-home tab ---- */
   .home-wrap{position:absolute; inset:0; overflow:auto; padding:10px 8px 20px}
   .home-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:2px 6px 14px; font-size:14px; color:var(--ink-dim)}
@@ -393,6 +402,7 @@
 
     <section class="page cal-page active" id="page-calendar">
       <section class="main" id="main">
+        <div id="home-statusbar" class="homebar" title="Open Home"></div>
         <div class="cal-tools">
           <div class="nav"><button id="nav-prev" title="Previous">&#8249;</button><button id="nav-next" title="Next">&#8250;</button></div>
           <button class="today" id="nav-today">Today</button>
@@ -1510,6 +1520,9 @@ function refreshActivePage(){
     loadHome();
   } else if(curPage==="calendar"){
     render();   // recompute calendar layout now that it's visible
+    loadHomeStatus();
+  } else {
+    const bar=$("#home-statusbar"); if(bar) bar.classList.remove("show");
   }
 }
 document.querySelectorAll(".bottomnav button").forEach(b=>{
@@ -1549,6 +1562,26 @@ function haStateLabel(t){
     unlocked:"Unlocked",playing:"Playing",idle:"Idle",disarmed:"Disarmed",
     armed_home:"Armed (home)",armed_away:"Armed (away)",armed_night:"Armed (night)"};
   return nice[t.state] || t.state || "";
+}
+async function loadHomeStatus(){
+  const bar=$("#home-statusbar"); if(!bar) return;
+  if(curPage!=="calendar"){ bar.classList.remove("show"); return; }
+  let s;
+  try{ s=(await cachedFetch("/api/ha/status","hastatus")).data; }
+  catch(e){ bar.classList.remove("show"); return; }
+  if(!s || !s.connected){ bar.classList.remove("show"); return; }
+  const parts=[];
+  const armed=(s.alarm||"").startsWith("armed");
+  const alarmLabel={disarmed:"Disarmed",armed_home:"Armed home",armed_away:"Armed away",
+    armed_night:"Armed night",pending:"Pending",triggered:"TRIGGERED"}[s.alarm]||s.alarm;
+  if(s.alarm) parts.push(`<span class="hb ${armed?'armed':''}">\u{1F6E1}️ <b>${esc(alarmLabel)}</b></span>`);
+  if((s.open_doors||[]).length) parts.push(`<span class="hb warn">⚠️ ${esc(s.open_doors.join(", "))} open</span>`);
+  (s.temps||[]).forEach(t=>parts.push(`<span class="hb">\u{1F321}️ ${esc(t.name)} <b>${t.value}${esc(t.unit)}</b></span>`));
+  if(s.demo) parts.push('<span class="hb" style="opacity:.55">demo</span>');
+  if(!parts.length){ bar.classList.remove("show"); return; }
+  bar.innerHTML=parts.join('<span class="hb-sep">·</span>');
+  bar.classList.add("show");
+  bar.onclick=()=>showPage("home");
 }
 async function loadHome(){
   const wrap=$("#home-wrap"); if(!wrap) return;
@@ -1779,12 +1812,13 @@ document.addEventListener("focusout", ()=>{
   applySeasonal();
   applyHero();
   tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
-  loadDispConfig(); loadDisplayState();
+  loadDispConfig(); loadDisplayState(); loadHomeStatus();
   setInterval(tick,1000); setInterval(load,60000); setInterval(loadPhotos,300000);
   setInterval(loadWeather, 600000);   // weather every 10 min
   setInterval(loadForecast, 1800000); // forecast every 30 min
   setInterval(checkNotifications, 30000);  // reminders every 30s
   setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
+  setInterval(loadHomeStatus, 30000);      // smart-home status bar every 30s
 })();
 </script>
 </body>

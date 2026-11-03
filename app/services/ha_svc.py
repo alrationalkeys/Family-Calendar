@@ -297,7 +297,8 @@ def _current_state(entity_id: str) -> str:
 
 
 def status() -> dict:
-    """Light-weight status for a top bar: connected? alarm state? open doors?"""
+    """Light-weight status for the calendar's top bar: connected? alarm state?
+    open doors/garage? a couple of temperatures?"""
     home = get_home()
     alarm, open_doors, temps = None, [], []
     for grp in home.get("groups", []):
@@ -308,6 +309,12 @@ def status() -> dict:
                 open_doors.append(t["name"])
             if t["domain"] == "cover" and t["state"] in ("open", "opening"):
                 open_doors.append(t["name"])
+            if t["domain"] == "sensor" and t.get("device_class") == "temperature":
+                try:
+                    temps.append({"name": t["name"], "value": round(float(t["state"])),
+                                  "unit": t.get("unit") or "°"})
+                except (ValueError, TypeError):
+                    pass
     return {"connected": home.get("connected"), "demo": home.get("demo"),
-            "alarm": alarm, "open_doors": open_doors,
+            "alarm": alarm, "open_doors": open_doors, "temps": temps[:3],
             "reason": home.get("reason")}

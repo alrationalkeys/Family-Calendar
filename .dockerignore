@@ -1,0 +1,18 @@
+# Keep the build context small and never ship local/secret files
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+*.db
+familyhub.db
+familyhub-backup*/
+.env
+credentials.json
+token.json
+hardware/
+docs/
+*.md
+tests/
+.pytest_cache/

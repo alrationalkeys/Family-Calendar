@@ -8,16 +8,17 @@ public `https://…up.railway.app` URL.
 > *publicly readable* by anyone who has the URL. Fine for a quick test; not how
 > you'd leave it long-term.
 
-The repo already includes everything Railway needs: `railway.toml`, `Procfile`,
-`requirements.txt`, and `.python-version`.
+The repo already includes everything Railway needs: a **`Dockerfile`** (Railway
+builds from it deterministically), plus `railway.toml`, `requirements.txt`, and a
+`Procfile` for other platforms.
 
 ## Option A — deploy from GitHub (easiest)
 1. Push this branch to GitHub (already done): `claude/tender-fermi-1g1upo`.
 2. In Railway: **New Project → Deploy from GitHub repo →** pick `Family-Calendar`.
 3. Under **Settings → Branch**, choose `claude/tender-fermi-1g1upo` (or merge to
    `main` first and deploy that).
-4. Railway auto-detects Python, installs `requirements.txt`, and starts the app
-   with the command in `railway.toml`. No port config needed — it uses `$PORT`.
+4. Railway builds the `Dockerfile`, installs `requirements.txt`, and starts the
+   app. No port config needed — the container binds to `$PORT`.
 5. **Settings → Networking → Generate Domain** to get your public URL.
 
 ## Option B — deploy from your computer (Railway CLI)

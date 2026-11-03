@@ -49,7 +49,8 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [x] On-screen keyboard for tap-to-add (pops up on any text field; settings toggle)
 - [x] Phone page covers **all settings** (appearance, panels, holidays, effects, screen-off,
   family members) → `static/phone.html` Settings view. *(Photo upload from phone still to add.)*
-- [ ] Portrait/rotatable layout (landscape ships first)
+- [x] Portrait / mobile layout — responsive breakpoints so the wall display also
+  works on a phone in portrait (stacks the calendar, compacts the nav)
 - [ ] Verify real iCloud + Google two-way sync
 - [x] **Hardening:** constant-time PIN + per-IP brute-force lockout (`app/auth.py`); optional
   read-lock login gate for public URLs (`FAMILYHUB_LOCK_READS`, `static/auth.js`); Tailscale +

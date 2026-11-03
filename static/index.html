@@ -817,7 +817,9 @@
 <script src="/seasonal.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-let view = "week";
+// Default view by screen: phones open on Agenda (easiest to read), the wall opens
+// on Week. Either can switch tabs; this is just the initial default each load.
+let view = (window.matchMedia && window.matchMedia("(max-width:760px)").matches) ? "agenda" : "week";
 let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
 let people = [];   // family members, from the dashboard feed
@@ -2203,6 +2205,7 @@ document.addEventListener("focusout", ()=>{
 (async()=>{
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
+  setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
   applyPanels();
   applySeasonal();
   applyHero();

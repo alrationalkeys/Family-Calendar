@@ -119,6 +119,22 @@
   .fp .room .rdot{fill:#6b7280}
   .fp .room.on .rdot{fill:var(--now); filter:drop-shadow(0 0 4px var(--now))}
   .fp-note{color:var(--ink-dim); font-size:12.5px; padding:12px 8px 4px; text-align:center}
+  /* ---- isometric 3D home ---- */
+  .iso{padding:6px 4px 0}
+  .iso svg{width:100%; height:auto; max-height:60vh; display:block}
+  .iso .r3d{cursor:pointer}
+  .iso .top{fill:var(--panel2); stroke:var(--line); stroke-width:1.2; transition:fill .2s}
+  .iso .wl-r{fill:var(--panel); transition:fill .2s}
+  .iso .wl-f{fill:var(--bg); transition:fill .2s}
+  .iso .r3d.on .top{fill:color-mix(in srgb,var(--now) 48%, var(--panel))}
+  .iso .r3d.on .wl-r{fill:color-mix(in srgb,var(--now) 32%, var(--panel))}
+  .iso .r3d.on .wl-f{fill:color-mix(in srgb,var(--now) 20%, var(--bg))}
+  .iso .rlbl{fill:var(--ink); font-size:11px; font-weight:600; text-anchor:middle; pointer-events:none}
+  .iso .rtmp{fill:var(--ink-dim); font-size:9.5px; font-weight:500}
+  .iso-list{display:flex; gap:8px; flex-wrap:wrap; padding:14px 6px 6px; justify-content:center}
+  .iso-chip{display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:999px; padding:6px 13px; font-size:13px; cursor:pointer; color:var(--ink-dim)}
+  .iso-chip.on{background:color-mix(in srgb,var(--now) 22%, var(--panel)); border-color:color-mix(in srgb,var(--now) 55%, transparent); color:var(--now)}
   /* PIN pad modal */
   .pinpad{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:60}
   .pinpad.on{display:flex}
@@ -1803,9 +1819,53 @@ function renderFloorView(body,h){
     else g.style.cursor="default";
   });
 }
+const ISO_ROOMS=[
+  {name:"Master",  key:"master", x:0,y:0,w:3,d:2},
+  {name:"Bath",    key:"bath",   x:3,y:0,w:2,d:2},
+  {name:"Office",  key:"office", x:5,y:0,w:2,d:2},
+  {name:"Living",  key:"living", x:0,y:2,w:4,d:3},
+  {name:"Kitchen", key:"kitchen",x:4,y:2,w:3,d:3},
+  {name:"Garage",  key:"garage", x:0,y:5,w:3,d:2},
+  {name:"Porch",   key:"porch",  x:3,y:5,w:4,d:2},
+];
 function renderIsoView(body,h){
-  body.innerHTML='<div class="page-center"><div class="ph-card"><div class="ph-ico">\u{1F3D8}️</div>'+
-    '<h3>3D home</h3><p>Coming right up.</p></div></div>';
+  const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
+  const lc=s=>String(s||"").toLowerCase();
+  const TW=34, TH=17, WH=26;
+  const iso=(gx,gy)=>[(gx-gy)*TW,(gx+gy)*TH];
+  const rooms=ISO_ROOMS.map(r=>{
+    const light=tiles.find(t=>t.domain==="light"&&lc(t.name).includes(r.key));
+    const cover=tiles.find(t=>t.domain==="cover"&&lc(t.name).includes(r.key));
+    const temp=tiles.find(t=>t.domain==="sensor"&&t.device_class==="temperature"&&lc(t.name).includes(r.key));
+    const ctrl=light||cover;
+    const on=light?light.on:(cover?cover.state!=="closed":false);
+    return {...r, ctrl, on, temp};
+  }).sort((a,b)=>(a.x+a.y)-(b.x+b.y));   // draw far-to-near
+  const pts=[]; let gEls="";
+  rooms.forEach((r,i)=>{
+    const p1=iso(r.x,r.y), p2=iso(r.x+r.w,r.y), p3=iso(r.x+r.w,r.y+r.d), p4=iso(r.x,r.y+r.d);
+    const dn=p=>[p[0],p[1]+WH], p2d=dn(p2), p3d=dn(p3), p4d=dn(p4);
+    [p1,p2,p3,p4,p2d,p3d,p4d].forEach(p=>pts.push(p));
+    const poly=a=>a.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
+    const cx=(p1[0]+p3[0])/2, cy=(p1[1]+p3[1])/2;
+    gEls+=`<g class="r3d${r.on?' on':''}" data-i="${i}">`+
+      `<polygon class="wl-r" points="${poly([p2,p3,p3d,p2d])}"/>`+
+      `<polygon class="wl-f" points="${poly([p4,p3,p3d,p4d])}"/>`+
+      `<polygon class="top" points="${poly([p1,p2,p3,p4])}"/>`+
+      `<text class="rlbl" x="${cx.toFixed(1)}" y="${(cy+2).toFixed(1)}">${esc(r.name)}</text>`+
+      (r.temp?`<text class="rlbl rtmp" x="${cx.toFixed(1)}" y="${(cy+15).toFixed(1)}">${esc(r.temp.state)}${esc(r.temp.unit||"°")}</text>`:"")+
+    '</g>';
+  });
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]), pad=26;
+  const minX=Math.min(...xs)-pad, minY=Math.min(...ys)-pad;
+  const vw=Math.max(...xs)-Math.min(...xs)+pad*2, vh=Math.max(...ys)-Math.min(...ys)+pad*2;
+  let html=`<div class="iso"><svg viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" role="img" aria-label="3D home">${gEls}</svg></div>`;
+  html+='<div class="iso-list">'+rooms.filter(r=>r.ctrl).map(r=>
+    `<span class="iso-chip${r.on?' on':''}" data-eid="${esc(r.ctrl.entity_id)}">${esc(r.name)}${r.temp?' · '+esc(r.temp.state)+esc(r.temp.unit||"°"):''}</span>`).join("")+'</div>';
+  html+='<div class="fp-note">Tap a room to toggle its light. Stylized layout — your real home can be modeled later.</div>';
+  body.innerHTML=html;
+  body.querySelectorAll(".r3d").forEach(g=>{ const r=rooms[+g.dataset.i]; if(r.ctrl) g.onclick=()=>toggleEntity(r.ctrl.entity_id); else g.style.cursor="default"; });
+  body.querySelectorAll(".iso-chip").forEach(c=>{ c.onclick=()=>toggleEntity(c.dataset.eid); });
 }
 async function toggleEntity(eid){ resetSleep(); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHome,400); }
 async function runScene(eid){ resetSleep(); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHome,500); }

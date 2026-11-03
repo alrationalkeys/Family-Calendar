@@ -25,6 +25,8 @@ DEFAULTS = {
     "dayEnd": 20,          # last hour shown (1–24)
     "hourPx": 46,          # zoom: pixel height of one hour row (26–120)
     "panelSizes": [1.1, 1.1, 0.9],   # relative heights of the side panels
+    "textSize": "normal",            # normal | large
+    "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
 }
 
 

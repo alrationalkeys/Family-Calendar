@@ -35,6 +35,14 @@
   html[data-theme="soft"] .tile{border-radius:16px}
   html[data-theme="soft"] .bottomnav button.active,
   html[data-theme="soft"] .tabs button.active{background:#f3ead9}
+  /* Large text: enlarge the readable content areas (scroll, so no overflow) */
+  html[data-textsize="large"] .main,
+  html[data-textsize="large"] .side,
+  html[data-textsize="large"] .page-pad,
+  html[data-textsize="large"] .home-wrap{ zoom:1.15; }
+  /* gentle, soft transitions on interactive bits */
+  .bottomnav button, .tabs button, .cal-tools button, .tile, .cc-qa,
+  .list-row, .addbtn, .gear{ transition:background .18s ease, box-shadow .18s ease, transform .1s ease, color .18s ease; }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   html{ --bg:#f4f5f7; --panel:#fff; --panel2:#eef0f3; --line:#e2e5ea; --ink:#1d2430; --ink-dim:#6b7280; --now:#e9a23b; }
   html,body{height:100%}
@@ -616,6 +624,12 @@
     <div class="sd-seg" data-key="density">
       <button data-val="compact">Compact</button><button data-val="comfortable">Comfortable</button>
       <button data-val="spacious">Spacious</button>
+    </div>
+  </div>
+
+  <div class="sd-group"><label>Text size</label>
+    <div class="sd-seg" data-key="textSize">
+      <button data-val="normal">Normal</button><button data-val="large">Large</button>
     </div>
   </div>
 
@@ -1859,38 +1873,58 @@ function renderTilesView(body,h){
 }
 
 /* ---- floor-plan view (sample layout; rooms map to HA entities by name) ---- */
-const FLOORPLAN=[
-  {name:"Master Bed", key:"master", x:16,y:16,w:200,h:150},
-  {name:"Bath",       key:"bath",   x:224,y:16,w:110,h:150},
-  {name:"Office",     key:"office", x:342,y:16,w:150,h:150},
-  {name:"Living Room",key:"living", x:16,y:174,w:260,h:168},
-  {name:"Kitchen",    key:"kitchen",x:284,y:174,w:208,h:168},
-  {name:"Garage",     key:"garage", x:16,y:350,w:170,h:122},
-  {name:"Front Porch",key:"porch",  x:194,y:350,w:298,h:122},
+/* ---- one grid layout drives BOTH the 2D plan and the 3D model ----
+   Each room: {name, key, gx, gy, gw, gd, light?, cover?, temp?}
+     gx,gy  grid position (cells, decimals ok)   gw,gd  width/depth in cells
+     light/cover/temp  explicit HA entity_id (otherwise matched by `key`)
+   A custom layout saved in settings.homeLayout overrides this sample, so a real
+   floor plan (e.g. traced from a Zillow/builder image) drops straight in. */
+const DEFAULT_LAYOUT=[
+  {name:"Master",      key:"master", gx:0,gy:0,gw:3,gd:2},
+  {name:"Bath",        key:"bath",   gx:3,gy:0,gw:2,gd:2},
+  {name:"Office",      key:"office", gx:5,gy:0,gw:2,gd:2},
+  {name:"Living Room", key:"living", gx:0,gy:2,gw:4,gd:3},
+  {name:"Kitchen",     key:"kitchen",gx:4,gy:2,gw:3,gd:3},
+  {name:"Garage",      key:"garage", gx:0,gy:5,gw:3,gd:2},
+  {name:"Front Porch", key:"porch",  gx:3,gy:5,gw:4,gd:2},
 ];
-function renderFloorView(body,h){
+function getLayout(){ const c=FH.get().homeLayout; return (Array.isArray(c)&&c.length)?c:DEFAULT_LAYOUT; }
+function isCustomLayout(){ const c=FH.get().homeLayout; return Array.isArray(c)&&c.length>0; }
+function resolveRooms(h){
   const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
   const lc=s=>String(s||"").toLowerCase();
-  const rooms=FLOORPLAN.map(r=>{
-    const light=tiles.find(t=>t.domain==="light"&&lc(t.name).includes(r.key));
-    const cover=tiles.find(t=>t.domain==="cover"&&lc(t.name).includes(r.key));
-    const temp=tiles.find(t=>t.domain==="sensor"&&t.device_class==="temperature"&&lc(t.name).includes(r.key));
+  const byId=id=>tiles.find(t=>t.entity_id===id);
+  const byKey=(dom,k,dc)=>tiles.find(t=>t.domain===dom&&(!dc||t.device_class===dc)&&lc(t.name).includes(lc(k)));
+  return getLayout().map(r=>{
+    const light=(r.light&&byId(r.light))||byKey("light",r.key);
+    const cover=(r.cover&&byId(r.cover))||byKey("cover",r.key);
+    const temp =(r.temp &&byId(r.temp)) ||byKey("sensor",r.key,"temperature");
     const ctrl=light||cover;
     const on=light?light.on:(cover?cover.state!=="closed":false);
-    return {...r, ctrl, on, temp};
+    return {...r, light, cover, temp, ctrl, on};
   });
-  let svg='<div class="fp"><svg viewBox="0 0 508 500" role="img" aria-label="Floor plan">';
-  svg+='<rect x="6" y="6" width="496" height="482" rx="14" fill="none" stroke="var(--line)" stroke-width="3"/>';
+}
+function fpNote(){
+  return isCustomLayout() ? '<div class="fp-note">Tap a room to toggle its light.</div>'
+    : '<div class="fp-note">Tap a room to toggle its light. Sample layout — send me your floor plan and I\'ll match it to your home.</div>';
+}
+function renderFloorView(body,h){
+  const rooms=resolveRooms(h);
+  const CELL=74, GAP=4;
+  let maxX=0,maxY=0; rooms.forEach(r=>{ maxX=Math.max(maxX,r.gx+r.gw); maxY=Math.max(maxY,r.gy+r.gd); });
+  const W=maxX*CELL, H=maxY*CELL, P=10;
+  let svg=`<div class="fp"><svg viewBox="${-P} ${-P} ${W+P*2} ${H+P*2}" role="img" aria-label="Floor plan">`;
+  svg+=`<rect x="${-P/2}" y="${-P/2}" width="${W+P}" height="${H+P}" rx="14" fill="none" stroke="var(--line)" stroke-width="3"/>`;
   rooms.forEach((r,i)=>{
+    const x=r.gx*CELL+GAP, y=r.gy*CELL+GAP, w=r.gw*CELL-GAP*2, hh=r.gd*CELL-GAP*2;
     svg+=`<g class="room${r.on?' on':''}" data-i="${i}">`+
-      `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="10"/>`+
-      `<text class="rname" x="${r.x+14}" y="${r.y+26}">${esc(r.name)}</text>`+
-      (r.temp?`<text class="rtemp" x="${r.x+14}" y="${r.y+46}">${esc(r.temp.state)}${esc(r.temp.unit||"°")}</text>`:"")+
-      (r.ctrl?`<circle class="rdot" cx="${r.x+r.w-16}" cy="${r.y+16}" r="6"/>`:"")+
+      `<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="10"/>`+
+      `<text class="rname" x="${x+14}" y="${y+26}">${esc(r.name)}</text>`+
+      (r.temp?`<text class="rtemp" x="${x+14}" y="${y+46}">${esc(r.temp.state)}${esc(r.temp.unit||"°")}</text>`:"")+
+      (r.ctrl?`<circle class="rdot" cx="${x+w-16}" cy="${y+16}" r="6"/>`:"")+
     '</g>';
   });
-  svg+='</svg></div>';
-  svg+='<div class="fp-note">Tap a room to toggle its light. Sample layout — your real floor plan can be dropped in later.</div>';
+  svg+='</svg></div>'+fpNote();
   body.innerHTML=svg;
   body.querySelectorAll(".room").forEach(g=>{
     const r=rooms[+g.dataset.i];
@@ -1898,31 +1932,13 @@ function renderFloorView(body,h){
     else g.style.cursor="default";
   });
 }
-const ISO_ROOMS=[
-  {name:"Master",  key:"master", x:0,y:0,w:3,d:2},
-  {name:"Bath",    key:"bath",   x:3,y:0,w:2,d:2},
-  {name:"Office",  key:"office", x:5,y:0,w:2,d:2},
-  {name:"Living",  key:"living", x:0,y:2,w:4,d:3},
-  {name:"Kitchen", key:"kitchen",x:4,y:2,w:3,d:3},
-  {name:"Garage",  key:"garage", x:0,y:5,w:3,d:2},
-  {name:"Porch",   key:"porch",  x:3,y:5,w:4,d:2},
-];
 function renderIsoView(body,h){
-  const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
-  const lc=s=>String(s||"").toLowerCase();
   const TW=34, TH=17, WH=26;
   const iso=(gx,gy)=>[(gx-gy)*TW,(gx+gy)*TH];
-  const rooms=ISO_ROOMS.map(r=>{
-    const light=tiles.find(t=>t.domain==="light"&&lc(t.name).includes(r.key));
-    const cover=tiles.find(t=>t.domain==="cover"&&lc(t.name).includes(r.key));
-    const temp=tiles.find(t=>t.domain==="sensor"&&t.device_class==="temperature"&&lc(t.name).includes(r.key));
-    const ctrl=light||cover;
-    const on=light?light.on:(cover?cover.state!=="closed":false);
-    return {...r, ctrl, on, temp};
-  }).sort((a,b)=>(a.x+a.y)-(b.x+b.y));   // draw far-to-near
+  const rooms=resolveRooms(h).sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));   // draw far-to-near
   const pts=[]; let gEls="";
   rooms.forEach((r,i)=>{
-    const p1=iso(r.x,r.y), p2=iso(r.x+r.w,r.y), p3=iso(r.x+r.w,r.y+r.d), p4=iso(r.x,r.y+r.d);
+    const p1=iso(r.gx,r.gy), p2=iso(r.gx+r.gw,r.gy), p3=iso(r.gx+r.gw,r.gy+r.gd), p4=iso(r.gx,r.gy+r.gd);
     const dn=p=>[p[0],p[1]+WH], p2d=dn(p2), p3d=dn(p3), p4d=dn(p4);
     [p1,p2,p3,p4,p2d,p3d,p4d].forEach(p=>pts.push(p));
     const poly=a=>a.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
@@ -1941,7 +1957,7 @@ function renderIsoView(body,h){
   let html=`<div class="iso"><svg viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" role="img" aria-label="3D home">${gEls}</svg></div>`;
   html+='<div class="iso-list">'+rooms.filter(r=>r.ctrl).map(r=>
     `<span class="iso-chip${r.on?' on':''}" data-eid="${esc(r.ctrl.entity_id)}">${esc(r.name)}${r.temp?' · '+esc(r.temp.state)+esc(r.temp.unit||"°"):''}</span>`).join("")+'</div>';
-  html+='<div class="fp-note">Tap a room to toggle its light. Stylized layout — your real home can be modeled later.</div>';
+  html+=fpNote();
   body.innerHTML=html;
   body.querySelectorAll(".r3d").forEach(g=>{ const r=rooms[+g.dataset.i]; if(r.ctrl) g.onclick=()=>toggleEntity(r.ctrl.entity_id); else g.style.cursor="default"; });
   body.querySelectorAll(".iso-chip").forEach(c=>{ c.onclick=()=>toggleEntity(c.dataset.eid); });

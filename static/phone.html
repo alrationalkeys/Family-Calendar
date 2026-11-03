@@ -164,6 +164,9 @@
     <div class="srow"><span>Density</span>
       <select id="set-density"><option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="spacious">Spacious</option></select>
     </div>
+    <div class="srow"><span>Text size</span>
+      <select id="set-textsize"><option value="normal">Normal</option><option value="large">Large</option></select>
+    </div>
   </div>
 
   <div class="form sect">
@@ -506,6 +509,7 @@ function loadSettingsUI(){
   buildAccent(); buildPersonColors();
   $("#set-font").value=s.font; $("#set-font").onchange=e=>FH.save({font:e.target.value});
   $("#set-density").value=s.density; $("#set-density").onchange=e=>FH.save({density:e.target.value});
+  $("#set-textsize").value=s.textSize||"normal"; $("#set-textsize").onchange=e=>FH.save({textSize:e.target.value});
   // panels
   document.querySelectorAll("#view-settings input[data-panel]").forEach(c=>{
     c.checked=!!(s.panels||{})[c.dataset.panel];

@@ -339,6 +339,16 @@
     overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
   .mev .mt{color:var(--ink-dim); font-weight:500; margin-right:3px}
   .mmore{font-size:10px; color:var(--ink-dim)}
+  .mevs{display:flex; flex-direction:column; gap:3px; overflow:hidden; min-width:0}
+  /* phone month: show events as compact dots (titles don't fit at 50px columns) */
+  @media(max-width:760px){
+    .mevs{flex-direction:row; flex-wrap:wrap; gap:3px; align-content:flex-start}
+    .mcell .num{font-size:13px}
+    .mcell{padding:5px 5px}
+    .mcell .mev{width:8px; height:8px; min-width:8px; padding:0; border-left:0; border-radius:50%;
+      background:var(--accent,#4f86c6); font-size:0; overflow:hidden}
+    .mcell .mmore{font-size:9px; width:100%; line-height:1}
+  }
 
   /* calendar nav toolbar */
   .cal-tools{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); flex:none}
@@ -997,16 +1007,19 @@ function renderMonth(){
     const cell=document.createElement("div");
     cell.className="mcell"+(d.getMonth()!==ref.getMonth()?" dim":"")+(sameDay(d,new Date())?" today":"");
     cell.innerHTML=`<div class="num">${d.getDate()}</div>`;
+    const evbox=document.createElement("div"); evbox.className="mevs";
     const dayEvs=cache.events.filter(e=>sameDay(evStart(e),d))
       .sort((a,b)=>(a.all_day?0:1)-(b.all_day?0:1) || (a.start||"").localeCompare(b.start||""));
     dayEvs.slice(0,3).forEach(ev=>{
       const chip=document.createElement("div"); chip.className="mev"; chip.style.setProperty("--accent",evColor(ev));
+      chip.title=ev.title;
       const sdt=evStart(ev); const tm=(!ev.all_day && sdt && !isNaN(sdt)) ? sdt.toLocaleTimeString([],{hour:"numeric"}) : "";
       chip.innerHTML=`${tm?`<span class="mt">${tm}</span>`:""}${esc(ev.title)}`;
       chip.onclick=(e)=>{ e.stopPropagation(); openEditor(ev); };
-      cell.appendChild(chip);
+      evbox.appendChild(chip);
     });
-    if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3} more`;cell.appendChild(m);}
+    if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3} more`;evbox.appendChild(m);}
+    cell.appendChild(evbox);
     cell.onclick=()=>{ cursor=new Date(d); view="day"; setActive("day"); render(); };
     grid.appendChild(cell);
   }

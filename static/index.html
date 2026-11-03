@@ -301,7 +301,7 @@
   .hour .slot{padding:6px 16px 6px 0; display:flex; flex-direction:column; gap:5px}
   .ev{background:var(--panel2); border-left:4px solid var(--accent,#4f86c6); border-radius:8px; padding:7px 11px; font-size:15px; font-weight:600}
   .ev .who{font-size:11px; color:var(--ink-dim); font-weight:500; text-transform:uppercase; letter-spacing:.06em}
-  .nowline{position:absolute; left:62px; right:10px; height:2px; background:var(--now); box-shadow:0 0 10px var(--now); z-index:2}
+  .nowline{position:absolute; left:calc(var(--tlab,54px) + 8px); right:10px; height:2px; background:var(--now); box-shadow:0 0 10px var(--now); z-index:2}
   .nowline::before{content:""; position:absolute; left:-5px; top:-3px; width:8px; height:8px; border-radius:50%; background:var(--now)}
 
   .week{flex:1; display:grid; grid-template-columns:repeat(7,1fr); overflow:hidden}
@@ -360,19 +360,19 @@
 
   /* day/week hourly time-grid */
   .tg{flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0}
-  .tg-head{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none; padding-right:var(--sbw,0px)}
+  .tg-head{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); flex:none; padding-right:var(--sbw,0px)}
   .tg-head .cnr{border-bottom:1px solid var(--line)}
-  .tg-head .dcol{padding:7px 2px; text-align:center; cursor:pointer; border-left:1px solid var(--line); border-bottom:1px solid var(--line)}
+  .tg-head .dcol{padding:7px 2px; text-align:center; cursor:pointer; border-left:1px solid var(--line); border-bottom:1px solid var(--line); overflow:hidden}
   .tg-head .dcol .dn{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.06em}
   .tg-head .dcol .dd{font-size:18px; font-weight:700; margin-top:1px}
   .tg-head .dcol.today .dd{color:var(--now)}
   .tg-head .dcol .dwx{font-size:11px; color:var(--ink-dim); margin-top:2px; white-space:nowrap}
-  .tg-allday{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto; padding-right:var(--sbw,0px)}
+  .tg-allday{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto; padding-right:var(--sbw,0px)}
   .tg-allday .lbl{font-size:9px; color:var(--ink-dim); padding:5px 4px 0; text-transform:uppercase; text-align:right; letter-spacing:.04em}
   .tg-allday .adcol{border-left:1px solid var(--line); padding:3px; display:flex; flex-direction:column; gap:3px; min-height:24px}
   .adev{font-size:11px; font-weight:600; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
   .tg-body{flex:1; overflow-y:auto; position:relative; min-height:0; scrollbar-gutter:stable}
-  .tg-cols{display:grid; grid-template-columns:54px repeat(var(--cols,7),1fr); position:relative}
+  .tg-cols{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); position:relative}
   .tg-gut .gh{height:var(--hpx,46px); font-size:11px; color:var(--ink-dim); text-align:right; padding-right:7px; transform:translateY(-7px)}
   .tg-day{position:relative; border-left:1px solid var(--line);
     background-image:repeating-linear-gradient(var(--line) 0 1px, transparent 1px var(--hpx,46px))}
@@ -487,6 +487,13 @@
     .cal-page{grid-template-columns:1fr}
     .cal-page.active{display:flex; flex-direction:column}
     .main{flex:none; height:64vh; min-height:340px}
+    /* calendar week: narrower time-label gutter + smaller day text so all 7 days fit */
+    :root{ --tlab:40px }
+    .tg-head .dcol{padding:7px 1px}
+    .tg-head .dcol .dn{font-size:10px}
+    .tg-head .dcol .dd{font-size:16px}
+    .tg-head .dcol .dwx{font-size:9.5px; margin-top:1px}
+    .tg-gut .gh{font-size:10px; padding-right:4px}
     .side{display:block; overflow:visible; margin-top:10px}
     .side .card{margin-bottom:10px}
     .resizer{display:none}

@@ -82,10 +82,38 @@
   .preview .pk{color:var(--now); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:.1em}
   .preview .pi{padding:5px 0; border-top:1px solid var(--line)}
   .preview .pi:first-of-type{border-top:0; margin-top:6px}
+
+  /* top nav: Add | Settings */
+  .topnav{display:flex; gap:6px; background:var(--panel); border-radius:12px; padding:5px; margin:14px 0 18px; border:1px solid var(--line)}
+  .topnav button{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; font-size:15px; font-weight:600; padding:12px 0; border-radius:9px; cursor:pointer}
+  .topnav button.active{background:var(--panel2); color:var(--ink)}
+  /* settings */
+  .sect{margin-bottom:16px}
+  .sect h2{font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-dim); margin-bottom:12px}
+  .srow{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:13px}
+  .srow>span{font-size:16px}
+  .srow select{width:auto; margin:0; min-width:140px}
+  .srow label{font-size:12px; color:var(--ink-dim)}
+  .pill-toggle{display:flex; gap:4px; background:var(--panel2); border-radius:9px; padding:3px}
+  .pill-toggle button{background:none; border:0; color:var(--ink-dim); font:inherit; font-size:14px; padding:8px 16px; border-radius:7px; cursor:pointer}
+  .pill-toggle button.active{background:var(--now); color:#1a1205; font-weight:600}
+  .sect hr{border:0; border-top:1px solid var(--line); margin:12px 0}
+  .prow{display:flex; align-items:center; gap:11px; padding:10px 0; border-top:1px solid var(--line)}
+  .prow:first-child{border-top:0}
+  .prow .pav{width:30px; height:30px; border-radius:50%; flex:none; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px}
+  .prow .pname{flex:1; font-size:16px}
+  .prow button{background:var(--panel2); border:1px solid var(--line); color:var(--ink-dim); border-radius:8px; padding:7px 11px; font:inherit; font-size:13px; cursor:pointer}
+  .prow button.del{color:#e0533d}
 </style>
 </head>
 <body>
-<h1>Add to FamilyHub</h1>
+<h1>FamilyHub</h1>
+<div class="topnav">
+  <button id="nav-add" class="active">&#10133; Add</button>
+  <button id="nav-settings">&#9881;&#65039; Settings</button>
+</div>
+
+<div id="view-add">
 <div class="sub">Type it however you'd say it.</div>
 
 <!-- THE MAGIC BOX -->
@@ -113,6 +141,71 @@
 </div>
 
 <div class="form" id="form"></div>
+</div><!-- /view-add -->
+
+<div id="view-settings" hidden>
+  <div class="sub">Changes apply to the wall display and this phone.</div>
+
+  <div class="form sect">
+    <h2>Appearance</h2>
+    <div class="srow"><span>Theme</span>
+      <div class="pill-toggle" id="set-theme">
+        <button data-v="light">Light</button><button data-v="dark">Dark</button>
+      </div>
+    </div>
+    <div class="srow"><span>Accent</span><div class="colors" id="set-accent" style="margin:0; justify-content:flex-end"></div></div>
+    <div class="srow"><span>Font</span>
+      <select id="set-font"><option value="inter">Default</option><option value="serif">Serif</option><option value="rounded">Rounded</option><option value="mono">Mono</option></select>
+    </div>
+    <div class="srow"><span>Density</span>
+      <select id="set-density"><option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="spacious">Spacious</option></select>
+    </div>
+  </div>
+
+  <div class="form sect">
+    <h2>Wall side panels</h2>
+    <label class="chk"><input type="checkbox" data-panel="scoreboard"> Scoreboard</label>
+    <label class="chk"><input type="checkbox" data-panel="todos"> To-Do</label>
+    <label class="chk"><input type="checkbox" data-panel="groceries"> Groceries</label>
+    <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
+    <hr>
+    <label class="chk"><input type="checkbox" id="set-kbd"> On-screen keyboard on the wall</label>
+  </div>
+
+  <div class="form sect">
+    <h2>Holidays</h2>
+    <label class="chk"><input type="checkbox" data-hol="us_federal"> US federal holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="christian"> Christian holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="jewish"> Jewish holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="observances"> Fun observances</label>
+  </div>
+
+  <div class="form sect">
+    <h2>Seasonal effects</h2>
+    <label class="chk"><input type="checkbox" id="set-effects"> Enable seasonal effects</label>
+    <hr>
+    <label class="chk"><input type="checkbox" data-eff="snow"> Snow (winter)</label>
+    <label class="chk"><input type="checkbox" data-eff="fireworks"> Fireworks (July 4 / NYE)</label>
+    <label class="chk"><input type="checkbox" data-eff="halloween"> Halloween</label>
+    <label class="chk"><input type="checkbox" data-eff="petals"> Spring petals</label>
+  </div>
+
+  <div class="form sect">
+    <h2>Night screen-off</h2>
+    <label class="chk"><input type="checkbox" id="disp-enabled"> Turn the wall screen off at night</label>
+    <div class="srow"><span>Off at</span><input id="disp-start" type="time" style="width:auto; margin:0"></div>
+    <div class="srow"><span>Back on</span><input id="disp-end" type="time" style="width:auto; margin:0"></div>
+  </div>
+
+  <div class="form sect">
+    <h2>Family members</h2>
+    <div id="people-list"></div>
+    <hr>
+    <input id="person-name" placeholder="New person's name">
+    <div class="colors" id="person-colors"></div>
+    <button class="go" id="person-add">Add person</button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -360,6 +453,122 @@ camInput.onchange = async () => {
     }
   } catch (e) { toast("Couldn't read photo"); }
   camBtn.textContent = "📷 Photo"; camBtn.disabled = false; camInput.value = "";
+};
+
+/* ===================== SETTINGS VIEW ===================== */
+/* top-nav view switch */
+$("#nav-add").onclick=()=>switchView("add");
+$("#nav-settings").onclick=()=>switchView("settings");
+function switchView(v){
+  const add=v==="add";
+  $("#view-add").hidden=!add; $("#view-settings").hidden=add;
+  $("#nav-add").classList.toggle("active",add);
+  $("#nav-settings").classList.toggle("active",!add);
+  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); }
+}
+
+function saveNested(group,key,val){
+  const cur={...(FH.get()[group]||{})}; cur[key]=val; FH.save({[group]:cur});
+}
+
+/* accent + new-person color swatches */
+let personColor=PALETTE[0];
+function buildAccent(){
+  const el=$("#set-accent"); el.innerHTML="";
+  const cur=FH.get().accent;
+  PALETTE.forEach(c=>{
+    const s=document.createElement("div"); s.className="swatch"+(c===cur?" sel":""); s.style.background=c;
+    s.onclick=()=>{ FH.save({accent:c}); buildAccent(); };
+    el.appendChild(s);
+  });
+}
+function buildPersonColors(){
+  const el=$("#person-colors"); el.innerHTML="";
+  PALETTE.forEach((c,i)=>{
+    const s=document.createElement("div"); s.className="swatch"+(c===personColor?" sel":""); s.style.background=c;
+    s.onclick=()=>{ personColor=c; buildPersonColors(); };
+    el.appendChild(s);
+  });
+}
+
+function loadSettingsUI(){
+  const s=FH.get();
+  // theme pill
+  document.querySelectorAll("#set-theme button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.v===s.theme);
+    b.onclick=()=>{ FH.save({theme:b.dataset.v}); loadSettingsUI(); };
+  });
+  buildAccent(); buildPersonColors();
+  $("#set-font").value=s.font; $("#set-font").onchange=e=>FH.save({font:e.target.value});
+  $("#set-density").value=s.density; $("#set-density").onchange=e=>FH.save({density:e.target.value});
+  // panels
+  document.querySelectorAll("#view-settings input[data-panel]").forEach(c=>{
+    c.checked=!!(s.panels||{})[c.dataset.panel];
+    c.onchange=()=>saveNested("panels",c.dataset.panel,c.checked);
+  });
+  $("#set-kbd").checked=!!s.onscreenKbd; $("#set-kbd").onchange=e=>FH.save({onscreenKbd:e.target.checked});
+  // holidays
+  document.querySelectorAll("#view-settings input[data-hol]").forEach(c=>{
+    c.checked=!!(s.holidays||{})[c.dataset.hol];
+    c.onchange=()=>saveNested("holidays",c.dataset.hol,c.checked);
+  });
+  // effects
+  $("#set-effects").checked=!!s.effects; $("#set-effects").onchange=e=>FH.save({effects:e.target.checked});
+  document.querySelectorAll("#view-settings input[data-eff]").forEach(c=>{
+    c.checked=!!(s.effectPrefs||{})[c.dataset.eff];
+    c.onchange=()=>saveNested("effectPrefs",c.dataset.eff,c.checked);
+  });
+}
+
+/* night screen-off (shared endpoint with the wall) */
+let dispCfg=null;
+async function loadDispCfg(){
+  try{ dispCfg=await fetch("/api/display/config").then(r=>r.json()); }catch(e){ dispCfg=null; return; }
+  $("#disp-enabled").checked=!!dispCfg.enabled;
+  $("#disp-start").value=dispCfg.off_start||"22:00";
+  $("#disp-end").value=dispCfg.off_end||"06:30";
+}
+function saveDisp(){
+  const patch={enabled:$("#disp-enabled").checked, off_start:$("#disp-start").value, off_end:$("#disp-end").value};
+  fetch("/api/display/config",{method:"PUT",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({...(dispCfg||{}),...patch})}).then(r=>r.json()).then(c=>{dispCfg=c;}).catch(()=>{});
+}
+["disp-enabled","disp-start","disp-end"].forEach(id=>{ const el=$("#"+id); if(el) el.onchange=saveDisp; });
+
+/* family members */
+async function loadPeople(){
+  let list=[];
+  try{ list=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
+  people=list;
+  const box=$("#people-list"); box.innerHTML="";
+  if(!list.length){ box.innerHTML='<div class="sub" style="margin:0">No people yet — add your family below.</div>'; return; }
+  list.forEach(p=>{
+    const row=document.createElement("div"); row.className="prow";
+    row.innerHTML=`<div class="pav" style="background:${p.color}">${(p.name||"?").slice(0,1).toUpperCase()}</div>`+
+      `<div class="pname">${p.name}</div>`+
+      `<button data-act="edit">Edit</button><button class="del" data-act="del">Delete</button>`;
+    row.querySelector('[data-act="edit"]').onclick=()=>renamePerson(p);
+    row.querySelector('[data-act="del"]').onclick=()=>deletePerson(p);
+    box.appendChild(row);
+  });
+}
+async function renamePerson(p){
+  const name=prompt("Rename person:", p.name); if(name===null) return;
+  const nm=name.trim(); if(!nm) return;
+  await fetch("/api/categories/people/"+p.id,{method:"PUT",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:nm,color:p.color})}).catch(()=>{});
+  toast("Saved"); loadPeople();
+}
+async function deletePerson(p){
+  if(!confirm(`Remove ${p.name}? Their items become unassigned.`)) return;
+  await fetch("/api/categories/people/"+p.id,{method:"DELETE"}).catch(()=>{});
+  toast("Removed"); loadPeople();
+}
+$("#person-add").onclick=async()=>{
+  const name=$("#person-name").value.trim(); if(!name){ toast("Enter a name"); return; }
+  await fetch("/api/categories/people",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name,color:personColor})}).catch(()=>{});
+  $("#person-name").value=""; toast("Person added"); loadPeople();
 };
 
 async function init(){

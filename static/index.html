@@ -1890,7 +1890,15 @@ document.addEventListener("focusout", ()=>{
   setInterval(checkNotifications, 30000);  // reminders every 30s
   setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
   setInterval(loadHomeStatus, 30000);      // smart-home status bar every 30s
+  setInterval(syncSettings, 60000);        // pick up settings changed from a phone
 })();
+
+async function syncSettings(){
+  // don't clobber the wall's own settings drawer while it's open
+  if($("#settings-drawer").classList.contains("on")) return;
+  await FH.load();
+  applyPanels(); applySeasonal(); applyHero();
+}
 </script>
 </body>
 </html>

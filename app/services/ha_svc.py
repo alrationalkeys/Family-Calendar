@@ -111,6 +111,12 @@ def _demo_seed():
         "sensor.outdoor_temp": {"state": "63",
             "attributes": {"friendly_name": "Outdoor Temp", "unit_of_measurement": "°F",
                            "device_class": "temperature"}},
+        "sensor.power_now": {"state": "741",
+            "attributes": {"friendly_name": "Power Now", "unit_of_measurement": "W",
+                           "device_class": "power"}},
+        "sensor.energy_today": {"state": "12.5",
+            "attributes": {"friendly_name": "Energy Today", "unit_of_measurement": "kWh",
+                           "device_class": "energy"}},
     }
 
 # Mutable in-memory demo state, so demo toggles feel live within a server run.

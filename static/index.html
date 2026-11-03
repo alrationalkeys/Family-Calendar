@@ -74,13 +74,37 @@
   .tile:active{transform:scale(.97)}
   .tile.ro{cursor:default}
   .tile.ro:active{transform:none}
-  .tile.on{background:color-mix(in srgb, var(--now) 22%, var(--panel)); border-color:color-mix(in srgb, var(--now) 55%, transparent)}
+  .tile.on{background:color-mix(in srgb, var(--now) 20%, var(--panel)); border-color:color-mix(in srgb, var(--now) 55%, transparent);
+           box-shadow:0 6px 22px color-mix(in srgb, var(--now) 22%, transparent)}
+  .tile.on .t-ico{filter:drop-shadow(0 0 7px color-mix(in srgb, var(--now) 55%, transparent))}
   .tile .t-ico{font-size:26px; line-height:1}
   .tile .t-name{font-size:15px; font-weight:600; margin-top:auto}
   .tile .t-state{font-size:12.5px; color:var(--ink-dim)}
   .tile.on .t-state{color:var(--now)}
   .tile.scene{align-items:center; text-align:center; justify-content:center}
   .tile.scene .t-name{margin-top:6px}
+  /* ---- command-center hero (Home tab) ---- */
+  .cc-hero{background:linear-gradient(135deg, color-mix(in srgb,var(--now) 20%, var(--panel)), var(--panel) 70%);
+    border:1px solid var(--line); border-radius:18px; padding:16px 18px; margin:2px 4px 16px}
+  .cc-hero-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:13px}
+  .cc-greet{font-size:23px; font-weight:700; line-height:1.1}
+  .cc-date{font-size:13px; color:var(--ink-dim); margin-top:3px}
+  .cc-live{font-size:12px; color:#3bb273; font-weight:600}
+  .cc-demo{font-size:12px; background:var(--now); color:#1a1205; padding:4px 11px; border-radius:999px; font-weight:700}
+  .cc-chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .cc-chip{display:inline-flex; align-items:center; gap:5px; font-size:12.5px; background:var(--panel2);
+    border-radius:999px; padding:5px 11px; color:var(--ink-dim)}
+  .cc-chip.ok{color:#3bb273} .cc-chip.warn{color:#e0a44a}
+  .cc-kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px}
+  .cc-kpi{background:var(--panel2); border-radius:13px; padding:12px 8px; text-align:center}
+  .cc-kpi-v{font-size:22px; font-weight:700; line-height:1}
+  .cc-kpi-v small{font-size:12px; color:var(--ink-dim); font-weight:600; margin-left:2px}
+  .cc-kpi-l{font-size:10.5px; color:var(--ink-dim); margin-top:5px; text-transform:uppercase; letter-spacing:.05em}
+  .cc-actions{display:flex; gap:8px; flex-wrap:wrap}
+  .cc-qa{background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:11px;
+    padding:11px 15px; font:inherit; font-size:14px; font-weight:600; cursor:pointer}
+  .cc-qa:active{transform:scale(.97)}
+  @media(max-width:620px){ .cc-kpis{grid-template-columns:repeat(2,1fr)} }
   /* PIN pad modal */
   .pinpad{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:60}
   .pinpad.on{display:flex}
@@ -1644,10 +1668,54 @@ function renderHome(h){
       'Setup: <code>docs/home-assistant-setup.md</code></p></div></div>';
     return;
   }
-  let html = '<div class="home-bar">';
-  if(h.demo) html += '<span class="pill demo">Demo mode — sample devices</span>';
-  else html += '<span class="pill"><span class="dot"></span>Home Assistant connected</span>';
-  html += '<span class="pill">'+h.count+' devices</span></div>';
+  const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
+  const alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+  const locks=tiles.filter(t=>t.domain==="lock");
+  const lockedN=locks.filter(t=>t.state==="locked").length;
+  const outdoor=tiles.find(t=>t.domain==="sensor"&&t.device_class==="temperature"&&/out/i.test(t.name));
+  const power=tiles.find(t=>t.domain==="sensor"&&t.device_class==="power");
+  const energy=tiles.find(t=>t.domain==="sensor"&&t.device_class==="energy");
+  const onCount=tiles.filter(t=>t.on&&["light","switch","fan"].includes(t.domain)).length;
+  const openThings=[];
+  tiles.forEach(t=>{
+    if(t.domain==="cover"&&(t.state==="open"||t.state==="opening")) openThings.push(t.name);
+    if(t.domain==="binary_sensor"&&["door","garage_door","window"].includes(t.device_class)&&t.on) openThings.push(t.name);
+  });
+  const hr=new Date().getHours();
+  const greet=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening";
+  const dstr=new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
+
+  const chips=[];
+  if(alarm){ const armed=alarm.state.startsWith("armed");
+    const lbl={disarmed:"Disarmed",armed_home:"Armed home",armed_away:"Armed away",armed_night:"Armed night"}[alarm.state]||alarm.state;
+    chips.push(`<span class="cc-chip ${armed?'ok':''}">\u{1F6E1}️ ${esc(lbl)}</span>`); }
+  if(locks.length) chips.push(lockedN===locks.length
+    ? '<span class="cc-chip ok">\u{1F512} All locked</span>'
+    : `<span class="cc-chip warn">\u{1F513} ${locks.length-lockedN} unlocked</span>`);
+  chips.push(openThings.length
+    ? `<span class="cc-chip warn">⚠️ ${esc(openThings.join(", "))} open</span>`
+    : '<span class="cc-chip ok">✓ All closed</span>');
+  if(outdoor) chips.push(`<span class="cc-chip">\u{1F321}️ ${esc(outdoor.state)}${esc(outdoor.unit||"")} outside</span>`);
+
+  const kpis=[`<div class="cc-kpi"><div class="cc-kpi-v">${onCount}</div><div class="cc-kpi-l">on now</div></div>`];
+  if(power) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(power.state)}<small>${esc(power.unit||"W")}</small></div><div class="cc-kpi-l">power</div></div>`);
+  if(energy) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(energy.state)}<small>${esc(energy.unit||"kWh")}</small></div><div class="cc-kpi-l">today</div></div>`);
+  kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${h.count}</div><div class="cc-kpi-l">devices</div></div>`);
+
+  const qa=['<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
+  tiles.filter(t=>t.domain==="scene").slice(0,3).forEach(s=>
+    qa.push(`<button class="cc-qa" data-scene="${esc(s.entity_id)}">✨ ${esc(s.name)}</button>`));
+
+  let html=`<div class="cc-hero">
+    <div class="cc-hero-top">
+      <div><div class="cc-greet">${greet}</div><div class="cc-date">${esc(dstr)}</div></div>
+      ${h.demo?'<span class="cc-demo">Demo</span>':'<span class="cc-live">● Live</span>'}
+    </div>
+    <div class="cc-chips">${chips.join("")}</div>
+    <div class="cc-kpis">${kpis.join("")}</div>
+    <div class="cc-actions">${qa.join("")}</div>
+  </div>`;
+
   (h.groups||[]).forEach(g=>{
     html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
     g.tiles.forEach(t=>{
@@ -1664,6 +1732,16 @@ function renderHome(h){
   });
   wrap.innerHTML = html;
   wrap.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
+  wrap.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
+  const lo=wrap.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;
+}
+async function runScene(eid){ resetSleep(); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHome,500); }
+async function allLightsOff(){
+  resetSleep();
+  const wrap=$("#home-wrap"); if(!wrap) return;
+  const lights=[...wrap.querySelectorAll('.tile[data-domain="light"]')].map(el=>el.dataset.ha);
+  for(const eid of lights){ try{ await post("/api/ha/service",{domain:"light",service:"turn_off",entity_id:eid}); }catch(e){} }
+  setTimeout(loadHome,500);
 }
 async function onTileTap(el){
   resetSleep();

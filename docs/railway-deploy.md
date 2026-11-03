@@ -45,7 +45,8 @@ All optional; set what you want to light up:
 | Variable | What it does |
 |---|---|
 | `SEED_DEMO` | `1` = load the sample family on first boot so it's not empty. **Turn this off (delete it) once you add real data**, or a fresh DB would reseed. |
-| `FAMILYHUB_PIN` | Require this PIN (sent as `X-FH-PIN`) for **writes**. Strongly recommended on a public URL. |
+| `FAMILYHUB_PIN` | Require this PIN for **writes** (adding/editing). Strongly recommended on a public URL. |
+| `FAMILYHUB_LOCK_READS` | `1` = also require the PIN to **view** — a login screen gates all data. **Set this for real privacy on Railway.** Needs `FAMILYHUB_PIN`. |
 | `FAMILYHUB_DB` | Set to `/data/familyhub.db` if you attach a Volume (see Persistence). |
 | `ANTHROPIC_API_KEY` | Enables AI quick-add / vision. |
 | `HA_DEMO` | `1` forces the Home tab's demo devices even if HA creds are set. |
@@ -65,19 +66,30 @@ To keep data between deploys:
 `SEED_DEMO=1` that means the demo family comes back each time.)
 
 ## Privacy — please read
-FamilyHub was built for a trusted LAN. On a public Railway URL:
-- **Reads are open to anyone with the link.** The PIN (`FAMILYHUB_PIN`) only
-  guards *writes* (adding/editing/deleting), not viewing. So someone with the URL
-  could see your family's calendar, chores and lists.
-- For a quick test that's usually fine (the URL is long and unguessable), but
-  **don't put anything you'd mind a stranger seeing**, and treat the URL as
-  semi-secret.
-- At minimum, **set `FAMILYHUB_PIN`** so randoms can't add/delete your data.
+FamilyHub was built for a trusted LAN. On a public Railway URL, **lock it down**:
 
-For real privacy, the roadmap's plan is **Tailscale** (the app stays on your LAN,
-reachable from your phone over an encrypted private network — no public URL at
-all). Ask and I can also add *read* authentication (require the PIN or a login to
-view, not just to write) if you want to keep using Railway but lock down viewing.
+**Set both of these variables:**
+- `FAMILYHUB_PIN` = your family PIN (guards edits).
+- `FAMILYHUB_LOCK_READS` = `1` (guards *viewing* too).
+
+With `FAMILYHUB_LOCK_READS=1`, opening the URL shows a **login screen** and no
+data loads until the PIN is entered — so the link alone reveals nothing. The PIN
+is remembered on each device (stored locally in the browser), so you unlock once
+per phone. Wrong guesses are rate-limited with a lockout; the constant-time
+compare means a short PIN still isn't easily brute-forced, but **use 6+ digits**
+on a public URL anyway.
+
+If you set `FAMILYHUB_PIN` but *not* `FAMILYHUB_LOCK_READS`, viewing stays open to
+anyone with the link (only edits are blocked) — fine for a quick demo with the
+sample family, not for real data.
+
+The static app shell (the empty HTML/JS) is still served publicly so the login
+screen can load; it contains no family data — all data lives behind `/api`, which
+is what the PIN protects.
+
+For the strongest privacy long-term, the roadmap's plan is **Tailscale**: the app
+stays on your LAN, reachable from your phone over an encrypted private network
+with no public URL at all (see `docs/hardening.md`).
 
 ## Cost
 A tiny app like this fits Railway's low-usage / hobby tier; it sleeps when idle on

@@ -110,7 +110,10 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
 
 ## Security & ops
 - Optional PIN auth: set `FAMILYHUB_PIN` env var -> writes need `X-FH-PIN` header; reads stay open.
-  For real exposure use Tailscale, not just the PIN.
+  Add `FAMILYHUB_LOCK_READS=1` to gate *reads* too — a login screen (`static/auth.js`,
+  `/api/auth/*`) asks for the PIN before any data loads; the static shell stays open so the
+  login can render. Constant-time compare + per-IP lockout (empty PIN isn't counted as a guess).
+  Use this on any public URL (e.g. Railway). For real exposure prefer Tailscale over the PIN.
 - Backups: `python backup.py --keep 14`; systemd timer files included.
 
 ## Known follow-ups (not yet done)

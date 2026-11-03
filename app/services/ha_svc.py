@@ -296,6 +296,35 @@ def _current_state(entity_id: str) -> str:
         return ""
 
 
+def media(entity_id: str, action: str, value: str = "") -> dict:
+    """TV / media control for the on-screen Roku remote. `entity_id` is the
+    media_player entity shown on the tile. Power/volume/app route through
+    media_player services; navigation keys (dpad/back/home) go through the Roku
+    integration's matching `remote.<name>` entity (HA names it the same)."""
+    if "." not in entity_id:
+        return {"ok": False, "reason": "bad entity"}
+    name = entity_id.split(".", 1)[1]
+    remote_eid = "remote." + name
+    a = (action or "").lower()
+    if a == "power":
+        return call_service("media_player", "toggle", entity_id)
+    if a == "vol_up":
+        return call_service("media_player", "volume_up", entity_id)
+    if a == "vol_down":
+        return call_service("media_player", "volume_down", entity_id)
+    if a == "mute":
+        return call_service("media_player", "volume_mute", entity_id, {"is_volume_muted": True})
+    if a == "play_pause":
+        return call_service("media_player", "media_play_pause", entity_id)
+    if a == "app" and value:
+        return call_service("media_player", "select_source", entity_id, {"source": value})
+    navmap = {"up": "up", "down": "down", "left": "left", "right": "right",
+              "ok": "select", "back": "back", "home": "home"}
+    if a in navmap:
+        return call_service("remote", "send_command", remote_eid, {"command": navmap[a]})
+    return {"ok": False, "reason": f"unknown media action {action}"}
+
+
 def status() -> dict:
     """Light-weight status for the calendar's top bar: connected? alarm state?
     open doors/garage? a couple of temperatures?"""

@@ -92,6 +92,19 @@
   .pin-keys button{font-size:22px; padding:14px 0; border:none; border-radius:12px; background:var(--panel2); color:var(--ink); cursor:pointer}
   .pin-keys button:active{transform:scale(.95)}
   .pin-x{margin-top:12px; background:none; border:none; color:var(--ink-dim); cursor:pointer; font-size:14px}
+  /* TV / Roku remote */
+  .remote-card{background:var(--panel); border-radius:20px; padding:20px; width:300px; max-width:92vw; text-align:center}
+  .remote-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; font-size:17px; font-weight:600}
+  .rbtn{border:none; border-radius:12px; background:var(--panel2); color:var(--ink); font:inherit; font-size:16px; cursor:pointer; padding:12px}
+  .rbtn:active{transform:scale(.94)}
+  .rbtn.power{background:#c75146; color:#fff; width:46px; height:46px; border-radius:50%; font-size:20px; padding:0}
+  .dpad{display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,56px); gap:8px; margin:0 auto 14px; width:200px}
+  .dpad .up{grid-area:1/2} .dpad .left{grid-area:2/1} .dpad .ok{grid-area:2/2}
+  .dpad .right{grid-area:2/3} .dpad .down{grid-area:3/2}
+  .dpad .ok{background:var(--now); color:#fff; border-radius:50%; font-weight:700}
+  .remote-row{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px}
+  .remote-apps{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:12px 0 4px}
+  .remote-apps .rbtn{font-size:14px; padding:10px}
 
   .bottomnav{display:flex; gap:8px; background:var(--panel); border-radius:var(--r); padding:8px}
   .bottomnav button{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; cursor:pointer;
@@ -562,6 +575,35 @@
 </div>
 <div id="sleep"><div class="ovl"><div class="t" id="sclock">--:--</div><div class="d" id="sdate"></div></div></div>
 <div id="screenoff" title="Tap to wake"></div>
+
+<!-- TV / Roku remote -->
+<div class="pinpad" id="remote">
+  <div class="remote-card">
+    <div class="remote-top">
+      <span id="remote-name">TV</span>
+      <button class="rbtn power" data-m="power" title="Power">&#9211;</button>
+    </div>
+    <div class="dpad">
+      <button class="rbtn up" data-m="up">&#9650;</button>
+      <button class="rbtn left" data-m="left">&#9664;</button>
+      <button class="rbtn ok" data-m="ok">OK</button>
+      <button class="rbtn right" data-m="right">&#9654;</button>
+      <button class="rbtn down" data-m="down">&#9660;</button>
+    </div>
+    <div class="remote-row">
+      <button class="rbtn" data-m="back">&#8592; Back</button>
+      <button class="rbtn" data-m="home">&#127968; Home</button>
+      <button class="rbtn" data-m="play_pause">&#9199;</button>
+    </div>
+    <div class="remote-row">
+      <button class="rbtn" data-m="vol_down">&#128264; &minus;</button>
+      <button class="rbtn" data-m="mute">&#128263;</button>
+      <button class="rbtn" data-m="vol_up">&#128266; &plus;</button>
+    </div>
+    <div class="remote-apps" id="remote-apps"></div>
+    <button class="pin-x" id="remote-close">Close</button>
+  </div>
+</div>
 
 <!-- alarm PIN pad -->
 <div class="pinpad" id="pinpad">
@@ -1612,7 +1654,7 @@ function renderHome(h){
       const scene = t.activatable;
       const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
       const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
-      html += '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'">'+
+      html += '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+
         '<div class="t-ico">'+haIcon(t)+'</div>'+
         '<div class="t-name">'+esc(t.name)+'</div>'+
         (scene?'':'<div class="t-state">'+esc(haStateLabel(t))+'</div>')+
@@ -1627,6 +1669,7 @@ async function onTileTap(el){
   resetSleep();
   const eid=el.dataset.ha, domain=el.dataset.domain;
   if(domain==="alarm_control_panel"){ openAlarmPad(el); return; }
+  if(domain==="media_player"){ openRemote(el.dataset.ha, el.dataset.name); return; }
   if(el.classList.contains("ro")) return;      // sensors: nothing to do
   // optimistic flip for instant feedback
   const wasOn=el.classList.contains("on");
@@ -1673,6 +1716,34 @@ document.querySelectorAll("#pinpad .pin-keys button").forEach(b=>{
 });
 $("#pin-cancel").onclick=closePinPad;
 $("#pinpad").onclick=(e)=>{ if(e.target.id==="pinpad") closePinPad(); };
+
+/* ---- TV / Roku remote ---- */
+const REMOTE_APPS=["Netflix","YouTube","Hulu","Disney+","Prime Video","Spotify"];
+let remoteEid=null;
+function openRemote(eid, name){
+  remoteEid=eid;
+  $("#remote-name").textContent=name||"TV";
+  const apps=$("#remote-apps");
+  apps.innerHTML="";
+  REMOTE_APPS.forEach(a=>{
+    const b=document.createElement("button"); b.className="rbtn"; b.textContent=a;
+    b.onclick=()=>sendRemote("app", a);
+    apps.appendChild(b);
+  });
+  $("#remote").classList.add("on");
+}
+function closeRemote(){ $("#remote").classList.remove("on"); remoteEid=null; }
+async function sendRemote(action, value){
+  resetSleep();
+  if(!remoteEid) return;
+  try{ await post("/api/ha/media",{entity_id:remoteEid, action, value:value||""}); }catch(e){}
+  if(action==="power") setTimeout(loadHome, 500);   // reflect on/off on the tile
+}
+document.querySelectorAll("#remote .rbtn[data-m]").forEach(b=>{
+  b.onclick=()=>sendRemote(b.dataset.m);
+});
+$("#remote-close").onclick=closeRemote;
+$("#remote").onclick=(e)=>{ if(e.target.id==="remote") closeRemote(); };
 
 /* little celebration when a chore is checked off */
 function celebrate(anchor){

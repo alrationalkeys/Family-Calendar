@@ -43,6 +43,17 @@ def service(payload: dict):
     return ha_svc.call_service(domain, svc, p.get("entity_id", ""), p.get("data") or {})
 
 
+@router.post("/media")
+def media(payload: dict):
+    """On-screen Roku remote. {entity_id, action, value?} where action is
+    power|vol_up|vol_down|mute|play_pause|app|up|down|left|right|ok|back|home."""
+    p = payload or {}
+    eid, action = p.get("entity_id", ""), p.get("action", "")
+    if not eid or not action:
+        raise HTTPException(400, "entity_id and action required")
+    return ha_svc.media(eid, action, p.get("value", ""))
+
+
 @router.post("/alarm")
 def alarm(payload: dict):
     """Arm/disarm the Qolsys IQ Panel. Disarm (and typically arm) need the panel

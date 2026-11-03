@@ -378,8 +378,11 @@
     background-image:repeating-linear-gradient(var(--line) 0 1px, transparent 1px var(--hpx,46px))}
   .tg-ev{position:absolute; left:3px; right:3px; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel));
     border-left:3px solid var(--accent,#4f86c6);
-    border-radius:6px; padding:3px 7px; font-size:11px; font-weight:600; line-height:1.18; overflow:hidden; cursor:pointer}
-  .tg-ev .tm{display:block; font-size:9px; color:var(--ink-dim); font-weight:500}
+    border-radius:6px; padding:2px 6px; overflow:hidden; cursor:pointer; display:flex; flex-direction:column}
+  /* title comes first and wraps, so narrow (phone) columns still show the headline over
+     a few lines; wide (wall) columns show it in full. Parent clips what doesn't fit. */
+  .tg-ev .evt{font-size:11px; font-weight:700; line-height:1.15; overflow-wrap:break-word; word-break:break-word}
+  .tg-ev .tm{font-size:9px; color:var(--ink-dim); font-weight:500; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .tg-now{position:absolute; height:2px; background:var(--now); box-shadow:0 0 8px var(--now); z-index:3; pointer-events:none}
   .tg-now::before{content:""; position:absolute; left:-4px; top:-3px; width:9px; height:9px; border-radius:50%; background:var(--now)}
 
@@ -944,10 +947,10 @@ function renderGrid(daysArr){
       const edt=ev.end?new Date(ev.end):null;
       const dur=(edt&&!isNaN(edt))?Math.max((edt-sdt)/3600000,0.25):1;
       const top=Math.max(0,sh-START_HOUR)*HOURPX;
-      const h=Math.max(16,Math.min(dur,END_HOUR-Math.max(sh,START_HOUR))*HOURPX);
+      const h=Math.max(19,Math.min(dur,END_HOUR-Math.max(sh,START_HOUR))*HOURPX);
       const el=document.createElement("div"); el.className="tg-ev"; el.style.setProperty("--accent",evColor(ev));
-      el.style.top=top+"px"; el.style.height=h+"px";
-      el.innerHTML=`<span class="tm">${sdt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}</span>${esc(ev.title)}`;
+      el.style.top=top+"px"; el.style.height=h+"px"; el.title=ev.title;
+      el.innerHTML=`<span class="evt">${esc(ev.title)}</span><span class="tm">${sdt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}</span>`;
       el.onclick=(e)=>{e.stopPropagation();openEditor(ev);};
       col.appendChild(el);
     });

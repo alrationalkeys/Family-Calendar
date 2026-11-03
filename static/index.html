@@ -18,6 +18,23 @@
     --bg:#f4f5f7; --panel:#ffffff; --panel2:#eef0f3; --line:#e2e5ea;
     --ink:#1d2430; --ink-dim:#6b7280; --now:#e9a23b;
   }
+  /* Soft — warm, rounded, gentle: a Skylight-like cozy look */
+  html[data-theme="soft"]{
+    --bg:#f7f3ec; --panel:#fffdf8; --panel2:#f1ece1; --line:#ece5d8;
+    --ink:#3b342b; --ink-dim:#8c8478; --now:#e8a04a; --r:20px;
+  }
+  html[data-theme="soft"] .card,
+  html[data-theme="soft"] .main,
+  html[data-theme="soft"] .bottomnav,
+  html[data-theme="soft"] .cc-hero,
+  html[data-theme="soft"] .home-view-nav,
+  html[data-theme="soft"] .tile,
+  html[data-theme="soft"] .ph-card{
+    box-shadow:0 4px 16px rgba(90,65,30,.07); border:1px solid #efe9dd;
+  }
+  html[data-theme="soft"] .tile{border-radius:16px}
+  html[data-theme="soft"] .bottomnav button.active,
+  html[data-theme="soft"] .tabs button.active{background:#f3ead9}
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   html{ --bg:#f4f5f7; --panel:#fff; --panel2:#eef0f3; --line:#e2e5ea; --ink:#1d2430; --ink-dim:#6b7280; --now:#e9a23b; }
   html,body{height:100%}
@@ -573,7 +590,7 @@
 
   <div class="sd-group"><label>Theme</label>
     <div class="sd-seg" data-key="theme">
-      <button data-val="light">Light</button><button data-val="dark">Dark</button>
+      <button data-val="light">Light</button><button data-val="soft">Soft</button><button data-val="dark">Dark</button>
     </div>
   </div>
 

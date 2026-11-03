@@ -18,6 +18,10 @@
     --bg:#f4f5f7; --panel:#ffffff; --panel2:#eef0f3; --line:#e2e5ea;
     --ink:#1d2430; --ink-dim:#6b7280; --now:#e9a23b;
   }
+  html[data-theme="soft"]{
+    --bg:#f7f3ec; --panel:#fffdf8; --panel2:#f1ece1; --line:#ece5d8;
+    --ink:#3b342b; --ink-dim:#8c8478; --now:#e8a04a;
+  }
   html{ --bg:#f4f5f7; --panel:#fff; --panel2:#eef0f3; --line:#e2e5ea; --ink:#1d2430; --ink-dim:#6b7280; --now:#e9a23b; }
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; -webkit-appearance:none}
   body{
@@ -150,7 +154,7 @@
     <h2>Appearance</h2>
     <div class="srow"><span>Theme</span>
       <div class="pill-toggle" id="set-theme">
-        <button data-v="light">Light</button><button data-v="dark">Dark</button>
+        <button data-v="light">Light</button><button data-v="soft">Soft</button><button data-v="dark">Dark</button>
       </div>
     </div>
     <div class="srow"><span>Accent</span><div class="colors" id="set-accent" style="margin:0; justify-content:flex-end"></div></div>

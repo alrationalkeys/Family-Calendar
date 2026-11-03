@@ -4,7 +4,7 @@
    density by setting CSS variables + data attributes on <html>. */
 const FH = (() => {
   const DEFAULTS = {
-    theme: "light",          // light | dark
+    theme: "light",          // light | soft | dark
     accent: "#e9a23b",
     font: "inter",           // inter | serif | rounded | mono
     density: "comfortable",  // compact | comfortable | spacious

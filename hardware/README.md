@@ -25,11 +25,17 @@ Runs **separately** from the screen so a FamilyHub update can never take the hou
 - **If you kept your Pi 5 8GB → use it. $0.**
 - If you sold it: **Home Assistant Green** (`Home Assistant Green`, ~$99) — purpose-built, or a **second N100** (~$150).
 
-### Optional — hands-free voice (adds "Hey …" wake-word control)
-Only needed if you want to *talk* to the house (lights/alarm/TVs) without touching anything.
-HA's local **Assist** voice does this privately (no Google/Amazon cloud).
+### Voice — the touchscreen has NO mic or (usually) speaker
+The 15.6" touchscreen is display + touch only. Pick the level of voice you want:
+
+**A) Tap-to-talk on the wall** (built into FamilyHub — tap the mic, speak, it acts + replies aloud).
+Needs a **mic + speaker on the N100**. Cleanest: one USB speakerphone on the counter.
+- **USB speakerphone** (`USB speakerphone conference mic`, ~$30–45, e.g. Anker PowerConf / eMeet) — mic **and** speaker in one, great kitchen pickup. **Best pick.**
+- Budget: a **USB mini microphone** (~$12) + the monitor's own speakers if it has them (check the listing; many 15.6" panels include small speakers + a 3.5 mm jack). Add cheap **USB speakers** (~$12) if not.
+
+**B) Hands-free "Hey …" wake word** (talk to the house with nothing to tap) — via HA's local **Assist** (private, no Google/Amazon cloud):
 - **Home Assistant Voice Preview Edition** (`Home Assistant Voice`, ~$60) — mic + speaker + wake word, plug-and-play with HA. Best pick.
-- Budget: **M5Stack Atom Echo** (~$13) tiny voice satellite, or a **USB conference mic** (~$25) on the HA Pi.
+- Budget: **M5Stack Atom Echo** (~$13) tiny voice satellite on the HA Pi.
 - Free: the **Home Assistant phone app** has push-to-talk voice built in.
 
 > **Alarm needs no new hardware** — the Qolsys IQ Panel's built-in 3rd-party

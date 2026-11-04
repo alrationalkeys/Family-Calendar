@@ -4,28 +4,34 @@ Everything you need to turn a Raspberry Pi + a 15.6" touchscreen into the wall
 display. The print files are parametric OpenSCAD (`familyhub-mount.scad`) so they
 fit *your* exact monitor.
 
-## Shopping list — current build (Intel N100 brain, ~$325)
+## Shopping list — current build (reuse the Pi 5 for HA + one screen box)
 
-Because Raspberry Pi 5 prices spiked in 2026, the screen "brain" is now a small
-**Intel N100 mini PC** — cheaper than a Pi 5 kit, faster, x86 (no Pi quirks), and
-it has a **full-size HDMI** so there's no micro-HDMI adapter to buy.
+> **2026 price note:** both Raspberry Pis *and* mini PCs spiked (global RAM/SSD
+> shortage). A new 16GB/512GB N100 is ~$340–400 now. So the smart build **reuses
+> the Pi 5 you already own for Home Assistant** and buys **one** modest computer
+> just to drive the screen — not two pricey new boxes.
 
 | Part | ~Cost | Amazon search | Notes |
 |---|---|---|---|
-| **15.6" IPS capacitive touchscreen** | $150 | `15.6 inch IPS capacitive touchscreen HDMI VESA` (e.g. HOWENS B0D2D8CCY1) | VESA 75×75; HDMI + USB-touch cable + 12V brick usually in box. Want it bigger for the kitchen? search `21.5 inch touchscreen monitor HDMI`. |
-| **Intel N100 mini PC** (16GB/512GB) | $150 | `Intel N100 mini PC 16GB` (Beelink / GMKtec / Trigkey) | Runs FamilyHub in kiosk Chrome/Edge. RAM, SSD, case, power brick all included. |
+| **15.6" IPS capacitive touchscreen** | $150 | `15.6 inch IPS capacitive touchscreen HDMI VESA` (e.g. HOWENS B0D2D8CCY1) | VESA 75×75; HDMI + USB-touch cable + 12V brick usually in box. Bigger kitchen option: `21.5 inch touchscreen monitor HDMI`. |
+| **One screen computer** (x86 mini PC) | $100–280 | `mini PC N100` or used `Dell/HP/Lenovo tiny i5` | Just runs FamilyHub kiosk + voice. A **cheap/used mini PC or thin client ($100–180)** is plenty; a new 8GB/256GB N100 is ~$200–280. x86 = browser voice works, full HDMI. |
+| **USB speakerphone** (kitchen mic+speaker) | $35 | `USB speakerphone conference mic` (Anker PowerConf / eMeet) | Mic + speaker in one, for the wall voice / openWakeWord. |
 | HDMI cable | $0–7 | `HDMI cable 6ft` | Usually included with the monitor; buy only if not. |
-| USB-A → USB-B touch cable | $0 | — | Included with the touchscreen (carries touch to the mini PC). |
-| VESA wall mount **or** 3D print | $0–13 | `VESA 75x75 monitor wall mount` | You can print the mount (you have the printer) or grab a cheap bracket. |
+| VESA wall mount **or** 3D print | $0–13 | `VESA 75x75 monitor wall mount` | Print it (you have the printer) or grab a cheap bracket. |
 | M4 screws + wall anchors | ~$6 | `M4 screw assortment wall anchors` | For the VESA mount / cleat. |
-| Filament (PLA/PETG) | ~$5 | — | Only if you print the mount. You have it. |
+
+**≈ $300–450 total**, reusing the Pi 5. (USB touch cable + 12V brick come with the monitor.)
 
 ### Home Assistant "brain" (smart home / alarm / TVs)
-Runs **separately** from the screen so a FamilyHub update can never take the house down.
-- **Chosen build: a second N100** (~$150) runs Home Assistant (HAOS installed bare, or HA in
-  Docker/Proxmox). x86 runs HA great and leaves headroom. So: **N100 #1 = screen/FamilyHub,
-  N100 #2 = Home Assistant.** (No Pi 5 needed — it can be sold.)
-- Alternative: **Home Assistant Green** (~$99) if you'd rather have a tiny purpose-built box.
+Runs **separately** from the screen so a FamilyHub reboot/update can never take the house
+(or alarm) down.
+- **Chosen: the Pi 5 8GB you already own.** Headless in a cupboard — a great, low-power
+  (~5–8W) always-on HA box. $0.
+- If the Pi 5 were gone: **Home Assistant Green** (~$99, fixed price, didn't spike).
+- Pi 5 vs N100: close on CPU; **N100 is x86/faster & more flexible** (best for the interactive
+  screen + voice), **Pi 5 is more power-efficient** (best for 24/7 HA). So we use each for its
+  strength. Running both on one box is possible (HA in a container) but then a reboot/update
+  briefly drops the alarm too — not worth it when the Pi 5 is free.
 
 ### Voice — the touchscreen has NO mic or (usually) speaker
 The 15.6" touchscreen is display + touch only. Pick the level of voice you want:

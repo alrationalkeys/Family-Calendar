@@ -27,6 +27,9 @@ const FH = (() => {
     spotifyPlaylists: [],    // [{name, uri}] pinned on the Home tab's Spotify card
     icloudAlbumUrl: "",      // iCloud Shared Album public link -> slideshow photos
     assistantName: "Hub",    // what the family calls the voice assistant
+    speakAlerts: true,       // wall speaks reminders / announcements / timers
+    morningBriefing: true,   // spoken "here's today" the first time someone walks up
+    briefingHour: 6,         // ...but not before this hour
   };
 
   const FONTS = {

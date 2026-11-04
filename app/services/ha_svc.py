@@ -333,9 +333,13 @@ def get_home() -> dict:
         return {"connected": True, "demo": True,
                 "groups": _grouped(tiles), "count": len(tiles), "spotify": sp}
     try:
-        states = _request("/api/states")
+        from . import ha_live
+        states = ha_live.states()          # instant, from the WebSocket mirror
+        live = states is not None
+        if states is None:
+            states = _request("/api/states")
         tiles = _states_to_tiles(states or [])
-        return {"connected": True, "demo": False,
+        return {"connected": True, "demo": False, "live": live,
                 "groups": _grouped(tiles), "count": len(tiles),
                 "spotify": _spotify_from_states(states or [])}
     except urllib.error.HTTPError as e:
@@ -376,6 +380,11 @@ def call_service(domain: str, service: str, entity_id: str = "", extra: dict = N
     if demo_mode():
         if entity_id:
             _demo_toggle(entity_id, service)
+        try:
+            from . import ha_live
+            ha_live.bump()                 # so the wall's live stream refreshes in demo too
+        except Exception:
+            pass
         return {"ok": True, "demo": True}
     payload = dict(extra or {})
     if entity_id:

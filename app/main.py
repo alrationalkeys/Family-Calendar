@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards, display, ha, login, routines, mail)
+                      events, notifications, rewards, display, ha, login, routines, mail, announce)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -78,11 +78,15 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(300)
 
     mtask = asyncio.create_task(_mail_loop())
+    # background: live Home Assistant state over WebSocket (no-op in demo mode)
+    from .services import ha_live
+    htask = asyncio.create_task(ha_live.run_forever())
     try:
         yield
     finally:
         task.cancel()
         mtask.cancel()
+        htask.cancel()
 
 
 app = FastAPI(title="FamilyHub", version="0.1.0", lifespan=lifespan,
@@ -126,6 +130,7 @@ app.include_router(ha.router, prefix="/api/ha", tags=["home-assistant"])
 app.include_router(login.router, prefix="/api/auth", tags=["auth"])
 app.include_router(routines.router, prefix="/api/routines", tags=["routines"])
 app.include_router(mail.router, prefix="/api/mail", tags=["mail"])
+app.include_router(announce.router, prefix="/api/announce", tags=["announce"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

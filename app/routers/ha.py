@@ -10,8 +10,11 @@ FamilyHub talks only to Home Assistant (separate Pi); HA talks to the gear. See
 app/services/ha_svc.py and docs/home-assistant-setup.md. Works in demo mode out
 of the box so the Home tab is explorable before real HA exists.
 """
+import asyncio
+import json
 from fastapi import APIRouter, HTTPException, Response
-from ..services import ha_svc
+from fastapi.responses import StreamingResponse
+from ..services import ha_svc, ha_live
 
 router = APIRouter()
 
@@ -60,6 +63,31 @@ def media_info(entity_id: str):
     if not entity_id:
         raise HTTPException(400, "entity_id required")
     return ha_svc.media_info(entity_id)
+
+
+@router.get("/version")
+def version():
+    """Monotonic counter that bumps on every HA state change (live WebSocket
+    mirror, or demo toggles). Cheap to poll if SSE isn't available."""
+    return {"version": ha_live.version(), "live": ha_live.connected(), "demo": ha_svc.demo_mode()}
+
+
+@router.get("/events")
+async def events():
+    """Server-Sent Events: one line per HA state change (plus a heartbeat every
+    25 s). The wall re-renders the Home tab / status bar the moment something flips."""
+    async def gen():
+        v = ha_live.version()
+        yield f"data: {json.dumps({'version': v, 'live': ha_live.connected()})}\n\n"
+        while True:
+            nv = await ha_live.wait_for_change(v, timeout=25.0)
+            if nv != v:
+                v = nv
+                yield f"data: {json.dumps({'version': v, 'live': ha_live.connected()})}\n\n"
+            else:
+                yield ": keepalive\n\n"
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/spotify")

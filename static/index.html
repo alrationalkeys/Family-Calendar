@@ -320,6 +320,32 @@
   #screenoff{position:fixed; inset:0; background:#000; z-index:60; opacity:0; pointer-events:none; transition:opacity 1s}
   #screenoff.on{opacity:1; pointer-events:auto; cursor:none}
 
+  /* per-person "my day" mode */
+  #kidmode{position:fixed; inset:0; z-index:58; background:var(--bg); display:none; flex-direction:column; padding:22px 26px; overflow:auto}
+  #kidmode.on{display:flex}
+  .km-head{display:flex; align-items:center; gap:16px; margin-bottom:16px}
+  .km-av{width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:28px; font-weight:800}
+  .km-name{font-size:30px; font-weight:800; line-height:1.1}
+  .km-sub{font-size:14px; color:var(--ink-dim); margin-top:3px}
+  .km-stars{margin-left:auto; font-size:26px; font-weight:800; color:var(--now); white-space:nowrap}
+  .km-x{background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:12px; font:inherit; font-size:15px; padding:10px 16px; cursor:pointer; margin-left:14px}
+  .km-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; align-content:start}
+  .km-card{background:var(--panel); border-radius:16px; padding:14px 16px}
+  .km-card h3{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:10px}
+  .km-ev{display:flex; gap:10px; align-items:center; padding:9px 0; border-top:1px solid var(--line); font-size:17px}
+  .km-ev:first-of-type{border-top:0}
+  .km-ev .t{color:var(--ink-dim); font-size:14px; min-width:72px}
+  .km-big{display:flex; align-items:center; gap:12px; padding:12px 12px; border-radius:12px; background:var(--panel2); margin-bottom:8px; cursor:pointer; font-size:18px; font-weight:600; user-select:none}
+  .km-big .box{width:26px; height:26px}
+  .km-big.done{opacity:.55} .km-big.done .box{background:var(--now); border-color:var(--now)} .km-big.done span{text-decoration:line-through}
+  .km-big .star{margin-left:auto; color:var(--now); font-size:14px}
+  .km-rw{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); font-size:16px}
+  .km-rw:first-of-type{border-top:0}
+  .km-rw button{margin-left:auto; border:none; border-radius:10px; background:var(--now); color:#fff; font:inherit; font-weight:700; padding:8px 14px; cursor:pointer}
+  .km-rw button:disabled{opacity:.35; cursor:default}
+  .sb-row{cursor:pointer}
+  @media(max-width:760px){ #kidmode{padding:16px} .km-name{font-size:24px} }
+
   /* Spotify now-playing card (Home tab) */
   .sp{display:flex; gap:16px; align-items:center; background:var(--panel); border-radius:16px; padding:14px 16px; margin-bottom:14px; border:1px solid var(--line); flex-wrap:wrap}
   .sp-art{width:84px; height:84px; border-radius:12px; background:linear-gradient(135deg,#1db954,#0d6b35); flex:none; display:flex; align-items:center; justify-content:center; font-size:38px; overflow:hidden}
@@ -865,6 +891,7 @@
 <div id="screenoff" title="Tap to wake"></div>
 
 <!-- wall voice command -->
+<div id="kidmode"></div>
 <button id="timerfab" title="Kitchen timer" aria-label="Kitchen timer">&#9201;</button>
 <div id="timerov">
   <div class="tm-card">
@@ -1329,7 +1356,7 @@ function renderRoutines(list){
     el.querySelectorAll(".rt-step").forEach(stp=>{
       stp.onclick=async(e)=>{
         resetSleep();
-        if(e.target.classList.contains("rt-min")){ startTimer(+e.target.dataset.min*60, e.target.dataset.lbl); return; }
+        if(e.target.classList.contains("rt-min")){ startTimer(+e.target.dataset.min*60, e.target.dataset.lbl); if(FH.get().speakAlerts!==false) sayAloud(`${e.target.dataset.min} minute${+e.target.dataset.min===1?"":"s"} for ${e.target.dataset.lbl}. Go!`); return; }
         try{
           const res=await post(`/api/routines/${r.id}/step/${stp.dataset.i}`).then(x=>x.json());
           if(res.complete && res.stars_earned){ celebrate(el); }
@@ -1423,7 +1450,7 @@ function showSlide(){
   layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
 }
 function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer);} }
-function resetSleep(){ wake(); clearTimeout(sleepTimer); sleepTimer=setTimeout(goToSleep,SLEEP_AFTER); }
+function resetSleep(){ wake(); clearTimeout(sleepTimer); sleepTimer=setTimeout(goToSleep,SLEEP_AFTER); maybeBriefing(); }
 ["click","touchstart","mousemove","keydown"].forEach(ev=>window.addEventListener(ev,resetSleep,{passive:true}));
 
 /* ---- settings drawer ---- */
@@ -1819,7 +1846,27 @@ function showNotification(n){
     new Notification(n.title, {body: n.body || ""});
   }
   banner(n.title, n.body);
+  // and say it — announcements from a phone, reminders, "events found in email"
+  if(FH.get().speakAlerts!==false){
+    const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
+    if(n.kind==="announce") sayAloud(clean(n.body||n.title));
+    else if(n.kind==="reminder") sayAloud("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
+    else if(n.kind==="mail") sayAloud(clean(n.title)+". Approve it on your phone.");
+    wake();
+  }
 }
+/* ---- morning briefing: spoken the first time someone walks up each day ---- */
+let briefingBusy=false;
+async function maybeBriefing(){
+  const s=FH.get(); if(s.morningBriefing===false || briefingBusy) return;
+  const now=new Date(); if(now.getHours()<(+s.briefingHour||6) || now.getHours()>=12) return;
+  const key=localISODate(); if(localStorage.getItem("fh_briefed")===key) return;
+  briefingBusy=true; localStorage.setItem("fh_briefed", key);
+  try{ const d=await fetch("/api/notifications/digest").then(r=>r.json());
+    banner(d.summary, (d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){}
+  briefingBusy=false;
+}
+async function sayBriefingNow(){ try{ const d=await fetch("/api/notifications/digest").then(r=>r.json()); banner(d.summary,(d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){} }
 function banner(title, body){
   let b = document.getElementById("fh-banner");
   if(!b){ b=document.createElement("div"); b.id="fh-banner";
@@ -1926,8 +1973,51 @@ function renderScoreboard(rows, el){
         `<div class="sb-bar"><div class="sb-fill" style="width:${p.pct}%;background:${esc(p.color)}"></div></div>`+
         `<div class="sb-sub">${sub}</div>`+
       `</div>`;
+    row.onclick=()=>openKidMode(p);
     el.appendChild(row);
   });
+}
+
+/* ---- per-person "my day" mode (tap an avatar) ---- */
+let kidTimer=null, kidPerson=null;
+function closeKidMode(){ $("#kidmode").classList.remove("on"); kidPerson=null; clearTimeout(kidTimer); }
+async function openKidMode(p){
+  resetSleep(); kidPerson=p; const km=$("#kidmode"); km.classList.add("on"); renderKidMode();
+  clearTimeout(kidTimer); kidTimer=setTimeout(closeKidMode, 120000);     // hands-off after 2 min
+}
+async function renderKidMode(){
+  const p=kidPerson; if(!p) return; const km=$("#kidmode");
+  const d=cache.dash||{}; const today=localISODate();
+  const nm=(p.name||"").toLowerCase();
+  const evs=cache.events.filter(e=>{ const st=evStart(e); return st && sameDay(st,new Date()) && (e.person_id===p.id || String(e.title||"").toLowerCase().includes(nm)); })
+    .sort((a,b)=>evStart(a)-evStart(b));
+  const routines=(d.routines||[]).filter(r=>r.person_id===p.id);
+  const chores=(d.chores||[]).filter(c=>c.person_id===p.id);
+  let stars=0, rewards=[];
+  try{ const b=await fetch("/api/rewards/balances").then(r=>r.json()); stars=((b.balances||[]).find(x=>x.id===p.id)||{}).stars||0; }catch(e){}
+  try{ rewards=await fetch("/api/rewards/").then(r=>r.json()); }catch(e){}
+  if(kidPerson!==p) return;
+  const fmt=e=>e.all_day?"all day":evStart(e).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  let html=`<div class="km-head"><div class="km-av" style="background:${esc(p.color||'#4f86c6')}">${esc((p.name||"?").slice(0,1).toUpperCase())}</div>
+    <div><div class="km-name">${esc(p.name)}'s day</div><div class="km-sub">${new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div></div>
+    <div class="km-stars">\u2605 ${stars}</div><button class="km-x" id="km-close">Done</button></div><div class="km-grid">`;
+  html+=`<div class="km-card"><h3>Today</h3>`+(evs.length?evs.map(e=>`<div class="km-ev"><span class="t">${fmt(e)}</span><span class="dot" style="background:${esc(e.color||p.color||'#4f86c6')}"></span><span>${esc(e.title)}</span></div>`).join(""):'<div class="empty">Nothing on the calendar \u{1F389}</div>')+`</div>`;
+  routines.forEach(r=>{
+    html+=`<div class="km-card"><h3>${esc(r.emoji||"")} ${esc(r.name)}${r.complete?" \u2014 done!":""}</h3>`+r.steps.map((st,i)=>`<div class="km-big${r.done.includes(i)?' done':''}" data-rt="${r.id}" data-i="${i}"><div class="box"></div><span>${st.emoji?esc(st.emoji)+' ':''}${esc(st.title)}</span>${st.minutes?`<span class="star">\u23F1 ${st.minutes} min</span>`:""}</div>`).join("")+`</div>`;
+  });
+  html+=`<div class="km-card"><h3>Chores</h3>`+(chores.length?chores.map(c=>`<div class="km-big" data-chore="${c.id}"><div class="box"></div><span>${esc(c.title)}</span>${c.stars?`<span class="star">${"\u2605".repeat(Math.min(c.stars,5))}</span>`:""}</div>`).join(""):'<div class="empty">All done!</div>')+`</div>`;
+  if(rewards.length) html+=`<div class="km-card"><h3>Rewards</h3>`+rewards.map(r=>`<div class="km-rw"><span>${esc(r.name)}</span><span style="color:var(--ink-dim);font-size:13px">\u2605 ${r.cost}</span><button data-rw="${r.id}" ${stars<r.cost?'disabled':''}>Redeem</button></div>`).join("")+`</div>`;
+  html+=`</div>`;
+  km.innerHTML=html;
+  $("#km-close").onclick=closeKidMode;
+  km.querySelectorAll("[data-rt]").forEach(el=>{ el.onclick=async()=>{ resetSleep(); clearTimeout(kidTimer); kidTimer=setTimeout(closeKidMode,120000);
+    const res=await post(`/api/routines/${el.dataset.rt}/step/${el.dataset.i}`).then(x=>x.json()).catch(()=>null);
+    celebrate(el); if(res&&res.complete&&res.stars_earned&&FH.get().speakAlerts!==false) sayAloud(`${p.name}, routine done! You earned ${res.stars_earned} star${res.stars_earned===1?"":"s"}.`);
+    await load(); renderKidMode(); }; });
+  km.querySelectorAll("[data-chore]").forEach(el=>{ el.onclick=async()=>{ resetSleep(); const res=await post(`/api/chores/${el.dataset.chore}/toggle`).then(x=>x.json()).catch(()=>null);
+    celebrate(el); if(res&&res.stars_earned&&FH.get().speakAlerts!==false) sayAloud(`Nice, ${p.name}! Plus ${res.stars_earned}.`); await load(); renderKidMode(); }; });
+  km.querySelectorAll("[data-rw]").forEach(b=>{ b.onclick=async()=>{ resetSleep(); const res=await post("/api/rewards/redeem",{person_id:p.id,reward_id:+b.dataset.rw}).then(x=>x.json()).catch(()=>({}));
+    if(res.ok){ celebrate(b); if(FH.get().speakAlerts!==false) sayAloud(`${res.redeemed} for ${p.name}!`); } else banner(res.error||"Couldn't redeem"); await load(); renderKidMode(); }; });
 }
 
 /* ---- bottom-nav page switching ---- */
@@ -2156,6 +2246,23 @@ function bindSpotify(body){
   const sel=card.querySelector('select[data-sp="source"]'); if(sel) sel.onchange=()=>send("source", sel.value);
   card.querySelectorAll(".sp-chip").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
 }
+/* ---- live Home Assistant updates: SSE stream of state changes ---- */
+(function liveHA(){
+  if(!("EventSource" in window)) return;
+  let es=null, lastV=null, backoff=2000;
+  const connect=()=>{
+    try{ es=new EventSource("/api/ha/events"); }catch(e){ return; }
+    es.onmessage=(m)=>{ backoff=2000; let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
+      if(lastV!==null && d.version!==lastV){
+        if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome();
+        if(curPage==="calendar") loadHomeStatus();
+        if($("#remote").classList.contains("on") && typeof refreshRemote==="function") refreshRemote();
+      }
+      lastV=d.version; };
+    es.onerror=()=>{ try{es.close();}catch(e){} setTimeout(connect, backoff); backoff=Math.min(backoff*2, 60000); };
+  };
+  connect();
+})();
 /* keep now-playing fresh while the Home tab is open */
 setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome(); }, 15000);
 
@@ -2619,6 +2726,8 @@ function applyWallMic(){
       $("#vo-status").textContent=""; $("#vo-reply").textContent=r.say||"";
       speak(r.say);
       if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
+      if(r.briefing){ sayBriefingNow(); }
+      if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
       if(r.focus==="alarm"){ showPage("home"); }
       setTimeout(hide, 4000);

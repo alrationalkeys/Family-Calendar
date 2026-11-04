@@ -31,6 +31,9 @@ DEFAULTS = {
     "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card
     "icloudAlbumUrl": "",            # iCloud Shared Album public link -> slideshow photos
     "assistantName": "Hub",          # what the family calls the voice assistant (she picks)
+    "speakAlerts": True,             # wall speaks reminders / announcements / timers
+    "morningBriefing": True,         # spoken "here's today" the first time someone walks up
+    "briefingHour": 6,               # ...but not before this hour
 }
 
 

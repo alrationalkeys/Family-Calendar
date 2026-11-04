@@ -81,6 +81,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/photos/upload` (multipart) + `DELETE /api/photos/{name}`; `settings.icloudAlbumUrl` → shared album merged into `/api/photos/`
 - `/api/mail/*` — email import inbox (`status`, `pending`, `poll`, `{id}/approve`, `{id}/dismiss`); IMAP creds in `.env` only
 - `/api/ha/spotify` (GET state / POST action), `/api/ha/art` — Spotify card; pins in `settings.spotifyPlaylists`
+- `/api/ha/events` (SSE) + `/api/ha/version` — live HA state changes via `services/ha_live.py` (WebSocket mirror; demo toggles bump too)
+- `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
+- `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
+- `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated
+- Wall kid mode: tap a scoreboard avatar → `openKidMode(person)`; voice "show Ella's day"
 - `/api/sources/` — list/add/remove Google + iCloud + ICS feeds (passwords never returned)
 - `/api/calendar/events?person_id=N` — merged feed with optional per-person filter
 - `/api/events/` — local events FamilyHub owns: recurrence + per-event reminders

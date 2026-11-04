@@ -9,3 +9,4 @@ google-auth-oauthlib>=1
 anthropic>=0.40
 holidays>=0.50
 python-multipart>=0.0.9
+websockets>=12

@@ -36,6 +36,7 @@
   /* magic box */
   .magic{background:var(--panel); border-radius:16px; padding:16px; margin-bottom:22px; border:1px solid var(--line)}
   .magic label{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); font-weight:600}
+  .magic input, .magic select{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; font-size:15px; padding:11px 12px; margin:0}
   .magic textarea{
     width:100%; background:var(--panel2); border:0; border-radius:12px; color:var(--ink);
     font:inherit; font-size:17px; padding:14px; margin-top:10px; resize:none; min-height:58px;
@@ -139,6 +140,25 @@
   <button class="go" id="magicGo">Add it</button>
 </div>
 
+<!-- INTERCOM -->
+<div class="magic" style="margin-top:14px">
+  <label>Say it on the wall</label>
+  <div class="two"><input id="ann-text" placeholder="Dinner's ready! · Come downstairs · Bus in 5 min" style="flex:1"><input id="ann-who" placeholder="From" style="flex:0 0 90px"></div>
+  <div class="two" style="margin-top:8px">
+    <button class="tool" data-ann="Dinner's ready!">\u{1F37D} Dinner's ready</button><button class="tool" data-ann="Come downstairs please">\u{1F4E3} Come down</button><button class="tool" data-ann="Time to get ready for bed">\u{1F319} Bedtime</button>
+  </div>
+  <button class="go" id="ann-go" style="margin-top:8px">Announce</button>
+</div>
+
+<!-- MEAL PLANNER -->
+<div class="magic" style="margin-top:14px">
+  <label>Plan the week's dinners</label>
+  <input id="mp-prefs" placeholder="Preferences: kid-friendly, one veggie night, no fish, under 30 min…">
+  <div class="two" style="margin-top:8px"><select id="mp-days" style="margin:0"><option value="5">Mon–Fri (5)</option><option value="7" selected>7 days</option><option value="3">3 days</option></select><button class="go" id="mp-go" style="margin:0">Plan it</button></div>
+  <div class="preview" id="mp-preview"></div>
+  <div class="hint">Skips days that already have a dinner. Adds every ingredient to Groceries (no duplicates). Works without the AI key too, just less clever.</div>
+</div>
+
 <!-- MANUAL BACKUP -->
 <div class="seg">
   <button data-f="event" class="active">Event</button>
@@ -185,6 +205,9 @@
     <label class="chk"><input type="checkbox" id="set-kbd"> On-screen keyboard on the wall</label>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <div class="hint">What you call it when you talk to the wall. Hands-free "Hey &lt;name&gt;" needs a matching wake-word model in Home Assistant — see docs/home-assistant-setup.md "Pick the name".</div>
+    <label class="chk"><input type="checkbox" id="set-speak"> Wall speaks reminders, announcements &amp; timers</label>
+    <label class="chk"><input type="checkbox" id="set-brief"> Morning briefing when someone first walks up</label>
+    <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
   </div>
 
   <div class="form sect">
@@ -603,6 +626,9 @@ function loadSettingsUI(){
     c.onchange=()=>saveNested("panels",c.dataset.panel,c.checked);
   });
   $("#set-kbd").checked=!!s.onscreenKbd; $("#set-kbd").onchange=e=>FH.save({onscreenKbd:e.target.checked});
+  $("#set-speak").checked=s.speakAlerts!==false; $("#set-speak").onchange=e=>FH.save({speakAlerts:e.target.checked});
+  $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
+  $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
   $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };
   // holidays
   document.querySelectorAll("#view-settings input[data-hol]").forEach(c=>{
@@ -667,6 +693,44 @@ $("#person-add").onclick=async()=>{
   await fetch("/api/categories/people",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name,color:personColor})}).catch(()=>{});
   $("#person-name").value=""; toast("Person added"); loadPeople();
+};
+
+/* ---- intercom ---- */
+async function announce(text){
+  text=(text||"").trim(); if(!text){ toast("Type something to say"); return; }
+  const who=$("#ann-who").value.trim(); try{ localStorage.setItem("fh_ann_who", who); }catch(e){}
+  const r=await post("/api/announce",{text, who:who||null});
+  toast(r.ok?"The wall will say it now":"Couldn't reach the wall");
+  $("#ann-text").value="";
+}
+$("#ann-go").onclick=()=>announce($("#ann-text").value);
+$("#ann-text").addEventListener("keydown",e=>{ if(e.key==="Enter") announce($("#ann-text").value); });
+document.querySelectorAll("[data-ann]").forEach(b=>{ b.onclick=()=>announce(b.dataset.ann); });
+try{ $("#ann-who").value=localStorage.getItem("fh_ann_who")||""; }catch(e){}
+
+/* ---- meal planner ---- */
+let mealPlan=[];
+$("#mp-go").onclick=async()=>{
+  const btn=$("#mp-go"); btn.disabled=true; btn.textContent="Planning…";
+  const box=$("#mp-preview"); box.classList.remove("show");
+  try{
+    const r=await post("/api/ai/meal-plan",{days:+$("#mp-days").value, prefs:$("#mp-prefs").value}).then(r=>r.json());
+    mealPlan=r.meals||[];
+    if(!mealPlan.length){ toast(r.skipped&&r.skipped.length?"Those days already have dinners":"Nothing planned"); }
+    else{
+      box.innerHTML=`<div class="pk">${r.source==="ai"?"Suggested by AI":"Suggested"} — untick any you don't want</div>`+mealPlan.map((m,i)=>{
+        const d=new Date(m.date+"T12:00:00");
+        return `<label class="chk" style="margin:6px 0;align-items:flex-start"><input type="checkbox" data-i="${i}" checked> <span><b>${d.toLocaleDateString([],{weekday:"short"})}</b> ${m.title}${m.minutes?` <span class="sub" style="display:inline;font-size:12px">· ${m.minutes} min</span>`:""}<div class="sub" style="margin:0;font-size:12px">${(m.ingredients||[]).join(", ")}</div></span></label>`; }).join("")+
+        `<label class="chk" style="margin:10px 0 6px"><input type="checkbox" id="mp-groc" checked> Add ingredients to Groceries</label><button class="go" id="mp-apply" style="margin:0">Add to the meal plan</button>`;
+      box.classList.add("show");
+      $("#mp-apply").onclick=async()=>{
+        const chosen=[...box.querySelectorAll("input[data-i]")].filter(c=>c.checked).map(c=>mealPlan[+c.dataset.i]);
+        if(!chosen.length){ toast("Nothing ticked"); return; }
+        const res=await post("/api/ai/meal-plan/apply",{meals:chosen, add_groceries:$("#mp-groc").checked}).then(r=>r.json()).catch(()=>({}));
+        toast(`Added ${res.meals||0} dinner${res.meals===1?"":"s"}${res.groceries?` + ${res.groceries.length} groceries`:""}`); box.classList.remove("show"); };
+    }
+  }catch(e){ toast("Couldn't plan — try again"); }
+  btn.disabled=false; btn.textContent="Plan it";
 };
 
 /* ---- calendars (sources) ---- */

@@ -354,6 +354,18 @@ def interpret(text: str) -> dict:
         if said:
             return {"ok": True, "say": said, "refresh": True}
 
+    # "what's today / give me the rundown / morning briefing" -> the wall speaks the digest
+    if (w & {"briefing", "rundown", "summary", "agenda"}) or (w & {"today", "todays"} and w & {"what", "whats", "schedule", "plan", "happening"}):
+        return {"ok": True, "say": "", "briefing": True}
+
+    # "show Ella's day" / "Max's chores" -> per-person mode on the wall
+    m_person = re.search(r"\b(?:show|open|pull up)\s+(\w+)'?s?\s+(?:day|chores|stuff|routine|schedule)\b", t.lower())
+    if m_person:
+        with get_db() as conn:
+            row = conn.execute("SELECT id, name FROM people WHERE lower(name)=?", (m_person.group(1),)).fetchone()
+        if row:
+            return {"ok": True, "say": f"Here's {row['name']}'s day.", "person_mode": row["id"]}
+
     # "what's for dinner / lunch tonight?" — no key needed
     if w & {"dinner", "lunch", "breakfast", "supper"} and w & {"what", "whats", "tonight", "today"} and not (w & ON_WORDS | w & OFF_WORDS):
         slot = "breakfast" if "breakfast" in w else "lunch" if "lunch" in w else "dinner"

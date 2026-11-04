@@ -1951,29 +1951,32 @@ function renderTilesView(body,h){
    the RIGHT. `floor` 1 = downstairs, 2 = upstairs. Positions are approximate —
    easy to nudge. Keys are best-guess HA name hints, refined when HA is connected. */
 const DEFAULT_LAYOUT=[
-  // ---- Floor 1 (downstairs) ----
-  {floor:1, name:"Patio",     key:"patio",     gx:0, gy:0, gw:3, gd:2},
-  {floor:1, name:"Dining",    key:"dining",    gx:0, gy:2, gw:4, gd:3},
-  {floor:1, name:"Kitchen",   key:"kitchen",   gx:0, gy:5, gw:4, gd:2},
-  {floor:1, name:"Flex Room", key:"flex",      gx:0, gy:7, gw:4, gd:3},
-  {floor:1, name:"Living",    key:"living",    gx:4, gy:2, gw:4, gd:5},
-  {floor:1, name:"Foyer",     key:"foyer",     gx:4, gy:7, gw:2, gd:2},
-  {floor:1, name:"Porch",     key:"porch",     gx:4, gy:9, gw:4, gd:2},
-  {floor:1, name:"Bedroom 4", key:"bedroom 4", gx:8, gy:0, gw:4, gd:3},
-  {floor:1, name:"Bath 2",    key:"bath 2",    gx:8, gy:3, gw:2, gd:2},
-  {floor:1, name:"Garage",    key:"garage",    gx:8, gy:5, gw:4, gd:5},
-  // ---- Floor 2 (upstairs) ----
-  // Bedroom 1 -> Master Closet -> Laundry are adjacent (there's a door from the
-  // master closet through to the laundry room).
-  {floor:2, name:"Bedroom 1",     key:"master",       gx:0, gy:0, gw:5, gd:3},
-  {floor:2, name:"Bath 1",        key:"bath 1",       gx:5, gy:0, gw:2, gd:3},
-  {floor:2, name:"Master Closet", key:"master closet",gx:0, gy:3, gw:3, gd:2},
-  {floor:2, name:"Laundry",       key:"laundry",      gx:3, gy:3, gw:2, gd:2},
-  {floor:2, name:"Loft",          key:"loft",         gx:7, gy:0, gw:5, gd:5},
-  {floor:2, name:"Sitting",       key:"sitting",      gx:0, gy:5, gw:3, gd:2},
-  {floor:2, name:"Bedroom 2",     key:"bedroom 2",    gx:0, gy:7, gw:4, gd:3},
-  {floor:2, name:"Bath 3",        key:"bath 3",       gx:4, gy:7, gw:3, gd:3},
-  {floor:2, name:"Bedroom 3",     key:"bedroom 3",    gx:7, gy:5, gw:5, gd:5},
+  // ---- Floor 1 (downstairs), mirrored so the garage is on the RIGHT ----
+  // Left col (back→front): Patio, Dining, Kitchen, Flex. Center: Living over
+  // Pantry/Foyer/Porch. Right: Bedroom 4 + Bath 2 over the Garage.
+  {floor:1, name:"Patio",     key:"patio",     gx:0, gy:0,  gw:3, gd:2},
+  {floor:1, name:"Dining",    key:"dining",    gx:0, gy:2,  gw:3, gd:3},
+  {floor:1, name:"Kitchen",   key:"kitchen",   gx:0, gy:5,  gw:3, gd:3},
+  {floor:1, name:"Flex Room", key:"flex",      gx:0, gy:8,  gw:3, gd:3},
+  {floor:1, name:"Living",    key:"living",    gx:3, gy:1,  gw:3, gd:5},
+  {floor:1, name:"Pantry",    key:"pantry",    gx:3, gy:6,  gw:2, gd:1},
+  {floor:1, name:"Foyer",     key:"foyer",     gx:3, gy:7,  gw:2, gd:3},
+  {floor:1, name:"Porch",     key:"porch",     gx:3, gy:10, gw:2, gd:2},
+  {floor:1, name:"Bedroom 4", key:"bedroom 4", gx:6, gy:1,  gw:3, gd:3},
+  {floor:1, name:"Bath 2",    key:"bath 2",    gx:7, gy:4,  gw:2, gd:2},
+  {floor:1, name:"Garage",    key:"garage",    gx:5, gy:7,  gw:4, gd:5},
+  // ---- Floor 2 (upstairs), mirrored to match ----
+  // Bedroom 1 (center) -> Master Closet (below it) -> Laundry (next to the
+  // closet) are adjacent: that's the door from the master closet to the laundry.
+  {floor:2, name:"Bath 1",        key:"bath 1",       gx:0, gy:0, gw:2, gd:3},
+  {floor:2, name:"Bedroom 1",     key:"master",       gx:2, gy:0, gw:4, gd:3},
+  {floor:2, name:"Sitting",       key:"sitting",      gx:6, gy:0, gw:3, gd:2},
+  {floor:2, name:"Laundry",       key:"laundry",      gx:6, gy:2, gw:3, gd:2},
+  {floor:2, name:"Master Closet", key:"master closet",gx:4, gy:3, gw:2, gd:2},
+  {floor:2, name:"Loft",          key:"loft",         gx:0, gy:3, gw:4, gd:4},
+  {floor:2, name:"Bedroom 3",     key:"bedroom 3",    gx:0, gy:7, gw:4, gd:3},
+  {floor:2, name:"Bath 3",        key:"bath 3",       gx:4, gy:7, gw:2, gd:3},
+  {floor:2, name:"Bedroom 2",     key:"bedroom 2",    gx:6, gy:7, gw:3, gd:3},
 ];
 let homeFloor = 1;
 function floorsIn(rooms){ return [...new Set(rooms.map(r=>r.floor||1))].sort((a,b)=>a-b); }

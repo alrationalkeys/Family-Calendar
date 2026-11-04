@@ -1963,14 +1963,17 @@ const DEFAULT_LAYOUT=[
   {floor:1, name:"Bath 2",    key:"bath 2",    gx:8, gy:3, gw:2, gd:2},
   {floor:1, name:"Garage",    key:"garage",    gx:8, gy:5, gw:4, gd:5},
   // ---- Floor 2 (upstairs) ----
-  {floor:2, name:"Bedroom 1", key:"master",    gx:0, gy:0, gw:5, gd:4},
-  {floor:2, name:"Bath 1",    key:"bath 1",    gx:5, gy:0, gw:2, gd:2},
-  {floor:2, name:"Laundry",   key:"laundry",   gx:5, gy:2, gw:2, gd:2},
-  {floor:2, name:"Loft",      key:"loft",      gx:7, gy:0, gw:5, gd:5},
-  {floor:2, name:"Sitting",   key:"sitting",   gx:0, gy:4, gw:3, gd:3},
-  {floor:2, name:"Bedroom 2", key:"bedroom 2", gx:0, gy:7, gw:4, gd:3},
-  {floor:2, name:"Bath 3",    key:"bath 3",    gx:4, gy:7, gw:3, gd:3},
-  {floor:2, name:"Bedroom 3", key:"bedroom 3", gx:7, gy:5, gw:5, gd:5},
+  // Bedroom 1 -> Master Closet -> Laundry are adjacent (there's a door from the
+  // master closet through to the laundry room).
+  {floor:2, name:"Bedroom 1",     key:"master",       gx:0, gy:0, gw:5, gd:3},
+  {floor:2, name:"Bath 1",        key:"bath 1",       gx:5, gy:0, gw:2, gd:3},
+  {floor:2, name:"Master Closet", key:"master closet",gx:0, gy:3, gw:3, gd:2},
+  {floor:2, name:"Laundry",       key:"laundry",      gx:3, gy:3, gw:2, gd:2},
+  {floor:2, name:"Loft",          key:"loft",         gx:7, gy:0, gw:5, gd:5},
+  {floor:2, name:"Sitting",       key:"sitting",      gx:0, gy:5, gw:3, gd:2},
+  {floor:2, name:"Bedroom 2",     key:"bedroom 2",    gx:0, gy:7, gw:4, gd:3},
+  {floor:2, name:"Bath 3",        key:"bath 3",       gx:4, gy:7, gw:3, gd:3},
+  {floor:2, name:"Bedroom 3",     key:"bedroom 3",    gx:7, gy:5, gw:5, gd:5},
 ];
 let homeFloor = 1;
 function floorsIn(rooms){ return [...new Set(rooms.map(r=>r.floor||1))].sort((a,b)=>a-b); }

@@ -96,6 +96,12 @@ def _demo_seed():
             "attributes": {"friendly_name": "Living Room Roku"}},
         "media_player.bedroom_tv": {"state": "off",
             "attributes": {"friendly_name": "Bedroom Roku"}},
+        "media_player.spotify_family": {"state": "playing",
+            "attributes": {"friendly_name": "Spotify", "media_title": "Here Comes the Sun",
+                           "media_artist": "The Beatles", "media_album_name": "Abbey Road",
+                           "volume_level": 0.45, "shuffle": False, "source": "Kitchen Wall",
+                           "source_list": ["Kitchen Wall", "Living Room TV", "Bedroom TV", "Alex's iPhone"],
+                           "media_playlist": "Dinner Vibes"}},
         "scene.movie_time": {"state": "scening", "attributes": {"friendly_name": "Movie Time"}},
         "scene.good_night": {"state": "scening", "attributes": {"friendly_name": "Good Night"}},
         "scene.leaving": {"state": "scening", "attributes": {"friendly_name": "Leaving Home"}},
@@ -176,8 +182,116 @@ def _states_to_tiles(states) -> list:
         domain = eid.split(".", 1)[0]
         if domain not in DOMAIN_GROUP:
             continue
+        if _is_spotify(eid):
+            continue          # Spotify gets its own now-playing card, not a TV tile
         tiles.append(_tile(eid, s.get("state", ""), s.get("attributes", {}) or {}))
     return tiles
+
+
+# ---- Spotify ------------------------------------------------------------------
+# HA's Spotify integration exposes media_player.spotify_<account>. We surface it
+# as a now-playing card with transport, volume, Spotify Connect device picker and
+# the family's pinned playlists (settings.spotifyPlaylists).
+
+def _is_spotify(eid: str) -> bool:
+    return eid.startswith("media_player.spotify")
+
+
+def _spotify_from_states(states) -> dict | None:
+    for st in states:
+        eid = st.get("entity_id", "")
+        if not _is_spotify(eid):
+            continue
+        a = st.get("attributes", {}) or {}
+        return {
+            "entity_id": eid, "state": st.get("state", ""),
+            "title": a.get("media_title"), "artist": a.get("media_artist"),
+            "album": a.get("media_album_name"), "playlist": a.get("media_playlist"),
+            "art": f"/api/ha/art?entity_id={eid}" if a.get("entity_picture") else None,
+            "volume": a.get("volume_level"), "shuffle": bool(a.get("shuffle")),
+            "source": a.get("source"), "sources": a.get("source_list") or [],
+        }
+    return None
+
+
+def spotify_state() -> dict | None:
+    if demo_mode():
+        states = [{"entity_id": eid, "state": v["state"], "attributes": v.get("attributes", {})}
+                  for eid, v in _DEMO.items()]
+        sp = _spotify_from_states(states)
+        if sp:
+            sp["demo"] = True
+        return sp
+    try:
+        return _spotify_from_states(_request("/api/states") or [])
+    except Exception:
+        return None
+
+
+def spotify_cmd(action: str, value: str = "") -> dict:
+    sp = spotify_state()
+    if not sp:
+        return {"ok": False, "reason": "no Spotify player in Home Assistant"}
+    eid = sp["entity_id"]
+    a = (action or "").lower()
+    if demo_mode():
+        cur = _DEMO[eid]
+        if a == "play_pause":
+            cur["state"] = "paused" if cur["state"] == "playing" else "playing"
+        elif a in ("next", "prev"):
+            cur["attributes"]["media_title"] = {"next": "Something", "prev": "Come Together"}[a]
+            cur["state"] = "playing"
+        elif a == "volume":
+            cur["attributes"]["volume_level"] = max(0.0, min(1.0, float(value or 0.5)))
+        elif a == "source":
+            cur["attributes"]["source"] = value
+        elif a == "play":
+            cur["state"] = "playing"
+            cur["attributes"]["media_playlist"] = value.split(":")[-1]
+        elif a == "shuffle":
+            cur["attributes"]["shuffle"] = not cur["attributes"].get("shuffle")
+        return {"ok": True, "demo": True}
+    if a == "play_pause":
+        return call_service("media_player", "media_play_pause", eid)
+    if a == "next":
+        return call_service("media_player", "media_next_track", eid)
+    if a == "prev":
+        return call_service("media_player", "media_previous_track", eid)
+    if a == "volume":
+        try:
+            return call_service("media_player", "volume_set", eid, {"volume_level": max(0.0, min(1.0, float(value)))})
+        except ValueError:
+            return {"ok": False, "reason": "bad volume"}
+    if a == "source" and value:
+        return call_service("media_player", "select_source", eid, {"source": value})
+    if a == "shuffle":
+        return call_service("media_player", "shuffle_set", eid, {"shuffle": not sp.get("shuffle")})
+    if a == "play" and value:
+        kind = "playlist"
+        if ":album:" in value: kind = "album"
+        elif ":track:" in value: kind = "track"
+        elif ":artist:" in value: kind = "artist"
+        return call_service("media_player", "play_media", eid,
+                            {"media_content_type": kind, "media_content_id": value})
+    return {"ok": False, "reason": f"unknown spotify action {action}"}
+
+
+def entity_picture(entity_id: str):
+    """Fetch an entity's picture (album art) through HA with the server-side
+    token, so the browser never needs it. Returns (bytes, content_type) or None."""
+    if demo_mode() or not entity_id:
+        return None
+    try:
+        st = _request(f"/api/states/{entity_id}") or {}
+        pic = (st.get("attributes") or {}).get("entity_picture")
+        if not pic:
+            return None
+        url = pic if pic.startswith("http") else ha_url() + pic
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {ha_token()}"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            return r.read(), r.headers.get("Content-Type", "image/jpeg")
+    except Exception:
+        return None
 
 
 def _grouped(tiles: list) -> list:
@@ -214,13 +328,16 @@ def get_home() -> dict:
                    "attributes": v.get("attributes", {})}
                   for eid, v in _DEMO.items()]
         tiles = _states_to_tiles(states)
+        sp = _spotify_from_states(states)
+        if sp: sp["demo"] = True
         return {"connected": True, "demo": True,
-                "groups": _grouped(tiles), "count": len(tiles)}
+                "groups": _grouped(tiles), "count": len(tiles), "spotify": sp}
     try:
         states = _request("/api/states")
         tiles = _states_to_tiles(states or [])
         return {"connected": True, "demo": False,
-                "groups": _grouped(tiles), "count": len(tiles)}
+                "groups": _grouped(tiles), "count": len(tiles),
+                "spotify": _spotify_from_states(states or [])}
     except urllib.error.HTTPError as e:
         reason = "bad token (401)" if e.code == 401 else f"HA error {e.code}"
         return {"connected": False, "demo": False, "groups": [], "reason": reason}

@@ -320,6 +320,28 @@
   #screenoff{position:fixed; inset:0; background:#000; z-index:60; opacity:0; pointer-events:none; transition:opacity 1s}
   #screenoff.on{opacity:1; pointer-events:auto; cursor:none}
 
+  /* Spotify now-playing card (Home tab) */
+  .sp{display:flex; gap:16px; align-items:center; background:var(--panel); border-radius:16px; padding:14px 16px; margin-bottom:14px; border:1px solid var(--line); flex-wrap:wrap}
+  .sp-art{width:84px; height:84px; border-radius:12px; background:linear-gradient(135deg,#1db954,#0d6b35); flex:none; display:flex; align-items:center; justify-content:center; font-size:38px; overflow:hidden}
+  .sp-art img{width:100%; height:100%; object-fit:cover}
+  .sp-main{flex:1; min-width:200px}
+  .sp-title{font-size:18px; font-weight:700; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .sp-sub{font-size:13px; color:var(--ink-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .sp-ctl{display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap}
+  .sp-btn{border:none; border-radius:50%; width:40px; height:40px; background:var(--panel2); color:var(--ink); font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center}
+  .sp-btn.main{width:48px; height:48px; background:#1db954; color:#fff; font-size:20px}
+  .sp-btn:active{transform:scale(.92)}
+  .sp-vol{display:flex; align-items:center; gap:6px; margin-left:6px; font-size:12px; color:var(--ink-dim)}
+  .sp-vol input{width:110px; accent-color:#1db954}
+  .sp-dev{margin-left:auto; display:flex; flex-direction:column; gap:8px; align-items:flex-end; min-width:150px}
+  .sp-dev select{background:var(--panel2); border:1px solid var(--line); color:var(--ink); border-radius:9px; font:inherit; font-size:13px; padding:7px 10px; max-width:220px}
+  .sp-pl{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+  .sp-chip{border:1px solid var(--line); background:var(--panel2); color:var(--ink); border-radius:999px; padding:6px 12px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap}
+  .sp-chip.on{background:#1db954; color:#fff; border-color:transparent}
+  .sp.idle .sp-art{filter:grayscale(.6); opacity:.8}
+  html[data-theme="dark"] .sp{box-shadow:0 0 0 1px rgba(29,185,84,.18), 0 0 22px rgba(29,185,84,.1)}
+  @media(max-width:760px){ .sp-dev{margin-left:0; align-items:flex-start; width:100%} .sp-pl{justify-content:flex-start} }
+
   /* routines (step checklists) */
   .routines{grid-column:1/-1}
   .rt-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:calc(12px * var(--density))}
@@ -2072,6 +2094,8 @@ function renderTilesView(body,h){
     <div class="cc-actions">${qa.join("")}</div>
   </div>`;
 
+  if(h.spotify) html += spotifyCardHTML(h.spotify);
+
   (h.groups||[]).forEach(g=>{
     html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
     g.tiles.forEach(t=>{
@@ -2087,10 +2111,49 @@ function renderTilesView(body,h){
     html += '</div></div>';
   });
   body.innerHTML = html;
+  bindSpotify(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
   const lo=body.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;
 }
+
+/* ---- Spotify now-playing card ---- */
+function spotifyCardHTML(sp){
+  const playing=sp.state==="playing";
+  const pls=(FH.get().spotifyPlaylists||[]).slice(0,6);
+  const cur=(sp.playlist||"").toLowerCase();
+  const title=sp.title||(playing?"Playing":"Nothing playing");
+  const sub=[sp.artist, sp.album].filter(Boolean).join(" · ")||(sp.playlist?"Playlist: "+sp.playlist:"Pick a playlist or play from your phone");
+  return `<div class="sp${playing?'':' idle'}" id="spcard">
+    <div class="sp-art">${sp.art?`<img src="${esc(sp.art)}&t=${Date.now()}" alt="">`:'\u{1F3B5}'}</div>
+    <div class="sp-main">
+      <div class="sp-title">${esc(title)}</div>
+      <div class="sp-sub">${esc(sub)}${sp.demo?' · demo':''}</div>
+      <div class="sp-ctl">
+        <button class="sp-btn" data-sp="prev" title="Previous">\u23EE</button>
+        <button class="sp-btn main" data-sp="play_pause" title="Play/Pause">${playing?'\u23F8':'\u25B6'}</button>
+        <button class="sp-btn" data-sp="next" title="Next">\u23ED</button>
+        <button class="sp-btn${sp.shuffle?' on':''}" data-sp="shuffle" title="Shuffle" style="${sp.shuffle?'color:#1db954':''}">\u{1F500}</button>
+        <label class="sp-vol">\u{1F50A}<input type="range" min="0" max="100" value="${Math.round((sp.volume??0.5)*100)}" data-sp="volume"></label>
+      </div>
+    </div>
+    <div class="sp-dev">
+      ${sp.sources&&sp.sources.length?`<select data-sp="source" title="Play on">${sp.sources.map(x=>`<option${x===sp.source?' selected':''}>${esc(x)}</option>`).join("")}</select>`:''}
+      ${pls.length?`<div class="sp-pl">${pls.map(p=>`<button class="sp-chip${cur&&(p.name.toLowerCase()===cur||(p.uri||"").toLowerCase().endsWith(":"+cur))?' on':''}" data-uri="${esc(p.uri)}">${esc(p.name)}</button>`).join("")}</div>`
+        :'<div class="sp-sub">Pin playlists from the phone app → Settings</div>'}
+    </div>
+  </div>`;
+}
+function bindSpotify(body){
+  const card=body.querySelector("#spcard"); if(!card) return;
+  const send=async(action,value)=>{ resetSleep(); try{ await post("/api/ha/spotify",{action,value}); }catch(e){} setTimeout(loadHome,600); };
+  card.querySelectorAll("button[data-sp]").forEach(b=>{ b.onclick=()=>send(b.dataset.sp); });
+  const vol=card.querySelector('input[data-sp="volume"]'); if(vol) vol.onchange=()=>send("volume", String(vol.value/100));
+  const sel=card.querySelector('select[data-sp="source"]'); if(sel) sel.onchange=()=>send("source", sel.value);
+  card.querySelectorAll(".sp-chip").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
+}
+/* keep now-playing fresh while the Home tab is open */
+setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome(); }, 15000);
 
 /* ---- floor-plan view (sample layout; rooms map to HA entities by name) ---- */
 /* ---- one grid layout drives BOTH the 2D plan and the 3D model ----

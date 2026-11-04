@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards, display, ha, login, routines)
+                      events, notifications, rewards, display, ha, login, routines, mail)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -63,10 +63,26 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(20)
 
     task = asyncio.create_task(_display_loop())
+
+    # background: pull forwarded emails into pending imports every 5 min (no-op unless configured)
+    from .services import mail_import
+
+    async def _mail_loop():
+        await asyncio.sleep(15)
+        while True:
+            try:
+                if mail_import.configured():
+                    await asyncio.to_thread(mail_import.poll)
+            except Exception:
+                pass
+            await asyncio.sleep(300)
+
+    mtask = asyncio.create_task(_mail_loop())
     try:
         yield
     finally:
         task.cancel()
+        mtask.cancel()
 
 
 app = FastAPI(title="FamilyHub", version="0.1.0", lifespan=lifespan,
@@ -109,6 +125,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(ha.router, prefix="/api/ha", tags=["home-assistant"])
 app.include_router(login.router, prefix="/api/auth", tags=["auth"])
 app.include_router(routines.router, prefix="/api/routines", tags=["routines"])
+app.include_router(mail.router, prefix="/api/mail", tags=["mail"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

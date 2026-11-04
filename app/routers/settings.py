@@ -28,6 +28,8 @@ DEFAULTS = {
     "panelSizes": [1.1, 1.1, 0.9],   # relative heights of the side panels
     "textSize": "normal",            # normal | large
     "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
+    "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card
+    "icloudAlbumUrl": "",            # iCloud Shared Album public link -> slideshow photos
 }
 
 

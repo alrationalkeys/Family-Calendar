@@ -49,10 +49,14 @@ help. Lift it off the wall, set it on the counter, still does it all.
   net drops, with an "offline" badge) + a service worker for the app shell
 - [x] On-screen keyboard for tap-to-add (pops up on any text field; settings toggle)
 - [x] Phone page covers **all settings** (appearance, panels, holidays, effects, screen-off,
-  family members) → `static/phone.html` Settings view. *(Photo upload from phone still to add.)*
+  family members, calendars, photos, email inbox, Spotify pins) → `static/phone.html` Settings view.
 - [x] Portrait / mobile layout — responsive breakpoints so the wall display also
   works on a phone in portrait (stacks the calendar, compacts the nav)
-- [ ] Verify real iCloud + Google two-way sync
+- [ ] Verify real iCloud + Google two-way sync (connect from phone → Settings → Calendars)
+- [x] Photo upload from the phone + **iCloud Shared Album** auto-slideshow
+- [x] **Email import** (forward to a mailbox → approve events on the phone); .ics invites parsed exactly
+- [x] **Routines** (step checklists w/ timers + stars), **kitchen timers**, **countdowns**
+- [x] **Spotify** card + spotifyd on the wall
 - [x] **Hardening:** constant-time PIN + per-IP brute-force lockout (`app/auth.py`); optional
   read-lock login gate for public URLs (`FAMILYHUB_LOCK_READS`, `static/auth.js`); Tailscale +
   local HTTPS (Caddy) guides → `docs/hardening.md`, `docs/tailscale.md`, `Caddyfile`

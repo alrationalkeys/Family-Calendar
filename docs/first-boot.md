@@ -70,9 +70,11 @@ Edit `~/familyhub/.env` (`nano ~/familyhub/.env`, then `sudo systemctl restart f
 | `ANTHROPIC_API_KEY=` | natural-language quick-add + photo-flyer import + voice questions |
 | `FAMILYHUB_PIN=1234` | optional — guests on your Wi-Fi can look but not edit |
 | `HA_URL=` / `HA_TOKEN=` | after Part 5 — connects the Home tab to the real house |
+| `FAMILYHUB_MAIL_HOST/USER/PASS` | optional "magic email": a spare Gmail + app password; forward school emails to it, approve the events on your phone |
 
-Then from the **phone app → Settings**: theme/colors, which side panels show, holiday sets,
-your family members, and the **night screen-off window** (Display). The screen-off uses
+Then from the **phone app → Settings**: theme/colors, side panels, holiday sets, family
+members, **Calendars** (iCloud app-password / Outlook ICS link / Google), **Photos** (upload,
+or paste an iCloud Shared Album link), the **night screen-off window**. The screen-off uses
 `xset dpms force off`, which puts the Forzola to standby; it wakes on the schedule or when
 you tap. (Forzola remote also works as a manual off switch.)
 

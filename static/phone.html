@@ -212,6 +212,42 @@
   </div>
 
   <div class="form sect">
+    <h2>Calendars</h2>
+    <div id="src-list"></div>
+    <hr>
+    <div class="pill-toggle" id="src-kind" style="margin-bottom:10px">
+      <button data-v="caldav" class="active">iCloud</button><button data-v="ics">Outlook / ICS link</button><button data-v="google">Google</button>
+    </div>
+    <div id="src-form"></div>
+  </div>
+
+  <div class="form sect">
+    <h2>Photos</h2>
+    <input type="file" id="ph-files" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
+    <button class="go" id="ph-upload">&#128247; Upload photos to the wall</button>
+    <div class="hint" id="ph-count"></div>
+    <hr>
+    <input id="album-url" placeholder="iCloud Shared Album link (https://www.icloud.com/sharedalbum/#B0…)">
+    <button class="go" id="album-save">Use this shared album</button>
+    <div class="hint">Photos app → album → share → turn on <b>Public Website</b> → copy link. Anyone who adds to the album adds to the wall. Re-checked every 45 min.</div>
+  </div>
+
+  <div class="form sect">
+    <h2>Email import</h2>
+    <div id="mail-box"></div>
+  </div>
+
+  <div class="form sect">
+    <h2>Spotify playlists</h2>
+    <div id="spl-list"></div>
+    <hr>
+    <input id="spl-name" placeholder="Name you'll say (Dinner Vibes)">
+    <input id="spl-uri" placeholder="Paste a Spotify share link or spotify:playlist:… URI">
+    <button class="go" id="spl-add">Pin playlist</button>
+    <div class="hint">Shows as a tap chip on the wall's Home tab. Voice: "play dinner vibes in the kitchen". Needs the Spotify integration in Home Assistant (docs/home-assistant-setup.md §H).</div>
+  </div>
+
+  <div class="form sect">
     <h2>Routines &amp; countdowns</h2>
     <div id="rc-list"></div>
     <div class="hint">Add new ones from the Add tab (Routine / Countdown).</div>
@@ -521,7 +557,7 @@ function switchView(v){
   $("#view-add").hidden=!add; $("#view-settings").hidden=add;
   $("#nav-add").classList.toggle("active",add);
   $("#nav-settings").classList.toggle("active",!add);
-  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); }
+  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSources(); loadPhotosUI(); loadMail(); }
 }
 
 function saveNested(group,key,val){
@@ -628,6 +664,146 @@ $("#person-add").onclick=async()=>{
   await fetch("/api/categories/people",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name,color:personColor})}).catch(()=>{});
   $("#person-name").value=""; toast("Person added"); loadPeople();
+};
+
+/* ---- calendars (sources) ---- */
+let srcKind="caldav";
+function renderSrcForm(){
+  const f=$("#src-form");
+  if(srcKind==="caldav"){
+    f.innerHTML=`<input id="s_label" placeholder="Name (e.g. Mom's iCloud)">
+      <input id="s_user" placeholder="Apple ID email" autocapitalize="none">
+      <input id="s_pass" type="password" placeholder="App-specific password">
+      <select id="s_person">${peopleOptions()}</select>
+      <div class="hint">appleid.apple.com → Sign-In and Security → App-Specific Passwords → generate one for "FamilyHub". Your real Apple password is never used.</div>
+      <button class="go" onclick="addSource()">Connect iCloud</button>`;
+  } else if(srcKind==="ics"){
+    f.innerHTML=`<input id="s_label" placeholder="Name (e.g. Work Outlook, School, Trash day)">
+      <input id="s_url" placeholder="https://… .ics or webcal:// link" autocapitalize="none">
+      <select id="s_person">${peopleOptions()}</select>
+      <div class="hint"><b>Outlook / Office 365:</b> Outlook web → Settings → Calendar → Shared calendars → Publish a calendar → copy the <b>ICS</b> link.<br><b>Google (read-only, no OAuth):</b> calendar settings → "Secret address in iCal format".<br>Also sports schedules, school districts, TeamSnap, trash pickup, tee times.</div>
+      <button class="go" onclick="addSource()">Subscribe</button>`;
+  } else {
+    f.innerHTML=`<input id="s_label" placeholder="Name (e.g. Dad's Google)">
+      <select id="s_person">${peopleOptions()}</select>
+      <div class="hint">Two-way Google needs a one-time OAuth setup on a computer: drop <code>credentials.json</code> in the FamilyHub folder, run the auth flow once, copy <code>token.json</code> next to it (README → Connect calendars). Then tap Connect here. For read-only with zero setup, use the ICS tab with your Google "secret address" instead.</div>
+      <button class="go" onclick="addSource()">Connect Google</button>`;
+  }
+}
+document.querySelectorAll("#src-kind button").forEach(b=>{ b.onclick=()=>{ document.querySelectorAll("#src-kind button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); srcKind=b.dataset.v; renderSrcForm(); }; });
+async function loadSources(){
+  renderSrcForm();
+  const box=$("#src-list"); box.innerHTML="";
+  let list=[]; try{ list=await fetch("/api/sources/").then(r=>r.json()); }catch(e){}
+  if(!list.length){ box.innerHTML='<div class="sub" style="margin:0">No calendars connected yet — the wall shows only events added here until you connect one.</div>'; return; }
+  const ico={caldav:"🍎",google:"🟢",ics:"🔗"};
+  list.forEach(sr=>{
+    const row=document.createElement("div"); row.className="prow";
+    const who=people.find(p=>p.id===sr.person_id);
+    row.innerHTML=`<div class="pav" style="background:${who?who.color:'#9aa0a6'}">${ico[sr.kind]||"📅"}</div><div class="pname">${sr.label}<div class="sub" style="margin:0;font-size:12px">${sr.kind==="caldav"?"iCloud":sr.kind==="ics"?"ICS feed":"Google"}${who?" · "+who.name:""}</div></div><button class="del" data-act="del">Remove</button>`;
+    row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm(`Remove ${sr.label}?`)) return; await fetch("/api/sources/"+sr.id,{method:"DELETE"}).catch(()=>{}); loadSources(); };
+    box.appendChild(row);
+  });
+}
+async function addSource(){
+  const label=($("#s_label").value||"").trim(); if(!label){ toast("Give it a name"); return; }
+  const person_id=num($("#s_person").value);
+  let r;
+  if(srcKind==="caldav"){
+    const username=$("#s_user").value.trim(), password=$("#s_pass").value;
+    if(!username||!password){ toast("Apple ID + app password needed"); return; }
+    r=await post("/api/sources/caldav",{label,username,password,person_id});
+  } else if(srcKind==="ics"){
+    let url=$("#s_url").value.trim().replace(/^webcal:\/\//i,"https://"); if(!url){ toast("Paste the link"); return; }
+    r=await post("/api/sources/ics",{label,url,person_id});
+  } else {
+    r=await post("/api/sources/google",{label,person_id});
+  }
+  if(!r||!r.ok){ toast("Couldn't connect"); return; }
+  toast("Connected — events appear on the wall within a minute"); loadSources();
+}
+
+/* ---- photos: upload + shared album ---- */
+async function loadPhotosUI(){
+  $("#album-url").value=FH.get().icloudAlbumUrl||"";
+  try{ const r=await fetch("/api/photos/").then(r=>r.json());
+    $("#ph-count").textContent=`${r.local||0} uploaded · ${r.album||0} from the shared album`; }catch(e){}
+}
+$("#ph-upload").onclick=()=>$("#ph-files").click();
+$("#ph-files").onchange=async()=>{
+  const files=[...$("#ph-files").files]; if(!files.length) return;
+  const fd=new FormData(); files.forEach(f=>fd.append("files",f,f.name));
+  $("#ph-upload").disabled=true; $("#ph-upload").textContent=`Uploading ${files.length}…`;
+  try{ const r=await fetch("/api/photos/upload",{method:"POST",body:fd}); const j=await r.json();
+    if(!r.ok) throw new Error(j.detail||"upload failed");
+    toast(`Added ${j.saved.length} photo${j.saved.length>1?"s":""} to the wall`); }
+  catch(e){ toast(e.message||"Upload failed"); }
+  $("#ph-upload").disabled=false; $("#ph-upload").textContent="📷 Upload photos to the wall"; $("#ph-files").value=""; loadPhotosUI();
+};
+$("#album-save").onclick=async()=>{
+  const url=$("#album-url").value.trim();
+  if(url && !/icloud\.com\/sharedalbum\/#/.test(url)){ toast("That isn't an iCloud shared-album link"); return; }
+  await FH.save({icloudAlbumUrl:url});
+  try{ const r=await fetch("/api/photos/album/refresh",{method:"POST"}).then(r=>r.json());
+    toast(url ? (r.album ? `Album linked — ${r.album} photos` : "Linked, but no photos came back yet (is Public Website on?)") : "Shared album removed"); }
+  catch(e){ toast("Saved"); }
+  loadPhotosUI();
+};
+
+/* ---- email import inbox ---- */
+async function loadMail(){
+  const box=$("#mail-box"); box.innerHTML="";
+  let st={configured:false}; try{ st=await fetch("/api/mail/status").then(r=>r.json()); }catch(e){}
+  if(!st.configured){
+    box.innerHTML='<div class="sub" style="margin:0">Not set up. Give FamilyHub a mailbox (a free Gmail + app password) in <code>.env</code> — <code>FAMILYHUB_MAIL_HOST / USER / PASS</code> — then forward school emails, schedules and invites to it. Events show up here to approve.</div>';
+    return;
+  }
+  let pend=[]; try{ pend=(await fetch("/api/mail/pending").then(r=>r.json())).pending||[]; }catch(e){}
+  const top=document.createElement("div"); top.className="srow";
+  top.innerHTML=`<span>${pend.length?pend.length+" waiting":"Nothing waiting"}</span><button class="go" id="mail-poll" style="width:auto;margin:0;padding:8px 14px">Check now</button>`;
+  box.appendChild(top);
+  top.querySelector("#mail-poll").onclick=async()=>{ toast("Checking…"); try{ const r=await fetch("/api/mail/poll",{method:"POST"}).then(r=>r.json()); toast(r.error?("Mail error: "+r.error):`Checked — ${r.processed||0} new`); }catch(e){ toast("Couldn't check"); } loadMail(); };
+  pend.forEach(m=>{
+    const card=document.createElement("div"); card.className="preview show"; card.style.marginTop="10px";
+    const evs=m.events.map((e,i)=>{ const d=e.start?new Date(e.start):null;
+      const when=d&&!isNaN(d)?(e.all_day?d.toLocaleDateString([],{weekday:"short",month:"short",day:"numeric"}):d.toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})):(e.start||"");
+      return `<label class="chk" style="margin:4px 0"><input type="checkbox" data-i="${i}" checked> ${e.title}<span class="sub" style="display:inline;margin-left:6px;font-size:12px">${when}</span></label>`; }).join("");
+    card.innerHTML=`<div class="pk">${m.subject}</div><div class="sub" style="margin:2px 0 6px;font-size:12px">${(m.sender||"").replace(/<.*>/,"").trim()}</div>${evs}
+      <div class="two" style="margin-top:8px"><button class="go" data-act="ok" style="margin:0">Add to calendar</button><button class="go" data-act="no" style="margin:0;background:var(--panel2);color:var(--ink)">Dismiss</button></div>`;
+    card.querySelector('[data-act="ok"]').onclick=async()=>{
+      const indexes=[...card.querySelectorAll("input[data-i]")].filter(c=>c.checked).map(c=>+c.dataset.i);
+      if(!indexes.length){ toast("Nothing ticked"); return; }
+      const r=await post(`/api/mail/${m.id}/approve`,{indexes}).then(r=>r.json()).catch(()=>({}));
+      toast(`Added ${r.created||0} event${r.created===1?"":"s"}`); loadMail(); };
+    card.querySelector('[data-act="no"]').onclick=async()=>{ await post(`/api/mail/${m.id}/dismiss`,{}).catch(()=>{}); loadMail(); };
+    box.appendChild(card);
+  });
+}
+
+/* Spotify playlist pins (stored in settings.spotifyPlaylists) */
+function spotifyUri(s){
+  s=(s||"").trim();
+  let m=s.match(/open\.spotify\.com\/(playlist|album|track|artist)\/([A-Za-z0-9]+)/); if(m) return `spotify:${m[1]}:${m[2]}`;
+  m=s.match(/^spotify:(playlist|album|track|artist):[A-Za-z0-9]+$/); if(m) return s;
+  return null;
+}
+function loadSPL(){
+  const box=$("#spl-list"); if(!box) return; box.innerHTML="";
+  const pls=FH.get().spotifyPlaylists||[];
+  if(!pls.length){ box.innerHTML='<div class="sub" style="margin:0">No playlists pinned yet.</div>'; return; }
+  pls.forEach((p,i)=>{
+    const row=document.createElement("div"); row.className="prow";
+    row.innerHTML=`<div class="pav" style="background:#1db954">🎵</div><div class="pname">${p.name}<div class="sub" style="margin:0;font-size:12px">${p.uri}</div></div><button class="del" data-act="del">Remove</button>`;
+    row.querySelector('[data-act="del"]').onclick=()=>{ FH.save({spotifyPlaylists:pls.filter((_,j)=>j!==i)}); loadSPL(); };
+    box.appendChild(row);
+  });
+}
+$("#spl-add").onclick=()=>{
+  const name=$("#spl-name").value.trim(), uri=spotifyUri($("#spl-uri").value);
+  if(!name){ toast("Give it a name"); return; }
+  if(!uri){ toast("That doesn't look like a Spotify link"); return; }
+  FH.save({spotifyPlaylists:[...(FH.get().spotifyPlaylists||[]),{name,uri}]});
+  $("#spl-name").value=""; $("#spl-uri").value=""; toast("Pinned"); loadSPL();
 };
 
 async function loadRC(){

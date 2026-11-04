@@ -183,6 +183,16 @@ def init_db():
                 UNIQUE(routine_id, date, step_idx)
             );
 
+            CREATE TABLE IF NOT EXISTS mail_imports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid TEXT UNIQUE,
+                subject TEXT,
+                sender TEXT,
+                received TEXT,
+                events TEXT NOT NULL DEFAULT '[]',   -- JSON list of extracted events
+                status TEXT DEFAULT 'pending'        -- pending|approved|dismissed|empty
+            );
+
             CREATE TABLE IF NOT EXISTS countdowns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,

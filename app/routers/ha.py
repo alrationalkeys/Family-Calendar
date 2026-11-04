@@ -10,7 +10,7 @@ FamilyHub talks only to Home Assistant (separate Pi); HA talks to the gear. See
 app/services/ha_svc.py and docs/home-assistant-setup.md. Works in demo mode out
 of the box so the Home tab is explorable before real HA exists.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from ..services import ha_svc
 
 router = APIRouter()
@@ -60,6 +60,33 @@ def media_info(entity_id: str):
     if not entity_id:
         raise HTTPException(400, "entity_id required")
     return ha_svc.media_info(entity_id)
+
+
+@router.get("/spotify")
+def spotify():
+    """Now-playing + devices for the Home tab's Spotify card (null if HA has no
+    Spotify player)."""
+    return {"spotify": ha_svc.spotify_state()}
+
+
+@router.post("/spotify")
+def spotify_cmd(payload: dict):
+    """{action: play_pause|next|prev|volume|source|shuffle|play, value?}
+    play's value is a Spotify URI (spotify:playlist:...)."""
+    p = payload or {}
+    if not p.get("action"):
+        raise HTTPException(400, "action required")
+    return ha_svc.spotify_cmd(p["action"], str(p.get("value", "") or ""))
+
+
+@router.get("/art")
+def art(entity_id: str):
+    """Album art proxied through HA with the server-side token."""
+    got = ha_svc.entity_picture(entity_id)
+    if not got:
+        raise HTTPException(404, "no picture")
+    data, ctype = got
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "max-age=30"})
 
 
 @router.post("/alarm")

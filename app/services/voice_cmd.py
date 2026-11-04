@@ -82,6 +82,57 @@ def _add_to_list(text):
         return None
 
 
+def _music(text: str, w: set):
+    """Spotify through HA. Returns what to say, or None if it isn't a music command."""
+    sp = ha_svc.spotify_state()
+    if not sp:
+        return "Spotify isn't connected to Home Assistant yet."
+    tl = text.lower()
+    if w & {"pause", "stop"}:
+        if sp["state"] == "playing":
+            ha_svc.spotify_cmd("play_pause")
+        return "Pausing the music."
+    if w & {"next", "skip"}:
+        ha_svc.spotify_cmd("next"); return "Skipping."
+    if w & {"previous", "back", "last"} and w & {"song", "track"}:
+        ha_svc.spotify_cmd("prev"); return "Going back a track."
+    if w & {"up", "louder", "louder"} and not ("play" in w):
+        ha_svc.spotify_cmd("volume", str(min(1.0, (sp.get("volume") or 0.5) + 0.15))); return "Turning it up."
+    if w & {"down", "quieter", "lower", "softer"} and not ("play" in w):
+        ha_svc.spotify_cmd("volume", str(max(0.0, (sp.get("volume") or 0.5) - 0.15))); return "Turning it down."
+    # pick a Spotify Connect device if one is named ("... in the kitchen", "... on the living room tv")
+    device, best = None, 0
+    for src in sp.get("sources") or []:
+        sw = set(re.findall(r"[a-z0-9]+", src.lower())) - {"the", "tv", "speaker", "wall", "s"}
+        n = len(sw & w)
+        if n > best:
+            device, best = src, n
+    # pinned playlist by name
+    try:
+        from ..routers.settings import get_settings
+        pls = get_settings().get("spotifyPlaylists") or []
+    except Exception:
+        pls = []
+    chosen = None
+    for pl in pls:
+        pw = set(re.findall(r"[a-z0-9]+", str(pl.get("name", "")).lower())) - {"the", "playlist", "my"}
+        if pw and pw <= w:
+            chosen = pl
+    if "play" in w or "resume" in w or "start" in w:
+        if device:
+            ha_svc.spotify_cmd("source", device)
+        if chosen and chosen.get("uri"):
+            ha_svc.spotify_cmd("play", chosen["uri"])
+            return f"Playing {chosen['name']}" + (f" in the {device}" if device else "") + "."
+        if sp["state"] != "playing":
+            ha_svc.spotify_cmd("play_pause")
+        if chosen is None and (w & {"playlist"} or re.search(r"\bplay (?!the music|music|some music|it)", tl)):
+            names = ", ".join(p.get("name", "") for p in pls[:4])
+            return "Resuming. " + (f"Your pinned playlists are {names}." if names else "Pin playlists in the phone app to play them by name.")
+        return "Playing" + (f" in the {device}" if device else "") + "."
+    return None
+
+
 _NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
               "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15,
               "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45, "sixty": 60, "ninety": 90,
@@ -187,6 +238,14 @@ def interpret(text: str) -> dict:
             return {"ok": True, "say": f"Timer set for {_say_duration(secs)}" + (f" for {label}" if label else "") + ".",
                     "timer": {"seconds": secs, "label": label}}
         return {"ok": False, "say": "How long? Say something like: set a timer for ten minutes."}
+
+    # music / Spotify: "play my dinner playlist in the kitchen", "pause the music",
+    # "next song", "turn the music up"
+    if w & {"music", "song", "spotify", "playlist", "songs", "track"} or (
+            "play" in w and not _match(w, tiles, {"scene", "script"})):
+        said = _music(t, w)
+        if said:
+            return {"ok": True, "say": said, "refresh": True}
 
     # time
     if ("time" in w and ("what" in w or "whats" in w)) or "clock" in w:

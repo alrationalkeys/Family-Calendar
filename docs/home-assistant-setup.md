@@ -134,6 +134,25 @@ Settings → Automations → *Sentence* triggers.
 > **Disarming by voice** is off by default in HA (needs a code) and FamilyHub's own voice
 > interpreter refuses it too. Keep it that way — disarm stays behind the PIN pad.
 
+## H. Spotify (two layers, both optional; needs Spotify Premium)
+
+**1. The wall as a Spotify speaker.** On the **Screen C3**, with the USB speaker plugged in:
+```bash
+cd ~/familyhub && bash setup/install-spotifyd.sh plughw:1,0 "Kitchen Wall"
+```
+"Kitchen Wall" now shows up in the Spotify app's device picker, same as a Sonos. No
+password stored; it's discovered over the LAN.
+
+**2. Control + now-playing on the screen.** In HA: Settings → Devices & Services →
+**Add Integration → Spotify**. It walks you through creating a free Spotify *developer
+app* (developer.spotify.com → Create app, redirect URI `https://my.home-assistant.io/redirect/oauth`)
+and signing in. HA then exposes `media_player.spotify_<you>`, and FamilyHub's Home tab
+grows a **Spotify card**: album art, play/pause/next, volume, a "play on" picker (Kitchen
+Wall / the Roku TVs / your phone), and your pinned playlists.
+
+Pin playlists from the phone app → Settings → Spotify playlists (paste a share link).
+Then: *"Hey Jarvis, play dinner vibes in the kitchen"*, *"pause the music"*, *"next song"*.
+
 ## G. (Optional) phone voice anywhere
 
 Install the **Home Assistant companion app** — its Assist button uses the same `Jarvis`

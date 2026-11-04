@@ -37,6 +37,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 Open `http://<pi-ip>:8000` on the wall screen.
 
 ### Connect calendars
+Easiest: phone app → **Settings → Calendars** (iCloud with an app-specific password, any
+Outlook/Google/school **ICS link**, or Google OAuth once set up). Under the hood:
 - **Google:** create OAuth desktop creds, drop `credentials.json` in the project root,
   run the auth flow once on your desktop, copy `token.json` to the Pi. (see `app/services/google_sync.py`)
 - **iCloud:** generate an app-specific password at appleid.apple.com, then insert a

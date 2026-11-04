@@ -320,6 +320,67 @@
   #screenoff{position:fixed; inset:0; background:#000; z-index:60; opacity:0; pointer-events:none; transition:opacity 1s}
   #screenoff.on{opacity:1; pointer-events:auto; cursor:none}
 
+  /* routines (step checklists) */
+  .routines{grid-column:1/-1}
+  .rt-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:calc(12px * var(--density))}
+  .rt{background:var(--panel2); border-radius:14px; padding:12px 14px; border:1px solid var(--line); position:relative; overflow:hidden}
+  .rt.complete{border-color:color-mix(in srgb,var(--now) 55%,transparent)}
+  .rt-head{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+  .rt-emoji{font-size:24px; line-height:1}
+  .rt-name{font-size:16px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .rt-who{font-size:12px; color:var(--ink-dim); white-space:nowrap}
+  .rt-av{width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700; margin-left:6px; vertical-align:middle}
+  .rt-bar{height:6px; border-radius:4px; background:var(--panel); overflow:hidden; margin-bottom:10px}
+  .rt-fill{height:100%; background:var(--now); border-radius:4px; transition:width .4s}
+  .rt-steps{display:flex; flex-direction:column; gap:6px}
+  .rt-step{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; background:var(--panel); cursor:pointer; border:1px solid transparent; transition:.15s; user-select:none}
+  .rt-step:active{transform:scale(.985)}
+  .rt-step .box{width:22px; height:22px}
+  .rt-step.done{opacity:.6}
+  .rt-step.done .box{background:var(--now); border-color:var(--now)}
+  .rt-step.done .rt-st{text-decoration:line-through}
+  .rt-st{flex:1; font-size:15px; font-weight:500}
+  .rt-min{font-size:12px; color:var(--ink-dim); background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px 9px; white-space:nowrap}
+  .rt-min:hover{color:var(--ink)}
+  .rt-done{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px;
+    background:color-mix(in srgb,var(--panel2) 82%, transparent); backdrop-filter:blur(2px); font-weight:800; font-size:20px; cursor:pointer}
+  .rt-done small{font-size:12px; font-weight:500; color:var(--ink-dim)}
+  html[data-theme="dark"] .rt.complete{box-shadow:0 0 0 1px color-mix(in srgb,var(--now) 35%,transparent), 0 0 18px color-mix(in srgb,var(--now) 22%,transparent)}
+  /* countdown chips above the calendar */
+  .cdrow{display:none; flex:none; gap:8px; padding:8px 12px 0; overflow-x:auto; scrollbar-width:none}
+  .cdrow.show{display:flex}
+  .cd{flex:none; display:flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); font-size:13px; white-space:nowrap}
+  .cd b{font-size:15px}
+  .cd .cdn{font-weight:800; color:var(--now)}
+  .cd.today{background:color-mix(in srgb,var(--now) 22%, var(--panel2)); border-color:var(--now)}
+  /* kitchen timer */
+  #timerfab{position:fixed; right:18px; bottom:176px; z-index:55; width:48px; height:48px; border-radius:50%; border:1px solid var(--line);
+    background:var(--panel); color:var(--ink); font-size:22px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.2); display:flex; align-items:center; justify-content:center}
+  #timerfab:active{transform:scale(.92)}
+  #timerfab.running{background:var(--now); color:#fff; border-color:transparent}
+  @media(max-width:760px){ #timerfab{width:44px; height:44px; font-size:19px; bottom:160px; right:19px} }
+  .tpill{display:none; align-items:center; gap:7px; padding:5px 12px; border-radius:999px; background:var(--now); color:#fff; font-weight:700; font-size:15px; cursor:pointer; font-variant-numeric:tabular-nums}
+  .tpill.show{display:inline-flex}
+  .tpill.ringing{animation:tring .6s infinite alternate}
+  @keyframes tring{from{background:var(--now)}to{background:#e0533d}}
+  #timerov{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center}
+  #timerov.on{display:flex}
+  .tm-card{background:var(--panel); border-radius:20px; padding:22px 22px 18px; width:420px; max-width:92vw}
+  .tm-card h3{font-size:17px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center}
+  .tm-list{display:flex; flex-direction:column; gap:8px; margin-bottom:12px}
+  .tm-row{display:flex; align-items:center; gap:10px; background:var(--panel2); border-radius:12px; padding:10px 12px}
+  .tm-row .tm-left{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; min-width:96px}
+  .tm-row.ringing .tm-left{color:#e0533d}
+  .tm-row .tm-lbl{flex:1; font-size:14px; color:var(--ink-dim)}
+  .tm-row button{border:none; border-radius:9px; background:var(--panel); color:var(--ink); font:inherit; padding:8px 12px; cursor:pointer}
+  .tm-presets{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px}
+  .tm-presets button{border:none; border-radius:12px; background:var(--panel2); color:var(--ink); font:inherit; font-size:16px; font-weight:700; padding:14px 0; cursor:pointer}
+  .tm-presets button:active{transform:scale(.95)}
+  .tm-custom{display:flex; gap:8px; align-items:center}
+  .tm-custom input{flex:1; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; font-size:15px; padding:10px 12px; min-width:0}
+  .tm-custom button{border:none; border-radius:10px; background:var(--now); color:#fff; font:inherit; font-weight:700; padding:10px 16px; cursor:pointer}
+  .tm-x{background:none; border:none; color:var(--ink-dim); cursor:pointer; font-size:20px}
+
   /* kids' scoreboard */
   .sb .body{display:flex; flex-direction:column; gap:11px}
   .sb-row{display:flex; align-items:center; gap:11px}
@@ -594,6 +655,7 @@
         <button data-v="month">Month</button>
         <button data-v="agenda">Agenda</button>
       </div>
+      <span class="tpill" id="timerpill" title="Timers"></span>
       <div class="clock" id="clock">--:--</div>
       <span class="off-badge" id="offline-badge" hidden>offline</span>
       <div class="wx" id="wx"></div>
@@ -605,6 +667,7 @@
     <section class="page cal-page active" id="page-calendar">
       <section class="main" id="main">
         <div id="home-statusbar" class="homebar" title="Open Home"></div>
+        <div id="countdowns" class="cdrow"></div>
         <div class="cal-tools">
           <div class="nav"><button id="nav-prev" title="Previous">&#8249;</button><button id="nav-next" title="Next">&#8250;</button></div>
           <button class="today" id="nav-today">Today</button>
@@ -630,6 +693,7 @@
 
     <section class="page" id="page-chores">
       <div class="page-pad page-grid2">
+        <div class="card routines" id="routines-card"><h2><span>Routines</span><span class="h2r" id="routines-sub"></span></h2><div class="body rt-grid" id="routines"></div></div>
         <div class="card"><h2><span>Chores</span></h2><div class="body" id="chorelist"></div></div>
         <div class="card sb"><h2><span>Scoreboard</span></h2><div class="body" id="scoreboard2"></div></div>
       </div>
@@ -779,6 +843,18 @@
 <div id="screenoff" title="Tap to wake"></div>
 
 <!-- wall voice command -->
+<button id="timerfab" title="Kitchen timer" aria-label="Kitchen timer">&#9201;</button>
+<div id="timerov">
+  <div class="tm-card">
+    <h3><span>&#9201; Timers</span><button class="tm-x" id="tm-close">&#10005;</button></h3>
+    <div class="tm-list" id="tm-list"></div>
+    <div class="tm-presets" id="tm-presets">
+      <button data-m="1">1 min</button><button data-m="3">3 min</button><button data-m="5">5 min</button><button data-m="10">10 min</button>
+      <button data-m="15">15 min</button><button data-m="20">20 min</button><button data-m="30">30 min</button><button data-m="60">1 hr</button>
+    </div>
+    <div class="tm-custom"><input id="tm-min" type="number" min="1" max="600" placeholder="Minutes"><input id="tm-lbl" placeholder="Label (optional)"><button id="tm-go">Start</button></div>
+  </div>
+</div>
 <button id="voicefab" title="Voice command" aria-label="Voice command">&#127908;</button>
 <div id="voiceov">
   <div class="vo-card">
@@ -1205,6 +1281,54 @@ function renderChoreList(chores, box){
     box.appendChild(row);
   });
 }
+/* ---- routines (daily step checklists) ---- */
+function renderRoutines(list){
+  const box=$("#routines"), card=$("#routines-card"); if(!box) return;
+  list=list||[];
+  if(!list.length){ card.style.display="none"; return; }
+  card.style.display="";
+  const done=list.filter(r=>r.complete).length;
+  $("#routines-sub").textContent = done===list.length ? "All done \u{1F389}" : `${done}/${list.length} done`;
+  box.innerHTML="";
+  list.forEach(r=>{
+    const n=r.steps.length, d=r.done.length, pct=n?Math.round(d/n*100):0;
+    const el=document.createElement("div"); el.className="rt"+(r.complete?" complete":"");
+    const who = r.person ? `<span class="rt-who">${esc(r.person)}<span class="rt-av" style="background:${esc(r.color||'#4f86c6')}">${esc(r.person.slice(0,1).toUpperCase())}</span></span>` : "";
+    el.innerHTML = `<div class="rt-head"><span class="rt-emoji">${esc(r.emoji||"\u{2705}")}</span><span class="rt-name">${esc(r.name)}</span>${who}</div>`+
+      `<div class="rt-bar"><div class="rt-fill" style="width:${pct}%"></div></div>`+
+      `<div class="rt-steps">`+r.steps.map((st,i)=>{
+        const dn=r.done.includes(i);
+        return `<div class="rt-step${dn?' done':''}" data-i="${i}"><div class="box"></div><span class="rt-st">${st.emoji?esc(st.emoji)+' ':''}${esc(st.title)}</span>`+
+          (st.minutes?`<span class="rt-min" data-min="${st.minutes}" data-lbl="${esc(st.title)}">&#9201; ${st.minutes} min</span>`:"")+`</div>`;
+      }).join("")+`</div>`+
+      (r.complete?`<div class="rt-done">Done! ${r.stars?'+'+r.stars+'\u2605':''}<small>tap to reopen</small></div>`:"");
+    el.querySelectorAll(".rt-step").forEach(stp=>{
+      stp.onclick=async(e)=>{
+        resetSleep();
+        if(e.target.classList.contains("rt-min")){ startTimer(+e.target.dataset.min*60, e.target.dataset.lbl); return; }
+        try{
+          const res=await post(`/api/routines/${r.id}/step/${stp.dataset.i}`).then(x=>x.json());
+          if(res.complete && res.stars_earned){ celebrate(el); }
+          else if(!stp.classList.contains("done")) celebrate(stp);
+        }catch(err){}
+        load();
+      };
+    });
+    const ov=el.querySelector(".rt-done");
+    if(ov) ov.onclick=async()=>{ resetSleep(); await post(`/api/routines/${r.id}/reset`).catch(()=>{}); load(); };
+    box.appendChild(el);
+  });
+}
+function renderCountdowns(list){
+  const row=$("#countdowns"); if(!row) return;
+  list=(list||[]).filter(c=>c.days_left>=0).slice(0,8);
+  if(!list.length){ row.classList.remove("show"); row.innerHTML=""; return; }
+  row.innerHTML=list.map(c=>{
+    const n=c.days_left, txt = n===0?"Today!":n===1?"Tomorrow":`<span class="cdn">${n}</span> days`;
+    return `<div class="cd${n===0?' today':''}" style="${c.color?`border-color:${esc(c.color)}`:''}"><b>${esc(c.emoji||"\u{1F389}")}</b><span>${esc(c.title)}</span><span>${txt}</span></div>`;
+  }).join("");
+  row.classList.add("show");
+}
 function renderMeals(meals, box){
   box=box||$("#meals"); if(!box) return; box.innerHTML="";
   const today=new Date().toISOString().slice(0,10);
@@ -1257,6 +1381,7 @@ async function load(){
     people = dash.people || [];
     render();
     renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
+    renderCountdowns(dash.countdowns||[]);
     loadScoreboard();
     refreshActivePage();
   }catch(e){console.error(e);}
@@ -1795,6 +1920,7 @@ function refreshActivePage(){
     renderGroceries(d.groceries||[], $("#groceries2"));
     renderTodos(d.todos||[], $("#todos2"));
   } else if(curPage==="chores"){
+    renderRoutines(d.routines||[]);
     renderChoreList(d.chores||[], $("#chorelist"));
     loadScoreboard();
   } else if(curPage==="photos"){
@@ -2330,6 +2456,67 @@ document.addEventListener("focusout", ()=>{
   d.remove();
 })();
 
+/* ---- kitchen timers (multiple, survive a reload via localStorage) ---- */
+let timers=[]; try{ timers=JSON.parse(localStorage.getItem("fh_timers")||"[]"); }catch(e){ timers=[]; }
+function saveTimers(){ try{ localStorage.setItem("fh_timers", JSON.stringify(timers)); }catch(e){} }
+function fmtLeft(ms){ const s=Math.max(0,Math.ceil(ms/1000)), h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+  return (h?h+":":"")+String(m).padStart(h?2:1,"0")+":"+String(x).padStart(2,"0"); }
+function startTimer(seconds, label){
+  if(!seconds||seconds<=0) return;
+  timers.push({id:Date.now()+Math.random(), end:Date.now()+seconds*1000, label:label||"", total:seconds, rang:false});
+  saveTimers(); renderTimers(); resetSleep();
+}
+function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); saveTimers(); renderTimers(); }
+function cancelAllTimers(){ timers=[]; saveTimers(); renderTimers(); }
+let _beepCtx=null;
+function beep(times=3){
+  try{
+    _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
+    for(let i=0;i<times;i++){
+      const o=_beepCtx.createOscillator(), g=_beepCtx.createGain();
+      o.type="sine"; o.frequency.value=880; o.connect(g); g.connect(_beepCtx.destination);
+      const t=_beepCtx.currentTime+i*0.35; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.4,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.28); o.start(t); o.stop(t+0.3);
+    }
+  }catch(e){}
+}
+function sayAloud(s){ try{ if(!s)return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
+function tickTimers(){
+  const now=Date.now(); let changed=false;
+  timers.forEach(t=>{ if(!t.rang && now>=t.end){ t.rang=true; changed=true; beep(4); sayAloud((t.label?t.label+" timer":"Timer")+" is done."); wake(); } });
+  if(changed) saveTimers();
+  // header pill: soonest timer
+  const pill=$("#timerpill"), fab=$("#timerfab");
+  if(!timers.length){ pill.classList.remove("show","ringing"); fab.classList.remove("running"); return; }
+  const ringing=timers.find(t=>t.rang);
+  const next=[...timers].filter(t=>!t.rang).sort((a,b)=>a.end-b.end)[0];
+  pill.classList.add("show"); fab.classList.add("running");
+  if(ringing){ pill.classList.add("ringing"); pill.textContent="\u23F0 "+(ringing.label||"Timer")+" done"; if(now-ringing.end>120000) cancelTimer(ringing.id); }
+  else { pill.classList.remove("ringing"); pill.textContent="\u23F1 "+fmtLeft(next.end-now)+(next.label?" "+next.label:"")+(timers.length>1?" +"+(timers.length-1):""); }
+  if($("#timerov").classList.contains("on")) renderTimerList();
+}
+function renderTimerList(){
+  const l=$("#tm-list"); const now=Date.now();
+  if(!timers.length){ l.innerHTML='<div class="empty">No timers running</div>'; return; }
+  l.innerHTML=[...timers].sort((a,b)=>a.end-b.end).map(t=>
+    `<div class="tm-row${t.rang?' ringing':''}"><span class="tm-left">${t.rang?"0:00":fmtLeft(t.end-now)}</span><span class="tm-lbl">${esc(t.label||fmtLeft(t.total*1000)+" timer")}${t.rang?" \u2014 done!":""}</span>`+
+    `<button data-id="${t.id}">${t.rang?"Dismiss":"Cancel"}</button></div>`).join("");
+  l.querySelectorAll("button").forEach(b=>{ b.onclick=()=>cancelTimer(+b.dataset.id); });
+}
+function renderTimers(){ tickTimers(); renderTimerList(); }
+function openTimers(){ $("#timerov").classList.add("on"); renderTimerList(); resetSleep(); }
+function closeTimers(){ $("#timerov").classList.remove("on"); }
+(function setupTimers(){
+  const fab=$("#timerfab"); if(!fab) return;
+  fab.onclick=()=>{ const r=timers.find(t=>t.rang); if(r){ cancelTimer(r.id); return; } openTimers(); };
+  $("#timerpill").onclick=()=>{ const r=timers.find(t=>t.rang); if(r){ cancelTimer(r.id); return; } openTimers(); };
+  $("#tm-close").onclick=closeTimers;
+  $("#timerov").onclick=(e)=>{ if(e.target.id==="timerov") closeTimers(); };
+  $("#tm-presets").querySelectorAll("button").forEach(b=>{ b.onclick=()=>startTimer(+b.dataset.m*60, $("#tm-lbl").value.trim()); });
+  $("#tm-go").onclick=()=>{ const m=parseFloat($("#tm-min").value); if(m>0){ startTimer(Math.round(m*60), $("#tm-lbl").value.trim()); $("#tm-min").value=""; $("#tm-lbl").value=""; } };
+  setInterval(tickTimers, 500); tickTimers();
+})();
+
 /* ---- wall voice command (push-to-talk mic → /api/ai/command → speaks reply) ---- */
 function applyWallMic(){
   const fab=$("#voicefab"); if(!fab) return;
@@ -2363,6 +2550,7 @@ function applyWallMic(){
       const r=await post("/api/ai/command",{text}).then(r=>r.json());
       $("#vo-status").textContent=""; $("#vo-reply").textContent=r.say||"";
       speak(r.say);
+      if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
       if(r.focus==="alarm"){ showPage("home"); }
       setTimeout(hide, 4000);

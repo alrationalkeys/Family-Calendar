@@ -61,7 +61,8 @@
   button.go:disabled{opacity:.5}
 
   /* quick add tabs for manual entry */
-  .seg{display:flex; gap:6px; background:var(--panel); border-radius:12px; padding:5px; margin-bottom:16px}
+  .seg{display:flex; flex-wrap:wrap; gap:6px; background:var(--panel); border-radius:12px; padding:5px; margin-bottom:16px}
+  .seg button{min-width:30%}
   .seg button{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; font-size:14px; font-weight:600;
     padding:11px 0; border-radius:9px; cursor:pointer}
   .seg button.active{background:var(--panel2); color:var(--ink)}
@@ -108,6 +109,9 @@
   .prow .pname{flex:1; font-size:16px}
   .prow button{background:var(--panel2); border:1px solid var(--line); color:var(--ink-dim); border-radius:8px; padding:7px 11px; font:inherit; font-size:13px; cursor:pointer}
   .prow button.del{color:#e0533d}
+  .days{display:flex; flex-wrap:wrap; gap:4px 10px; margin:4px 0 10px}
+  .days .dchk{font-size:13px; margin:0}
+  .form textarea{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; padding:10px 12px; margin-bottom:10px; resize:vertical}
 </style>
 </head>
 <body>
@@ -142,6 +146,8 @@
   <button data-f="todo">To-do</button>
   <button data-f="grocery">Grocery</button>
   <button data-f="meal">Meal</button>
+  <button data-f="routine">Routine</button>
+  <button data-f="countdown">Countdown</button>
 </div>
 
 <div class="form" id="form"></div>
@@ -206,6 +212,12 @@
   </div>
 
   <div class="form sect">
+    <h2>Routines &amp; countdowns</h2>
+    <div id="rc-list"></div>
+    <div class="hint">Add new ones from the Add tab (Routine / Countdown).</div>
+  </div>
+
+  <div class="form sect">
     <h2>Family members</h2>
     <div id="people-list"></div>
     <hr>
@@ -226,6 +238,7 @@ let chosenColor = null, categories = [], people = [];
 
 /* build color swatches */
 function buildColors(el){
+  if(!el) return;
   el.innerHTML="";
   PALETTE.forEach(c=>{
     const s=document.createElement("div"); s.className="swatch"; s.style.background=c;
@@ -332,6 +345,22 @@ function renderForm(){
     f.innerHTML=`<div class="two"><input id="g_item" placeholder="Item" style="flex:2"><input id="g_qty" placeholder="Qty" style="flex:1"></div>
       <select id="g_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveGrocery()">Add grocery</button>`;
+  } else if(formKind==="routine"){
+    const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<label class="chk dchk"><input type="checkbox" data-d="${d}" checked> ${d}</label>`).join("");
+    f.innerHTML=`<div class="two"><input id="r_emoji" placeholder="🌅" style="flex:0 0 64px; text-align:center"><input id="r_name" placeholder="Routine name (Morning, Bedtime…)" style="flex:1"></div>
+      <div class="two"><select id="r_person">${peopleOptions()}</select>
+        <select id="r_tod"><option value="morning">Morning</option><option value="afternoon">After school</option><option value="bedtime">Bedtime</option><option value="any">Any time</option></select></div>
+      <div class="days">${days}</div>
+      <textarea id="r_steps" rows="6" placeholder="One step per line. Add minutes for a timer:&#10;Brush teeth 2&#10;Get dressed&#10;Pack backpack 5&#10;Eat breakfast 15"></textarea>
+      <select id="r_stars">${starsOptions()}</select>
+      <div class="hint">Stars are earned when every step is checked off on the wall. Resets daily.</div>
+      <button class="go" onclick="saveRoutine()">Add routine</button>`;
+  } else if(formKind==="countdown"){
+    f.innerHTML=`<div class="two"><input id="cd_emoji" placeholder="🎄" style="flex:0 0 64px; text-align:center"><input id="cd_title" placeholder="Countdown to… (Disney trip, Christmas)" style="flex:1"></div>
+      <input id="cd_date" type="date">
+      <select id="cd_person">${peopleOptions()}</select>${colorRow}
+      <div class="hint">Shows as a chip above the wall calendar: "🎄 Christmas · 51 days".</div>
+      <button class="go" onclick="saveCountdown()">Add countdown</button>`;
   } else {
     f.innerHTML=`<input id="m_title" placeholder="Meal">
       <div class="two"><input id="m_date" type="date" value="${today}">
@@ -405,6 +434,26 @@ async function saveMeal(){
     category_id:num($("#m_cat").value),color:chosenColor});
   toast("Meal added"); $("#m_title").value="";
 }
+async function saveRoutine(){
+  const name=$("#r_name").value.trim(); if(!name){ toast("Give it a name"); return; }
+  const steps=$("#r_steps").value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m=l.match(/^(.*?)(?:\s+(\d+)\s*(?:m|min|mins|minutes)?)?$/i);
+    return {title:(m&&m[1]||l).trim(), minutes:m&&m[2]?parseInt(m[2]):null};
+  });
+  if(!steps.length){ toast("Add at least one step"); return; }
+  const days=[...document.querySelectorAll("#form input[data-d]")].filter(c=>c.checked).map(c=>c.dataset.d);
+  const r=await post("/api/routines/",{name, emoji:$("#r_emoji").value.trim()||null, person_id:num($("#r_person").value),
+    time_of_day:$("#r_tod").value, days:days.length===7?"":days.join(","), steps, stars:parseInt($("#r_stars").value)||0});
+  if(!r.ok){ toast("Couldn't add routine"); return; }
+  toast("Routine added — it's on the wall's Chores page"); $("#r_name").value=""; $("#r_steps").value="";
+}
+async function saveCountdown(){
+  const title=$("#cd_title").value.trim(); if(!title){ toast("What are we counting down to?"); return; }
+  const date=$("#cd_date").value; if(!date){ toast("Pick the date"); return; }
+  const r=await post("/api/routines/countdowns",{title, date, emoji:$("#cd_emoji").value.trim()||null, color:chosenColor, person_id:num($("#cd_person").value)});
+  if(!r.ok){ toast("Couldn't add countdown"); return; }
+  toast("Countdown added"); $("#cd_title").value="";
+}
 function num(v){ return v?parseInt(v):null; }
 function post(url,body){ return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); }
 
@@ -472,7 +521,7 @@ function switchView(v){
   $("#view-add").hidden=!add; $("#view-settings").hidden=add;
   $("#nav-add").classList.toggle("active",add);
   $("#nav-settings").classList.toggle("active",!add);
-  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); }
+  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); }
 }
 
 function saveNested(group,key,val){
@@ -580,6 +629,26 @@ $("#person-add").onclick=async()=>{
     body:JSON.stringify({name,color:personColor})}).catch(()=>{});
   $("#person-name").value=""; toast("Person added"); loadPeople();
 };
+
+async function loadRC(){
+  const box=$("#rc-list"); if(!box) return; box.innerHTML="";
+  let rs=[], cs=[];
+  try{ rs=await fetch("/api/routines/").then(r=>r.json()); }catch(e){}
+  try{ cs=await fetch("/api/routines/countdowns").then(r=>r.json()); }catch(e){}
+  if(!rs.length && !cs.length){ box.innerHTML='<div class="sub" style="margin:0">None yet.</div>'; return; }
+  rs.forEach(r=>{
+    const row=document.createElement("div"); row.className="prow";
+    row.innerHTML=`<div class="pav" style="background:${r.color||'#9aa0a6'}">${r.emoji||'✅'}</div><div class="pname">${r.name}<div class="sub" style="margin:0;font-size:12px">${r.steps.length} steps · ${r.time_of_day}${r.person?' · '+r.person:''}${r.days?' · '+r.days:''}</div></div><button class="del" data-act="del">Delete</button>`;
+    row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm(`Delete routine "${r.name}"?`)) return; await fetch("/api/routines/"+r.id,{method:"DELETE"}).catch(()=>{}); loadRC(); };
+    box.appendChild(row);
+  });
+  cs.forEach(c=>{
+    const row=document.createElement("div"); row.className="prow";
+    row.innerHTML=`<div class="pav" style="background:${c.color||'#9aa0a6'}">${c.emoji||'🎉'}</div><div class="pname">${c.title}<div class="sub" style="margin:0;font-size:12px">${c.date} · ${c.days_left===0?'today':c.days_left+' days'}</div></div><button class="del" data-act="del">Delete</button>`;
+    row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm(`Delete countdown "${c.title}"?`)) return; await fetch("/api/routines/countdowns/"+c.id,{method:"DELETE"}).catch(()=>{}); loadRC(); };
+    box.appendChild(row);
+  });
+}
 
 async function init(){
   await FH.load();   // apply saved theme/accent/font

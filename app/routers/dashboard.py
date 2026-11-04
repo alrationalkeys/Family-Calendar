@@ -32,5 +32,9 @@ def dashboard():
             "SELECT * FROM todos WHERE done=0 ORDER BY created_at DESC"), cats_map, ppl_map)
         groceries = _colorize(conn.execute(
             "SELECT * FROM groceries ORDER BY got, created_at DESC"), cats_map, ppl_map)
+        from .routines import list_routines, list_countdowns
+        routines = list_routines(conn, only_today=True)
+        countdowns = list_countdowns(conn)
     return {"people": people, "categories": categories, "chores": chores,
-            "meals": meals, "todos": todos, "groceries": groceries, "today": today}
+            "meals": meals, "todos": todos, "groceries": groceries, "today": today,
+            "routines": routines, "countdowns": countdowns}

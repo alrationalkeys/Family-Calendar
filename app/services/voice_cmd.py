@@ -82,6 +82,62 @@ def _add_to_list(text):
         return None
 
 
+_NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+              "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15,
+              "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45, "sixty": 60, "ninety": 90,
+              "half": 0.5, "a": 1, "an": 1}
+
+
+def _timer_seconds(text: str) -> int:
+    """'10 minutes', 'an hour and a half', 'ninety seconds', '1 hour 20 minutes' -> seconds."""
+    t = text.lower().replace("-", " ")
+    total = 0.0
+    for m in re.finditer(r"(\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+(half))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b", t):
+        n, half, unit = m.group(1), m.group(2), m.group(3)
+        try:
+            val = float(n)
+        except ValueError:
+            val = _NUM_WORDS.get(n)
+            if val is None:
+                continue
+        if half:
+            val += 0.5
+        if unit.startswith("h"):
+            total += val * 3600
+        elif unit.startswith("m"):
+            total += val * 60
+        else:
+            total += val
+    return int(round(total))
+
+
+_DUR_RE = r"(?:\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+half)?\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)\b"
+
+
+def _timer_label(text: str):
+    """'set a timer for pasta for 8 minutes' -> 'Pasta'. Strips the duration first
+    so 'for an hour and a half' never becomes a label."""
+    t = re.sub(r"(?:\d+\s+)*" + _DUR_RE, " ", text.lower().replace("-", " "))
+    t = re.sub(r"\b(and|a|an)\s+(a\s+)?(half)?\b", " ", t)
+    m = re.search(r"\bfor (?:the |my |our )?([a-z][a-z ]{1,30}?)\s*(?:timer|,|\bfor\b|$)", t)
+    if not m:
+        return None
+    lbl = m.group(1).strip()
+    if not lbl or lbl in ("me", "us", "it", "a", "an", "the") or lbl in _NUM_WORDS:
+        return None
+    return lbl.title()
+
+
+def _say_duration(secs: int) -> str:
+    h, rem = divmod(secs, 3600)
+    m, s = divmod(rem, 60)
+    parts = []
+    if h: parts.append(f"{h} hour{'s' if h != 1 else ''}")
+    if m: parts.append(f"{m} minute{'s' if m != 1 else ''}")
+    if s and not h: parts.append(f"{s} second{'s' if s != 1 else ''}")
+    return " and ".join(parts) or "0 seconds"
+
+
 def _ai_answer(text):
     """Open-ended Q&A, only if an API key is configured."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -120,6 +176,17 @@ def interpret(text: str) -> dict:
         except Exception:
             pass
         return {"ok": True, "say": "I couldn't get the weather right now."}
+
+    # kitchen timer: "set a timer for 10 minutes", "5 minute timer", "cancel the timer"
+    if "timer" in w or "timers" in w:
+        if w & {"cancel", "stop", "clear", "kill"}:
+            return {"ok": True, "say": "Timer cancelled.", "timer": {"cancel": True}}
+        secs = _timer_seconds(t)
+        if secs:
+            label = _timer_label(t)
+            return {"ok": True, "say": f"Timer set for {_say_duration(secs)}" + (f" for {label}" if label else "") + ".",
+                    "timer": {"seconds": secs, "label": label}}
+        return {"ok": False, "say": "How long? Say something like: set a timer for ten minutes."}
 
     # time
     if ("time" in w and ("what" in w or "whats" in w)) or "clock" in w:

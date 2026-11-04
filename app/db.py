@@ -162,6 +162,35 @@ def init_db():
                 person_id INTEGER REFERENCES people(id),
                 category_id INTEGER REFERENCES categories(id)
             );
+
+            CREATE TABLE IF NOT EXISTS routines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                emoji TEXT,
+                person_id INTEGER REFERENCES people(id),
+                time_of_day TEXT DEFAULT 'morning',   -- morning|afternoon|bedtime|any
+                days TEXT DEFAULT '',                 -- 'Mon,Tue,...' or '' = every day
+                steps TEXT NOT NULL DEFAULT '[]',     -- JSON [{title, minutes, emoji}]
+                stars INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                routine_id INTEGER REFERENCES routines(id),
+                date TEXT NOT NULL,
+                step_idx INTEGER NOT NULL,
+                done_at TEXT,
+                UNIQUE(routine_id, date, step_idx)
+            );
+
+            CREATE TABLE IF NOT EXISTS countdowns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                date TEXT NOT NULL,
+                emoji TEXT,
+                color TEXT,
+                person_id INTEGER REFERENCES people(id)
+            );
             """
         )
         _migrate(conn)

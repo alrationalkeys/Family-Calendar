@@ -131,6 +131,21 @@ Useful phrases out of the box: *turn on/off <name>*, *set <name> to 50%*, *is th
 open*, *arm the alarm away*, *what time is it*, *turn on living room tv*. Add your own with
 Settings → Automations → *Sentence* triggers.
 
+**Make "Hey Jarvis" answer real questions (the Alexa replacement).** HA's built-in agent
+only does device control. Add the **Anthropic** integration (Settings → Devices & Services
+→ Add → *Anthropic*, paste the same `ANTHROPIC_API_KEY` FamilyHub uses, model
+`claude-opus-4-8`). Then in your `Jarvis` pipeline set **Conversation agent → Claude** and
+turn on **"Prefer handling commands locally"** so lights/scenes stay instant and offline,
+and only open questions ("how long do I boil an egg", "help with fractions") go to Claude.
+Give it this as the prompt so it talks like a kitchen assistant, not a chatbot:
+
+> You are the voice of a family's kitchen wall. Everyone, including kids, talks to you.
+> Answer in one to three short spoken sentences, no lists or markdown. Be warm and
+> practical. You can't browse the internet; for live news or scores say so.
+
+Tap-to-talk on the wall itself already does this (same key), with today's calendar,
+meals, chores and lists as context — *"what's for dinner"*, *"when is Ella's dentist"*.
+
 > **Disarming by voice** is off by default in HA (needs a code) and FamilyHub's own voice
 > interpreter refuses it too. Keep it that way — disarm stays behind the PIN pad.
 

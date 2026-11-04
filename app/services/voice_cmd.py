@@ -189,19 +189,85 @@ def _say_duration(secs: int) -> str:
     return " and ".join(parts) or "0 seconds"
 
 
+def _family_context() -> str:
+    """What the assistant should know about THIS family today, so questions like
+    'when is Ella's dentist', 'what's for dinner', 'what chores are left' and
+    'how many days until Disney' get real answers. Cheap: a few small queries."""
+    lines = []
+    today = datetime.date.today()
+    try:
+        from ..routers.calendar import events as cal_events
+        evs = cal_events(days=7, back=0).get("events", [])
+        upcoming = []
+        for e in evs:
+            st = e.get("start") or ""
+            if not st or str(e.get("title", "")).startswith("[sync error"):
+                continue
+            who = ""
+            upcoming.append(f"- {st[:16].replace('T', ' ')} {e.get('title')}{who}")
+            if len(upcoming) >= 20:
+                break
+        if upcoming:
+            lines.append("Calendar, next 7 days:\n" + "\n".join(upcoming))
+    except Exception:
+        pass
+    try:
+        with get_db() as conn:
+            meals = [f"{r['date']} {r['slot']}: {r['title']}" for r in conn.execute(
+                "SELECT date, slot, title FROM meals WHERE date>=? ORDER BY date, slot LIMIT 10", (today.isoformat(),))]
+            chores = [f"{r['title']}" + (f" ({r['name']})" if r['name'] else "") for r in conn.execute(
+                "SELECT c.title, p.name FROM chores c LEFT JOIN people p ON p.id=c.person_id "
+                "WHERE c.done=0 AND (c.due_date IS NULL OR c.due_date<=?) LIMIT 12", (today.isoformat(),))]
+            todos = [r["title"] for r in conn.execute("SELECT title FROM todos WHERE done=0 LIMIT 10")]
+            groc = [r["item"] for r in conn.execute("SELECT item FROM groceries WHERE got=0 LIMIT 15")]
+            people = [r["name"] for r in conn.execute("SELECT name FROM people")]
+            cds = []
+            for r in conn.execute("SELECT title, date FROM countdowns ORDER BY date LIMIT 6"):
+                try:
+                    cds.append(f"{r['title']}: {(datetime.date.fromisoformat(r['date']) - today).days} days")
+                except ValueError:
+                    pass
+        if people: lines.append("Family members: " + ", ".join(people))
+        if meals: lines.append("Meal plan: " + "; ".join(meals))
+        if chores: lines.append("Chores still to do today: " + "; ".join(chores))
+        if todos: lines.append("To-do list: " + "; ".join(todos))
+        if groc: lines.append("Grocery list: " + ", ".join(groc))
+        if cds: lines.append("Countdowns: " + "; ".join(cds))
+    except Exception:
+        pass
+    try:
+        from . import weather_svc
+        wx = weather_svc.get_weather()
+        if wx.get("temp") is not None:
+            lines.append(f"Weather now: {wx['temp']}°F, {wx.get('desc', '')}, high {wx.get('high', '?')}, low {wx.get('low', '?')}")
+    except Exception:
+        pass
+    return "\n".join(lines)
+
+
 def _ai_answer(text):
-    """Open-ended Q&A, only if an API key is configured."""
+    """Open-ended Q&A, only if an API key is configured. The model gets today's
+    family context (calendar, meals, chores, lists, weather) so it answers like
+    a household assistant, not a search box."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        return ("I can turn devices on or off, run scenes, arm the alarm, add to "
-                "your lists, and tell you the time or weather.")
+        return ("I can turn devices on or off, run scenes, arm the alarm, set timers, play music, add to "
+                "your lists, and tell you the time or weather. Add an Anthropic key for everything else.")
     try:
         from anthropic import Anthropic
         client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        now = datetime.datetime.now()
+        system = (
+            "You are FamilyHub, the voice of a family's kitchen wall display. Everyone in the house — "
+            "including young kids — talks to you. Answer in one to three short, natural SPOKEN sentences: "
+            "no lists, no markdown, no emoji, no preamble. Be warm, plain and practical. For cooking, "
+            "math, homework, definitions, conversions and general knowledge, just answer. If asked about "
+            "the family's schedule, meals, chores or lists, use the context below and be specific; if it "
+            "isn't there, say you don't see it. You cannot browse the internet, so for live news, scores "
+            "or store hours say you can't check that right now. Keep kid-facing answers age-appropriate.\n\n"
+            f"Now: {now.strftime('%A %B %d %Y, %I:%M %p').replace(' 0', ' ')}.\n\n" + _family_context()
+        )
         resp = client.messages.create(
-            model="claude-opus-4-8", max_tokens=160,
-            system=("You are a friendly family hub on a kitchen wall screen. Answer in "
-                    "one or two short spoken sentences. Today is "
-                    + datetime.date.today().isoformat() + "."),
+            model="claude-opus-4-8", max_tokens=220, system=system,
             messages=[{"role": "user", "content": text}],
         )
         return "".join(b.text for b in resp.content if b.type == "text").strip() or "I'm not sure."
@@ -246,6 +312,14 @@ def interpret(text: str) -> dict:
         said = _music(t, w)
         if said:
             return {"ok": True, "say": said, "refresh": True}
+
+    # "what's for dinner / lunch tonight?" — no key needed
+    if w & {"dinner", "lunch", "breakfast", "supper"} and w & {"what", "whats", "tonight", "today"} and not (w & ON_WORDS | w & OFF_WORDS):
+        slot = "breakfast" if "breakfast" in w else "lunch" if "lunch" in w else "dinner"
+        with get_db() as conn:
+            r = conn.execute("SELECT title FROM meals WHERE date=? AND slot=?",
+                             (datetime.date.today().isoformat(), slot)).fetchone()
+        return {"ok": True, "say": f"{slot.capitalize()} today is {r['title']}." if r else f"Nothing's planned for {slot} yet."}
 
     # time
     if ("time" in w and ("what" in w or "whats" in w)) or "clock" in w:

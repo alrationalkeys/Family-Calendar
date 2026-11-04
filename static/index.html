@@ -130,6 +130,32 @@
     padding:11px 15px; font:inherit; font-size:14px; font-weight:600; cursor:pointer}
   .cc-qa:active{transform:scale(.97)}
   @media(max-width:620px){ .cc-kpis{grid-template-columns:repeat(2,1fr)} }
+  /* ---- command-center "custom cool" polish (richer in dark) ---- */
+  html[data-theme="dark"] .cc-hero{
+    background:
+      radial-gradient(130% 90% at 0% 0%, color-mix(in srgb,var(--now) 26%, transparent), transparent 58%),
+      linear-gradient(135deg, color-mix(in srgb,var(--now) 9%, var(--panel)), var(--panel) 72%);
+    border-color:color-mix(in srgb,var(--now) 22%, var(--line));
+    box-shadow:0 12px 34px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  html[data-theme="dark"] .cc-kpi{
+    background:linear-gradient(180deg, color-mix(in srgb,#fff 5%, var(--panel2)), var(--panel2));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  html[data-theme="dark"] .cc-kpi-v{ text-shadow:0 0 18px color-mix(in srgb,var(--now) 22%, transparent); }
+  html[data-theme="dark"] .cc-qa{
+    background:linear-gradient(180deg, color-mix(in srgb,var(--now) 11%, var(--panel)), var(--panel));
+    border-color:color-mix(in srgb,var(--now) 22%, var(--line));
+  }
+  html[data-theme="dark"] .cc-qa:active{ box-shadow:0 0 0 2px color-mix(in srgb,var(--now) 45%, transparent); }
+  html[data-theme="dark"] .tile.on{
+    background:linear-gradient(180deg, color-mix(in srgb,var(--now) 26%, var(--panel)), color-mix(in srgb,var(--now) 13%, var(--panel)));
+    box-shadow:0 0 0 1px color-mix(in srgb,var(--now) 45%, transparent), 0 8px 26px color-mix(in srgb,var(--now) 26%, transparent);
+  }
+  html[data-theme="dark"] .fp .room.on rect{ filter:drop-shadow(0 0 9px color-mix(in srgb,var(--now) 50%, transparent)); }
+  html[data-theme="dark"] .iso .r3d.on .top{ filter:drop-shadow(0 0 7px color-mix(in srgb,var(--now) 50%, transparent)); }
+  html[data-theme="dark"] #voicefab{ box-shadow:0 6px 22px color-mix(in srgb,var(--now) 40%, transparent); }
+  html[data-theme="dark"] .home-view-nav .hv-btn.active{ box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--now) 30%, transparent); }
   /* ---- Home view switcher + floor plan ---- */
   .home-view-nav{display:flex; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:5px; margin:2px 4px 14px}
   .hv-btn{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; font-size:14px; font-weight:600; padding:10px 0; border-radius:8px; cursor:pointer}

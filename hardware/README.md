@@ -22,8 +22,10 @@ it has a **full-size HDMI** so there's no micro-HDMI adapter to buy.
 
 ### Home Assistant "brain" (smart home / alarm / TVs)
 Runs **separately** from the screen so a FamilyHub update can never take the house down.
-- **If you kept your Pi 5 8GB → use it. $0.**
-- If you sold it: **Home Assistant Green** (`Home Assistant Green`, ~$99) — purpose-built, or a **second N100** (~$150).
+- **Chosen build: a second N100** (~$150) runs Home Assistant (HAOS installed bare, or HA in
+  Docker/Proxmox). x86 runs HA great and leaves headroom. So: **N100 #1 = screen/FamilyHub,
+  N100 #2 = Home Assistant.** (No Pi 5 needed — it can be sold.)
+- Alternative: **Home Assistant Green** (~$99) if you'd rather have a tiny purpose-built box.
 
 ### Voice — the touchscreen has NO mic or (usually) speaker
 The 15.6" touchscreen is display + touch only. Pick the level of voice you want:
@@ -33,9 +35,10 @@ Needs a **mic + speaker on the N100**. Cleanest: one USB speakerphone on the cou
 - **USB speakerphone** (`USB speakerphone conference mic`, ~$30–45, e.g. Anker PowerConf / eMeet) — mic **and** speaker in one, great kitchen pickup. **Best pick.**
 - Budget: a **USB mini microphone** (~$12) + the monitor's own speakers if it has them (check the listing; many 15.6" panels include small speakers + a 3.5 mm jack). Add cheap **USB speakers** (~$12) if not.
 
-**B) Hands-free "Hey …" wake word** (talk to the house with nothing to tap) — via HA's local **Assist** (private, no Google/Amazon cloud):
-- **Home Assistant Voice Preview Edition** (`Home Assistant Voice`, ~$60) — mic + speaker + wake word, plug-and-play with HA. Best pick.
-- Budget: **M5Stack Atom Echo** (~$13) tiny voice satellite on the HA Pi.
+**B) Hands-free "Hey …" wake word** (talk to the house with nothing to tap) — via HA's local **Assist** (private, no Google/Amazon cloud). The $60 box is just the easy version; **you can DIY it:**
+- **Buy, plug-and-play:** *Home Assistant Voice Preview Edition* (~$60) — mic array + speaker + wake word in one, pairs with HA in minutes.
+- **DIY satellite (~$10–15):** an **ESP32-S3 + I2S mic + small speaker**, flashed with **ESPHome's voice-assistant / "Wyoming satellite"** — it's literally the open-source version of the $60 box. Put one in the kitchen, one anywhere else.
+- **DIY on the N100:** the USB speakerphone (from A) + HA's **openWakeWord** add-on gives the screen N100 its own wake word — no extra hardware.
 - Free: the **Home Assistant phone app** has push-to-talk voice built in.
 
 > **Alarm needs no new hardware** — the Qolsys IQ Panel's built-in 3rd-party

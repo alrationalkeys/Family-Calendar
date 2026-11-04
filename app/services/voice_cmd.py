@@ -245,32 +245,63 @@ def _family_context() -> str:
     return "\n".join(lines)
 
 
+# Where the wall lives — steers "is Target open", local news, weather-adjacent lookups.
+_HOME_LOCATION = {"type": "approximate", "city": os.environ.get("FAMILYHUB_CITY", "Myrtle Beach"),
+                  "region": os.environ.get("FAMILYHUB_REGION", "South Carolina"),
+                  "country": "US", "timezone": os.environ.get("FAMILYHUB_TZ", "America/New_York")}
+
+
+def _web_enabled() -> bool:
+    return os.environ.get("FAMILYHUB_VOICE_WEB", "1").lower() not in ("0", "false", "no", "off")
+
+
 def _ai_answer(text):
     """Open-ended Q&A, only if an API key is configured. The model gets today's
     family context (calendar, meals, chores, lists, weather) so it answers like
-    a household assistant, not a search box."""
+    a household assistant, and can search the web for live facts (news, scores,
+    store hours, prices) — Anthropic's server-side web search, no extra key."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return ("I can turn devices on or off, run scenes, arm the alarm, set timers, play music, add to "
                 "your lists, and tell you the time or weather. Add an Anthropic key for everything else.")
     try:
         from anthropic import Anthropic
-        client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=40.0, max_retries=1)
         now = datetime.datetime.now()
+        web = _web_enabled()
         system = (
             "You are FamilyHub, the voice of a family's kitchen wall display. Everyone in the house — "
             "including young kids — talks to you. Answer in one to three short, natural SPOKEN sentences: "
-            "no lists, no markdown, no emoji, no preamble. Be warm, plain and practical. For cooking, "
-            "math, homework, definitions, conversions and general knowledge, just answer. If asked about "
-            "the family's schedule, meals, chores or lists, use the context below and be specific; if it "
-            "isn't there, say you don't see it. You cannot browse the internet, so for live news, scores "
-            "or store hours say you can't check that right now. Keep kid-facing answers age-appropriate.\n\n"
-            f"Now: {now.strftime('%A %B %d %Y, %I:%M %p').replace(' 0', ' ')}.\n\n" + _family_context()
+            "no lists, no markdown, no emoji, no links, no preamble, and never read out URLs or source names. "
+            "Be warm, plain and practical. For cooking, math, homework, definitions, conversions and general "
+            "knowledge, just answer from what you know. If asked about the family's schedule, meals, chores "
+            "or lists, use the context below and be specific; if it isn't there, say you don't see it. "
+            + ("You have a web search tool: use it ONLY when the question needs current information — news, "
+               "sports scores and schedules, store or restaurant hours, prices, traffic, whether something is "
+               "open, who won, what happened today. Search at most twice, then answer in plain spoken words. "
+               if web else
+               "You cannot browse the internet, so for live news, scores or store hours say you can't check that right now. ")
+            + "Keep kid-facing answers age-appropriate.\n\n"
+            f"Now: {now.strftime('%A %B %d %Y, %I:%M %p').replace(' 0', ' ')}. The family lives near "
+            f"{_HOME_LOCATION['city']}, {_HOME_LOCATION['region']}.\n\n" + _family_context()
         )
-        resp = client.messages.create(
-            model="claude-opus-4-8", max_tokens=220, system=system,
-            messages=[{"role": "user", "content": text}],
-        )
-        return "".join(b.text for b in resp.content if b.type == "text").strip() or "I'm not sure."
+        kwargs = dict(model="claude-opus-4-8", max_tokens=400, system=system,
+                      messages=[{"role": "user", "content": text}])
+        if web:
+            kwargs["tools"] = [{"type": "web_search_20260209", "name": "web_search",
+                                "max_uses": 2, "user_location": _HOME_LOCATION}]
+        resp = client.messages.create(**kwargs)
+        # a search turn can pause; let it finish (bounded)
+        for _ in range(2):
+            if resp.stop_reason != "pause_turn":
+                break
+            kwargs["messages"] = kwargs["messages"] + [{"role": "assistant", "content": resp.content},
+                                                       {"role": "user", "content": "Continue."}]
+            resp = client.messages.create(**kwargs)
+        # the spoken answer is the text AFTER any searching (earlier text blocks are "let me look that up")
+        texts = [b.text for b in resp.content if b.type == "text" and b.text.strip()]
+        answer = (texts[-1] if texts else "").strip()
+        answer = re.sub(r"https?://\S+", "", answer).strip()
+        return answer or "I'm not sure."
     except Exception:
         return "I couldn't reach my brain for that one."
 

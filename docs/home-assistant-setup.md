@@ -141,10 +141,12 @@ Give it this as the prompt so it talks like a kitchen assistant, not a chatbot:
 
 > You are the voice of a family's kitchen wall. Everyone, including kids, talks to you.
 > Answer in one to three short spoken sentences, no lists or markdown. Be warm and
-> practical. You can't browse the internet; for live news or scores say so.
+> practical. Use web search only for live information like news, scores or store hours.
 
-Tap-to-talk on the wall itself already does this (same key), with today's calendar,
-meals, chores and lists as context — *"what's for dinner"*, *"when is Ella's dentist"*.
+Turn on **Web search** in that integration's options so "Hey Jarvis" can answer live
+questions too. Tap-to-talk on the wall already does all of this (same key): today's
+calendar, meals, chores and lists as context — *"what's for dinner"*, *"when is Ella's
+dentist"* — plus live lookups — *"did the Panthers win"*, *"is Publix still open"*.
 
 > **Disarming by voice** is off by default in HA (needs a code) and FamilyHub's own voice
 > interpreter refuses it too. Keep it that way — disarm stays behind the PIN pad.

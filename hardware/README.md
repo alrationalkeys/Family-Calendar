@@ -48,7 +48,7 @@ Needs a **mic + speaker on the screen C3**. Cleanest: one USB speakerphone on th
 
 **B) Hands-free "Hey …" wake word — CHOSEN: openWakeWord (DIY, no extra hardware).**
 Runs entirely on our own boxes, private (no Google/Amazon cloud):
-1. On the HA C3, enable the **openWakeWord** add-on (it does the "Hey Jarvis" detection).
+1. On the HA C3, enable the **openWakeWord** add-on (it does the "Hey <Name>" wake-word detection — any name, see the HA guide).
 2. On the kitchen (screen) C3, run a **Wyoming satellite** that streams the **USB speakerphone's**
    mic to HA and plays replies back on its speaker.
 So the only hardware is the **USB speakerphone we already listed** — the wake word is all

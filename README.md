@@ -18,7 +18,7 @@ Runs on a Raspberry Pi, controlled from any phone on your network.
 | 15.6" industrial touchscreen monitor (Forzola, HDMI + USB touch, VESA 75) | $140 | The wall. 10-pt capacitive, cables + 12V brick in the box. |
 | C3 mini PC (i3-5005U, 8GB/512GB) — the screen's brain | $170 | Runs the kiosk + voice satellite. Any x86 box with HDMI works; a used tiny-PC is fine too. |
 | C3 mini PC #2 — Home Assistant (optional, smart-home only) | $170 | Or a Pi 5 / HA Green. Separate box so a FamilyHub update never takes the house down. |
-| USB speaker + mic bar | $15 | For tap-to-talk and "Hey Jarvis". |
+| USB speaker + mic bar | $15 | For tap-to-talk and hands-free "Hey <whatever you name it>". |
 | Filament + M4/M3 screws | ~$10 | Your printer: back case, cleat, stand (`hardware/`). |
 | **Total** | **~$350** (calendar wall) / **~$520** (with the HA box) | vs ~$300 Skylight + $40–80/yr forever |
 

@@ -183,6 +183,8 @@
     <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
     <hr>
     <label class="chk"><input type="checkbox" id="set-kbd"> On-screen keyboard on the wall</label>
+    <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
+    <div class="hint">What you call it when you talk to the wall. Hands-free "Hey &lt;name&gt;" needs a matching wake-word model in Home Assistant — see docs/home-assistant-setup.md "Pick the name".</div>
   </div>
 
   <div class="form sect">
@@ -601,6 +603,7 @@ function loadSettingsUI(){
     c.onchange=()=>saveNested("panels",c.dataset.panel,c.checked);
   });
   $("#set-kbd").checked=!!s.onscreenKbd; $("#set-kbd").onchange=e=>FH.save({onscreenKbd:e.target.checked});
+  $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };
   // holidays
   document.querySelectorAll("#view-settings input[data-hol]").forEach(c=>{
     c.checked=!!(s.holidays||{})[c.dataset.hol];

@@ -251,6 +251,14 @@ _HOME_LOCATION = {"type": "approximate", "city": os.environ.get("FAMILYHUB_CITY"
                   "country": "US", "timezone": os.environ.get("FAMILYHUB_TZ", "America/New_York")}
 
 
+def _assistant_name() -> str:
+    try:
+        from ..routers.settings import get_settings
+        return (get_settings().get("assistantName") or "Hub").strip()[:30] or "Hub"
+    except Exception:
+        return "Hub"
+
+
 def _web_enabled() -> bool:
     return os.environ.get("FAMILYHUB_VOICE_WEB", "1").lower() not in ("0", "false", "no", "off")
 
@@ -269,7 +277,7 @@ def _ai_answer(text):
         now = datetime.datetime.now()
         web = _web_enabled()
         system = (
-            "You are FamilyHub, the voice of a family's kitchen wall display. Everyone in the house — "
+            f"You are {_assistant_name()}, the voice of a family's kitchen wall display. Everyone in the house — "
             "including young kids — talks to you. Answer in one to three short, natural SPOKEN sentences: "
             "no lists, no markdown, no emoji, no links, no preamble, and never read out URLs or source names. "
             "Be warm, plain and practical. For cooking, math, homework, definitions, conversions and general "
@@ -308,6 +316,8 @@ def _ai_answer(text):
 
 def interpret(text: str) -> dict:
     t = (text or "").strip()
+    name = _assistant_name().lower()
+    t = re.sub(r"^(?:hey|ok|okay|hi|yo)?\s*(?:" + re.escape(name) + r"|wall|screen)\s*[,!.]?\s*", "", t, flags=re.I).strip() or t
     if not t:
         return {"ok": False, "say": "I didn't catch that."}
     w = _words(t)

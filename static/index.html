@@ -884,7 +884,7 @@
     <div class="vo-status" id="vo-status">Listening…</div>
     <div class="vo-heard" id="vo-heard"></div>
     <div class="vo-reply" id="vo-reply"></div>
-    <div class="vo-hint">Try: "turn on the kitchen lights", "movie time", "what's the weather", "add milk to the groceries"</div>
+    <div class="vo-hint" id="vo-hint">Try: "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"</div>
     <button class="pin-x" id="vo-close">Close</button>
   </div>
 </div>
@@ -2587,6 +2587,7 @@ function closeTimers(){ $("#timerov").classList.remove("on"); }
 /* ---- wall voice command (push-to-talk mic → /api/ai/command → speaks reply) ---- */
 function applyWallMic(){
   const fab=$("#voicefab"); if(!fab) return;
+  const nm=(FH.get().assistantName||"Hub"); fab.title="Ask "+nm; const h=$("#vo-hint"); if(h) h.textContent=`Ask ${nm} anything — "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"`;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const on = FH.get().wallMic!==false && !!SR;
   fab.style.display = on ? "flex" : "none";

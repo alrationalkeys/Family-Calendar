@@ -2,7 +2,7 @@
 # ============================================================================
 # Wyoming satellite on the SCREEN box: streams the kitchen USB mic to Home
 # Assistant (which runs openWakeWord + Whisper + Piper) and plays replies back
-# on the USB speaker. This is what makes hands-free "Hey Jarvis, ..." work.
+# on the USB speaker. This is what makes hands-free "Hey <Name>, ..." work.
 #
 #   bash setup/install-satellite.sh <mic-device> <speaker-device> [name]
 #   e.g. bash setup/install-satellite.sh plughw:1,0 plughw:1,0 kitchen
@@ -64,5 +64,5 @@ cat <<EOF
 Satellite "$NAME" is listening on port 10700.
 Next, in Home Assistant: Settings -> Devices & Services -> it should appear as a
 discovered "Wyoming Protocol" device -> Configure -> pick your voice pipeline
-and turn on the wake word (openWakeWord). Then say "Hey Jarvis, what time is it?"
+and turn on the wake word (openWakeWord). Then say "Hey <Name>, what time is it?"
 EOF

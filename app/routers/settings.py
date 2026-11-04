@@ -30,6 +30,7 @@ DEFAULTS = {
     "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
     "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card
     "icloudAlbumUrl": "",            # iCloud Shared Album public link -> slideshow photos
+    "assistantName": "Hub",          # what the family calls the voice assistant (she picks)
 }
 
 

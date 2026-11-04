@@ -102,16 +102,31 @@ never leaves the server — the browser never sees it.)
 Three add-ons on the HA C3 do the listening/talking; the kitchen puck is just a dumb
 mic + speaker streamed from the Screen C3. Everything stays local.
 
+**Pick the name first.** The wake word is a tiny speech model, so the name has to
+exist as a model. Two ways:
+- **Instant, built in** (openWakeWord ships these): **"Hey Jarvis"**, **"OK Nabu"**,
+  **"Hey Mycroft"**, **"Hey Rhasspy"**, "Alexa" (don't — it'll fight the Echo).
+- **Any name she wants** (~30 min, free): openWakeWord's training notebook at
+  github.com/dscripka/openWakeWord → *Training custom models* (Google Colab). Type the
+  phrase ("Hey Luna", "Hey Marvin", "Computer"…), run it, download the `.tflite`, drop
+  it in HA's `/share/openwakeword/` folder (Samba add-on), restart the add-on, and it
+  appears in the wake-word list. Two- or three-syllable names with hard consonants work
+  best ("Hey Luna" > "Hey Sue"). There's also a community pile of ready-made ones at
+  github.com/fwartner/home-assistant-wakewords-collection.
+- Set the same name in the phone app → Settings → *Assistant's name* so the wall's
+  tap-to-talk and spoken replies use it too.
+
+Below, **`<Name>`** means whatever she picked.
+
 1. **Add-ons** (Settings → Add-ons → Store), install + start each, tick *Start on boot*:
-   - **openWakeWord** — the "Hey Jarvis" detector (leave default models; `hey_jarvis`
-     is one of them).
+   - **openWakeWord** — the "Hey <Name>" detector.
    - **Whisper** — speech-to-text. Model: `base-int8` (the i3 handles it; `tiny-int8`
      if replies feel slow). Language: `en`.
    - **Piper** — text-to-speech. Pick a voice you like (`en_US-lessac-medium` is good).
 2. Each add-on announces itself: Settings → Devices & Services → three **Wyoming Protocol**
    discoveries → **Configure** each.
-3. **Settings → Voice assistants → Add assistant**: name `Jarvis`, Conversation agent
-   *Home Assistant*, STT *faster-whisper*, TTS *piper*, Wake word *openWakeWord → hey_jarvis*.
+3. **Settings → Voice assistants → Add assistant**: name it `<Name>`, Conversation agent
+   *Home Assistant*, STT *faster-whisper*, TTS *piper*, Wake word *openWakeWord → <your model>*.
    Make it the **preferred** assistant.
 4. **Expose devices to Assist**: Settings → Voice assistants → *Expose* tab → expose the
    lights, switches, TVs, scenes, and the alarm (arm only is wise — see note below). Give
@@ -123,27 +138,27 @@ mic + speaker streamed from the Screen C3. Everything stays local.
    bash setup/install-satellite.sh plughw:1,0 plughw:1,0 kitchen
    ```
 6. HA discovers the satellite: Settings → Devices & Services → **Wyoming Protocol: kitchen**
-   → Configure → in the device page set **Assist pipeline: Jarvis** and turn **wake word
+   → Configure → in the device page set **Assist pipeline: <Name>** and turn **wake word
    detection on** (the satellite streams audio, HA's openWakeWord listens).
-7. Say **"Hey Jarvis, turn on the kitchen lights."** Piper answers through the puck.
+7. Say **"Hey <Name>, turn on the kitchen lights."** Piper answers through the puck.
 
 Useful phrases out of the box: *turn on/off <name>*, *set <name> to 50%*, *is the garage
 open*, *arm the alarm away*, *what time is it*, *turn on living room tv*. Add your own with
 Settings → Automations → *Sentence* triggers.
 
-**Make "Hey Jarvis" answer real questions (the Alexa replacement).** HA's built-in agent
+**Make "Hey <Name>" answer real questions (the Alexa replacement).** HA's built-in agent
 only does device control. Add the **Anthropic** integration (Settings → Devices & Services
 → Add → *Anthropic*, paste the same `ANTHROPIC_API_KEY` FamilyHub uses, model
-`claude-opus-4-8`). Then in your `Jarvis` pipeline set **Conversation agent → Claude** and
+`claude-opus-4-8`). Then in your `<Name>` pipeline set **Conversation agent → Claude** and
 turn on **"Prefer handling commands locally"** so lights/scenes stay instant and offline,
 and only open questions ("how long do I boil an egg", "help with fractions") go to Claude.
 Give it this as the prompt so it talks like a kitchen assistant, not a chatbot:
 
-> You are the voice of a family's kitchen wall. Everyone, including kids, talks to you.
+> You are <Name>, the voice of a family's kitchen wall. Everyone, including kids, talks to you.
 > Answer in one to three short spoken sentences, no lists or markdown. Be warm and
 > practical. Use web search only for live information like news, scores or store hours.
 
-Turn on **Web search** in that integration's options so "Hey Jarvis" can answer live
+Turn on **Web search** in that integration's options so "Hey <Name>" can answer live
 questions too. Tap-to-talk on the wall already does all of this (same key): today's
 calendar, meals, chores and lists as context — *"what's for dinner"*, *"when is Ella's
 dentist"* — plus live lookups — *"did the Panthers win"*, *"is Publix still open"*.
@@ -168,11 +183,11 @@ grows a **Spotify card**: album art, play/pause/next, volume, a "play on" picker
 Wall / the Roku TVs / your phone), and your pinned playlists.
 
 Pin playlists from the phone app → Settings → Spotify playlists (paste a share link).
-Then: *"Hey Jarvis, play dinner vibes in the kitchen"*, *"pause the music"*, *"next song"*.
+Then: *"Hey <Name>, play dinner vibes in the kitchen"*, *"pause the music"*, *"next song"*.
 
 ## G. (Optional) phone voice anywhere
 
-Install the **Home Assistant companion app** — its Assist button uses the same `Jarvis`
+Install the **Home Assistant companion app** — its Assist button uses the same `<Name>`
 pipeline, works on iPhone and Android, and works from outside the house once Tailscale or
 HA's remote access is set up. For the FamilyHub web app itself from outside the house,
 see `docs/tailscale.md`.
@@ -182,4 +197,4 @@ see `docs/tailscale.md`.
 ### What "done" looks like
 - http://homeassistant.local:8123 loads; you can arm/disarm from HA; Roku TVs are listed.
 - FamilyHub's Home tab shows the real house (no "demo" badge) and the status bar shows the alarm.
-- "Hey Jarvis, turn off the kitchen lights" works from across the kitchen.
+- "Hey <Name>, turn off the kitchen lights" works from across the kitchen.

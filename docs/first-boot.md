@@ -97,7 +97,7 @@ now (it uses Chromium's speech engine; needs internet).
 
 That's the other box. Go to **`docs/home-assistant-setup.md`** — it walks through HAOS on
 the HA C3, the IQ Panel alarm bridge, Roku TVs, the voice add-ons, and finally running
-`setup/install-satellite.sh` back on this Screen C3 so "Hey Jarvis" works.
+`setup/install-satellite.sh` back on this Screen C3 so hands-free "Hey <Name>" works (she picks the name — see that guide).
 
 ## Part 6 — mount it
 

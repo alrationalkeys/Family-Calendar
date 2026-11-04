@@ -4,8 +4,8 @@ Project anchor for Claude Code sessions. Read this first.
 
 ## What this is
 A self-hosted family calendar / chore / grocery / meal-plan display — a DIY,
-subscription-free alternative to Skylight Calendar. Runs on a Raspberry Pi (or any
-machine), shown full-screen on a wall touchscreen, controlled from phones on the LAN.
+subscription-free alternative to Skylight Calendar. Runs on a small x86 mini PC (or a Pi,
+or any machine), shown full-screen on a wall touchscreen, controlled from phones on the LAN.
 
 Two interfaces:
 - **Wall display** — `static/index.html`, served at `/`. Glanceable, dark. A bottom nav bar
@@ -107,6 +107,19 @@ with a star cost; redeem draws down the balance. `/api/rewards/balances` shows t
 ## External feeds
 Subscribe to any public ICS/webcal URL (sports schedules, golf tee times, school,
 trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar.
+
+## Hardware / install (decided Nov 2026)
+- Wall: Forzola 15.6" touchscreen + **C3 mini PC** (Ubuntu, Xorg, kiosk Chromium). One-shot
+  installer `setup/install-kiosk.sh`; walkthrough `docs/first-boot.md`. Screen-off uses
+  `xset dpms` (set in `.env` by the installer). `familyhub.service` is a template
+  (`__USER__`/`__HOME__`) with `EnvironmentFile=.env`.
+- Home Assistant OS on a **second C3**, headless: `docs/home-assistant-setup.md` (HAOS x86
+  install, IQ Panel via qolsysgw, Roku, openWakeWord/Whisper/Piper, Wyoming satellite via
+  `setup/install-satellite.sh` on the screen box).
+- 3D-printed mount: `hardware/familyhub-mount.scad` (C3 cradle, Forzola port-hump clearance,
+  optional speaker pocket); parts + print order in `hardware/README.md`.
+- Floor plan: `DEFAULT_LAYOUT` in `static/index.html` is the real house traced in feet
+  (1 cell = 1 ft, mirrored, garage right); renderers scale adaptively via `layoutExtent()`.
 
 ## Security & ops
 - Optional PIN auth: set `FAMILYHUB_PIN` env var -> writes need `X-FH-PIN` header; reads stay open.

@@ -12,21 +12,21 @@ Runs on a Raspberry Pi, controlled from any phone on your network.
 - **Two-way sync.** Writes events back to Google, not just read-only display.
 - **It's yours.** Add weather, tee times, your work schedule, anything.
 
-## Parts (mid-2026 pricing — note the RAM shortage inflated Pi prices)
+## Parts (late-2026 pricing — Pis and mini PCs both spiked with the RAM shortage)
 | Part | ~Cost | Notes |
 |---|---|---|
-| Raspberry Pi 5 (4GB) | $75 | 4GB is the floor for kiosk Chromium. Or reuse a spare PC/monitor. |
-| 27W USB-C PSU | $12 | Pi 5 needs 5V/5A |
-| microSD 32GB+ or NVMe | $10–25 | |
-| 15.6" IPS HDMI monitor | $70 | Non-touch is fine — you can drive it from your phone. |
-| 15.6" touchscreen (if you want tap-on-wall) | $120–160 | Optional upgrade; the UI has full touch (tap/swipe/pinch). See `hardware/`. |
-| Filament | ~$5 | Your printer; bezel + wall cleat + stand |
-| **Total** | **~$175** (non-touch) / **~$225** (touch) | vs $160 Skylight + $39/yr forever |
+| 15.6" industrial touchscreen monitor (Forzola, HDMI + USB touch, VESA 75) | $140 | The wall. 10-pt capacitive, cables + 12V brick in the box. |
+| C3 mini PC (i3-5005U, 8GB/512GB) — the screen's brain | $170 | Runs the kiosk + voice satellite. Any x86 box with HDMI works; a used tiny-PC is fine too. |
+| C3 mini PC #2 — Home Assistant (optional, smart-home only) | $170 | Or a Pi 5 / HA Green. Separate box so a FamilyHub update never takes the house down. |
+| USB speaker + mic bar | $15 | For tap-to-talk and "Hey Jarvis". |
+| Filament + M4/M3 screws | ~$10 | Your printer: back case, cleat, stand (`hardware/`). |
+| **Total** | **~$350** (calendar wall) / **~$520** (with the HA box) | vs ~$300 Skylight + $40–80/yr forever |
 
-Full parts list, touchscreen picks, and parametric 3D-print files are in [`hardware/`](hardware/).
+Full parts list and parametric 3D-print files are in [`hardware/`](hardware/).
+Step-by-step install day: [`docs/first-boot.md`](docs/first-boot.md).
 
-> If you reuse an existing monitor and a Pi Zero 2 W (~$15, unaffected by the RAM
-> price spike), you can land under $100.
+> Cheaper: reuse any old laptop/mini PC + an HDMI monitor and drive it from your phone —
+> the software doesn't care.
 
 ## Setup
 ```bash
@@ -42,12 +42,11 @@ Open `http://<pi-ip>:8000` on the wall screen.
 - **iCloud:** generate an app-specific password at appleid.apple.com, then insert a
   `cal_sources` row with `kind='caldav'`, config `{"url":"https://caldav.icloud.com/","username":"...","password":"..."}`.
 
-### Auto-start on the Pi
+### Auto-start on the wall box (one command)
 ```bash
-sudo cp familyhub.service /etc/systemd/system/
-sudo systemctl enable --now familyhub
-./kiosk.sh   # add to your desktop autostart so Chromium opens full-screen on boot
+bash setup/install-kiosk.sh   # Ubuntu/Debian: service + auto-login + Chromium kiosk on boot
 ```
+(Does the `familyhub.service` + `kiosk.sh` autostart wiring for you — see `docs/first-boot.md`.)
 
 ## Two interfaces
 - **Wall display** (`/`) — glanceable, dark, week/month/day views with tap-to-drill,

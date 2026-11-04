@@ -3,5 +3,7 @@ Description=FamilyHub database backup
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/pi/familyhub
-ExecStart=/home/pi/familyhub/.venv/bin/python backup.py --keep 14
+User=__USER__
+WorkingDirectory=__HOME__/familyhub
+EnvironmentFile=-__HOME__/familyhub/.env
+ExecStart=__HOME__/familyhub/.venv/bin/python backup.py --keep 14

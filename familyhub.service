@@ -1,16 +1,24 @@
-# Pi systemd service — auto-starts FamilyHub on boot.
-# Install: sudo cp familyhub.service /etc/systemd/system/ && sudo systemctl enable --now familyhub
+# systemd unit — auto-starts the FamilyHub server on boot.
+# setup/install-kiosk.sh fills in __USER__/__HOME__ and installs this for you.
+# Manual install:
+#   sed "s|__USER__|$USER|g; s|__HOME__|$HOME|g" familyhub.service | sudo tee /etc/systemd/system/familyhub.service
+#   sudo systemctl enable --now familyhub
 [Unit]
 Description=FamilyHub wall display
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi/familyhub
-Environment=ANTHROPIC_API_KEY=your-key-here
-ExecStart=/home/pi/familyhub/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+User=__USER__
+WorkingDirectory=__HOME__/familyhub
+# all secrets/options live in .env (copied from .env.example) — never in this file
+EnvironmentFile=-__HOME__/familyhub/.env
+# lets the night screen-off command (xset) reach the kiosk's X display
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=__HOME__/.Xauthority
+ExecStart=__HOME__/familyhub/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

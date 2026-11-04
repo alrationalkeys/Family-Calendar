@@ -23,12 +23,13 @@ help. Lift it off the wall, set it on the counter, still does it all.
 | Family members | Added later (via phone/settings) |
 | Photos | Phone upload |
 | Weather | ZIP **29588** (Socastee SC), °F — already the default coords |
-| Smart home | Through **Home Assistant** on the spare **Pi 5 8GB** |
+| Smart home | Through **Home Assistant OS** on a second **C3 mini PC** (headless, Ethernet). Pi 5 sold |
 | Alarm | **Qolsys IQ Panel** via HA + `qolsysgw` (have dealer code). Start **status-only**, add arm/**disarm** behind a PIN pad |
 | TVs | **Roku** (Hisense/TCL) via HA's built-in Roku integration — local ECP, auto-discovered. Need "Fast TV Start" on each TV to power on |
-| Screen | **Wired 15.6" IPS capacitive touchscreen** (10-pt, HDMI, VESA 75×75) on the wall — matches the 15" Skylight, which is itself plug-in (no battery). ~$150 (e.g. HOWENS 15.6"). Confirm the box has a USB touch cable + reviews show Pi touch works |
+| Screen | **Forzola 15.6" industrial touchscreen monitor** (10-pt, HDMI + USB-B touch, VESA 75×75, 365×223 mm) — matches the 15" Skylight. $140, cables + remote in the box |
 | Couch control | **Your phone** — Home Assistant app + FamilyHub web page on the LAN. No portable screen needed; the wall screen stays wired |
-| Screen brain | **Pi 5 4GB** drives the monitor + runs FamilyHub in kiosk Chromium. HA stays on the separate **8GB Pi** |
+| Screen brain | **C3 mini PC (i3-5005U 8GB/512GB)** on Ubuntu + Xorg, FamilyHub in kiosk Chromium + the Wyoming voice satellite. HA on the second C3 |
+| Voice | Tap-to-talk (browser) + hands-free **openWakeWord** on HA; USB speaker/mic bar in a side pocket of the printed case |
 | Navigation | **Bottom nav bar**: Calendar · Home · Chores · Lists · Photos *(built)* |
 | Disk encryption | Skip on the wall tablet (low value, headless hassle) |
 
@@ -88,7 +89,7 @@ help. Lift it off the wall, set it on the counter, still does it all.
   Confirmed: FHD 1920×1080, 10-pt capacitive, VESA 75×75, **36.5 × 23 × 1 cm**, ports on the
   **bottom edge** (USB-B touch, audio, VGA, DVI, HDMI, DC 12V). Box includes HDMI cable, USB
   touch cable, 12V DC power brick, remote. Amazon confirms Raspberry Pi compatible.
-- **Screen brain:** **Pi 5 4GB** (~$60) drives the monitor + runs FamilyHub in kiosk Chromium.
+- **Screen brain:** **C3 mini PC** drives the monitor + runs FamilyHub in kiosk Chromium (`setup/install-kiosk.sh`).
   Plus 27W USB-C PSU ($12), 64GB microSD ($12), active cooler ($8), and a **micro-HDMI→HDMI
   adapter ($6)** — the Pi 5 is micro-HDMI; the monitor's included HDMI cable is full-size.
   Touch plugs into a Pi USB-A port with the included USB-B cable (no extra cable needed).

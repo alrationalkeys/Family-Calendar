@@ -161,7 +161,7 @@
   .hv-btn{flex:1; background:none; border:0; color:var(--ink-dim); font:inherit; font-size:14px; font-weight:600; padding:10px 0; border-radius:8px; cursor:pointer}
   .hv-btn.active{background:var(--panel2); color:var(--ink)}
   .fp{padding:0 4px}
-  .fp svg{width:100%; height:auto; max-height:72vh; display:block}
+  .fp svg{height:clamp(300px, calc(100vh - 320px), 900px); width:auto; max-width:100%; display:block; margin:0 auto}
   .fp .room{cursor:pointer}
   .fp .room rect{fill:var(--panel2); stroke:var(--line); stroke-width:2; transition:fill .2s,stroke .2s}
   .fp .room.on rect{fill:color-mix(in srgb,var(--now) 28%, var(--panel)); stroke:color-mix(in srgb,var(--now) 60%, transparent)}
@@ -1973,36 +1973,40 @@ function renderTilesView(body,h){
      light/cover/temp  explicit HA entity_id (otherwise matched by `key`)
    A custom layout saved in settings.homeLayout overrides this sample, so a real
    floor plan (e.g. traced from a Zillow/builder image) drops straight in. */
-/* The home's real layout (D.R. Horton two-story), mirrored so the garage is on
-   the RIGHT. `floor` 1 = downstairs, 2 = upstairs. Positions are approximate —
-   easy to nudge. Keys are best-guess HA name hints, refined when HA is connected. */
+/* The home's real layout, traced from the D.R. Horton plan. Units are FEET
+   (1 cell = 1 ft, 0.5 ft steps) and the plan is MIRRORED so the garage is on
+   the RIGHT, matching the house. `floor` 1 = downstairs, 2 = upstairs; both
+   floors share the same 38 ft x 58 ft footprint so they stack in 3D (the patio
+   row is y 0-8, the house's back wall is y 8). Keys are HA name hints. */
 const DEFAULT_LAYOUT=[
-  // ---- Floor 1 (downstairs), mirrored so the garage is on the RIGHT ----
-  // Left col (back→front): Patio, Dining, Kitchen, Flex. Center: Living over
-  // Pantry/Foyer/Porch. Right: Bedroom 4 + Bath 2 over the Garage.
-  {floor:1, name:"Patio",     key:"patio",     gx:0, gy:0,  gw:3, gd:2},
-  {floor:1, name:"Dining",    key:"dining",    gx:0, gy:2,  gw:3, gd:3},
-  {floor:1, name:"Kitchen",   key:"kitchen",   gx:0, gy:5,  gw:3, gd:3},
-  {floor:1, name:"Flex Room", key:"flex",      gx:0, gy:8,  gw:3, gd:3},
-  {floor:1, name:"Living",    key:"living",    gx:3, gy:1,  gw:3, gd:5},
-  {floor:1, name:"Pantry",    key:"pantry",    gx:3, gy:6,  gw:2, gd:1},
-  {floor:1, name:"Foyer",     key:"foyer",     gx:3, gy:7,  gw:2, gd:3},
-  {floor:1, name:"Porch",     key:"porch",     gx:3, gy:10, gw:2, gd:2},
-  {floor:1, name:"Bedroom 4", key:"bedroom 4", gx:6, gy:1,  gw:3, gd:3},
-  {floor:1, name:"Bath 2",    key:"bath 2",    gx:7, gy:4,  gw:2, gd:2},
-  {floor:1, name:"Garage",    key:"garage",    gx:5, gy:7,  gw:4, gd:5},
-  // ---- Floor 2 (upstairs), mirrored to match ----
-  // Bedroom 1 (center) -> Master Closet (below it) -> Laundry (next to the
-  // closet) are adjacent: that's the door from the master closet to the laundry.
-  {floor:2, name:"Bath 1",        key:"bath 1",       gx:0, gy:0, gw:2, gd:3},
-  {floor:2, name:"Bedroom 1",     key:"master",       gx:2, gy:0, gw:4, gd:3},
-  {floor:2, name:"Sitting",       key:"sitting",      gx:6, gy:0, gw:3, gd:2},
-  {floor:2, name:"Laundry",       key:"laundry",      gx:6, gy:2, gw:3, gd:2},
-  {floor:2, name:"Master Closet", key:"master closet",gx:4, gy:3, gw:2, gd:2},
-  {floor:2, name:"Loft",          key:"loft",         gx:0, gy:3, gw:4, gd:4},
-  {floor:2, name:"Bedroom 3",     key:"bedroom 3",    gx:0, gy:7, gw:4, gd:3},
-  {floor:2, name:"Bath 3",        key:"bath 3",       gx:4, gy:7, gw:2, gd:3},
-  {floor:2, name:"Bedroom 2",     key:"bedroom 2",    gx:6, gy:7, gw:3, gd:3},
+  // ---- Floor 1 (downstairs) ----
+  {floor:1, name:"Patio",      key:"patio",     gx:0,    gy:0,    gw:9.5, gd:8},
+  {floor:1, name:"Dining",     key:"dining",    gx:0,    gy:8,    gw:13,  gd:13},
+  {floor:1, name:"Living",     key:"living",    gx:13,   gy:8,    gw:14,  gd:19.5},
+  {floor:1, name:"Bedroom 4",  key:"bedroom 4", gx:27,   gy:8,    gw:11,  gd:13.5},
+  {floor:1, name:"Kitchen",    key:"kitchen",   gx:0,    gy:21,   gw:13,  gd:11.5},
+  {floor:1, name:"Closet",     key:"closet 4",  gx:27,   gy:21.5, gw:5,   gd:6},
+  {floor:1, name:"Bath 2",     key:"bath 2",    gx:32,   gy:21.5, gw:6,   gd:10},
+  {floor:1, name:"Hall",       key:"hall",      gx:13,   gy:27.5, gw:19,  gd:7},
+  {floor:1, name:"Butler's",   key:"butler",    gx:0,    gy:32.5, gw:5.5, gd:8},
+  {floor:1, name:"Pantry",     key:"pantry",    gx:5.5,  gy:32.5, gw:7.5, gd:8},
+  {floor:1, name:"Foyer",      key:"foyer",     gx:13,   gy:34.5, gw:6,   gd:18},
+  {floor:1, name:"Garage",     key:"garage",    gx:19,   gy:34.5, gw:19,  gd:22},
+  {floor:1, name:"Flex Room",  key:"flex",      gx:0,    gy:40.5, gw:13,  gd:12},
+  {floor:1, name:"Porch",      key:"porch",     gx:0,    gy:52.5, gw:19,  gd:5.5},
+  // ---- Floor 2 (upstairs) ----
+  {floor:2, name:"Bath 1",        key:"bath 1",        gx:0,    gy:8,    gw:13.5, gd:13.5},
+  {floor:2, name:"Bedroom 1",     key:"master",        gx:13.5, gy:8,    gw:15,   gd:13.5},
+  {floor:2, name:"Sitting",       key:"sitting",       gx:28.5, gy:8,    gw:9.5,  gd:13.5},
+  {floor:2, name:"Loft",          key:"loft",          gx:0,    gy:21.5, gw:18.5, gd:17},
+  {floor:2, name:"Hall",          key:"upstairs hall", gx:18.5, gy:21.5, gw:5,    gd:5},
+  {floor:2, name:"Master Closet", key:"master closet", gx:23.5, gy:21.5, gw:14.5, gd:5},
+  {floor:2, name:"Stairs",        key:"stairs",        gx:18.5, gy:26.5, gw:10,   gd:12},
+  {floor:2, name:"Laundry",       key:"laundry",       gx:28.5, gy:26.5, gw:9.5,  gd:9},
+  {floor:2, name:"Closet",        key:"closet 2",      gx:31.5, gy:35.5, gw:6.5,  gd:4},
+  {floor:2, name:"Bedroom 3",     key:"bedroom 3",     gx:0,    gy:38.5, gw:18.5, gd:13.5},
+  {floor:2, name:"Bath 3",        key:"bath 3",        gx:18.5, gy:38.5, gw:6,    gd:13.5},
+  {floor:2, name:"Bedroom 2",     key:"bedroom 2",     gx:24.5, gy:39.5, gw:13.5, gd:12.5},
 ];
 let homeFloor = 1;
 function floorsIn(rooms){ return [...new Set(rooms.map(r=>r.floor||1))].sort((a,b)=>a-b); }
@@ -2016,6 +2020,9 @@ function bindFloorBtns(box){
   box.querySelectorAll(".fp-fbtn").forEach(b=>{ b.onclick=()=>{ homeFloor=+b.dataset.floor; renderHome(lastHome); resetSleep(); }; });
 }
 function getLayout(){ const c=FH.get().homeLayout; return (Array.isArray(c)&&c.length)?c:DEFAULT_LAYOUT; }
+/* layouts can be in abstract cells (sample: ~9 wide) or real feet (~38 wide):
+   scale the drawing so either fills the panel with readable labels */
+function layoutExtent(rooms){ let m=0; rooms.forEach(r=>{ m=Math.max(m,r.gx+r.gw,r.gy+r.gd); }); return m||1; }
 function isCustomLayout(){ const c=FH.get().homeLayout; return Array.isArray(c)&&c.length>0; }
 function resolveRooms(h){
   const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
@@ -2038,7 +2045,7 @@ function renderFloorView(body,h){
   const all=resolveRooms(h);
   const fs=floorsIn(all); if(!fs.includes(homeFloor)) homeFloor=fs[0]||1;
   const rooms=all.filter(r=>(r.floor||1)===homeFloor);
-  const CELL=74, GAP=4;
+  const CELL=Math.max(14,Math.min(74,760/layoutExtent(all))), GAP=Math.min(4,CELL/6), RX=Math.min(10,CELL/2);
   let maxX=0,maxY=0; rooms.forEach(r=>{ maxX=Math.max(maxX,r.gx+r.gw); maxY=Math.max(maxY,r.gy+r.gd); });
   const W=maxX*CELL, H=maxY*CELL, P=10;
   let svg=`<div class="fp"><svg viewBox="${-P} ${-P} ${W+P*2} ${H+P*2}" role="img" aria-label="Floor plan">`;
@@ -2046,7 +2053,7 @@ function renderFloorView(body,h){
   rooms.forEach((r,i)=>{
     const x=r.gx*CELL+GAP, y=r.gy*CELL+GAP, w=r.gw*CELL-GAP*2, hh=r.gd*CELL-GAP*2;
     svg+=`<g class="room${r.on?' on':''}" data-i="${i}">`+
-      `<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="10"/>`+
+      `<rect x="${x}" y="${y}" width="${w}" height="${hh}" rx="${RX}"/>`+
       `<text class="rname" x="${x+14}" y="${y+26}">${esc(r.name)}</text>`+
       (r.temp?`<text class="rtemp" x="${x+14}" y="${y+46}">${esc(r.temp.state)}${esc(r.temp.unit||"°")}</text>`:"")+
       (r.ctrl?`<circle class="rdot" cx="${x+w-16}" cy="${y+16}" r="6"/>`:"")+
@@ -2062,9 +2069,9 @@ function renderFloorView(body,h){
   });
 }
 function renderIsoView(body,h){
-  const TW=34, TH=17, WH=26;
-  const iso=(gx,gy)=>[(gx-gy)*TW,(gx+gy)*TH];
   const all=resolveRooms(h);
+  const TW=Math.max(8,Math.min(34,34*9.5/layoutExtent(all))), TH=TW/2, WH=TW*0.76;
+  const iso=(gx,gy)=>[(gx-gy)*TW,(gx+gy)*TH];
   const fs=floorsIn(all); if(!fs.includes(homeFloor)) homeFloor=fs[0]||1;
   const rooms=all.filter(r=>(r.floor||1)===homeFloor).sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));   // draw far-to-near
   const pts=[]; let gEls="";

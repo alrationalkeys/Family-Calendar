@@ -21,7 +21,7 @@ DEFAULT_COLOR = "#4f86c6"
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)   # wait out a writer (mail poll thread) instead of "database is locked"
     conn.row_factory = sqlite3.Row
     try:
         yield conn

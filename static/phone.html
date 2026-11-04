@@ -337,7 +337,7 @@ $("#magicGo").onclick=async()=>{
 
 /* ---- manual forms ---- */
 let formKind="event";
-const today=new Date().toISOString().slice(0,10);
+const today=(d=>{const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;})(new Date());
 
 function catOptions(){
   return `<option value="">No category</option>`+

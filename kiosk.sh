@@ -35,14 +35,19 @@ done
 PREFS="$HOME/.config/chromium/Default/Preferences"
 [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"
 
-exec "$BROWSER" --kiosk --noerrdialogs --disable-infobars \
-  --check-for-update-interval=31536000 \
-  --disable-session-crashed-bubble --disable-features=TranslateUI \
-  --touch-events=enabled \
-  --overscroll-history-navigation=0 \
-  --disable-pinch \
-  --autoplay-policy=no-user-gesture-required \
-  --app="$URL"
+# Keep the browser up forever: if it crashes or someone closes it, relaunch.
+while true; do
+  "$BROWSER" --kiosk --noerrdialogs --disable-infobars \
+    --check-for-update-interval=31536000 \
+    --disable-session-crashed-bubble --disable-features=TranslateUI \
+    --touch-events=enabled \
+    --overscroll-history-navigation=0 \
+    --disable-pinch \
+    --autoplay-policy=no-user-gesture-required \
+    --app="$URL"
+  sleep 3
+  [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"
+done
 
 # Touch flags above:
 #   --touch-events=enabled             treat the panel as a real touchscreen

@@ -1014,6 +1014,8 @@ function zoom(dir){
   HOURPX = Math.min(Math.max(HOURPX + dir*10, ZOOM_MIN), ZOOM_MAX);
   FH.save({hourPx:HOURPX}); render();
 }
+/* local calendar date as YYYY-MM-DD (toISOString() would flip to tomorrow after 7pm EST) */
+function localISODate(d){ d=d||new Date(); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function evStart(ev){ // local Date; date-only all-day strings parsed in local tz (no UTC shift)
   const s=ev.start; if(!s) return null;
@@ -1353,7 +1355,7 @@ function renderCountdowns(list){
 }
 function renderMeals(meals, box){
   box=box||$("#meals"); if(!box) return; box.innerHTML="";
-  const today=new Date().toISOString().slice(0,10);
+  const today=localISODate();
   const t=meals.filter(m=>m.date===today);
   if(!t.length){box.innerHTML='<div class="empty">No meals planned</div>';return;}
   t.forEach(m=>{
@@ -1374,7 +1376,8 @@ function cacheGet(k){ try{ const c=localStorage.getItem("fhcache:"+k); return c?
 function cacheSet(k,v){ try{ localStorage.setItem("fhcache:"+k, JSON.stringify({t:Date.now(),v})); }catch(e){} }
 async function cachedFetch(url, key){
   try{
-    const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+    const ac=new AbortController(); const to=setTimeout(()=>ac.abort(), 15000);   // a hung server must not stack up requests
+    const r=await fetch(url,{signal:ac.signal}).finally(()=>clearTimeout(to)); if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(); cacheSet(key, j); return {data:j, stale:false, t:Date.now()};
   }catch(e){
     const c=cacheGet(key); if(c) return {data:c.v, stale:true, t:c.t};
@@ -1416,6 +1419,7 @@ function goToSleep(){ if(!photos.length)return; asleep=true; $("#sleep").classLi
 function showSlide(){
   const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
   const img=document.createElement("img"); img.src=photos[pIdx%photos.length];
+  img.onerror=()=>{ img.remove(); if(photos.length>1){ pIdx++; showSlide(); } };   // expired album URL -> next
   layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
 }
 function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer);} }
@@ -1614,7 +1618,7 @@ function startQuickAdd(kind, box){
     const v=inp.value.trim(); if(!v){ inp.remove(); return; }
     if(kind==="todo") await post("/api/todos/",{title:v}).catch(()=>{});
     else if(kind==="grocery") await post("/api/groceries/",{item:v}).catch(()=>{});
-    else await post("/api/meals/",{date:new Date().toISOString().slice(0,10), slot:"dinner", title:v}).catch(()=>{});
+    else await post("/api/meals/",{date:localISODate(), slot:"dinner", title:v}).catch(()=>{});
     await load();
     startQuickAdd(kind, box);   // reopen a fresh input in the same list for rapid entry
   };
@@ -2639,7 +2643,16 @@ function applyWallMic(){
   setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
   setInterval(loadHomeStatus, 30000);      // smart-home status bar every 30s
   setInterval(syncSettings, 60000);        // pick up settings changed from a phone
+  scheduleNightlyReload();
 })();
+
+/* Reload the page once a night (03:45) — a kiosk Chromium that runs for months
+   slowly bloats; a fresh load also picks up any `git pull` without a reboot.
+   Timers survive it (localStorage). */
+function scheduleNightlyReload(){
+  const n=new Date(), t=new Date(n); t.setHours(3,45,0,0); if(t<=n) t.setDate(t.getDate()+1);
+  setTimeout(()=>{ if(!document.querySelector("#timerov.on,#remote.on,#pinpad.on")) location.reload(); else setTimeout(()=>location.reload(), 30*60000); }, t-n);
+}
 
 async function syncSettings(){
   // don't clobber the wall's own settings drawer while it's open

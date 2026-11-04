@@ -74,6 +74,11 @@ else
   echo "   server not answering yet — check: journalctl -u familyhub -n 50"
 fi
 
+# time zone — the night screen-off window, reminders and "today" all run on local time
+TZONE="${FAMILYHUB_TZ:-America/New_York}"
+sudo timedatectl set-timezone "$TZONE" 2>/dev/null && echo "   time zone: $TZONE (override with FAMILYHUB_TZ=Region/City)"
+sudo timedatectl set-ntp true 2>/dev/null || true
+
 say "5/6  desktop: auto-login, Xorg session, never blank or lock"
 # GDM auto-login + force the Xorg session (xset needs X; Wayland can't cut the HDMI signal)
 sudo mkdir -p /etc/gdm3

@@ -112,7 +112,8 @@ out the case's bottom slot. Hang on the wall cleat.
 |---|---|
 | Update FamilyHub | `cd ~/familyhub && git pull && .venv/bin/pip install -q -r requirements.txt && sudo systemctl restart familyhub` then tap the screen twice to reload (or `sudo reboot`) |
 | Server logs | `journalctl -u familyhub -f` |
-| Chromium misbehaving | `pkill chromium; ~/familyhub/kiosk.sh &` |
+| Chromium misbehaving | `pkill chromium` — `kiosk.sh` relaunches it in 3 s. The page also reloads itself nightly at 03:45. |
+| Wrong time zone | the installer sets `America/New_York`; change with `sudo timedatectl set-timezone Region/City` |
 | Get a terminal on the wall | plug in the keyboard, `Ctrl+Alt+T` (Chromium stays behind it) — or SSH: `sudo apt install openssh-server` once, then `ssh hub@familyhub.local` from your desktop |
 | Backups | nightly 03:30 to `~/familyhub/backups/` (keeps 14). Copy them off occasionally. |
 | Remote access from outside the house | `docs/tailscale.md` |

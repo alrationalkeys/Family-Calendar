@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from ..services import ai_parse, ai_route, ai_vision
+from ..services import ai_parse, ai_route, ai_vision, voice_cmd
 from ..db import get_db
 
 router = APIRouter()
@@ -12,6 +12,14 @@ class TextReq(BaseModel):
     text: str
     category_id: int | None = None
     color: str | None = None
+
+
+@router.post("/command")
+def command(req: TextReq):
+    """Voice/text command from the wall screen: control the smart home, run a
+    scene, arm the alarm, add to a list, or answer a quick question. Returns
+    {ok, say, ...} — `say` is what the screen speaks back."""
+    return voice_cmd.interpret(req.text)
 
 
 @router.post("/parse")

@@ -171,6 +171,22 @@
   .pin-keys button{font-size:22px; padding:14px 0; border:none; border-radius:12px; background:var(--panel2); color:var(--ink); cursor:pointer}
   .pin-keys button:active{transform:scale(.95)}
   .pin-x{margin-top:12px; background:none; border:none; color:var(--ink-dim); cursor:pointer; font-size:14px}
+  /* wall voice */
+  #voicefab{position:fixed; right:18px; bottom:104px; z-index:55; width:60px; height:60px; border-radius:50%;
+    border:none; background:var(--now); color:#fff; font-size:26px; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.28);
+    display:flex; align-items:center; justify-content:center; transition:transform .1s}
+  #voicefab:active{transform:scale(.92)}
+  #voicefab.listening{animation:vpulse 1.1s infinite}
+  @keyframes vpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--now) 55%,transparent)}70%,100%{box-shadow:0 0 0 16px transparent}}
+  #voiceov{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center}
+  #voiceov.on{display:flex}
+  .vo-card{background:var(--panel); border-radius:20px; padding:28px 26px; width:440px; max-width:92vw; text-align:center}
+  .vo-ico{font-size:42px}
+  .vo-status{color:var(--ink-dim); font-size:14px; margin:8px 0}
+  .vo-heard{font-size:21px; font-weight:700; min-height:27px; margin-bottom:8px}
+  .vo-reply{font-size:16px; color:var(--now); font-weight:600; min-height:22px; margin-bottom:12px}
+  .vo-hint{font-size:12px; color:var(--ink-dim); line-height:1.5; margin-bottom:6px}
+  @media(max-width:760px){ #voicefab{width:54px; height:54px; font-size:23px; bottom:96px; right:14px} }
   /* TV / Roku remote */
   .remote-card{background:var(--panel); border-radius:20px; padding:20px; width:300px; max-width:92vw; text-align:center}
   .remote-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; font-size:17px; font-weight:600}
@@ -676,6 +692,12 @@
     </div>
   </div>
 
+  <div class="sd-group"><label>Voice</label>
+    <div class="sd-toggles">
+      <label><input type="checkbox" id="mic-enabled"> Show the voice-command mic button</label>
+    </div>
+  </div>
+
   <div class="sd-group"><label>Day/night banner</label>
     <div class="sd-toggles">
       <label><input type="checkbox" id="hero-enabled"> Show a house photo behind the header</label>
@@ -725,6 +747,19 @@
 </div>
 <div id="sleep"><div class="ovl"><div class="t" id="sclock">--:--</div><div class="d" id="sdate"></div></div></div>
 <div id="screenoff" title="Tap to wake"></div>
+
+<!-- wall voice command -->
+<button id="voicefab" title="Voice command" aria-label="Voice command">&#127908;</button>
+<div id="voiceov">
+  <div class="vo-card">
+    <div class="vo-ico">&#127908;</div>
+    <div class="vo-status" id="vo-status">Listening…</div>
+    <div class="vo-heard" id="vo-heard"></div>
+    <div class="vo-reply" id="vo-reply"></div>
+    <div class="vo-hint">Try: "turn on the kitchen lights", "movie time", "what's the weather", "add milk to the groceries"</div>
+    <button class="pin-x" id="vo-close">Close</button>
+  </div>
+</div>
 
 <!-- TV / Roku remote -->
 <div class="pinpad" id="remote">
@@ -1349,6 +1384,7 @@ function syncSettingsUI(){
   const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
   const wfx=$("#sd-weatherfx"); if(wfx) wfx.checked=s.weatherFx!==false;
   $("#kbd-enabled").checked = s.onscreenKbd!==false;
+  const me=$("#mic-enabled"); if(me) me.checked = s.wallMic!==false;
   $("#hero-enabled").checked = !!s.heroEnabled;
   $("#hero-day-url").value   = s.heroDay || "";
   $("#hero-night-url").value = s.heroNight || "";
@@ -2132,6 +2168,7 @@ $("#hero-enabled").onchange  =e=>{ FH.save({heroEnabled:e.target.checked}); appl
 $("#hero-day-url").onchange  =e=>{ FH.save({heroDay:e.target.value.trim()}); applyHero(); };
 $("#hero-night-url").onchange=e=>{ FH.save({heroNight:e.target.value.trim()}); applyHero(); };
 $("#kbd-enabled").onchange   =e=>{ FH.save({onscreenKbd:e.target.checked}); if(!e.target.checked) oskHide(); };
+$("#mic-enabled").onchange   =e=>{ FH.save({wallMic:e.target.checked}); applyWallMic(); };
 
 /* ---- on-screen keyboard ---- */
 let oskTarget=null, oskMode="abc", oskShift=false, oskEl=null;
@@ -2217,10 +2254,51 @@ document.addEventListener("focusout", ()=>{
   d.remove();
 })();
 
+/* ---- wall voice command (push-to-talk mic → /api/ai/command → speaks reply) ---- */
+function applyWallMic(){
+  const fab=$("#voicefab"); if(!fab) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const on = FH.get().wallMic!==false && !!SR;
+  fab.style.display = on ? "flex" : "none";
+}
+(function setupWallVoice(){
+  const fab=$("#voicefab"); if(!fab) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ fab.style.display="none"; return; }   // unsupported browser (e.g. Pi Chromium)
+  const rec=new SR(); rec.lang="en-US"; rec.interimResults=true; rec.continuous=false;
+  let listening=false, finalText="";
+  const show=()=>$("#voiceov").classList.add("on");
+  const hide=()=>$("#voiceov").classList.remove("on");
+  const speak=(s)=>{ try{ if(!s)return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} };
+  fab.onclick=()=>{ resetSleep(); if(listening){ try{rec.stop();}catch(e){} return; }
+    finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; $("#vo-status").textContent="Listening…"; show();
+    try{ rec.start(); }catch(e){} };
+  $("#vo-close").onclick=()=>{ try{rec.stop();}catch(e){} hide(); };
+  $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ try{rec.stop();}catch(_){} hide(); } };
+  rec.onstart=()=>{ listening=true; fab.classList.add("listening"); };
+  rec.onerror=()=>{ $("#vo-status").textContent="Couldn't hear — try again."; };
+  rec.onresult=(e)=>{ let txt=""; for(let i=0;i<e.results.length;i++) txt+=e.results[i][0].transcript;
+    $("#vo-heard").textContent=txt; if(e.results[e.results.length-1].isFinal) finalText=txt; };
+  rec.onend=async()=>{ listening=false; fab.classList.remove("listening");
+    const text=(finalText||$("#vo-heard").textContent||"").trim();
+    if(!text){ $("#vo-status").textContent="Didn't catch that."; return; }
+    $("#vo-status").textContent="Working…";
+    try{
+      const r=await post("/api/ai/command",{text}).then(r=>r.json());
+      $("#vo-status").textContent=""; $("#vo-reply").textContent=r.say||"";
+      speak(r.say);
+      if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
+      if(r.focus==="alarm"){ showPage("home"); }
+      setTimeout(hide, 4000);
+    }catch(e){ $("#vo-status").textContent="Something went wrong."; }
+  };
+})();
+
 /* ---- boot ---- */
 (async()=>{
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
+  applyWallMic();
   setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
   applyPanels();
   applySeasonal();

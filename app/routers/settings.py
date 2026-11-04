@@ -14,6 +14,7 @@ DEFAULTS = {
     "density": "comfortable",
     "panels": {"scoreboard": False, "todos": True, "groceries": True, "meals": True},
     "onscreenKbd": True,
+    "wallMic": True,
     "heroEnabled": False,
     "heroDay": "",
     "heroNight": "",

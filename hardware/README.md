@@ -4,18 +4,39 @@ Everything you need to turn a Raspberry Pi + a 15.6" touchscreen into the wall
 display. The print files are parametric OpenSCAD (`familyhub-mount.scad`) so they
 fit *your* exact monitor.
 
-## Shopping list (confirmed build, ~$248)
+## Shopping list — current build (Intel N100 brain, ~$325)
 
-| Part | ~Cost | Notes |
-|---|---|---|
-| **HOWENS 15.6" IPS touchscreen** (B0D2D8CCY1) | $150 | VESA 75×75, HDMI+USB touch+12V brick in box. |
-| Raspberry Pi 5 (4GB) | $60 | Drives the screen + runs FamilyHub. |
-| 27W USB-C PSU (5V/5A) | $12 | Official Pi 5 supply. |
-| microSD 64GB (A2) | $12 | Or an NVMe HAT + SSD for snappier boots. |
-| Pi 5 active cooler | $8 | It runs warm behind the screen. |
-| **micro-HDMI → HDMI adapter** | $6 | Pi 5 is micro-HDMI; the monitor's cable is full-size. |
-| Filament (PLA/PETG) | ~$5 | Back case + cleats + stand (you have the printer). |
-| M4 + M2.5 screws, wall anchors | ~$6 | M4 for VESA/cleat, M2.5 for the Pi. |
+Because Raspberry Pi 5 prices spiked in 2026, the screen "brain" is now a small
+**Intel N100 mini PC** — cheaper than a Pi 5 kit, faster, x86 (no Pi quirks), and
+it has a **full-size HDMI** so there's no micro-HDMI adapter to buy.
+
+| Part | ~Cost | Amazon search | Notes |
+|---|---|---|---|
+| **15.6" IPS capacitive touchscreen** | $150 | `15.6 inch IPS capacitive touchscreen HDMI VESA` (e.g. HOWENS B0D2D8CCY1) | VESA 75×75; HDMI + USB-touch cable + 12V brick usually in box. Want it bigger for the kitchen? search `21.5 inch touchscreen monitor HDMI`. |
+| **Intel N100 mini PC** (16GB/512GB) | $150 | `Intel N100 mini PC 16GB` (Beelink / GMKtec / Trigkey) | Runs FamilyHub in kiosk Chrome/Edge. RAM, SSD, case, power brick all included. |
+| HDMI cable | $0–7 | `HDMI cable 6ft` | Usually included with the monitor; buy only if not. |
+| USB-A → USB-B touch cable | $0 | — | Included with the touchscreen (carries touch to the mini PC). |
+| VESA wall mount **or** 3D print | $0–13 | `VESA 75x75 monitor wall mount` | You can print the mount (you have the printer) or grab a cheap bracket. |
+| M4 screws + wall anchors | ~$6 | `M4 screw assortment wall anchors` | For the VESA mount / cleat. |
+| Filament (PLA/PETG) | ~$5 | — | Only if you print the mount. You have it. |
+
+### Home Assistant "brain" (smart home / alarm / TVs)
+Runs **separately** from the screen so a FamilyHub update can never take the house down.
+- **If you kept your Pi 5 8GB → use it. $0.**
+- If you sold it: **Home Assistant Green** (`Home Assistant Green`, ~$99) — purpose-built, or a **second N100** (~$150).
+
+### Optional — hands-free voice (adds "Hey …" wake-word control)
+Only needed if you want to *talk* to the house (lights/alarm/TVs) without touching anything.
+HA's local **Assist** voice does this privately (no Google/Amazon cloud).
+- **Home Assistant Voice Preview Edition** (`Home Assistant Voice`, ~$60) — mic + speaker + wake word, plug-and-play with HA. Best pick.
+- Budget: **M5Stack Atom Echo** (~$13) tiny voice satellite, or a **USB conference mic** (~$25) on the HA Pi.
+- Free: the **Home Assistant phone app** has push-to-talk voice built in.
+
+> **Alarm needs no new hardware** — the Qolsys IQ Panel's built-in 3rd-party
+> automation (enabled with your dealer code) talks to HA over the LAN via `qolsysgw`.
+
+**Rough total for the wall unit: ~$300–325** once (screen + N100 + mount/screws),
+reusing the Pi 5 for HA. vs Skylight ~$300 up front **plus ~$40–80/yr forever**.
 
 ## Touchscreen picks (all known to play nice with a Pi)
 

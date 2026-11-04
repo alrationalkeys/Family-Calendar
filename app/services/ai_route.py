@@ -33,7 +33,9 @@ Rules:
   "for dinner X" / "X for lunch tuesday" -> meal. Anything with a date/time -> event."""
 
 
-def route_text(text: str, model: str = "claude-opus-4-8") -> Dict:
+def route_text(text: str, model: str | None = None) -> Dict:
+    from .ai_model import model as _model
+    model = model or _model()
     from anthropic import Anthropic
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     resp = client.messages.create(

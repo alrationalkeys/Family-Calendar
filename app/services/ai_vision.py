@@ -22,7 +22,9 @@ If a time isn't given, set all_day true. Include every distinct event you find."
 
 
 def extract_events_from_image(image_b64: str, media_type: str = "image/jpeg",
-                              model: str = "claude-opus-4-8") -> List[Dict]:
+                              model: str | None = None) -> List[Dict]:
+    from .ai_model import model as _model
+    model = model or _model()
     from anthropic import Anthropic
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     resp = client.messages.create(

@@ -74,7 +74,8 @@ def plan(days: int = 7, prefs: str = "", start: str | None = None) -> dict:
                     f"Dates already planned (skip): {', '.join(sorted(taken)) or 'none'}.\n"
                     f"Recent meals (avoid repeating): {', '.join(recent) or 'none'}.\n"
                     f"Already on the grocery list (feel free to use): {', '.join(groceries) or 'nothing'}.")
-            resp = client.messages.create(model="claude-opus-4-8", max_tokens=1800,
+            from .ai_model import model as _model
+            resp = client.messages.create(model=_model(), max_tokens=1800,
                                           system=SYSTEM.format(today=date.today().isoformat()),
                                           messages=[{"role": "user", "content": user}])
             raw = "".join(b.text for b in resp.content if b.type == "text").strip()

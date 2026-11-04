@@ -24,7 +24,9 @@ Resolve relative dates ("next thursday") against today. If no end time is given,
 default events to 1 hour. recurrence uses RRULE-ish shorthand like "weekly:TH" or null."""
 
 
-def parse_text_to_events(text: str, model: str = "claude-opus-4-8") -> List[Dict]:
+def parse_text_to_events(text: str, model: str | None = None) -> List[Dict]:
+    from .ai_model import model as _model
+    model = model or _model()
     from anthropic import Anthropic
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])

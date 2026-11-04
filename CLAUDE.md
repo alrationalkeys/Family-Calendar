@@ -20,7 +20,8 @@ Two interfaces:
 - **Backend:** FastAPI (Python 3.12). Entry: `app/main.py`.
 - **DB:** SQLite by default (`familyhub.db`, gitignored). Swap to Postgres via `DATABASE_URL`.
 - **Frontend:** plain HTML/CSS/JS, no build step. Polls the API.
-- **AI:** Anthropic API (`claude-opus-4-8`) for natural-language parsing. Needs `ANTHROPIC_API_KEY`.
+- **AI:** Anthropic API for natural-language parsing, voice Q&A (+ web search), meal plans. Needs
+  `ANTHROPIC_API_KEY`; model via `FAMILYHUB_AI_MODEL` (`services/ai_model.py`, default `claude-opus-4-8`).
 
 ## Layout
 ```

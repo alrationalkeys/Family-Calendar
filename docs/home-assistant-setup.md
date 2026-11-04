@@ -185,6 +185,21 @@ Wall / the Roku TVs / your phone), and your pinned playlists.
 Pin playlists from the phone app → Settings → Spotify playlists (paste a share link).
 Then: *"Hey <Name>, play dinner vibes in the kitchen"*, *"pause the music"*, *"next song"*.
 
+## I. Your actual devices (what's in the house today)
+
+| Device | HA integration | Steps |
+|---|---|---|
+| **Deako switches** (D.R. Horton package) | **Deako** (built in, local) | They're on Wi-Fi already if the Deako app works → Settings → Devices & Services → *Discovered: Deako* → Add. Only *Smart* Deako switches appear; the plain modular ones are just switches. |
+| **Z-Wave smart plugs on the IQ Panel** | **Z-Wave JS** | `qolsysgw` only carries the alarm + door/motion sensors — not Z-Wave. Buy a **Zooz ZST39 800-series USB stick (~$30)**, plug into the HA C3, install the *Z-Wave JS* add-on. On the panel: Settings → Advanced → Installation → Devices → Home Devices → **Remove device** (exclusion) for each plug; in HA: Z-Wave JS → **Add device** and press the plug's button. |
+| **Kitchen LED controllers ×4** (Alexa today) | **Flux LED / MagicHome** (local) or **Tuya** | Open the app you used to set them up: *Magic Home / LEDnet* → HA auto-discovers them; *Smart Life / Tuya* → add the **Tuya** integration (sign in with the Smart Life account). Then **remove them from Alexa** so two systems don't fight. |
+| **Govee porch lights** | **Govee** (built in, local LAN) | Govee app → device → ⚙ → **LAN Control: on** → HA discovers it. Recreate the Alexa sunset routine as an HA automation (Settings → Automations → trigger *Sun: sunset* → action *light.turn_on*). |
+| **Roku TVs** | **Roku** (built in) | Fast TV Start on each TV (section D). |
+| **IQ Panel** | `qolsysgw` | Sections B–C. |
+
+Then the Home tab, floor plan rooms (matched by name — rename entities to "Kitchen Upper
+Stove", "Kitchen Upper Front", "Kitchen Lower Fridge", "Porch Lights" so voice and rooms
+line up), "all lights off", and "Hey <Name>, kitchen lights off" all just work.
+
 ## G. (Optional) phone voice anywhere
 
 Install the **Home Assistant companion app** — its Assist button uses the same `<Name>`

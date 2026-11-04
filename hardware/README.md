@@ -16,6 +16,7 @@ fit *your* exact monitor.
 | **Forzola 15.6" FHD Touchscreen Monitor Industrial (HDMI/VGA/DVI, with remote)** | $140 | `15.6 inch touchscreen monitor industrial HDMI VESA` | **Chosen.** 10-pt capacitive, 300 nit IPS, **VESA 75×75**, 365×223×10 mm (23 mm at the port hump, 170 mm port strip along the bottom). In the box: HDMI cable, USB-B touch cable, 12V brick, remote. Dual speakers + audio out. |
 | **C3 Mini PC, Intel i3-5005U, 8GB / 512GB** (origimagic) — **×2** | $170 each | `C3 Mini PC i3-5005U 8G 512G` | 2× HDMI, 4× USB-A + USB-C, Gigabit LAN, Wi-Fi 5, BT 5.0, **Auto Power On + Wake-on-LAN**, Linux-compatible, 15 W, 128×127×43 mm. #1 = FamilyHub kiosk + voice satellite behind the screen. #2 = Home Assistant OS, headless. |
 | **USB speakerphone** (kitchen mic+speaker) | $35 | `USB speakerphone conference mic` (Anker PowerConf / eMeet) | Mic + speaker in one, for the wall voice / openWakeWord. |
+| **Zooz ZST39 Z-Wave USB stick** (for the HA C3) | ~$30 | `Zooz 800 series Z-Wave stick` | Moves the smart plugs off the IQ Panel into Home Assistant. |
 | M4 screws + wall anchors | ~$6 | `M4 screw assortment wall anchors` | For the VESA bolts / cleat. The mount itself is 3D-printed (below). |
 
 **≈ $520 total**, minus the Pi 5 sale (~$100–150) → **≈ $370–420 net.** No HDMI cable or

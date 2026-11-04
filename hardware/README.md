@@ -35,11 +35,19 @@ Needs a **mic + speaker on the N100**. Cleanest: one USB speakerphone on the cou
 - **USB speakerphone** (`USB speakerphone conference mic`, ~$30–45, e.g. Anker PowerConf / eMeet) — mic **and** speaker in one, great kitchen pickup. **Best pick.**
 - Budget: a **USB mini microphone** (~$12) + the monitor's own speakers if it has them (check the listing; many 15.6" panels include small speakers + a 3.5 mm jack). Add cheap **USB speakers** (~$12) if not.
 
-**B) Hands-free "Hey …" wake word** (talk to the house with nothing to tap) — via HA's local **Assist** (private, no Google/Amazon cloud). The $60 box is just the easy version; **you can DIY it:**
-- **Buy, plug-and-play:** *Home Assistant Voice Preview Edition* (~$60) — mic array + speaker + wake word in one, pairs with HA in minutes.
-- **DIY satellite (~$10–15):** an **ESP32-S3 + I2S mic + small speaker**, flashed with **ESPHome's voice-assistant / "Wyoming satellite"** — it's literally the open-source version of the $60 box. Put one in the kitchen, one anywhere else.
-- **DIY on the N100:** the USB speakerphone (from A) + HA's **openWakeWord** add-on gives the screen N100 its own wake word — no extra hardware.
-- Free: the **Home Assistant phone app** has push-to-talk voice built in.
+**B) Hands-free "Hey …" wake word — CHOSEN: openWakeWord (DIY, no extra hardware).**
+Runs entirely on our own boxes, private (no Google/Amazon cloud):
+1. On the HA N100, enable the **openWakeWord** add-on (it does the "Hey Jarvis" detection).
+2. On the kitchen N100, run a **Wyoming satellite** that streams the **USB speakerphone's**
+   mic to HA and plays replies back on its speaker.
+So the only hardware is the **USB speakerphone we already listed** — the wake word is all
+software. (Optional later: add an **ESP32-S3 Wyoming satellite** ~$10–15, or the
+plug-and-play *Home Assistant Voice PE* ~$60, to add voice in other rooms.)
+
+**Phone voice:** the **Home Assistant companion app** has built-in Assist voice that works
+on iPhone/Android from anywhere — so "turn on the kitchen lights" works from your phone too.
+(FamilyHub's *web-app* mic works on Android/desktop Chrome, but iOS Safari doesn't support
+the browser speech API, so use the HA app for phone voice on an iPhone.)
 
 > **Alarm needs no new hardware** — the Qolsys IQ Panel's built-in 3rd-party
 > automation (enabled with your dealer code) talks to HA over the LAN via `qolsysgw`.

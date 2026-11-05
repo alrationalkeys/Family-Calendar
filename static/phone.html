@@ -766,7 +766,8 @@ function renderSrcForm(){
       <select id="s_person">${peopleOptions()}</select>
       <label class="chk"><input type="checkbox" id="s_rem" checked> Also sync <b>Reminders</b> into the To-Do list (two-way)</label>
       <div class="hint">appleid.apple.com → Sign-In and Security → App-Specific Passwords → generate one for "FamilyHub". Your real Apple password is never used.</div>
-      <button class="go" onclick="addSource()">Connect iCloud</button>`;
+      <div class="two"><button class="go" onclick="testCaldav()" style="background:var(--panel2);color:var(--ink)">Test login</button><button class="go" onclick="addSource()">Connect iCloud</button></div>
+      <div class="preview" id="s_test"></div>`;
   } else if(srcKind==="ics"){
     f.innerHTML=`<input id="s_label" placeholder="Name (e.g. Work Outlook, School, Trash day)">
       <input id="s_url" placeholder="https://… .ics or webcal:// link" autocapitalize="none">
@@ -807,6 +808,16 @@ async function loadSources(){
     row.querySelector('[data-act="del"]').onclick=async()=>{ if(!confirm(`Remove ${sr.label}?`)) return; await fetch("/api/sources/"+sr.id,{method:"DELETE"}).catch(()=>{}); loadSources(); };
     box.appendChild(row);
   });
+}
+async function testCaldav(){
+  const username=$("#s_user").value.trim(), password=$("#s_pass").value;
+  if(!username||!password){ toast("Enter the Apple ID + app password first"); return; }
+  const box=$("#s_test"); box.innerHTML='<div class="pk">Testing against Apple…</div>'; box.classList.add("show");
+  try{
+    const r=await post("/api/sources/caldav/test",{username,password}).then(r=>r.json());
+    box.innerHTML=`<div class="pk">${r.verdict}</div><div class="sub" style="margin:2px 0 6px;font-size:12px">user: ${r.username_used} · password length: ${r.password_length} (Apple's are 16 letters + 3 dashes = 19)</div>`+
+      r.results.map(x=>`<div class="pi" style="font-family:ui-monospace,monospace;font-size:12px">${x.variant} ${x.path}: ${x.ok?"OK":("HTTP "+(x.status||"?")+" "+(x.reason||x.error||""))}${x.www_authenticate?" · "+x.www_authenticate:""}${x.location?" → "+x.location:""}</div>`).join("");
+  }catch(e){ box.innerHTML='<div class="pk">Test failed to run</div>'; }
 }
 async function addSource(){
   const label=($("#s_label").value||"").trim(); if(!label){ toast("Give it a name"); return; }

@@ -92,6 +92,58 @@ def list_sources():
     return rows
 
 
+class CalDAVTest(BaseModel):
+    url: str = "https://caldav.icloud.com/"
+    username: str
+    password: str
+
+
+@router.post("/caldav/test")
+def test_caldav(t: CalDAVTest):
+    """Raw diagnostics: what does the CalDAV server actually say to these
+    credentials? Tries the obvious variants so a typo/alias problem is visible."""
+    import base64, urllib.request, urllib.error, ssl
+    results = []
+    variants = []
+    pw = t.password.strip()
+    user = t.username.strip()
+    variants.append(("as typed", user, pw))
+    if "-" in pw:
+        variants.append(("password without dashes", user, pw.replace("-", "")))
+    if pw != pw.lower():
+        variants.append(("password lowercased", user, pw.lower()))
+    body = b'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>'
+    for label, u, p in variants:
+        for path in ("/", "/.well-known/caldav"):
+            url = t.url.rstrip("/") + path
+            tok = base64.b64encode(f"{u}:{p}".encode()).decode()
+            req = urllib.request.Request(url, data=body, method="PROPFIND",
+                                         headers={"Authorization": f"Basic {tok}", "Depth": "0",
+                                                  "Content-Type": "application/xml; charset=utf-8",
+                                                  "User-Agent": "FamilyHub/1.0"})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    txt = r.read(400).decode(errors="ignore")
+                    results.append({"variant": label, "path": path, "status": r.status,
+                                    "ok": True, "principal_hint": "current-user-principal" in txt,
+                                    "redirect_to": r.headers.get("Location")})
+            except urllib.error.HTTPError as e:
+                results.append({"variant": label, "path": path, "status": e.code, "ok": False,
+                                "reason": e.reason, "www_authenticate": e.headers.get("WWW-Authenticate"),
+                                "location": e.headers.get("Location"),
+                                "body": e.read(300).decode(errors="ignore")})
+            except Exception as e:
+                results.append({"variant": label, "path": path, "ok": False, "error": str(e)[:200]})
+            if results[-1].get("ok") or results[-1].get("status") in (207, 301, 302):
+                break
+        if results[-1].get("ok"):
+            break
+    good = [r for r in results if r.get("ok") or r.get("status") == 207]
+    verdict = ("Login works" + (f" ({good[0]['variant']})" if good else "") if good else
+               "Apple rejected every variant — the Apple ID/app-password pair itself is being refused")
+    return {"verdict": verdict, "results": results, "username_used": user, "password_length": len(pw)}
+
+
 @router.post("/caldav")
 def add_caldav(s: CalDAVSource):
     cfg = {"url": s.url, "username": s.username, "password": s.password, "sync_reminders": s.sync_reminders}

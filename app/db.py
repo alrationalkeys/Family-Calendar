@@ -16,6 +16,10 @@ import sqlite3
 from contextlib import contextmanager
 
 DB_PATH = os.getenv("FAMILYHUB_DB", "familyhub.db")
+# Railway volumes mount at /data; a relative "data/familyhub.db" would silently land
+# inside the container and vanish on every deploy. If /data is a mount, use it.
+if not os.path.isabs(DB_PATH) and DB_PATH.startswith("data/") and os.path.ismount("/data"):
+    DB_PATH = "/" + DB_PATH
 DEFAULT_COLOR = "#4f86c6"
 
 

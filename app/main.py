@@ -79,6 +79,20 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(300)
 
     mtask = asyncio.create_task(_mail_loop())
+
+    # background: iCloud Reminders -> to-dos every 5 min (only if an iCloud source exists)
+    from .services import reminders_sync
+
+    async def _reminders_loop():
+        await asyncio.sleep(20)
+        while True:
+            try:
+                await asyncio.to_thread(reminders_sync.sync_once)
+            except Exception:
+                pass
+            await asyncio.sleep(300)
+
+    rtask = asyncio.create_task(_reminders_loop())
     # background: live Home Assistant state over WebSocket (no-op in demo mode)
     from .services import ha_live
     htask = asyncio.create_task(ha_live.run_forever())
@@ -88,6 +102,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         mtask.cancel()
         htask.cancel()
+        rtask.cancel()
 
 
 app = FastAPI(title="FamilyHub", version="0.1.0", lifespan=lifespan,

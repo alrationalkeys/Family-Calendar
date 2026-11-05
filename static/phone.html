@@ -752,6 +752,7 @@ function renderSrcForm(){
       <input id="s_user" placeholder="Apple ID email" autocapitalize="none">
       <input id="s_pass" type="password" placeholder="App-specific password">
       <select id="s_person">${peopleOptions()}</select>
+      <label class="chk"><input type="checkbox" id="s_rem" checked> Also sync <b>Reminders</b> into the To-Do list (two-way)</label>
       <div class="hint">appleid.apple.com → Sign-In and Security → App-Specific Passwords → generate one for "FamilyHub". Your real Apple password is never used.</div>
       <button class="go" onclick="addSource()">Connect iCloud</button>`;
   } else if(srcKind==="ics"){
@@ -790,7 +791,7 @@ async function addSource(){
   if(srcKind==="caldav"){
     const username=$("#s_user").value.trim(), password=$("#s_pass").value;
     if(!username||!password){ toast("Apple ID + app password needed"); return; }
-    r=await post("/api/sources/caldav",{label,username,password,person_id});
+    r=await post("/api/sources/caldav",{label,username,password,person_id,sync_reminders:$("#s_rem").checked});
   } else if(srcKind==="ics"){
     let url=$("#s_url").value.trim().replace(/^webcal:\/\//i,"https://"); if(!url){ toast("Paste the link"); return; }
     r=await post("/api/sources/ics",{label,url,person_id});

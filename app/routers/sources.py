@@ -15,6 +15,7 @@ class CalDAVSource(BaseModel):
     password: str          # iCloud app-specific password
     person_id: int | None = None
     category_id: int | None = None
+    sync_reminders: bool = True   # also pull iCloud Reminders into the to-do list
 
 
 class GoogleSource(BaseModel):
@@ -34,12 +35,17 @@ def list_sources():
 
 @router.post("/caldav")
 def add_caldav(s: CalDAVSource):
-    cfg = {"url": s.url, "username": s.username, "password": s.password}
+    cfg = {"url": s.url, "username": s.username, "password": s.password, "sync_reminders": s.sync_reminders}
     with get_db() as conn:
         cur = conn.execute(
             "INSERT INTO cal_sources (kind, label, config, person_id, category_id) VALUES ('caldav',?,?,?,?)",
             (s.label, json.dumps(cfg), s.person_id, s.category_id))
-        return {"id": cur.lastrowid, "kind": "caldav"}
+        sid = cur.lastrowid
+    if s.sync_reminders:
+        import threading
+        from ..services import reminders_sync
+        threading.Thread(target=reminders_sync.sync_once, daemon=True).start()
+    return {"id": sid, "kind": "caldav"}
 
 
 @router.post("/google")

@@ -1310,7 +1310,7 @@ function renderTodos(todos, box){
   if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
   todos.forEach(t=>{
     const row=document.createElement("div"); row.className="list-row"+(t.done?" done":"");
-    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}</div>`;
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
     row.onclick=async()=>{await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"});load();resetSleep();};
     box.appendChild(row);
   });

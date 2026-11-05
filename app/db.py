@@ -51,7 +51,8 @@ def _migrate(conn):
         "chores":    [("category_id", "INTEGER"), ("color", "TEXT")],
         "meals":     [("category_id", "INTEGER"), ("color", "TEXT")],
         "todos":     [("category_id", "INTEGER"), ("color", "TEXT"),
-                      ("due_date", "TEXT"), ("recurrence", "TEXT")],
+                      ("due_date", "TEXT"), ("recurrence", "TEXT"),
+                      ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT")],
         "local_events": [("description", "TEXT")],
     }

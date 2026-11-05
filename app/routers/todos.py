@@ -16,6 +16,13 @@ class Todo(BaseModel):
     recurrence: str | None = None
 
 
+@router.post("/sync")
+def sync_now():
+    """Pull iCloud Reminders right now (the background loop does it every 5 min)."""
+    from ..services import reminders_sync
+    return reminders_sync.sync_once()
+
+
 @router.get("/")
 def list_todos():
     with get_db() as conn:
@@ -55,7 +62,12 @@ def toggle(todo_id: int):
             return {"id": todo_id, "recurred": True, "next": nxt.isoformat() if nxt else None}
         new = 0 if row["done"] else 1
         conn.execute("UPDATE todos SET done=? WHERE id=?", (new, todo_id))
-        return {"id": todo_id, "done": new}
+    if new:
+        # synced from iCloud Reminders? complete it there too (best effort, off the request path)
+        import threading
+        from ..services import reminders_sync
+        threading.Thread(target=reminders_sync.push_complete, args=(todo_id,), daemon=True).start()
+    return {"id": todo_id, "done": new}
 
 
 @router.delete("/{todo_id}")

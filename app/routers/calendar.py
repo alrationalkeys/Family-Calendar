@@ -55,8 +55,11 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
         r["source"] = "local"
         r["all_day"] = bool(r["all_day"])
     merged += expand_events(local_rows, start, end)
-    # Demo fallback: if no real sources/local events and a demo file exists.
-    if not sources and not local_rows and os.path.exists(DEMO_FILE):
+    # Demo fallback: if no real sources/local events and a demo file exists —
+    # unless the family cleared the sample data on purpose.
+    with get_db() as conn:
+        cleared = conn.execute("SELECT 1 FROM settings WHERE key='demo_cleared'").fetchone()
+    if not sources and not local_rows and not cleared and os.path.exists(DEMO_FILE):
         try:
             with open(DEMO_FILE) as f:
                 merged += json.load(f)

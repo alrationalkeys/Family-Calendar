@@ -96,3 +96,11 @@ with no public URL at all (see `docs/hardening.md`).
 A tiny app like this fits Railway's low-usage / hobby tier; it sleeps when idle on
 some plans. This is a **testing convenience** — the end goal is still the wall
 screen on your own hardware, which is $0/month.
+
+
+## Before putting real family data in
+1. **Add a Volume** (service → Settings → Volumes → mount path `/data`) and set
+   `FAMILYHUB_DB=/data/familyhub.db`. Without it the database lives inside the container
+   and is **erased on every deploy**.
+2. **Delete the `SEED_DEMO` variable** so the sample family never comes back.
+3. Phone app → Settings → *Start fresh* → clear the sample data, then add yours.

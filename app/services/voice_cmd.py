@@ -356,8 +356,10 @@ def interpret(text: str) -> dict:
             return {"ok": True, "say": said, "refresh": True}
 
     # "what's today / give me the rundown / morning briefing" -> the wall speaks the digest
+    if w & {"tomorrow", "tomorrows"} and (w & {"what", "whats", "schedule", "plan", "happening", "briefing", "rundown", "agenda", "look", "like"}):
+        return {"ok": True, "say": "", "briefing": "tomorrow"}
     if (w & {"briefing", "rundown", "summary", "agenda"}) or (w & {"today", "todays"} and w & {"what", "whats", "schedule", "plan", "happening"}):
-        return {"ok": True, "say": "", "briefing": True}
+        return {"ok": True, "say": "", "briefing": "today"}
 
     # "show Ella's day" / "Max's chores" -> per-person mode on the wall
     m_person = re.search(r"\b(?:show|open|pull up)\s+(\w+)'?s?\s+(?:day|chores|stuff|routine|schedule)\b", t.lower())

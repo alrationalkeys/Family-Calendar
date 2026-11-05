@@ -703,6 +703,7 @@
         <button data-v="month">Month</button>
         <button data-v="agenda">Agenda</button>
       </div>
+      <button class="gear" id="brief-btn" title="Today's briefing">&#9728;&#65039;</button>
       <span class="tpill" id="timerpill" title="Timers"></span>
       <div class="clock" id="clock">--:--</div>
       <span class="off-badge" id="offline-badge" hidden>offline</span>
@@ -1866,7 +1867,14 @@ async function maybeBriefing(){
     banner(d.summary, (d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){}
   briefingBusy=false;
 }
-async function sayBriefingNow(){ try{ const d=await fetch("/api/notifications/digest").then(r=>r.json()); banner(d.summary,(d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){} }
+async function sayBriefingNow(day){ resetSleep(); try{ const d=await fetch("/api/notifications/digest?day="+(day==="tomorrow"?"tomorrow":"today")).then(r=>r.json()); banner(d.summary,(d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){} }
+/* ☀️ button: tap = today, long-press (or tap again within 2 s) = tomorrow */
+(function(){ const b=$("#brief-btn"); if(!b) return; let t=null, armed=false;
+  const go=(day)=>{ b.title = day==="tomorrow" ? "Tomorrow's briefing" : "Today's briefing"; sayBriefingNow(day); };
+  b.addEventListener("pointerdown",()=>{ t=setTimeout(()=>{ t=null; go("tomorrow"); },650); });
+  b.addEventListener("pointerup",()=>{ if(t){ clearTimeout(t); t=null; if(armed){ armed=false; go("tomorrow"); } else { armed=true; setTimeout(()=>armed=false,2000); go("today"); } } });
+  b.addEventListener("pointerleave",()=>{ if(t){ clearTimeout(t); t=null; } });
+})();
 function banner(title, body){
   let b = document.getElementById("fh-banner");
   if(!b){ b=document.createElement("div"); b.id="fh-banner";
@@ -2726,7 +2734,7 @@ function applyWallMic(){
       $("#vo-status").textContent=""; $("#vo-reply").textContent=r.say||"";
       speak(r.say);
       if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
-      if(r.briefing){ sayBriefingNow(); }
+      if(r.briefing){ sayBriefingNow(r.briefing); }
       if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
       if(r.focus==="alarm"){ showPage("home"); }

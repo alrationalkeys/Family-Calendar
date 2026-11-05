@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards, display, ha, login, routines, mail, announce, summary)
+                      events, notifications, rewards, display, ha, login, routines, mail, announce, summary, admin)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -38,7 +38,8 @@ def _maybe_seed_demo():
         from .db import get_db
         with get_db() as conn:
             empty = conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 0
-        if empty:
+            cleared = conn.execute("SELECT value FROM settings WHERE key='demo_cleared'").fetchone()
+        if empty and not cleared:
             import seed_demo
             seed_demo.main()
     except Exception:
@@ -132,6 +133,7 @@ app.include_router(routines.router, prefix="/api/routines", tags=["routines"])
 app.include_router(mail.router, prefix="/api/mail", tags=["mail"])
 app.include_router(announce.router, prefix="/api/announce", tags=["announce"])
 app.include_router(summary.router, prefix="/api/summary", tags=["summary"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

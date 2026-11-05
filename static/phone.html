@@ -206,7 +206,7 @@
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <div class="hint">What you call it when you talk to the wall. Hands-free "Hey &lt;name&gt;" needs a matching wake-word model in Home Assistant — see docs/home-assistant-setup.md "Pick the name".</div>
     <label class="chk"><input type="checkbox" id="set-speak"> Wall speaks reminders, announcements &amp; timers</label>
-    <label class="chk"><input type="checkbox" id="set-brief"> Morning briefing when someone first walks up</label>
+    <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
     <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
   </div>
 
@@ -276,6 +276,12 @@
     <h2>Routines &amp; countdowns</h2>
     <div id="rc-list"></div>
     <div class="hint">Add new ones from the Add tab (Routine / Countdown).</div>
+  </div>
+
+  <div class="form sect">
+    <h2>Start fresh</h2>
+    <div class="hint">The wall currently shows the <b>sample family</b> (Mom, Dad, Ella, Max and their fake events). When you're ready to put your real family in, clear it. Calendars, photos, settings and Spotify pins are kept.</div>
+    <button class="go" id="clear-demo" style="background:#e0533d">Clear the sample data</button>
   </div>
 
   <div class="form sect">
@@ -873,6 +879,12 @@ $("#spl-add").onclick=()=>{
   $("#spl-name").value=""; $("#spl-uri").value=""; toast("Pinned"); loadSPL();
 };
 
+$("#clear-demo").onclick=async()=>{
+  if(!confirm("Delete the sample family, events, chores, lists, routines and rewards? This can't be undone.")) return;
+  const r=await post("/api/admin/clear-demo",{confirm:true}).then(r=>r.json()).catch(()=>null);
+  if(!r){ toast("Couldn't clear"); return; }
+  toast("Cleared — add your family below"); loadPeople(); loadRC();
+};
 async function loadRC(){
   const box=$("#rc-list"); if(!box) return; box.innerHTML="";
   let rs=[], cs=[];

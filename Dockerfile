@@ -1,6 +1,7 @@
 # FamilyHub container — used by Railway (and anywhere else that runs Docker).
 # Deterministic build so we don't depend on buildpack auto-detection.
 FROM python:3.12-slim
+ENV TZ=America/New_York
 
 # Faster, cleaner Python in a container
 ENV PYTHONUNBUFFERED=1 \

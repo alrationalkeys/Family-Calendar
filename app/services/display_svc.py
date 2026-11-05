@@ -28,7 +28,7 @@ from ..db import get_db
 
 KEY = "display"
 DEFAULTS = {
-    "enabled": False,
+    "enabled": True,          # screen off overnight by default (10 pm – 6:30 am)
     "off_start": "22:00",
     "off_end": "06:30",
     "wake_grace_min": 3,

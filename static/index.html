@@ -986,6 +986,9 @@
       <option value="180">3 hours</option><option value="240">4 hours</option>
     </select>
   </div>
+  <div class="ev-field" id="ev-cal-row"><label>Calendar</label>
+    <select id="ev-cal"></select>
+  </div>
   <div class="ev-field" id="ev-person-row"><label>Person</label>
     <select id="ev-person"></select>
   </div>
@@ -1678,6 +1681,15 @@ let chosenEvColor = null;
   });
 })();
 function syncEvColors(){ document.querySelectorAll("#ev-colors .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===chosenEvColor)); }
+/* where a new event is written: FamilyHub / Google / a specific iCloud calendar */
+let calTargets=[{id:"local",label:"FamilyHub only (this screen)"}];
+async function loadCalTargets(){ try{ const r=await fetch("/api/sources/targets").then(r=>r.json()); if(r.targets&&r.targets.length) calTargets=r.targets; }catch(e){} }
+function fillCalOptions(){
+  const sel=$("#ev-cal"); if(!sel) return;
+  sel.innerHTML=calTargets.map(t=>`<option value="${esc(t.id)}">${esc(t.label)}</option>`).join("");
+  const want=FH.get().defaultCalendar||"";
+  sel.value = calTargets.some(t=>t.id===want) ? want : (calTargets.find(t=>t.id!=="local")||calTargets[0]).id;
+}
 function fillPersonOptions(sel){
   $("#ev-person").innerHTML = `<option value="">Anyone</option>`+
     people.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
@@ -1750,6 +1762,7 @@ function openCreate(prefDate, prefTime){
   $("#ev-desc").value=""; $("#ev-desc").disabled=false; $("#ev-desc").style.display="";
   chosenEvColor=null; syncEvColors(); $("#ev-color-row").style.display="flex";
   fillPersonOptions(null); $("#ev-person-row").style.display="flex";
+  fillCalOptions(); $("#ev-cal-row").style.display="flex";
   $("#ev-recur-box").style.display=""; parseRecToUI(null);
   updateAllDayUI();
   $("#ev-del").style.display="none"; $("#ev-save").style.display="";
@@ -1778,6 +1791,7 @@ function openEditor(ev){
   chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
   $("#ev-color-row").style.display = editable ? "flex" : "none";
   fillPersonOptions(ev.person_id); $("#ev-person-row").style.display = editable ? "flex" : "none";
+  $("#ev-cal-row").style.display="none";
   if(modalMode==="edit-local"){ $("#ev-recur-box").style.display=""; parseRecToUI(ev.recurrence); }
   else { $("#ev-recur-box").style.display="none"; }
   updateAllDayUI();
@@ -1807,9 +1821,12 @@ $("#ev-save").onclick=async()=>{
   try{
     if(modalMode==="create"){
       // target "auto": goes to Google (with RRULE + color) if connected, else local
-      await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
+      const destination=$("#ev-cal").value||"local";
+      FH.save({defaultCalendar:destination});     // remember the last-used calendar
+      const res=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc,
-          recurrence:buildRecFromUI(), color:chosenEvColor, person_id:personId, target:"auto"})});
+          recurrence:buildRecFromUI(), color:chosenEvColor, person_id:personId, target:"auto", destination})}).then(r=>r.json()).catch(()=>({}));
+      if(res.warning) banner(res.warning);
     } else if(modalMode==="edit-local"){
       await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, recurrence:buildRecFromUI(),
@@ -2750,6 +2767,7 @@ function applyWallMic(){
 (async()=>{
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
+  loadCalTargets();
   applyWallMic();
   setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
   applyPanels();

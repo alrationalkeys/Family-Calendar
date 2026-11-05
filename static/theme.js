@@ -27,6 +27,7 @@ const FH = (() => {
     spotifyPlaylists: [],    // [{name, uri}] pinned on the Home tab's Spotify card
     icloudAlbumUrl: "",      // iCloud Shared Album public link -> slideshow photos
     assistantName: "Hub",    // what the family calls the voice assistant
+    defaultCalendar: "",     // where new events go by default (a /api/sources/targets id)
     speakAlerts: true,       // wall speaks reminders / announcements / timers
     morningBriefing: false,  // auto-spoken briefing on first walk-up (off: button / ask)
     briefingHour: 6,         // ...but not before this hour

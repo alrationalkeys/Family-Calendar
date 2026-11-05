@@ -83,6 +83,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/mail/*` — email import inbox (`status`, `pending`, `poll`, `{id}/approve`, `{id}/dismiss`); IMAP creds in `.env` only
 - `/api/ha/spotify` (GET state / POST action), `/api/ha/art` — Spotify card; pins in `settings.spotifyPlaylists`
 - `/api/ha/events` (SSE) + `/api/ha/version` — live HA state changes via `services/ha_live.py` (WebSocket mirror; demo toggles bump too)
+- `GET /api/sources/targets` — writable destinations (FamilyHub / Google / each iCloud calendar); `POST /api/calendar/events` takes `destination`; last choice remembered in `settings.defaultCalendar`
 - iCloud **Reminders ↔ To-Do** two-way: `services/reminders_sync.py` (VTODO over the same CalDAV source, every 5 min + `POST /api/todos/sync`; ticking a synced to-do completes it upstream; `todos.ext_uid/ext_source/ext_list`)
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)

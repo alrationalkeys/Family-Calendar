@@ -25,6 +25,40 @@ class GoogleSource(BaseModel):
     # token.json / credentials.json live on disk; config just records which to use
 
 
+import time as _time
+_TARGET_CACHE = {"at": 0.0, "key": None, "items": []}
+
+
+@router.get("/targets")
+def targets(refresh: bool = False):
+    """Where a new event can be written: FamilyHub itself, each Google account, and
+    each calendar inside each iCloud account. ICS feeds are read-only."""
+    with get_db() as conn:
+        rows = [dict(r) for r in conn.execute("SELECT id, kind, label, config FROM cal_sources ORDER BY id")]
+    key = tuple(r["id"] for r in rows)
+    if not refresh and _TARGET_CACHE["key"] == key and _time.time() - _TARGET_CACHE["at"] < 600:
+        return {"targets": _TARGET_CACHE["items"]}
+    items = [{"id": "local", "label": "FamilyHub only (this screen)"}]
+    for r in rows:
+        if r["kind"] == "google":
+            items.append({"id": "google", "label": f"{r['label']} (Google)"})
+        elif r["kind"] == "caldav":
+            cfg = json.loads(r["config"])
+            names = []
+            try:
+                from ..services import caldav_sync
+                names = caldav_sync.list_event_calendars(cfg["url"], cfg["username"], cfg["password"])
+            except Exception:
+                pass
+            if names:
+                for n in names:
+                    items.append({"id": f"caldav:{r['id']}:{n}", "label": f"{r['label']} › {n}"})
+            else:
+                items.append({"id": f"caldav:{r['id']}:", "label": f"{r['label']} (iCloud)"})
+    _TARGET_CACHE.update({"at": _time.time(), "key": key, "items": items})
+    return {"targets": items}
+
+
 @router.get("/")
 def list_sources():
     """List connections WITHOUT exposing stored passwords/tokens."""

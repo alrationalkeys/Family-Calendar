@@ -302,7 +302,13 @@
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
-let chosenColor = null, categories = [], people = [];
+let chosenColor = null, categories = [], people = [], calTargets = [{id:"local",label:"FamilyHub only (this screen)"}];
+async function loadCalTargets(){ try{ const r=await fetch("/api/sources/targets").then(r=>r.json()); if(r.targets&&r.targets.length){ calTargets=r.targets; if(formKind==="event") renderForm(); } }catch(e){} }
+function calOptions(){
+  const want=FH.get().defaultCalendar||"";
+  const def = calTargets.some(t=>t.id===want) ? want : (calTargets.find(t=>t.id!=="local")||calTargets[0]).id;
+  return calTargets.map(t=>`<option value="${t.id}"${t.id===def?" selected":""}>${t.label}</option>`).join("");
+}
 
 /* build color swatches */
 function buildColors(el){
@@ -396,6 +402,7 @@ function renderForm(){
     f.innerHTML=`<input id="e_title" placeholder="Event title">
       <label class="chk"><input type="checkbox" id="e_allday" onchange="toggleAllDay()"> All day</label>
       <div class="two"><input id="e_date" type="date" value="${today}"><input id="e_time" type="time" value="09:00"></div>
+      <select id="e_cal" title="Which calendar">${calOptions()}</select>
       <select id="e_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveEvent()">Add event</button>`;
   } else if(formKind==="chore"){
@@ -460,19 +467,21 @@ async function saveEvent(){
   const date=$("#e_date").value; if(!date){ toast("Pick a date"); return; }
   const allday=$("#e_allday").checked;
   let payload;
+  const destination=$("#e_cal")?$("#e_cal").value:"local";
   if(allday){
-    payload={title, start:date, end:nextDay(date), all_day:true};
+    payload={title, start:date, end:nextDay(date), all_day:true, destination};
   } else {
     const time=$("#e_time").value; if(!time){ toast("Pick a time"); return; }
     const start=`${date}T${time}:00`;
-    payload={title, start, end:plusHourLocal(start)};
+    payload={title, start, end:plusHourLocal(start), destination};
   }
+  FH.save({defaultCalendar:destination});
   try{
     const r=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify(payload)});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){ toast(data.detail||data.error||"Couldn't add event"); return; }
-    toast(data.warning || (data.target==="local" ? "Event added" : "Event added to Google"));
+    toast(data.warning || (data.target==="local" ? "Event added" : data.target==="icloud" ? `Event added to iCloud${data.calendar?" › "+data.calendar:""}` : "Event added to Google"));
     $("#e_title").value="";
   }catch(e){ toast("Couldn't reach the server"); }
 }
@@ -799,7 +808,7 @@ async function addSource(){
     r=await post("/api/sources/google",{label,person_id});
   }
   if(!r||!r.ok){ toast("Couldn't connect"); return; }
-  toast("Connected — events appear on the wall within a minute"); loadSources();
+  toast("Connected — events appear on the wall within a minute"); loadSources(); fetch("/api/sources/targets?refresh=1").then(()=>loadCalTargets()).catch(()=>{});
 }
 
 /* ---- photos: upload + shared album ---- */
@@ -916,6 +925,7 @@ async function init(){
   try{ categories=await fetch("/api/categories/").then(r=>r.json()); }catch(e){ categories=[]; }
   try{ people=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){ people=[]; }
   renderForm();
+  loadCalTargets();
 }
 init();
 </script>

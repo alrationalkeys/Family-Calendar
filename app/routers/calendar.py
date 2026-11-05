@@ -88,6 +88,7 @@ class NewEvent(BaseModel):
     description: str | None = None
     recurrence: str | None = None
     target: str = "auto"  # "auto" | "google" | "local"
+    destination: str | None = None   # "local" | "google" | "caldav:<source id>:<calendar name>"
 
 
 def _has_source(kind: str) -> bool:
@@ -109,7 +110,27 @@ def add_event(ev: NewEvent):
     """Create an event. 'auto' writes to Google if connected, otherwise stores
     it locally so it always shows on the calendar. Errors are returned (not 500)
     so the phone can surface them."""
-    want_google = ev.target == "google" or (ev.target == "auto" and _has_source("google"))
+    dest = ev.destination or ""
+    if dest.startswith("caldav:"):
+        parts = dest.split(":", 2)
+        sid = parts[1] if len(parts) > 1 else ""
+        calname = parts[2] if len(parts) > 2 else ""
+        with get_db() as conn:
+            row = conn.execute("SELECT config FROM cal_sources WHERE id=? AND kind='caldav'", (sid,)).fetchone()
+        if not row:
+            return {**_add_local_event(ev), "warning": "that iCloud calendar is no longer connected; saved locally"}
+        cfg = json.loads(row["config"])
+        try:
+            res = caldav_sync.create_caldav_event(cfg["url"], cfg["username"], cfg["password"], ev.title,
+                                                  ev.start, ev.end, calendar_name=calname or None,
+                                                  all_day=ev.all_day, description=ev.description)
+            return {"id": res.get("uid"), "target": "icloud", "calendar": calname}
+        except Exception as e:
+            local = _add_local_event(ev)
+            return {**local, "warning": f"saved locally (iCloud write failed: {e})"}
+    if dest == "local":
+        return _add_local_event(ev)
+    want_google = dest == "google" or ev.target == "google" or (ev.target == "auto" and not dest and _has_source("google"))
     if want_google:
         try:
             res = google_sync.create_google_event(ev.title, ev.start, ev.end,

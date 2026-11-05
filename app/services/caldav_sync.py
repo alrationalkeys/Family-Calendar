@@ -54,8 +54,26 @@ def _is_all_day(dt) -> bool:
     return not hasattr(dt, "hour")
 
 
+def list_event_calendars(url, username, password) -> List[str]:
+    """Names of the account's calendars that hold events (not Reminders lists)."""
+    if caldav is None:
+        raise RuntimeError("pip install caldav icalendar")
+    client = caldav.DAVClient(url=url, username=username, password=password)
+    names = []
+    for c in client.principal().calendars():
+        try:
+            comps = c.get_supported_components() or []
+        except Exception:
+            comps = []
+        if comps and "VEVENT" not in comps:
+            continue
+        if c.name:
+            names.append(c.name)
+    return names
+
+
 def create_caldav_event(url, username, password, title, start_iso, end_iso,
-                        calendar_name=None):
+                        calendar_name=None, all_day=False, description=None):
     """Create an event on a CalDAV calendar (iCloud write-back)."""
     if caldav is None:
         raise RuntimeError("pip install caldav icalendar")
@@ -67,15 +85,24 @@ def create_caldav_event(url, username, password, title, start_iso, end_iso,
     cal = cals[0]
     if calendar_name:
         for c in cals:
-            if calendar_name.lower() in (c.name or "").lower():
+            if (c.name or "").lower() == calendar_name.lower():
                 cal = c; break
+        else:
+            for c in cals:
+                if calendar_name.lower() in (c.name or "").lower():
+                    cal = c; break
     uid = str(uuid.uuid4())
-    dt_start = datetime.fromisoformat(start_iso).strftime("%Y%m%dT%H%M%S")
-    dt_end = datetime.fromisoformat(end_iso).strftime("%Y%m%dT%H%M%S")
+    if all_day:
+        ds = start_iso[:10].replace("-", ""); de = end_iso[:10].replace("-", "")
+        when = f"DTSTART;VALUE=DATE:{ds}\nDTEND;VALUE=DATE:{de}\n"
+    else:
+        dt_start = datetime.fromisoformat(start_iso).strftime("%Y%m%dT%H%M%S")
+        dt_end = datetime.fromisoformat(end_iso).strftime("%Y%m%dT%H%M%S")
+        when = f"DTSTART:{dt_start}\nDTEND:{dt_end}\n"
+    desc = ("DESCRIPTION:" + str(description).replace("\n", "\\n") + "\n") if description else ""
     ical = (
         "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//FamilyHub//EN\n"
-        f"BEGIN:VEVENT\nUID:{uid}\nDTSTART:{dt_start}\nDTEND:{dt_end}\n"
-        f"SUMMARY:{title}\nEND:VEVENT\nEND:VCALENDAR"
+        f"BEGIN:VEVENT\nUID:{uid}\n{when}SUMMARY:{title}\n{desc}END:VEVENT\nEND:VCALENDAR"
     )
     cal.save_event(ical)
     return {"uid": uid}

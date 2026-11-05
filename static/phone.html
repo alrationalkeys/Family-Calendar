@@ -283,6 +283,8 @@
     <h2>Start fresh</h2>
     <div class="hint">The wall currently shows the <b>sample family</b> (Mom, Dad, Ella, Max and their fake events). When you're ready to put your real family in, clear it. Calendars, photos, settings and Spotify pins are kept.</div>
     <button class="go" id="clear-demo" style="background:#e0533d">Clear the sample data</button>
+    <hr>
+    <div class="hint" id="dbinfo" style="font-family:ui-monospace,monospace;white-space:pre-line">Checking database…</div>
   </div>
 
   <div class="form sect">
@@ -598,7 +600,7 @@ function switchView(v){
   $("#view-add").hidden=!add; $("#view-settings").hidden=add;
   $("#nav-add").classList.toggle("active",add);
   $("#nav-settings").classList.toggle("active",!add);
-  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSources(); loadPhotosUI(); loadMail(); }
+  if(!add){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); }
 }
 
 function saveNested(group,key,val){
@@ -894,6 +896,13 @@ $("#spl-add").onclick=()=>{
   $("#spl-name").value=""; $("#spl-uri").value=""; toast("Pinned"); loadSPL();
 };
 
+async function loadDbInfo(){
+  const el=$("#dbinfo"); if(!el) return;
+  try{ const i=await fetch("/api/admin/dbinfo").then(r=>r.json());
+    el.textContent=`${i.verdict}\ndb: ${i.db_path} (${i.exists?Math.round(i.size_bytes/1024)+" KB":"missing"})\nvolume mounted at that folder: ${i.dir_is_mount}\nFAMILYHUB_DB=${i.env_FAMILYHUB_DB||"(not set)"}  SEED_DEMO=${i.env_SEED_DEMO||"(not set)"}\npeople ${i.people} · calendars ${i.sources} · to-dos ${i.todos} · settings ${(i.settings_keys||[]).join(",")||"none"}`;
+    el.style.color = i.persistent ? "" : "#e0533d";
+  }catch(e){ el.textContent="Couldn't read database info"; }
+}
 $("#clear-demo").onclick=async()=>{
   if(!confirm("Delete the sample family, events, chores, lists, routines and rewards? This can't be undone.")) return;
   const r=await post("/api/admin/clear-demo",{confirm:true}).then(r=>r.json()).catch(()=>null);

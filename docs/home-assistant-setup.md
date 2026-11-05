@@ -200,6 +200,45 @@ Then the Home tab, floor plan rooms (matched by name — rename entities to "Kit
 Stove", "Kitchen Upper Front", "Kitchen Lower Fridge", "Porch Lights" so voice and rooms
 line up), "all lights off", and "Hey <Name>, kitchen lights off" all just work.
 
+## J. Make the two feel like one product
+
+**FamilyHub inside the Home Assistant app.** Settings → Dashboards → **Add dashboard →
+Webpage** → URL `http://familyhub.local:8000/phone.html`, title *FamilyHub*, icon
+`mdi:calendar-heart`, *Show in sidebar*. The HA app on every phone now has FamilyHub one
+tap away (same Wi-Fi, or over Tailscale).
+
+**FamilyHub's day as HA sensors** — so automations can react to the family, not just the
+house. Add to HA's `configuration.yaml` (File editor add-on), then restart:
+```yaml
+rest:
+  - resource: http://familyhub.local:8000/api/summary
+    scan_interval: 60
+    sensor:
+      - name: "FamilyHub next event"
+        value_template: "{{ value_json.next_event or 'none' }}"
+        json_attributes: [next_event_at, next_event_in_min, events_today]
+      - name: "FamilyHub chores left"
+        value_template: "{{ value_json.chores_left }}"
+        json_attributes: [chores_by_person, routines_left]
+      - name: "FamilyHub dinner"
+        value_template: "{{ value_json.dinner or 'not planned' }}"
+      - name: "FamilyHub groceries"
+        value_template: "{{ value_json.groceries }}"
+      - name: "FamilyHub countdown"
+        value_template: "{{ value_json.next_countdown or 'none' }}"
+        json_attributes: [next_countdown_days]
+```
+Ideas that take two minutes each in Settings → Automations:
+- *next_event_in_min* hits 10 → flash the porch light / announce on the kitchen speaker
+- *chores left* for Max > 0 at 7 pm → turn off the bedroom Roku
+- 6:45 am on school days → Piper says the dinner + next event on the speaker (or let the
+  wall's own briefing do it)
+- **Expose** these sensors to Assist and "Hey <Name>, how many chores are left" works
+  through HA too.
+
+(If FamilyHub has `FAMILYHUB_PIN` with `FAMILYHUB_LOCK_READS=1`, add
+`headers: {X-FH-PIN: "1234"}` under `resource`. On the LAN you won't need it.)
+
 ## G. (Optional) phone voice anywhere
 
 Install the **Home Assistant companion app** — its Assist button uses the same `<Name>`

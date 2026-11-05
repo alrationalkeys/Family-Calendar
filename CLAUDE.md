@@ -83,6 +83,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/mail/*` — email import inbox (`status`, `pending`, `poll`, `{id}/approve`, `{id}/dismiss`); IMAP creds in `.env` only
 - `/api/ha/spotify` (GET state / POST action), `/api/ha/art` — Spotify card; pins in `settings.spotifyPlaylists`
 - `/api/ha/events` (SSE) + `/api/ha/version` — live HA state changes via `services/ha_live.py` (WebSocket mirror; demo toggles bump too)
+- `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
 - `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
 - `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated

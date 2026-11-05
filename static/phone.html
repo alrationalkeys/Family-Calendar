@@ -671,6 +671,9 @@ async function loadPeople(){
   let list=[];
   try{ list=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
   people=list;
+  // anything that offers a person picker must follow the live list
+  try{ renderForm(); }catch(e){}
+  try{ if($("#src-form")) renderSrcForm(); }catch(e){}
   const box=$("#people-list"); box.innerHTML="";
   if(!list.length){ box.innerHTML='<div class="sub" style="margin:0">No people yet — add your family below.</div>'; return; }
   list.forEach(p=>{
@@ -766,6 +769,7 @@ function renderSrcForm(){
 }
 document.querySelectorAll("#src-kind button").forEach(b=>{ b.onclick=()=>{ document.querySelectorAll("#src-kind button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); srcKind=b.dataset.v; renderSrcForm(); }; });
 async function loadSources(){
+  try{ people=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
   renderSrcForm();
   const box=$("#src-list"); box.innerHTML="";
   let list=[]; try{ list=await fetch("/api/sources/").then(r=>r.json()); }catch(e){}

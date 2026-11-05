@@ -34,7 +34,11 @@ def status():
     """Last sync per connection: when, how many, any error. Calendars refresh on
     every wall poll (~60 s); Reminders every 5 min."""
     from ..services import sync_status
-    return {"status": sync_status.snapshot()}
+    snap = sync_status.snapshot()
+    with get_db() as conn:
+        live = {str(r["id"]) for r in conn.execute("SELECT id FROM cal_sources")}
+    # drop entries for connections that have since been removed
+    return {"status": {k: v for k, v in snap.items() if k.split(":", 1)[1] in live}}
 
 
 @router.post("/sync")

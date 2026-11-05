@@ -29,6 +29,27 @@ import time as _time
 _TARGET_CACHE = {"at": 0.0, "key": None, "items": []}
 
 
+@router.get("/status")
+def status():
+    """Last sync per connection: when, how many, any error. Calendars refresh on
+    every wall poll (~60 s); Reminders every 5 min."""
+    from ..services import sync_status
+    return {"status": sync_status.snapshot()}
+
+
+@router.post("/sync")
+def sync_now():
+    """Force a calendar fetch + Reminders pull right now."""
+    from .calendar import events as cal_events
+    from ..services import reminders_sync, sync_status
+    try:
+        evs = cal_events(days=30, back=0).get("events", [])
+    except Exception:
+        evs = []
+    rem = reminders_sync.sync_once()
+    return {"events": len(evs), "reminders": rem, "status": sync_status.snapshot()}
+
+
 @router.get("/targets")
 def targets(refresh: bool = False):
     """Where a new event can be written: FamilyHub itself, each Google account, and

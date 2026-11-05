@@ -35,16 +35,22 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
         sources = [dict(r) for r in conn.execute("SELECT * FROM cal_sources")]
         cats, ppl = build_lookups(conn)
         local_rows = [dict(r) for r in conn.execute("SELECT * FROM local_events")]
+    from ..services import sync_status
     for s in sources:
         cfg = json.loads(s["config"])
         try:
+            got = []
             if s["kind"] == "google":
-                merged += google_sync.fetch_google_events(days_ahead=days, days_back=back, **cfg)
+                got = google_sync.fetch_google_events(days_ahead=days, days_back=back, **cfg)
             elif s["kind"] == "caldav":
-                merged += caldav_sync.fetch_caldav_events(days_ahead=days, days_back=back, **cfg)
+                cfg = {k: v for k, v in cfg.items() if k in ("url", "username", "password")}
+                got = caldav_sync.fetch_caldav_events(days_ahead=days, days_back=back, **cfg)
             elif s["kind"] == "ics":
-                merged += ics_feed.fetch_ics_events(days_ahead=days, days_back=back, label=s["label"], **cfg)
+                got = ics_feed.fetch_ics_events(days_ahead=days, days_back=back, label=s["label"], **cfg)
+            merged += got
+            sync_status.mark(f"cal:{s['id']}", True, len(got), label=s["label"])
         except Exception as e:
+            sync_status.mark(f"cal:{s['id']}", False, 0, str(e), label=s["label"])
             merged.append({"title": f"[sync error: {s['label']}: {e}]",
                            "start": None, "source": s["kind"], "all_day": False})
     # Local events (with recurrence expansion + resolved color)

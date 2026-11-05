@@ -94,11 +94,14 @@ def sync_once() -> dict:
     if caldav is None:
         return {"ok": False, "reason": "caldav not installed"}
     pulled, done_upstream = 0, 0
+    from . import sync_status
     with get_db() as conn:
         for src, cfg in _sources(conn):
             try:
                 open_items = fetch_open(cfg)
+                sync_status.mark(f"rem:{src['id']}", True, len(open_items), label=src["label"])
             except Exception as e:
+                sync_status.mark(f"rem:{src['id']}", False, 0, str(e), label=src["label"])
                 continue
             seen = set()
             for it in open_items:

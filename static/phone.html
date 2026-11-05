@@ -240,6 +240,7 @@
   <div class="form sect">
     <h2>Calendars</h2>
     <div id="src-list"></div>
+    <div class="srow"><span class="hint" id="src-status" style="margin:0;white-space:pre-line">—</span><button class="go" id="src-sync" style="width:auto;margin:0;padding:8px 14px">Sync now</button></div>
     <hr>
     <div class="pill-toggle" id="src-kind" style="margin-bottom:10px">
       <button data-v="caldav" class="active">iCloud</button><button data-v="ics">Outlook / ICS link</button><button data-v="google">Google</button>
@@ -780,9 +781,21 @@ function renderSrcForm(){
   }
 }
 document.querySelectorAll("#src-kind button").forEach(b=>{ b.onclick=()=>{ document.querySelectorAll("#src-kind button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); srcKind=b.dataset.v; renderSrcForm(); }; });
+function fmtAgo(iso){ const s=Math.round((Date.now()-new Date(iso))/1000); return s<60?`${s}s ago`:s<3600?`${Math.round(s/60)} min ago`:`${Math.round(s/3600)} h ago`; }
+async function loadSyncStatus(){
+  const el=$("#src-status"); if(!el) return;
+  try{ const st=(await fetch("/api/sources/status").then(r=>r.json())).status||{};
+    const lines=Object.entries(st).map(([k,v])=>`${k.startsWith("rem:")?"Reminders":"Calendar"} · ${v.label||""}: ${v.ok?`${v.count} items, ${fmtAgo(v.at)}`:`ERROR ${v.error} (${fmtAgo(v.at)})`}`);
+    el.textContent=lines.length?lines.join("\n"):"No sync yet — calendars fetch when the wall refreshes (every 60 s), Reminders every 5 min.";
+    el.style.color=Object.values(st).some(v=>!v.ok)?"#e0533d":"";
+  }catch(e){ el.textContent="—"; }
+}
+$("#src-sync").onclick=async()=>{ const b=$("#src-sync"); b.disabled=true; b.textContent="Syncing…";
+  try{ const r=await post("/api/sources/sync",{}).then(r=>r.json()); toast(`${r.events} events · ${(r.reminders&&r.reminders.pulled)||0} new reminders`); }catch(e){ toast("Sync failed"); }
+  b.disabled=false; b.textContent="Sync now"; loadSyncStatus(); };
 async function loadSources(){
   try{ people=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
-  renderSrcForm();
+  renderSrcForm(); loadSyncStatus();
   const box=$("#src-list"); box.innerHTML="";
   let list=[]; try{ list=await fetch("/api/sources/").then(r=>r.json()); }catch(e){}
   if(!list.length){ box.innerHTML='<div class="sub" style="margin:0">No calendars connected yet — the wall shows only events added here until you connect one.</div>'; return; }

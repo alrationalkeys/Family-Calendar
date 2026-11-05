@@ -10,6 +10,32 @@ TABLES = ["routine_log", "routines", "countdowns", "mail_imports", "notification
           "rewards", "local_events", "meals", "groceries", "todos", "chores", "categories", "people"]
 
 
+@router.get("/dbinfo")
+def dbinfo():
+    """Where is the database and is it on a persistent disk? (open /api/admin/dbinfo)"""
+    import os
+    from ..db import DB_PATH
+    path = os.path.abspath(DB_PATH)
+    d = os.path.dirname(path)
+    info = {"db_path": path, "exists": os.path.exists(path),
+            "size_bytes": os.path.getsize(path) if os.path.exists(path) else 0,
+            "dir_is_mount": os.path.ismount(d),
+            "env_FAMILYHUB_DB": os.environ.get("FAMILYHUB_DB"),
+            "env_SEED_DEMO": os.environ.get("SEED_DEMO"),
+            "persistent": os.path.ismount(d) or d.startswith("/data")}
+    try:
+        with get_db() as conn:
+            info["people"] = conn.execute("SELECT COUNT(*) c FROM people").fetchone()["c"]
+            info["sources"] = conn.execute("SELECT COUNT(*) c FROM cal_sources").fetchone()["c"]
+            info["settings_keys"] = [r["key"] for r in conn.execute("SELECT key FROM settings")]
+            info["todos"] = conn.execute("SELECT COUNT(*) c FROM todos").fetchone()["c"]
+    except Exception as e:
+        info["db_error"] = str(e)
+    info["verdict"] = ("OK — on the volume" if info["persistent"] else
+                       "NOT persistent: FAMILYHUB_DB must point inside the mounted volume (e.g. /data/familyhub.db)")
+    return info
+
+
 @router.post("/clear-demo")
 def clear_demo(payload: dict | None = None):
     if not (payload or {}).get("confirm"):

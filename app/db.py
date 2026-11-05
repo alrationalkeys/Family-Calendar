@@ -19,6 +19,17 @@ DB_PATH = os.getenv("FAMILYHUB_DB", "familyhub.db")
 DEFAULT_COLOR = "#4f86c6"
 
 
+def _ensure_dir():
+    d = os.path.dirname(os.path.abspath(DB_PATH))
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+
+
+_ensure_dir()
+
+
 @contextmanager
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)   # wait out a writer (mail poll thread) instead of "database is locked"

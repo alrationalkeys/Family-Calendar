@@ -2783,20 +2783,25 @@ function applyWallMic(){
     // simple end-of-speech: stop after ~1.3 s of quiet once we've heard something, hard cap 10 s
     const ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaStreamSource(stream);
     const an=ac.createAnalyser(); an.fftSize=1024; src.connect(an); const buf=new Uint8Array(an.fftSize);
-    let heard=false, quietSince=0; const t0=Date.now();
+    // Adaptive: learn the room's noise floor over the first 400 ms, "speech" = 3x that
+    // (min 0.006). Stop ~1.3 s after speech ends; give up after 6 s of nothing; cap 10 s.
+    let heard=false, quietSince=0, peak=0, floor=0, n=0; const t0=Date.now();
     const done=new Promise(res=>{ mr.onstop=res; });
     const stop=()=>{ if(mr.state!=="inactive") mr.stop(); };
     stopFn=stop;
     const iv=setInterval(()=>{
       an.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
-      const rms=Math.sqrt(sum/buf.length); const now=Date.now();
-      if(rms>0.02){ heard=true; quietSince=0; } else if(heard){ quietSince=quietSince||now; if(now-quietSince>1300) stop(); }
-      if(now-t0>10000 || (!heard && now-t0>5000)) stop();
+      const rms=Math.sqrt(sum/buf.length); const now=Date.now(); peak=Math.max(peak,rms);
+      if(now-t0<400){ floor=(floor*n+rms)/(n+1); n++; }
+      const thr=Math.max(0.006, floor*3);
+      status("Listening… "+"▮".repeat(Math.min(12,Math.round(rms*150)))+"▯".repeat(Math.max(0,12-Math.min(12,Math.round(rms*150)))));
+      if(now-t0>=400 && rms>thr){ heard=true; quietSince=0; } else if(heard){ quietSince=quietSince||now; if(now-quietSince>1300) stop(); }
+      if(now-t0>10000 || (!heard && now-t0>6000)) stop();
     },100);
     listening=true; fab.classList.add("listening"); mr.start(250);
     await done; clearInterval(iv); listening=false; fab.classList.remove("listening"); stopFn=null;
     stream.getTracks().forEach(t=>t.stop()); try{ ac.close(); }catch(e){}
-    if(!heard){ status("Didn't catch that."); return; }
+    if(peak<0.002){ status("Mic is silent — is the speaker bar the default input? (setup/audio-default.sh)"); return; }
     status("Thinking…");
     const blob=new Blob(chunks,{type:mime||"audio/webm"});
     const fd=new FormData(); fd.append("audio", blob, "clip.webm");
@@ -2815,7 +2820,10 @@ function applyWallMic(){
     rec.onerror=(e)=>{ status(e&&e.error==="not-allowed"?"Microphone blocked — allow it in Chromium.":"Couldn't hear — try again."); };
     rec.onresult=(e)=>{ let txt=""; for(let i=0;i<e.results.length;i++) txt+=e.results[i][0].transcript;
       $("#vo-heard").textContent=txt; if(e.results[e.results.length-1].isFinal) finalText=txt; };
-    rec.onend=()=>{ listening=false; fab.classList.remove("listening"); handleText(finalText||$("#vo-heard").textContent); };
+    rec.onend=()=>{ listening=false; fab.classList.remove("listening");
+      const t=(finalText||$("#vo-heard").textContent||"").trim();
+      if(!t){ status("Browser speech engine heard nothing — server voice not active (check /api/ai/voice/status)"); return; }
+      handleText(t); };
   }
   const useServer=()=>voiceCaps.stt&&canRecord;
   const stopAll=()=>{ if(stopFn) stopFn(); else if(rec){ try{rec.stop();}catch(e){} } };

@@ -63,7 +63,9 @@ normally needs nothing.
 
 ## Part 3 — settings worth doing now
 
-Edit `~/familyhub/.env` (`nano ~/familyhub/.env`, then `sudo systemctl restart familyhub`):
+Edit `~/familyhub/.env` (`nano ~/familyhub/.env`, then `sudo systemctl restart familyhub`).
+`.env` lives only on the wall PC and is git-ignored — **never put keys in GitHub** (the repo
+is public). If you had FamilyHub on Railway, copy the values from its Variables page.
 
 | Line | Why |
 |---|---|

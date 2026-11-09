@@ -19,7 +19,8 @@ say(){ printf '\n\033[1;36m%s\033[0m\n' "$*"; }
 [ -x .venv/bin/pip ] || { echo "no .venv — run setup/install-kiosk.sh first"; exit 1; }
 
 say "1/4  python packages (faster-whisper, piper-tts)"
-.venv/bin/pip install -q --upgrade faster-whisper piper-tts
+# av>=14: faster-whisper 1.2 calls av.open(..., metadata_errors=) which older PyAV lacks
+.venv/bin/pip install -q --upgrade faster-whisper piper-tts "av>=14"
 
 say "2/4  Piper voice: $VOICE  (~60 MB)"
 mkdir -p models/piper

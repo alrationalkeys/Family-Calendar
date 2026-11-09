@@ -183,10 +183,12 @@ dentist"* — plus live lookups — *"did the Panthers win"*, *"is Publix still 
 
 **1. The wall as a Spotify speaker.** On the **Screen C3**, with the USB speaker plugged in:
 ```bash
-cd ~/familyhub && bash setup/install-spotifyd.sh plughw:1,0 "Kitchen Wall"
+cd ~/familyhub && bash setup/install-spotifyd.sh pulse "Kitchen Wall"
 ```
 "Kitchen Wall" now shows up in the Spotify app's device picker, same as a Sonos. No
-password stored; it's discovered over the LAN.
+password stored; it's discovered over the LAN. `pulse` plays through the desktop's
+default output (the speaker bar, per `setup/audio-default.sh`) without fighting Chromium
+for the sound card; pass `plughw:X,Y` instead to grab a card directly.
 
 **2. Control + now-playing on the screen.** In HA: Settings → Devices & Services →
 **Add Integration → Spotify**. It walks you through creating a free Spotify *developer

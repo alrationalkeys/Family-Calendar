@@ -4,18 +4,24 @@
 # playing through the USB speaker bar. Runs spotifyd as a systemd service on
 # the SCREEN box. Needs Spotify Premium (Connect is a Premium feature).
 #
-#   bash setup/install-spotifyd.sh [alsa-device] [device-name]
-#   e.g. bash setup/install-spotifyd.sh plughw:1,0 "Kitchen Wall"
+#   bash setup/install-spotifyd.sh [pulse|alsa-device] [device-name]
+#   e.g. bash setup/install-spotifyd.sh pulse "Kitchen Wall"        (recommended)
+#        bash setup/install-spotifyd.sh plughw:1,0 "Kitchen Wall"   (raw ALSA)
 #
-# Get the ALSA device name from setup/audio-check.sh. No Spotify password is
-# stored: the device uses zeroconf discovery, so you just pick it in the app.
+# "pulse" plays through the desktop's sound server (PipeWire), i.e. whatever
+# setup/audio-default.sh made the default output, and doesn't fight Chromium
+# for the sound card. A raw plughw:X,Y device grabs the card exclusively.
+# Runs as a *user* service (the kiosk user is auto-logged-in) so it can reach
+# the sound server. No Spotify password is stored: zeroconf discovery only.
 # ============================================================================
 set -euo pipefail
-DEV="${1:-default}"
+DEV="${1:-pulse}"
 NAME="${2:-Kitchen Wall}"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 
 say "packages"
+# Ubuntu 24.04 renamed libasound2 -> libasound2t64
+sudo apt-get install -y -qq curl tar alsa-utils libasound2t64 >/dev/null 2>&1 || \
 sudo apt-get install -y -qq curl tar alsa-utils libasound2 >/dev/null
 
 say "spotifyd binary"
@@ -34,12 +40,15 @@ spotifyd --version
 
 say "config ~/.config/spotifyd/spotifyd.conf"
 mkdir -p ~/.config/spotifyd
+if [ "$DEV" = "pulse" ]; then
+  AUDIO='backend = "pulseaudio"'
+else
+  AUDIO=$(printf 'backend = "alsa"\ndevice = "%s"\nmixer = "PCM"' "$DEV")
+fi
 cat > ~/.config/spotifyd/spotifyd.conf <<EOF
 [global]
 device_name = "$NAME"
-backend = "alsa"
-device = "$DEV"
-mixer = "PCM"
+$AUDIO
 bitrate = 320
 initial_volume = "60"
 device_type = "speaker"
@@ -47,26 +56,28 @@ zeroconf_port = 5354
 autoplay = true
 EOF
 
-say "systemd service spotifyd"
-sudo tee /etc/systemd/system/spotifyd.service >/dev/null <<EOF
+say "systemd --user service spotifyd (runs in your desktop session, survives reboots)"
+# a stale system-wide unit from an older install would fight this one
+sudo systemctl disable --now spotifyd 2>/dev/null || true; sudo rm -f /etc/systemd/system/spotifyd.service
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/spotifyd.service <<EOF
 [Unit]
 Description=Spotify Connect speaker ($NAME)
-After=network-online.target sound.target
-Wants=network-online.target
+After=network-online.target pipewire-pulse.service
 
 [Service]
-User=$(id -un)
-ExecStart=/usr/local/bin/spotifyd --no-daemon --config-path $HOME/.config/spotifyd/spotifyd.conf
+ExecStart=/usr/local/bin/spotifyd --no-daemon --config-path %h/.config/spotifyd/spotifyd.conf
 Restart=always
 RestartSec=3
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
-sudo systemctl daemon-reload
-sudo systemctl enable --now spotifyd
-sleep 2
-systemctl --no-pager --lines=5 status spotifyd || true
+sudo loginctl enable-linger "$(id -un)"      # user services start at boot, not just at login
+systemctl --user daemon-reload
+systemctl --user enable --now spotifyd
+sleep 3
+systemctl --user --no-pager --lines=6 status spotifyd || true
 
 cat <<EOF
 

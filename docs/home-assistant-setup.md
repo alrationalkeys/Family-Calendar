@@ -47,6 +47,11 @@ C3's internal SSD.
    name the home, confirm the location (Socastee).
 6. Settings → System → **Network**: set a **static IP** (or reserve it in your router). Write
    it down — it goes into FamilyHub's `.env` and into the satellite.
+   > **Which port?** Check with `ha core info` (Terminal & SSH add-on) → `port:`. Recent
+   > HAOS images serve the UI on **port 80**, with `:8123` only a redirect that may answer on
+   > IPv6 alone. If `curl http://<ip>:8123/api/` is "connection refused" but
+   > `curl http://<ip>/api/` returns `401: Unauthorized`, use `HA_URL=http://<ip>` (no port).
+   > Changing the IP while HA is running also leaves stale sockets — reboot the box after.
 7. Unplug the screen/keyboard. The HA C3 now lives in the cupboard with power + Ethernet.
 
 ## B. Enable the 3rd-party connection on the IQ Panel

@@ -59,6 +59,60 @@ def _alarm_eid(tiles):
     return ""
 
 
+def _spoken_when(start: str, all_day: bool) -> str:
+    try:
+        d = datetime.datetime.fromisoformat(start.replace("Z", "+00:00"))
+        day = d.strftime("%A %B %-d")
+        return day if all_day else f"{day} at {d.strftime('%-I:%M %p').lstrip('0')}"
+    except Exception:
+        return start
+
+
+def _smart_add(text: str):
+    """'add <anything>' with no list named -> classify like the phone's quick-add and save
+    to the right place (calendar / to-do / groceries / meals). Returns what to say, or None."""
+    from . import ai_route
+    from .people import extract_person
+    try:
+        parsed = ai_route.route_text(text)
+    except Exception:
+        return None
+    kind, items = parsed.get("kind"), parsed.get("items") or []
+    if not items:
+        return None
+    said = []
+    try:
+        with get_db() as conn:
+            pid, pname, _ = extract_person(conn, text)
+            for it in items:
+                if kind == "event":
+                    conn.execute("INSERT INTO local_events (title,start,end,all_day,person_id) VALUES (?,?,?,?,?)",
+                                 (it["title"], it["start"], it.get("end"), 1 if it.get("all_day") else 0, pid))
+                    said.append(f"{it['title']} on {_spoken_when(it['start'], it.get('all_day'))}")
+                elif kind == "todo":
+                    _, _, title = extract_person(conn, it["title"])
+                    conn.execute("INSERT INTO todos (title, person_id) VALUES (?,?)", (title or it["title"], pid))
+                    said.append(title or it["title"])
+                elif kind == "grocery":
+                    conn.execute("INSERT INTO groceries (item, qty) VALUES (?,?)", (it["item"], it.get("qty")))
+                    said.append(it["item"])
+                elif kind == "meal":
+                    conn.execute("INSERT INTO meals (date, slot, title) VALUES (?,?,?)", (it["date"], it["slot"], it["title"]))
+                    said.append(f"{it['title']} for {it['slot']} on {_spoken_when(it['date'], True)}")
+                else:
+                    return None
+    except Exception:
+        return None
+    joined = ", ".join(said)
+    if kind == "event":
+        return f"Added {joined} to the calendar" + (f" for {pname}." if pname else ".")
+    if kind == "todo":
+        return f"Added {joined} to {pname}'s to-do list." if pname else f"Added {joined} to your to-do list."
+    if kind == "grocery":
+        return f"Added {joined} to the groceries."
+    return f"Planned {joined}."
+
+
 def _add_to_list(text):
     """'add milk to the groceries' / 'add call mom to my to-do' /
     'remind Rachell to book the dentist' / 'Ella needs to pack her bag' /
@@ -72,6 +126,13 @@ def _add_to_list(text):
         return None
     body = m.group(1) if m else low
     todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things|remind|needs? to|has to|have to", body)) or bool(assign_only and not m)
+    explicit_list = todo or bool(re.search(r"grocer|shopping|list", body))
+    # No list named ("add nanner landing the Sunday before Thanksgiving"): let the same
+    # classifier the phone's quick-add uses decide event / to-do / grocery / meal.
+    if m and not explicit_list and os.getenv("ANTHROPIC_API_KEY"):
+        said = _smart_add(text)
+        if said:
+            return said
     # strip trailing target phrase
     item = re.sub(r"\b(to|on)?\s*(my|the|our)?\s*(grocery|groceries|shopping|to[\s-]?do|todo|task[s]?|list)\b.*$", "", body).strip(" ,.")
     if not item:

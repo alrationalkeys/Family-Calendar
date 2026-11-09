@@ -44,13 +44,13 @@
 part = "back_case"; // [back_case, strap_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview]
 
 /* [Screen — Forzola 15.6in] */
-screen_w = 365;
-screen_h = 223;
+screen_w = 356;      // measured 14.0 in
+screen_h = 229;      // measured 9.0 in
 screen_t = 10;       // panel thickness
 vesa     = 75;       // VESA square (75x75)
 vesa_dy  = 0;        // VERIFY: VESA centre offset from panel centre (+ = up)
 hump_w   = 170;      // port strip width along the bottom edge
-hump_d   = 13;       // how far the port bulge sticks out past the panel back (23-10)
+hump_d   = 28;       // measured: 1.5 in total thickness at the ports, minus the 10 mm panel
 hump_h   = 30;       // VERIFY: how far up from the bottom edge the bulge reaches
 
 /* [Mini PC — C3] */

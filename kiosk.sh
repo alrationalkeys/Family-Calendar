@@ -37,9 +37,10 @@ PREFS="$HOME/.config/familyhub-kiosk/Default/Preferences"
 
 # Keep the browser up forever: if it crashes or someone closes it, relaunch.
 while true; do
-  # --kiosk alone is ignored by some Chromium builds when --app is used, so also
-  # force fullscreen and pin the window to the screen. Notifications are handled
-  # in-app (banner + speech), so silence the browser's permission prompt.
+  # NOTE: no --app= here. Snap Chromium ignores --kiosk/--start-fullscreen for
+  # app-mode windows (seen on Ubuntu 24.04); plain kiosk mode with the URL as the
+  # argument goes truly full-screen. Notifications are handled in-app (banner +
+  # speech), so silence the browser's permission prompt.
   "$BROWSER" --kiosk --start-fullscreen --start-maximized --window-position=0,0 \
     --noerrdialogs --disable-infobars --disable-notifications \
     --check-for-update-interval=31536000 \
@@ -49,7 +50,8 @@ while true; do
     --disable-pinch \
     --autoplay-policy=no-user-gesture-required \
     --user-data-dir="$HOME/.config/familyhub-kiosk" \
-    --app="$URL"
+    --no-first-run --password-store=basic \
+    "$URL"
   sleep 3
   [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"
 done

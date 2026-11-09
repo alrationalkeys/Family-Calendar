@@ -21,6 +21,9 @@ demo_events.json
 nohup.out
 .DS_Store
 
+# Local speech models (Piper voices; Whisper caches under ~/.cache)
+models/
+
 # User photos (the slideshow folder fills up locally)
 static/photos/*
 !static/photos/.gitkeep

@@ -2682,7 +2682,24 @@ function beep(times=3){
     }
   }catch(e){}
 }
-function sayAloud(s){ try{ if(!s)return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
+/* Speech: prefer the server's local Piper voice (/api/ai/tts) — snap Chromium on the
+   wall has no speechSynthesis voices. Falls back to the browser engine if the server
+   has no voice installed. voiceCaps is filled at boot from /api/ai/voice/status. */
+let voiceCaps={stt:false,tts:false};
+let _ttsAudio=null;
+async function loadVoiceCaps(){ try{ voiceCaps=await fetch("/api/ai/voice/status").then(r=>r.json()); }catch(e){} applyWallMic(); }
+function browserSpeak(s){ try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
+async function sayAloud(s){
+  if(!s) return;
+  if(!voiceCaps.tts){ browserSpeak(s); return; }
+  try{
+    const r=await post("/api/ai/tts",{text:s}); if(!r.ok) throw new Error(r.status);
+    const url=URL.createObjectURL(await r.blob());
+    if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} }
+    _ttsAudio=new Audio(url); _ttsAudio.onended=()=>URL.revokeObjectURL(url);
+    await _ttsAudio.play();
+  }catch(e){ browserSpeak(s); }
+}
 function tickTimers(){
   const now=Date.now(); let changed=false;
   timers.forEach(t=>{ if(!t.rang && now>=t.end){ t.rang=true; changed=true; beep(4); sayAloud((t.label?t.label+" timer":"Timer")+" is done."); wake(); } });
@@ -2724,43 +2741,90 @@ function applyWallMic(){
   const fab=$("#voicefab"); if(!fab) return;
   const nm=(FH.get().assistantName||"Hub"); fab.title="Ask "+nm; const h=$("#vo-hint"); if(h) h.textContent=`Ask ${nm} anything — "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"`;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const on = FH.get().wallMic!==false && !!SR;
+  const canRecord=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+  const on = FH.get().wallMic!==false && (!!SR || (voiceCaps.stt&&canRecord));
   fab.style.display = on ? "flex" : "none";
 }
 (function setupWallVoice(){
   const fab=$("#voicefab"); if(!fab) return;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ fab.style.display="none"; return; }   // unsupported browser (e.g. Pi Chromium)
-  const rec=new SR(); rec.lang="en-US"; rec.interimResults=true; rec.continuous=false;
-  let listening=false, finalText="";
+  const canRecord=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+  if(!SR && !canRecord){ fab.style.display="none"; return; }
   const show=()=>$("#voiceov").classList.add("on");
   const hide=()=>$("#voiceov").classList.remove("on");
-  const speak=(s)=>{ try{ if(!s)return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} };
-  fab.onclick=()=>{ resetSleep(); if(listening){ try{rec.stop();}catch(e){} return; }
-    finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; $("#vo-status").textContent="Listening…"; show();
-    try{ rec.start(); }catch(e){} };
-  $("#vo-close").onclick=()=>{ try{rec.stop();}catch(e){} hide(); };
-  $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ try{rec.stop();}catch(_){} hide(); } };
-  rec.onstart=()=>{ listening=true; fab.classList.add("listening"); };
-  rec.onerror=()=>{ $("#vo-status").textContent="Couldn't hear — try again."; };
-  rec.onresult=(e)=>{ let txt=""; for(let i=0;i<e.results.length;i++) txt+=e.results[i][0].transcript;
-    $("#vo-heard").textContent=txt; if(e.results[e.results.length-1].isFinal) finalText=txt; };
-  rec.onend=async()=>{ listening=false; fab.classList.remove("listening");
-    const text=(finalText||$("#vo-heard").textContent||"").trim();
-    if(!text){ $("#vo-status").textContent="Didn't catch that."; return; }
-    $("#vo-status").textContent="Working…";
+  const status=(s)=>{ $("#vo-status").textContent=s; };
+  let listening=false, finalText="", stopFn=null;
+
+  async function handleText(text){
+    text=(text||"").trim();
+    if(!text){ status("Didn't catch that."); return; }
+    $("#vo-heard").textContent=text; status("Working…");
     try{
       const r=await post("/api/ai/command",{text}).then(r=>r.json());
-      $("#vo-status").textContent=""; $("#vo-reply").textContent=r.say||"";
-      speak(r.say);
+      status(""); $("#vo-reply").textContent=r.say||"";
+      sayAloud(r.say);
       if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
       if(r.briefing){ sayBriefingNow(r.briefing); }
       if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
       if(r.focus==="alarm"){ showPage("home"); }
       setTimeout(hide, 4000);
-    }catch(e){ $("#vo-status").textContent="Something went wrong."; }
-  };
+    }catch(e){ status("Something went wrong."); }
+  }
+
+  /* --- path A: record a clip, server transcribes (Whisper on the mini PC) --- */
+  async function recordAndSend(){
+    let stream;
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); }
+    catch(e){ status("Microphone blocked — allow it in Chromium."); return; }
+    const mime=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"].find(m=>MediaRecorder.isTypeSupported(m))||"";
+    const mr=new MediaRecorder(stream, mime?{mimeType:mime}:{});
+    const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    // simple end-of-speech: stop after ~1.3 s of quiet once we've heard something, hard cap 10 s
+    const ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaStreamSource(stream);
+    const an=ac.createAnalyser(); an.fftSize=1024; src.connect(an); const buf=new Uint8Array(an.fftSize);
+    let heard=false, quietSince=0; const t0=Date.now();
+    const done=new Promise(res=>{ mr.onstop=res; });
+    const stop=()=>{ if(mr.state!=="inactive") mr.stop(); };
+    stopFn=stop;
+    const iv=setInterval(()=>{
+      an.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
+      const rms=Math.sqrt(sum/buf.length); const now=Date.now();
+      if(rms>0.02){ heard=true; quietSince=0; } else if(heard){ quietSince=quietSince||now; if(now-quietSince>1300) stop(); }
+      if(now-t0>10000 || (!heard && now-t0>5000)) stop();
+    },100);
+    listening=true; fab.classList.add("listening"); mr.start(250);
+    await done; clearInterval(iv); listening=false; fab.classList.remove("listening"); stopFn=null;
+    stream.getTracks().forEach(t=>t.stop()); try{ ac.close(); }catch(e){}
+    if(!heard){ status("Didn't catch that."); return; }
+    status("Thinking…");
+    const blob=new Blob(chunks,{type:mime||"audio/webm"});
+    const fd=new FormData(); fd.append("audio", blob, "clip.webm");
+    try{
+      const r=await fetch("/api/ai/transcribe",{method:"POST",body:fd});
+      if(!r.ok) throw new Error(r.status);
+      const j=await r.json(); await handleText(j.text);
+    }catch(e){ status("Couldn't understand — try again."); }
+  }
+
+  /* --- path B: browser Web Speech API (works in Google Chrome, not snap Chromium) --- */
+  let rec=null;
+  if(SR){
+    rec=new SR(); rec.lang="en-US"; rec.interimResults=true; rec.continuous=false;
+    rec.onstart=()=>{ listening=true; fab.classList.add("listening"); };
+    rec.onerror=(e)=>{ status(e&&e.error==="not-allowed"?"Microphone blocked — allow it in Chromium.":"Couldn't hear — try again."); };
+    rec.onresult=(e)=>{ let txt=""; for(let i=0;i<e.results.length;i++) txt+=e.results[i][0].transcript;
+      $("#vo-heard").textContent=txt; if(e.results[e.results.length-1].isFinal) finalText=txt; };
+    rec.onend=()=>{ listening=false; fab.classList.remove("listening"); handleText(finalText||$("#vo-heard").textContent); };
+  }
+  const useServer=()=>voiceCaps.stt&&canRecord;
+  const stopAll=()=>{ if(stopFn) stopFn(); else if(rec){ try{rec.stop();}catch(e){} } };
+
+  fab.onclick=()=>{ resetSleep(); if(listening){ stopAll(); return; }
+    finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; status("Listening…"); show();
+    if(useServer()) recordAndSend(); else if(rec){ try{ rec.start(); }catch(e){} } else status("Voice isn't set up — run setup/install-voice.sh"); };
+  $("#vo-close").onclick=()=>{ stopAll(); hide(); };
+  $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
 })();
 
 /* ---- boot ---- */
@@ -2768,7 +2832,7 @@ function applyWallMic(){
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
   loadCalTargets();
-  applyWallMic();
+  applyWallMic(); loadVoiceCaps();
   setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
   applyPanels();
   applySeasonal();

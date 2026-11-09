@@ -86,6 +86,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `GET /api/sources/targets` — writable destinations (FamilyHub / Google / each iCloud calendar); `POST /api/calendar/events` takes `destination`; last choice remembered in `settings.defaultCalendar`
 - iCloud **Reminders ↔ To-Do** two-way: `services/reminders_sync.py` (VTODO over the same CalDAV source, every 5 min + `POST /api/todos/sync`; ticking a synced to-do completes it upstream; `todos.ext_uid/ext_source/ext_list`)
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
+- Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
+  `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
+  The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API
+  (snap Chromium has none). Install: `setup/install-voice.sh`; env `FAMILYHUB_STT_MODEL`,
+  `FAMILYHUB_PIPER_VOICE`. kiosk.sh passes `--use-fake-ui-for-media-stream` (auto-allow mic).
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
 - `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
 - `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated

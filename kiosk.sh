@@ -77,6 +77,7 @@ while true; do
     --overscroll-history-navigation=0 \
     --disable-pinch \
     --autoplay-policy=no-user-gesture-required \
+    --use-fake-ui-for-media-stream \
     --user-data-dir="$PROFILE" \
     --no-first-run --password-store=basic \
     "$URL"
@@ -90,3 +91,5 @@ done
 #   --disable-pinch                    stop the browser zooming the whole page on pinch
 #                                      (the calendar has its own pinch-to-zoom handler)
 #   --autoplay-policy=...              lets spoken voice replies play without a tap first
+#   --use-fake-ui-for-media-stream     auto-allow the microphone (no "Allow?" prompt on a wall
+#                                      with no mouse); the mic only feeds localhost FamilyHub

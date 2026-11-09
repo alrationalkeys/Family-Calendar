@@ -90,8 +90,25 @@ It lists playback + capture devices, records 4 s, plays it back. **Both lists mu
 the puck.** If `arecord -l` shows nothing, the puck's mic is Bluetooth-only — return it.
 Note the `plughw:X,Y` names it prints; you need them for the satellite in Part 5.
 
-Tap the **mic button** on the wall and say "what's the weather" — tap-to-talk works right
-now (it uses Chromium's speech engine; needs internet).
+Make the puck the desktop's default sound device (so spoken replies come out of it, not
+the monitor's HDMI speakers):
+
+```bash
+bash setup/audio-default.sh
+```
+
+**Give the wall local ears + a voice** (~3 min, downloads ~200 MB once). Ubuntu's snap
+Chromium has no speech engine behind the mic button — without this step it says "Didn't
+catch that" instantly and replies are silent. This runs Whisper (speech-to-text) and
+Piper (text-to-speech) on the C3 itself, fully offline:
+
+```bash
+bash setup/install-voice.sh
+```
+
+Then tap the **mic button** on the wall and say "what's the weather". Pick a different
+voice later with `bash setup/install-voice.sh base.en en_US-amy-medium` (samples at
+rhasspy.github.io/piper-samples).
 
 ## Part 5 — Home Assistant + hands-free voice
 

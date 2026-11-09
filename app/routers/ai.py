@@ -1,8 +1,9 @@
 """AI endpoints — natural language in, structured data + auto-save."""
-from fastapi import APIRouter
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from ..services import ai_parse, ai_route, ai_vision, voice_cmd
+from ..services import ai_parse, ai_route, ai_vision, voice_cmd, speech
 from ..db import get_db
 
 router = APIRouter()
@@ -20,6 +21,44 @@ def command(req: TextReq):
     scene, arm the alarm, add to a list, or answer a quick question. Returns
     {ok, say, ...} — `say` is what the screen speaks back."""
     return voice_cmd.interpret(req.text)
+
+
+# ---- local speech (see services/speech.py) ------------------------------
+@router.get("/voice/status")
+def voice_status():
+    """{stt, tts} — whether the server can transcribe / speak locally. The wall
+    uses this to decide between recording a clip for us or the browser's own
+    Web Speech API (which snap Chromium lacks)."""
+    return speech.status()
+
+
+@router.post("/transcribe")
+async def transcribe(audio: UploadFile = File(...)):
+    """Audio clip (webm/opus from MediaRecorder, or wav) -> {text}."""
+    if not speech.stt_available():
+        raise HTTPException(503, "speech-to-text not installed (run setup/install-voice.sh)")
+    data = await audio.read()
+    if len(data) > 8_000_000:
+        raise HTTPException(413, "clip too long")
+    ct = (audio.content_type or "").lower()
+    suffix = ".wav" if "wav" in ct else ".ogg" if "ogg" in ct else ".webm"
+    try:
+        return {"text": speech.transcribe(data, suffix)}
+    except Exception as e:
+        raise HTTPException(500, f"transcribe failed: {e}")
+
+
+@router.post("/tts")
+def tts(req: TextReq):
+    """Text -> audio/wav (Piper). 503 if no voice is installed; the wall then
+    falls back to speechSynthesis."""
+    if not speech.tts_available():
+        raise HTTPException(503, "text-to-speech not installed (run setup/install-voice.sh)")
+    try:
+        wav = speech.synthesize(req.text[:600])
+    except Exception as e:
+        raise HTTPException(500, f"tts failed: {e}")
+    return Response(content=wav, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
 @router.post("/parse")

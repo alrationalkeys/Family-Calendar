@@ -96,6 +96,9 @@ async def lifespan(app: FastAPI):
     # background: live Home Assistant state over WebSocket (no-op in demo mode)
     from .services import ha_live
     htask = asyncio.create_task(ha_live.run_forever())
+    # local Whisper/Piper models (if installed) load in a thread so the first mic tap is quick
+    from .services import speech
+    speech.warm_up()
     try:
         yield
     finally:

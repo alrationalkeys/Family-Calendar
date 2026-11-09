@@ -35,7 +35,6 @@
 //   Always print test_vesa + test_pc first (~40 min) before the ~7h case.
 //
 // MEASURE BEFORE PRINTING (the "verify" parameters):
-//   hump_h   how far up the back of the screen the port bulge extends (mm)
 //   vesa_dy  if the VESA square isn't centred on the panel, its vertical offset
 //   spk_*    the speaker bar's real outer dimensions
 // ============================================================================
@@ -49,9 +48,11 @@ screen_h = 229;      // measured 9.0 in
 screen_t = 10;       // panel thickness
 vesa     = 75;       // VESA square (75x75)
 vesa_dy  = 0;        // VERIFY: VESA centre offset from panel centre (+ = up)
-hump_w   = 170;      // port strip width along the bottom edge
-hump_d   = 28;       // measured: 1.5 in total thickness at the ports, minus the 10 mm panel
-hump_h   = 30;       // VERIFY: how far up from the bottom edge the bulge reaches
+// The raised housing on the back: centred, VESA holes on its FACE, ports on its
+// bottom edge. Measured: 2.5 in in from top/bottom, 3.5 in in from the sides.
+hump_w   = 178;      // 14 - 2*3.5 in
+hump_hh  = 102;      // 9 - 2*2.5 in
+hump_d   = 28;       // 1.5 in total thickness at the housing, minus the 10 mm panel
 
 /* [Mini PC — C3] */
 pc_w     = 128;      // across (LAN/HDMI face points DOWN toward the cable slot)
@@ -174,7 +175,7 @@ module stand(){
     rotate([0,stand_lean,0]) translate([0,-cleat_len/2-15, -cleat_h/2])
       rotate([90,0,90]) cleat_wall();
   // lip at the base front so the screen's bottom edge can rest (port hump stays clear above it)
-  translate([stand_base-8,-(cleat_len+30)/2,0]) cube([8, cleat_len+30, screen_t+hump_d+6]);
+  translate([stand_base-8,-(cleat_len+30)/2,0]) cube([8, cleat_len+30, screen_t+hump_d+6]);   // lip clears panel + housing
 }
 
 // ---------- speaker pocket (optional) ----------
@@ -214,9 +215,12 @@ module test_pc(){
 }
 
 // ---------- preview ----------
+// Z=0 in every part is the HOUSING FACE (where the VESA bolts land); the panel
+// itself is hump_d further back. Cables leave the housing's bottom edge and run
+// in the hump_d-deep gap under the case's overhang — nothing to cut.
 module screen_ghost(){
-  color("black", 0.25) translate([-screen_w/2, -screen_h/2 - vesa_dy, -screen_t]) cube([screen_w, screen_h, screen_t]);
-  color("red", 0.35) translate([-hump_w/2, -screen_h/2 - vesa_dy, 0]) cube([hump_w, hump_h, hump_d]);   // port bulge
+  color("black", 0.25) translate([-screen_w/2, -screen_h/2 - vesa_dy, -hump_d - screen_t]) cube([screen_w, screen_h, screen_t]);
+  color("red", 0.35) translate([-hump_w/2, -hump_hh/2, -hump_d]) cube([hump_w, hump_hh, hump_d]);   // raised housing
 }
 module preview(){
   screen_ghost();
@@ -225,9 +229,8 @@ module preview(){
   color("tan") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d]) cleat_bar(flip=true);
   color("silver", 0.5) translate([-pc_w/2, -pc_l/2, fp+2]) cube([pc_w, pc_l, pc_h]);                 // the C3
   color("tan") translate([spk_side*(case_w/2 + (spk_t+2*spk_clear+2*wall)/2), 0, 0]) spk_pocket();
-  // clearance check: the case's bottom wall must sit above the port bulge
-  clearance = (-case_h/2) - (-screen_h/2 - vesa_dy + hump_h);
-  echo(str("Port-hump clearance below the case: ", clearance, " mm (needs > 0; measure hump_h!)"));
+  // the case plate overhangs the housing top/bottom; plugs hang in the hump_d gap beneath
+  echo(str("Case overhangs the housing by ", (case_h - hump_hh)/2, " mm top & bottom; cable gap under it = ", hump_d, " mm"));
   echo(str("Case ", case_w, " x ", case_h, " x ", case_d, " mm; bed must be >= ", max(case_w,case_h), " mm"));
 }
 

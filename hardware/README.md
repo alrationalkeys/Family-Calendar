@@ -103,9 +103,10 @@ front. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 
 ### Step 0 — measure three things when the parts arrive
 Set these at the top of the `.scad` before printing anything:
-- **`hump_h`** — how far up the back of the Forzola the port bulge reaches (ruler from the
-  bottom edge). The case bottom wall must sit above it; `preview` prints the clearance.
-- **`vesa_dy`** — if the VESA square isn't dead-centre on the panel, its vertical offset.
+- Measured 2026-11: body 356×229 mm; a centred raised housing 178×102 mm, 28 mm proud,
+  carries the VESA holes on its face and the ports on its bottom edge. The case bolts to
+  that face and overhangs it 17 mm top/bottom; cables run in the 28 mm gap underneath.
+- **`vesa_dy`** — only if the VESA square turns out off-centre on the housing.
 - **`spk_l / spk_w / spk_t`** — the speaker bar's real outer dimensions (listing says 130×61×46).
 
 ### Step 1 — print the test coupons first (~40 min)

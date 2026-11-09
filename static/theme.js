@@ -29,6 +29,7 @@ const FH = (() => {
     assistantName: "Hub",    // what the family calls the voice assistant
     defaultCalendar: "",     // where new events go by default (a /api/sources/targets id)
     speakAlerts: true,       // wall speaks reminders / announcements / timers
+    photoFit: "fit",         // slideshow: "fit" = whole photo over blurred backdrop, "fill" = crop to screen
     morningBriefing: false,  // auto-spoken briefing on first walk-up (off: button / ask)
     briefingHour: 6,         // ...but not before this hour
   };

@@ -133,6 +133,6 @@ out the case's bottom slot. Hang on the wall cleat.
 | Server logs | `journalctl -u familyhub -f` |
 | Chromium misbehaving | `pkill chromium` — `kiosk.sh` relaunches it in 3 s. The page also reloads itself nightly at 03:45. |
 | Wrong time zone | the installer sets `America/New_York`; change with `sudo timedatectl set-timezone Region/City` |
-| Get a terminal on the wall | plug in the keyboard, `Ctrl+Alt+T` (Chromium stays behind it) — or SSH: `sudo apt install openssh-server` once, then `ssh hub@familyhub.local` from your desktop |
+| Get a terminal on the wall | plug in the keyboard, `Ctrl+Alt+T` (Chromium stays behind it) — or, once, `bash setup/enable-remote.sh`, then from any computer in the house `ssh hub@familyhub.local` (Windows: PowerShell has ssh built in). After that the keyboard can stay unplugged. |
 | Backups | nightly 03:30 to `~/familyhub/backups/` (keeps 14). Copy them off occasionally. |
 | Remote access from outside the house | `docs/tailscale.md` |

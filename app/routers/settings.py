@@ -33,6 +33,7 @@ DEFAULTS = {
     "assistantName": "Hub",          # what the family calls the voice assistant (she picks)
     "defaultCalendar": "",           # where new events go by default (a /api/sources/targets id)
     "speakAlerts": True,             # wall speaks reminders / announcements / timers
+    "photoFit": "fit",               # slideshow: "fit" = whole photo over a blurred backdrop, "fill" = crop to screen
     "morningBriefing": False,        # auto-spoken "here's today" on first walk-up (off: use the button / ask)
     "briefingHour": 6,               # ...but not before this hour
 }

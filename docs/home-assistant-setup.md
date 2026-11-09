@@ -22,15 +22,23 @@ C3's internal SSD.
    **Rufus** (same stick/steps as `docs/first-boot.md` Part 1 — you can reuse that stick).
 2. Plug the stick, keyboard, screen and **Ethernet** into the HA C3. Power on, tap `F7`
    → boot the stick → **Try Ubuntu** (do *not* install).
-3. Connect to the network (Ethernet just works). Open a terminal (`Ctrl+Alt+T`):
+3. Connect to the network (top-right icon → Wi-Fi, or plug in Ethernet). Open a terminal
+   (`Ctrl+Alt+T`) and find the internal SSD:
    ```bash
-   lsblk                       # find the internal SSD: usually nvme0n1 or sda, ~476G
-   cd ~ && wget https://github.com/home-assistant/operating-system/releases/latest/download/haos_generic-x86-64-$(curl -s https://api.github.com/repos/home-assistant/operating-system/releases/latest | grep -oP '"tag_name": "\K[^"]+').img.xz
-   xz -dc haos_generic-x86-64-*.img.xz | sudo dd of=/dev/nvme0n1 bs=4M status=progress conv=fsync
+   lsblk                       # internal SSD = the ~476G disk (sda or nvme0n1); the stick is the small one
    ```
-   (If `lsblk` showed `sda`, use `of=/dev/sda`. **Double-check** — this wipes that disk.
-   If the `wget` one-liner trips, open github.com/home-assistant/operating-system/releases
-   on your phone and copy the `haos_generic-x86-64-*.img.xz` link by hand.)
+   Get the image. **Not every HAOS release ships an x86 build** (18.5 was Pi-only), so open
+   github.com/home-assistant/operating-system/releases on your laptop and find the newest
+   release that lists `haos_generic-x86-64-<ver>.img.xz` (as of Nov 2026: 18.4). The live
+   Ubuntu has no `curl`, so plain `wget` with the exact name:
+   ```bash
+   cd ~ && wget https://github.com/home-assistant/operating-system/releases/download/18.4/haos_generic-x86-64-18.4.img.xz
+   xz -dc haos_generic-x86-64-*.img.xz | sudo dd of=/dev/sda bs=4M status=progress conv=fsync
+   ```
+   Use `of=/dev/nvme0n1` if that's what `lsblk` showed. **Double-check** — this wipes that
+   disk. (Typing the URL by hand is error-prone: Firefox on the live desktop → the releases
+   page → click the file → it lands in `~/Downloads`, then point `xz -dc` at that path.)
+   HAOS updates itself to newer releases from Settings → System → Updates afterwards.
 4. `sudo poweroff`, pull the stick. Power back on → `Del` → BIOS:
    - **Boot mode: UEFI**, **Secure Boot: Disabled** (HAOS won't boot with it on)
    - **Auto Power On / Restore on AC Loss: Power On**

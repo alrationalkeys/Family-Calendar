@@ -10,6 +10,7 @@ router = APIRouter()
 
 class Todo(BaseModel):
     title: str
+    person_id: int | None = None
     category_id: int | None = None
     color: str | None = None
     due_date: str | None = None
@@ -34,8 +35,8 @@ def list_todos():
 def add_todo(t: Todo):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO todos (title, category_id, color, due_date, recurrence) VALUES (?,?,?,?,?)",
-            (t.title, t.category_id, t.color, t.due_date, t.recurrence))
+            "INSERT INTO todos (title, person_id, category_id, color, due_date, recurrence) VALUES (?,?,?,?,?,?)",
+            (t.title, t.person_id, t.category_id, t.color, t.due_date, t.recurrence))
         return {"id": cur.lastrowid}
 
 
@@ -43,8 +44,8 @@ def add_todo(t: Todo):
 def update_todo(todo_id: int, t: Todo):
     with get_db() as conn:
         conn.execute(
-            "UPDATE todos SET title=?, category_id=?, color=?, due_date=?, recurrence=? WHERE id=?",
-            (t.title, t.category_id, t.color, t.due_date, t.recurrence, todo_id))
+            "UPDATE todos SET title=?, person_id=?, category_id=?, color=?, due_date=?, recurrence=? WHERE id=?",
+            (t.title, t.person_id, t.category_id, t.color, t.due_date, t.recurrence, todo_id))
         return {"id": todo_id}
 
 

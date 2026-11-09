@@ -88,8 +88,16 @@ def quick_add(req: TextReq):
     with get_db() as conn:
         for it in items:
             if kind == "todo":
-                conn.execute("INSERT INTO todos (title, category_id, color) VALUES (?,?,?)",
-                             (it["title"], req.category_id, req.color))
+                # "call the vet for Rachell" -> assigned to Rachell, title cleaned
+                from ..services.people import extract_person
+                pid, pname, title = extract_person(conn, it["title"])
+                if not pid:
+                    pid, pname, _ = extract_person(conn, req.text)
+                it["title"] = title or it["title"]
+                if pname:
+                    it["person"] = pname
+                conn.execute("INSERT INTO todos (title, person_id, category_id, color) VALUES (?,?,?,?)",
+                             (it["title"], pid, req.category_id, req.color))
             elif kind == "grocery":
                 conn.execute("INSERT INTO groceries (item, qty, category_id, color) VALUES (?,?,?,?)",
                              (it["item"], it.get("qty"), req.category_id, req.color))

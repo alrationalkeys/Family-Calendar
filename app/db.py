@@ -56,7 +56,8 @@ def _migrate(conn):
         "meals":     [("category_id", "INTEGER"), ("color", "TEXT")],
         "todos":     [("category_id", "INTEGER"), ("color", "TEXT"),
                       ("due_date", "TEXT"), ("recurrence", "TEXT"),
-                      ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT")],
+                      ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"),
+                      ("person_id", "INTEGER")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT")],
         "local_events": [("description", "TEXT")],
     }
@@ -109,6 +110,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 done INTEGER DEFAULT 0,
+                person_id INTEGER REFERENCES people(id),
                 category_id INTEGER REFERENCES categories(id),
                 color TEXT,
                 due_date TEXT,

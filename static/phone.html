@@ -417,8 +417,8 @@ function renderForm(){
       <button class="go" onclick="saveChore()">Add chore</button>`;
   } else if(formKind==="todo"){
     f.innerHTML=`<input id="t_title" placeholder="What needs doing?">
-      <div class="two"><input id="t_due" type="date"><select id="t_recur">${recurOptions()}</select></div>
-      <select id="t_cat">${catOptions()}</select>${colorRow}
+      <div class="two"><select id="t_person">${peopleOptions()}</select><input id="t_due" type="date"></div>
+      <div class="two"><select id="t_recur">${recurOptions()}</select><select id="t_cat">${catOptions()}</select></div>${colorRow}
       <button class="go" onclick="saveTodo()">Add to-do</button>`;
   } else if(formKind==="grocery"){
     f.innerHTML=`<div class="two"><input id="g_item" placeholder="Item" style="flex:2"><input id="g_qty" placeholder="Qty" style="flex:1"></div>
@@ -499,7 +499,7 @@ async function saveChore(){
 }
 async function saveTodo(){
   const title=$("#t_title").value.trim(); if(!title)return;
-  const r=await post("/api/todos/",{title, category_id:num($("#t_cat").value), color:chosenColor,
+  const r=await post("/api/todos/",{title, person_id:num($("#t_person").value), category_id:num($("#t_cat").value), color:chosenColor,
     due_date:$("#t_due").value||null, recurrence:$("#t_recur").value||null});
   if(!r.ok){ toast("Couldn't add to-do"); return; }
   toast("To-do added"); $("#t_title").value="";

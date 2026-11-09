@@ -60,22 +60,31 @@ def _alarm_eid(tiles):
 
 
 def _add_to_list(text):
-    """'add milk to the groceries' / 'add call mom to my to-do'. Returns say or None."""
-    m = re.search(r"\badd\b(.*)", text.lower())
-    if not m:
+    """'add milk to the groceries' / 'add call mom to my to-do' /
+    'remind Rachell to book the dentist' / 'Ella needs to pack her bag' /
+    'add take out trash for Alex to the to-do list'. Returns say or None."""
+    from .people import extract_person
+    low = text.lower()
+    m = re.search(r"\badd\b(.*)", low)
+    # "remind <name> to ..." / "<name> needs to ..." are to-dos even without "add"
+    assign_only = re.search(r"\b(remind\s+\w+\s+to|\w+\s+(needs?|has|have)\s+to)\b", low)
+    if not m and not assign_only:
         return None
-    body = m.group(1)
-    todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things", body))
+    body = m.group(1) if m else low
+    todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things|remind|needs? to|has to|have to", body)) or bool(assign_only and not m)
     # strip trailing target phrase
-    item = re.sub(r"\b(to|on)?\s*(my|the)?\s*(grocery|groceries|shopping|to[\s-]?do|todo|task[s]?|list)\b.*$", "", body).strip(" ,.")
+    item = re.sub(r"\b(to|on)?\s*(my|the|our)?\s*(grocery|groceries|shopping|to[\s-]?do|todo|task[s]?|list)\b.*$", "", body).strip(" ,.")
     if not item:
         return None
-    item = item[:120]
     try:
         with get_db() as conn:
+            pid, pname, item = extract_person(conn, item) if todo else (None, None, item)
+            item = item.strip(" ,.")[:120]
+            if not item:
+                return None
             if todo:
-                conn.execute("INSERT INTO todos (title) VALUES (?)", (item,))
-                return f"Added {item} to your to-do list."
+                conn.execute("INSERT INTO todos (title, person_id) VALUES (?,?)", (item, pid))
+                return f"Added {item} to {pname}'s to-do list." if pname else f"Added {item} to your to-do list."
             conn.execute("INSERT INTO groceries (item) VALUES (?)", (item,))
             return f"Added {item} to the groceries."
     except Exception:
@@ -416,8 +425,8 @@ def interpret(text: str) -> dict:
                 verb = "Unlocking" if on else "Locking"
             return {"ok": True, "say": f"{verb} {dev['name']}.", "refresh": True}
 
-    # add to a list
-    if "add" in w:
+    # add to a list ("add …", "remind Rachell to …", "Ella needs to …")
+    if "add" in w or "remind" in w or re.search(r"\b(needs?|has|have)\s+to\b", t.lower()):
         said = _add_to_list(t)
         if said:
             return {"ok": True, "say": said, "refresh": True}

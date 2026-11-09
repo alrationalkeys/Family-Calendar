@@ -45,14 +45,14 @@ part = "back_case"; // [back_case, strap_bar, cleat_case, cleat_wall, stand, spk
 /* [Screen — Forzola 15.6in] */
 screen_w = 356;      // measured 14.0 in
 screen_h = 229;      // measured 9.0 in
-screen_t = 10;       // panel thickness
+screen_t = 13;       // panel thickness (1.5 in total minus the 1 in housing)
 vesa     = 75;       // VESA square (75x75)
 vesa_dy  = 0;        // VERIFY: VESA centre offset from panel centre (+ = up)
 // The raised housing on the back: centred, VESA holes on its FACE, ports on its
 // bottom edge. Measured: 2.5 in in from top/bottom, 3.5 in in from the sides.
 hump_w   = 178;      // 14 - 2*3.5 in
 hump_hh  = 102;      // 9 - 2*2.5 in
-hump_d   = 28;       // 1.5 in total thickness at the housing, minus the 10 mm panel
+hump_d   = 25;       // measured: the housing is ~1 in deep
 
 /* [Mini PC — C3] */
 pc_w     = 128;      // across (LAN/HDMI face points DOWN toward the cable slot)

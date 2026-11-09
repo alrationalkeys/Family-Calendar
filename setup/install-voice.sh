@@ -19,8 +19,11 @@ say(){ printf '\n\033[1;36m%s\033[0m\n' "$*"; }
 [ -x .venv/bin/pip ] || { echo "no .venv — run setup/install-kiosk.sh first"; exit 1; }
 
 say "1/4  python packages (faster-whisper, piper-tts)"
-# av>=14: faster-whisper 1.2 calls av.open(..., metadata_errors=) which older PyAV lacks
-.venv/bin/pip install -q --upgrade faster-whisper piper-tts "av>=14"
+.venv/bin/pip install -q --upgrade faster-whisper piper-tts
+# faster-whisper 1.2 calls av.open(..., metadata_errors=) which PyAV < 14 lacks.
+# Force a known-good PyAV and show what we ended up with.
+.venv/bin/pip install --upgrade --force-reinstall --no-deps "av>=14,<19" | tail -1
+.venv/bin/python -c "import av; print('PyAV', av.__version__, av.__file__)"
 
 say "2/4  Piper voice: $VOICE  (~60 MB)"
 mkdir -p models/piper

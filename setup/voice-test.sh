@@ -16,6 +16,9 @@ echo
 
 echo; echo "== server voice status =="
 curl -s "$URL/api/ai/voice/status" || { echo "server not answering — journalctl -u familyhub -n 40"; exit 1; }; echo
+echo "== python/PyAV the service uses =="
+PYEXE=$(readlink -f /proc/$(systemctl show -p MainPID --value familyhub)/exe 2>/dev/null); echo "service python: $PYEXE"
+.venv/bin/python -c "import av,faster_whisper; print('venv PyAV', av.__version__, av.__file__); print('faster-whisper', faster_whisper.__version__)"
 
 MIC=$(arecord -l 2>/dev/null | grep -i 'usb' | head -1 | sed -E 's/^card ([0-9]+).*device ([0-9]+).*/plughw:\1,\2/')
 [ -n "$MIC" ] || { echo "no USB mic in 'arecord -l':"; arecord -l; exit 1; }

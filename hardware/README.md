@@ -86,7 +86,7 @@ front. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 
 | Part | Qty | What it is |
 |---|---|---|
-| `back_case` | 1 | ~158×136×52 mm box that bolts to the VESA holes. Four corner brackets cradle the **C3** (LAN/HDMI face pointing down into the cable slot); open at the back for airflow; vent slots top + sides where the C3's fan intakes are. |
+| `back_case` | 1 | ~158×136×52 mm box that bolts to the VESA holes on the screen's back housing. Four corner brackets cradle the **C3** (HDMI/LAN/DC face down into the bottom slot; the other port face reachable through a top slot); open at the back for airflow; side vents at the C3's fan intakes. |
 | `strap_bar` | 1 | Bar across the top of the open back — keeps the C3 from tipping out. M3 into the corner bosses. |
 | `cleat_case` | 1 | French-cleat half; bolts to the two bottom bosses and doubles as the lower retaining bar. |
 | `cleat_wall` | 1 | French-cleat half that screws to the wall (the display hangs on it). |
@@ -107,7 +107,7 @@ Set these at the top of the `.scad` before printing anything:
   carries the VESA holes on its face and the ports on its bottom edge. The case bolts to
   that face and overhangs it 17 mm top/bottom; cables run in the 28 mm gap underneath.
 - **`vesa_dy`** — only if the VESA square turns out off-centre on the housing.
-- **`spk_l / spk_w / spk_t`** — the speaker bar's real outer dimensions (listing says 130×61×46).
+- Speaker bar measured 127×64×44 mm (5 × 2.5 × 1.75 in) — already set.
 
 ### Step 1 — print the test coupons first (~40 min)
 Render `test_vesa` and `test_pc`, print both, and check: M4 screws thread into the monitor's

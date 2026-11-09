@@ -83,9 +83,9 @@ stand_lean  = 12;    // degrees back from vertical
 stand_base  = 130;   // base depth (front-to-back footprint)
 
 /* [Speaker pocket — HONKYOB bar, VERIFY dims] */
-spk_l    = 130;      // long axis (mounted vertically, along the screen edge)
-spk_w    = 61;       // grille face width -> pocket depth away from the screen
-spk_t    = 46;       // thickness -> pocket width across
+spk_l    = 127;      // measured 5 in — long axis (mounted vertically, along the screen edge)
+spk_w    = 64;       // measured 2.5 in — grille face width -> pocket depth away from the screen
+spk_t    = 44;       // measured 1.75 in — thickness -> pocket width across
 spk_side = 1;        // 1 = right of the case (viewed from the back), -1 = left
 spk_clear = 1;
 
@@ -132,14 +132,16 @@ module back_case(){
       translate([x, y, -1]){ cylinder(h=fp+2, d=4.5); translate([0,0,fp-1.6]) cylinder(h=2, d1=4.5, d2=8.5); }
     // bar-boss pilot holes (M3 self-tap, drilled from the back)
     for(x=boss_xs, y=[boss_y_bot, boss_y_top]) translate([x, y, case_d-13]) cylinder(h=15, d=2.7);
-    // cable slot — bottom wall. The C3's LAN/HDMI/DC face points down into it,
-    // the screen's cables come up through it, the speaker cable too.
+    // cable slots — bottom wall (C3's LAN/HDMI/USB/DC face points down into it, the
+    // screen's cables come up through it) AND top wall (the C3's other port face:
+    // 2x USB-A, USB-C, power button — keep it reachable for a keyboard).
     translate([-55, -case_h/2-wall-2, fp+6]) cube([110, wall+4, case_d]);
+    translate([-55,  case_h/2-2,      fp+6]) cube([110, wall+4, case_d]);
     // speaker-pocket bolt holes in the side wall (M3 through, nut inside)
     for(y=[-spk_l/2+15, spk_l/2-15]) translate([spk_side*(case_w/2+1), y, fp+pc_h/2]) rotate([0,90,0]) cylinder(h=wall*2+2, d=3.4, center=true);
     // vents: slots in the top wall + both side walls (C3 fan intakes are on its sides)
     if(vent){
-      for(i=[-4:4]) translate([i*11, case_h/2-wall-1, fp+6]) cube([4, wall+3, case_d-fp-10]);
+      // (top wall is now mostly slot; side walls carry the vents)
       for(s=[-1,1], i=[-3:3]) translate([s*(case_w/2)-wall/2-1.5, i*13, fp+6]) cube([wall+3, 5, case_d-fp-10]);
     }
   }

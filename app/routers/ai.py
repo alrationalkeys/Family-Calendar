@@ -45,7 +45,10 @@ async def transcribe(audio: UploadFile = File(...)):
     try:
         return {"text": speech.transcribe(data, suffix)}
     except Exception as e:
-        raise HTTPException(500, f"transcribe failed: {e}")
+        import traceback, sys
+        print(f"[transcribe] {len(data)} bytes {ct} -> {e!r}", file=sys.stderr)
+        traceback.print_exc()
+        raise HTTPException(500, f"transcribe failed: {e!r}")
 
 
 @router.post("/tts")
@@ -57,7 +60,9 @@ def tts(req: TextReq):
     try:
         wav = speech.synthesize(req.text[:600])
     except Exception as e:
-        raise HTTPException(500, f"tts failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"tts failed: {e!r}")
     return Response(content=wav, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 

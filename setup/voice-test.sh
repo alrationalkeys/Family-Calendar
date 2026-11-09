@@ -5,11 +5,17 @@
 cd "$(dirname "$0")/.."
 URL="${FAMILYHUB_URL:-http://localhost:8000}"
 
-echo "== restarting FamilyHub (needs your password) =="
-sudo systemctl restart familyhub && sleep 5
+echo "== restarting FamilyHub (type your password ONLY if it asks) =="
+sudo systemctl restart familyhub
+printf "waiting for the server"
+for i in $(seq 1 60); do
+  curl -fs "$URL/api/auth/status" >/dev/null 2>&1 && break
+  printf "."; sleep 1
+done
+echo
 
 echo; echo "== server voice status =="
-curl -s "$URL/api/ai/voice/status"; echo
+curl -s "$URL/api/ai/voice/status" || { echo "server not answering — journalctl -u familyhub -n 40"; exit 1; }; echo
 
 MIC=$(arecord -l 2>/dev/null | grep -i 'usb' | head -1 | sed -E 's/^card ([0-9]+).*device ([0-9]+).*/plughw:\1,\2/')
 [ -n "$MIC" ] || { echo "no USB mic in 'arecord -l':"; arecord -l; exit 1; }

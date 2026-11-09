@@ -36,9 +36,9 @@ say "1/6  apt packages"
 sudo apt-get update -qq
 # Ubuntu's chromium is a snap; Debian's is a deb. Either is fine for kiosk.sh.
 sudo apt-get install -y -qq chromium-browser git curl python3 python3-venv python3-pip \
-  unclutter alsa-utils x11-xserver-utils >/dev/null 2>&1 || \
+  unclutter alsa-utils x11-xserver-utils wmctrl >/dev/null 2>&1 || \
 sudo apt-get install -y -qq chromium git curl python3 python3-venv python3-pip \
-  unclutter alsa-utils x11-xserver-utils
+  unclutter alsa-utils x11-xserver-utils wmctrl
 
 say "2/6  python venv"
 cd "$REPO"

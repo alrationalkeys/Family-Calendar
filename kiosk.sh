@@ -30,13 +30,41 @@ for i in $(seq 1 60); do
   sleep 1
 done
 
+# Browser profile. NOT under ~/.config: Ubuntu's Chromium is a snap and strict
+# confinement can't read hidden dirs in $HOME — it then drops the profile *and*
+# the kiosk flags and comes up as a plain window. A visible dir works for both
+# snap and deb builds.
+PROFILE="$HOME/familyhub-kiosk-profile"
+if [ -d "$HOME/.config/familyhub-kiosk" ] && [ ! -d "$PROFILE" ]; then
+  mv "$HOME/.config/familyhub-kiosk" "$PROFILE" 2>/dev/null || true
+fi
+mkdir -p "$PROFILE"
+
 # If Chromium was killed mid-session (power cut), it shows a "restore pages?"
 # bar on next boot. Clear that flag so the kiosk comes up clean.
-PREFS="$HOME/.config/familyhub-kiosk/Default/Preferences"
+PREFS="$PROFILE/Default/Preferences"
 [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"
+
+# Belt and braces: whatever Chromium thinks of --kiosk, have the window manager
+# make its window fullscreen (removes GNOME's top bar + dock). Needs `wmctrl`.
+force_fullscreen() {
+  command -v wmctrl >/dev/null || return 0
+  for i in $(seq 1 30); do
+    sleep 1
+    local wid
+    wid=$(wmctrl -lx 2>/dev/null | grep -i -m1 chrom | awk '{print $1}')
+    if [ -n "$wid" ]; then
+      wmctrl -i -r "$wid" -b add,fullscreen
+      wmctrl -i -r "$wid" -e 0,0,0,-1,-1
+      wmctrl -i -a "$wid"
+      return 0
+    fi
+  done
+}
 
 # Keep the browser up forever: if it crashes or someone closes it, relaunch.
 while true; do
+  force_fullscreen &
   # NOTE: no --app= here. Snap Chromium ignores --kiosk/--start-fullscreen for
   # app-mode windows (seen on Ubuntu 24.04); plain kiosk mode with the URL as the
   # argument goes truly full-screen. Notifications are handled in-app (banner +
@@ -49,7 +77,7 @@ while true; do
     --overscroll-history-navigation=0 \
     --disable-pinch \
     --autoplay-policy=no-user-gesture-required \
-    --user-data-dir="$HOME/.config/familyhub-kiosk" \
+    --user-data-dir="$PROFILE" \
     --no-first-run --password-store=basic \
     "$URL"
   sleep 3

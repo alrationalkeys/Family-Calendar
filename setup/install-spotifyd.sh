@@ -50,7 +50,7 @@ cat > ~/.config/spotifyd/spotifyd.conf <<EOF
 device_name = "$NAME"
 $AUDIO
 bitrate = 320
-initial_volume = "60"
+initial_volume = 60
 device_type = "speaker"
 zeroconf_port = 5354
 autoplay = true

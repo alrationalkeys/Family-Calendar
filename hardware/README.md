@@ -77,6 +77,30 @@ VESA badge is the same form factor as the Forzola.
 > Prices/models drift and I can't see live listings from here — verify current
 > availability and that the box includes the USB touch cable + HDMI cable.
 
+## Ready-to-print files → `hardware/stl/`
+
+Every part is pre-exported as an STL from the measured parameters, so you don't need
+OpenSCAD unless you change a dimension. Drop them straight into your slicer (Anycubic
+Slicer / Cura / PrusaSlicer).
+
+**Print order:**
+1. `test_vesa.stl` + `test_pc.stl` (~40 min total, 0.2 mm, 15% infill). Check that M4 screws
+   thread into the monitor's VESA holes through the coupon, and the C3 drops into the cradle
+   coupon with a little play. If either is off, change `vesa` / `pc_clear` in the `.scad`
+   and re-export (see below) — don't print the case until these fit.
+2. `back_case.stl` — the big one (~7 h). Print **cavity up** (as exported), 0.2 mm, 3 walls,
+   20% infill, no supports.
+3. `strap_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast.
+4. `stand.stl` — optional counter stand (248 mm long: fits the Kobra S1 bed on the diagonal if
+   your slicer complains).
+5. `spk_pocket.stl` — optional, only if you want the speaker bar hidden in the case.
+6. `frame_seg.stl` ×4 — optional cosmetic front frame.
+
+Re-export after editing the `.scad`:
+```bash
+openscad -o hardware/stl/back_case.stl -D 'part="back_case"' hardware/familyhub-mount.scad
+```
+
 ## The printed parts (tuned for the Forzola 15.6" + C3 mini PC + speaker bar)
 
 Clean, Skylight-style install: the **mini PC and all cabling hide in a back case** that bolts to

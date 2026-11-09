@@ -32,18 +32,23 @@ done
 
 # If Chromium was killed mid-session (power cut), it shows a "restore pages?"
 # bar on next boot. Clear that flag so the kiosk comes up clean.
-PREFS="$HOME/.config/chromium/Default/Preferences"
+PREFS="$HOME/.config/familyhub-kiosk/Default/Preferences"
 [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"
 
 # Keep the browser up forever: if it crashes or someone closes it, relaunch.
 while true; do
-  "$BROWSER" --kiosk --noerrdialogs --disable-infobars \
+  # --kiosk alone is ignored by some Chromium builds when --app is used, so also
+  # force fullscreen and pin the window to the screen. Notifications are handled
+  # in-app (banner + speech), so silence the browser's permission prompt.
+  "$BROWSER" --kiosk --start-fullscreen --start-maximized --window-position=0,0 \
+    --noerrdialogs --disable-infobars --disable-notifications \
     --check-for-update-interval=31536000 \
     --disable-session-crashed-bubble --disable-features=TranslateUI \
     --touch-events=enabled \
     --overscroll-history-navigation=0 \
     --disable-pinch \
     --autoplay-policy=no-user-gesture-required \
+    --user-data-dir="$HOME/.config/familyhub-kiosk" \
     --app="$URL"
   sleep 3
   [ -f "$PREFS" ] && sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"Crashed"/"exit_type":"Normal"/' "$PREFS"

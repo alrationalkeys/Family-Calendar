@@ -346,7 +346,7 @@
     <input id="spl-name" placeholder="Name you'll say (Dinner Vibes)">
     <input id="spl-uri" placeholder="Paste a Spotify share link or spotify:playlist:… URI">
     <button class="go" id="spl-add">Pin playlist</button>
-    <div class="hint">Shows as a tap chip on the wall's Home tab. Voice: "play dinner vibes in the kitchen". Needs the Spotify integration in Home Assistant (docs/home-assistant-setup.md §H).</div>
+    <div class="hint">Shows as a tap chip on the wall's Home tab, and the name becomes a voice shortcut: "play dinner vibes". Anything else on Spotify works by voice too ("play Zach Bryan"); pins are just for the one-tap favourites.</div>
   </div>
 
   <div class="form sect">
@@ -369,12 +369,12 @@
     <div class="hint"><b>Update</b> pulls the newest FamilyHub code and restarts, from anywhere (Tailscale). <b>Restart</b> re-reads .env. <b>Reload</b> refreshes the screen. <b>Wake</b> turns it on during the night window.</div>
   </div>
 
-  <div class="form sect">
+  <!-- only shown while the sample family is still loaded; hidden for good once cleared -->
+  <div class="form sect" id="startfresh" hidden>
     <h2>Start fresh</h2>
     <div class="hint">The wall currently shows the <b>sample family</b> (Mom, Dad, Ella, Max and their fake events). When you're ready to put your real family in, clear it. Calendars, photos, settings and Spotify pins are kept.</div>
     <button class="go" id="clear-demo" style="background:#e0533d">Clear the sample data</button>
-    <hr>
-    <div class="hint" id="dbinfo" style="font-family:ui-monospace,monospace;white-space:pre-line">Checking database…</div>
+    <div class="hint" id="dbinfo" style="font-family:ui-monospace,monospace;white-space:pre-line"></div>
   </div>
 
   <div class="form sect">
@@ -1119,9 +1119,11 @@ $("#wall-wake").onclick=async()=>{ const r=await fetch("/api/display/wake",{meth
 async function loadDbInfo(){
   const el=$("#dbinfo"); if(!el) return;
   try{ const i=await fetch("/api/admin/dbinfo").then(r=>r.json());
-    el.textContent=`${i.verdict}\ndb: ${i.db_path} (${i.exists?Math.round(i.size_bytes/1024)+" KB":"missing"})\nvolume mounted at that folder: ${i.dir_is_mount}\nFAMILYHUB_DB=${i.env_FAMILYHUB_DB||"(not set)"}  SEED_DEMO=${i.env_SEED_DEMO||"(not set)"}\npeople ${i.people} · calendars ${i.sources} · to-dos ${i.todos} · settings ${(i.settings_keys||[]).join(",")||"none"}`;
-    el.style.color = i.persistent ? "" : "#e0533d";
-  }catch(e){ el.textContent="Couldn't read database info"; }
+    // the Start fresh card only matters while the sample family is still in the database
+    const cleared=(i.settings_keys||[]).includes("demo_cleared");
+    $("#startfresh").hidden = cleared;
+    if(!cleared) el.textContent=`people ${i.people} · to-dos ${i.todos}`;
+  }catch(e){}
 }
 $("#clear-demo").onclick=async()=>{
   if(!confirm("Delete the sample family, events, chores, lists, routines and rewards? This can't be undone.")) return;

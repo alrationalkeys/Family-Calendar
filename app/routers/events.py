@@ -2,8 +2,9 @@
 Supports recurrence and per-event reminders. These merge into the calendar feed
 alongside synced events, and they're the source for recurring 'soccer every Saturday'
 type entries plus reminder notifications."""
+import json
 from datetime import date, datetime, timedelta
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..db import get_db
 from ..services.recurrence import expand_events
@@ -65,6 +66,44 @@ def update_event(event_id: int, e: LocalEvent):
         conn.execute("DELETE FROM notifications WHERE kind='reminder' AND body=?", (str(event_id),))
         _schedule_reminder(conn, event_id, e)
         return {"id": event_id}
+
+
+def _skips(conn, event_id: int) -> list:
+    row = conn.execute("SELECT skip_dates FROM local_events WHERE id=?", (event_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "no such event")
+    try:
+        return json.loads(row["skip_dates"] or "[]") or []
+    except ValueError:
+        return []
+
+
+@router.post("/{event_id}/skip")
+def skip_occurrence(event_id: int, payload: dict):
+    """Cancel ONE occurrence of a recurring local event: {date: "YYYY-MM-DD"}.
+    The series carries on; that day simply disappears from the calendar."""
+    d = str((payload or {}).get("date", ""))[:10]
+    try:
+        date.fromisoformat(d)
+    except ValueError:
+        raise HTTPException(400, "date must be YYYY-MM-DD")
+    with get_db() as conn:
+        skips = _skips(conn, event_id)
+        if d not in skips:
+            skips.append(d)
+        conn.execute("UPDATE local_events SET skip_dates=? WHERE id=?", (json.dumps(sorted(skips)), event_id))
+        # a reminder queued for that day is no longer wanted
+        conn.execute("DELETE FROM notifications WHERE kind='reminder' AND body=? AND at LIKE ?", (str(event_id), d + "%"))
+    return {"id": event_id, "skip_dates": sorted(skips)}
+
+
+@router.delete("/{event_id}/skip/{d}")
+def unskip_occurrence(event_id: int, d: str):
+    """Put a skipped occurrence back."""
+    with get_db() as conn:
+        skips = [s for s in _skips(conn, event_id) if s != d[:10]]
+        conn.execute("UPDATE local_events SET skip_dates=? WHERE id=?", (json.dumps(skips), event_id))
+    return {"id": event_id, "skip_dates": skips}
 
 
 @router.delete("/{event_id}")

@@ -59,7 +59,7 @@ def _migrate(conn):
                       ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"),
                       ("person_id", "INTEGER")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT")],
-        "local_events": [("description", "TEXT")],
+        "local_events": [("description", "TEXT"), ("skip_dates", "TEXT")],   # skip_dates: JSON list of "YYYY-MM-DD" occurrences to leave out
     }
     for table, cols in adds.items():
         for col, typ in cols:

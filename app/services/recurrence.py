@@ -78,6 +78,15 @@ def expand_events(base_events, start, end):
         except ValueError:
             until = None
         exmonths = {int(x) for x in mods["exmonths"].split(",") if x.strip().isdigit()} if mods.get("exmonths") else set()
+        # single occurrences the family cancelled ("skip just this one" — Thanksgiving week etc.)
+        skips = ev.get("skip_dates") or []
+        if isinstance(skips, str):
+            try:
+                import json as _json
+                skips = _json.loads(skips) or []
+            except ValueError:
+                skips = []
+        skips = set(str(s)[:10] for s in skips)
         # walk occurrences forward from the first date; idx counts cadence slots
         cursor = first
         guard = 0
@@ -87,7 +96,7 @@ def expand_events(base_events, start, end):
                 break
             if until and cursor.date() > until:
                 break
-            if cursor.date() >= start and cursor.month not in exmonths:
+            if cursor.date() >= start and cursor.month not in exmonths and cursor.date().isoformat() not in skips:
                 occ = dict(ev)
                 occ["start"] = cursor.isoformat()
                 if ev.get("end"):

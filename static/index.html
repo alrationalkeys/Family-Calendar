@@ -1058,6 +1058,7 @@
     </div>
   </div>
   <div class="ev-actions">
+    <button class="ev-del" id="ev-skip" style="display:none" title="Cancel only this date; the series keeps going">Skip this one</button>
     <button class="ev-del" id="ev-del">Delete</button>
     <button class="ev-save" id="ev-save">Save</button>
   </div>
@@ -1855,8 +1856,18 @@ function openEditor(ev){
   updateAllDayUI();
   $("#ev-del").style.display=editable?"":"none";
   $("#ev-save").style.display=editable?"":"none";
+  // one date of a FamilyHub recurring event can be cancelled on its own (Thanksgiving week…)
+  const inst = modalMode==="edit-local" && !!ev.recurring_instance;
+  $("#ev-skip").style.display = inst ? "" : "none";
+  $("#ev-del").textContent = inst ? "Delete series" : "Delete";
   $("#ev-modal").classList.add("on"); $("#ev-overlay").classList.add("on");
 }
+$("#ev-skip").onclick=async()=>{
+  if(!editing || !editing.start) return;
+  const d=dateStr(evStart(editing));
+  try{ await fetch(`/api/events/${editing.id}/skip`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d})}); }catch(e){}
+  closeEditor(); load(); banner(`Skipped ${editing?editing.title:"it"} on ${d} — the series continues.`);
+};
 function closeEditor(){ editing=null; modalMode="view"; $("#ev-modal").classList.remove("on"); $("#ev-overlay").classList.remove("on"); }
 
 $("#add-event").onclick=()=>{ openCreate(cursor); resetSleep(); };

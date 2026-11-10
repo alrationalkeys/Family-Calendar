@@ -49,7 +49,10 @@ app/
 static/
   index.html           wall display
   phone.html           phone control app (Home tab = dark command center + live 3D house)
-  home-shared.js       layout (feet grid), 2D floor plan, icon/state helpers — shared by wall + phone
+  home-shared.js       layout (feet grid) + DEFAULT_PLAN (doors/windows), 2D floor plan, icon/state
+                       helpers — shared by wall + phone. Rooms are written AS DRAWN on the D.R. Horton
+                       sheet (garage left) and mirrored in code (MIRROR=true) because the house is the
+                       mirror image. Furnishing hints per room: bed/tv/counter/tub side, shower corner.
   home3d.js            three.js dollhouse: walls/doorways/furniture from the layout, per-room point
                        lights + TV glow driven by HA, tappable device pins. FHHome.render3D(el,h,opts)
   vendor/three.min.js  three.js r160 (MIT, vendored so the wall works offline)

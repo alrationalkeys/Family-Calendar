@@ -131,7 +131,8 @@ out the case's bottom slot. Hang on the wall cleat.
 |---|---|
 | Update FamilyHub | **Phone app → Settings → The wall → Update the wall** (works from anywhere over Tailscale: pulls, installs, restarts, the screen reloads itself). By hand: `cd ~/familyhub && git pull && .venv/bin/pip install -q -r requirements.txt && sudo systemctl restart familyhub` |
 | Server logs | `journalctl -u familyhub -f` |
-| Chromium misbehaving | `pkill chromium` — `kiosk.sh` relaunches it in 3 s. The page also reloads itself nightly at 03:45. |
+| Browser misbehaving | `pkill -f familyhub-kiosk-profile` — `kiosk.sh` relaunches it in 3 s. The page also reloads itself nightly at 03:45. |
+| Spotify on the wall says "Widevine not available" | the snap Chromium has no DRM module. `bash setup/install-chrome.sh` installs Google Chrome (Widevine built in); `kiosk.sh` prefers it automatically. |
 | Wrong time zone | the installer sets `America/New_York`; change with `sudo timedatectl set-timezone Region/City` |
 | Get a terminal on the wall | plug in the keyboard, `Ctrl+Alt+T` (Chromium stays behind it) — or, once, `bash setup/enable-remote.sh`, then from any computer in the house `ssh hub@familyhub.local` (Windows: PowerShell has ssh built in). After that the keyboard can stay unplugged. |
 | Backups | nightly 03:30 to `~/familyhub/backups/` (keeps 14). Copy them off occasionally. |

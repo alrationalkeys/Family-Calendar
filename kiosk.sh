@@ -17,7 +17,9 @@ xset s off; xset -dpms; xset s noblank
 command -v unclutter >/dev/null && unclutter -idle 0 -root &
 
 # find whichever Chromium/Chrome is installed
-for b in chromium chromium-browser google-chrome google-chrome-stable; do
+# Google Chrome first: it ships Widevine DRM (needed for Spotify playback on the wall);
+# Ubuntu's snap Chromium does not.
+for b in google-chrome google-chrome-stable chromium chromium-browser; do
   if command -v "$b" >/dev/null; then BROWSER="$b"; break; fi
 done
 if [ -z "$BROWSER" ]; then

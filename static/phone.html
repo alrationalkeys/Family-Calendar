@@ -444,13 +444,11 @@ $("#magicGo").onclick=async()=>{
   const text=$("#magic").value.trim(); if(!text)return;
   $("#magicGo").disabled=true;
   try{
-    const r=await fetch("/api/ai/quick-add",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text,color:chosenColor})}).then(r=>r.json());
+    const r=await post("/api/ai/quick-add",{text,color:chosenColor}).then(r=>r.json());
     // events come back as kind=event but aren't saved by quick-add; save them to calendar
     if(r.kind==="event"){
       for(const ev of r.created){
-        await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({title:ev.title,start:ev.start,end:ev.end||ev.start})}).catch(()=>{});
+        await post("/api/calendar/events",{title:ev.title,start:ev.start,end:ev.end||ev.start}).catch(()=>{});
       }
     }
     toast(`Added to ${r.kind==="event"?"calendar":r.kind+"s"}`);
@@ -491,6 +489,10 @@ function renderForm(){
     f.innerHTML=`<input id="e_title" placeholder="Event title">
       <label class="chk"><input type="checkbox" id="e_allday" onchange="toggleAllDay()"> All day</label>
       <div class="two"><input id="e_date" type="date" value="${today}"><input id="e_time" type="time" value="09:00"></div>
+      <div class="two"><select id="e_dur" title="How long">
+        <option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">1½ hours</option>
+        <option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="480">All afternoon (8 h)</option>
+      </select><select id="e_person" title="Who">${peopleOptions()}</select></div>
       <select id="e_cal" title="Which calendar">${calOptions()}</select>
       <select id="e_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveEvent()">Add event</button>`;
@@ -557,17 +559,21 @@ async function saveEvent(){
   const allday=$("#e_allday").checked;
   let payload;
   const destination=$("#e_cal")?$("#e_cal").value:"local";
+  const person_id=num($("#e_person")?$("#e_person").value:"");
   if(allday){
-    payload={title, start:date, end:nextDay(date), all_day:true, destination};
+    payload={title, start:date, end:nextDay(date), all_day:true, destination, person_id, color:chosenColor};
   } else {
     const time=$("#e_time").value; if(!time){ toast("Pick a time"); return; }
     const start=`${date}T${time}:00`;
-    payload={title, start, end:plusHourLocal(start), destination};
+    const mins=parseInt($("#e_dur")?$("#e_dur").value:"60",10)||60;
+    const d=new Date(start); d.setMinutes(d.getMinutes()+mins);
+    const p=n=>String(n).padStart(2,"0");
+    const end=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
+    payload={title, start, end, destination, person_id, color:chosenColor};
   }
   FH.save({defaultCalendar:destination});
   try{
-    const r=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(payload)});
+    const r=await post("/api/calendar/events", payload);
     const data=await r.json().catch(()=>({}));
     if(!r.ok){ toast(data.detail||data.error||"Couldn't add event"); return; }
     toast(data.warning || (data.target==="local" ? "Event added" : data.target==="icloud" ? `Event added to iCloud${data.calendar?" › "+data.calendar:""}` : "Event added to Google"));
@@ -671,8 +677,7 @@ camInput.onchange = async () => {
       if (!events.length) { toast("No events found in photo"); }
       else {
         for (const ev of events) {
-          await fetch("/api/calendar/events", {method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({title: ev.title, start: ev.start, end: ev.end || ev.start})}).catch(()=>{});
+          await post("/api/calendar/events",{title: ev.title, start: ev.start, end: ev.end || ev.start}).catch(()=>{});
         }
         toast(`Added ${events.length} event${events.length>1?"s":""} from photo`);
       }

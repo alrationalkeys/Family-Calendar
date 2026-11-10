@@ -140,6 +140,11 @@
   .hm-status .hm-chip{flex:none; background:var(--panel); padding:9px 14px; font-size:13.5px}
   .hm-room-ic{font-size:18px; margin-right:6px; vertical-align:-2px}
   .hm-room[data-rn]{cursor:pointer}
+  .hm-unassigned{display:block}
+  .hm-unl{margin-top:12px; display:flex; flex-direction:column; gap:8px}
+  .hm-unl-row{display:flex; align-items:center; gap:12px}
+  .hm-unl-t{min-width:0} .hm-unl-t b{display:block; font-size:14.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .hm-unl-t span{display:block; font-size:11.5px; color:var(--ink-dim); font-family:ui-monospace,Menlo,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   /* climate (Tom-style rows) */
   .hm-clim{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:16px 18px; margin-bottom:10px}
   .hm-clim-top{display:flex; justify-content:space-between; color:var(--ink-dim); font-size:14px}
@@ -992,7 +997,8 @@ function renderHM(h, force){
       html+='</div>';
     });
     if(other.length){
-      html+=`<div class="hm-sec">Elsewhere</div><div class="hm-rooms"><div class="hm-room"><div><div class="hm-room-n">Unassigned</div><div class="hm-room-s">Give these an Area in HA</div></div><div class="hm-room-devs">${other.filter(d=>d.domain!=="sensor").map(hmDevButton).join('')}</div></div></div>`;
+      html+=`<div class="hm-sec">Elsewhere</div><div class="hm-room hm-unassigned"><div><div class="hm-room-n">Unassigned</div><div class="hm-room-s">In Home Assistant: Settings → Areas → pick a room → Add device</div></div>
+        <div class="hm-unl">${other.filter(d=>d.domain!=="sensor").map(t=>`<div class="hm-unl-row">${hmDevButton(t)}<div class="hm-unl-t"><b>${E(t.name)}</b><span>${E(t.entity_id)}</span></div></div>`).join('')}</div></div>`;
     }
     // climate: outside card + a row per temperature sensor / thermostat
     const wx=hmWx, outdoorT=temps.find(t=>/out|exterior/i.test(t.name));

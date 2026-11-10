@@ -29,14 +29,16 @@ def _parse_rec(rec: str):
     return base, mods
 
 
-def next_occurrence(rec: str, from_date: dt.date) -> dt.date | None:
+def next_occurrence(rec: str, from_date: dt.date, interval: int = 1) -> dt.date | None:
+    """Next date after from_date. `interval` = every N days/weeks/months (2 = every other)."""
     if not rec:
         return None
+    interval = max(1, int(interval or 1))
     rec = rec.split(";")[0].strip().lower()   # ignore count/until/exmonths modifiers
     if rec == "daily":
-        return from_date + dt.timedelta(days=1)
+        return from_date + dt.timedelta(days=interval)
     if rec == "weekly":
-        return from_date + dt.timedelta(days=7)
+        return from_date + dt.timedelta(days=7 * interval)
     if rec.startswith("weekly:"):
         days = sorted(WD[d.strip().upper()] for d in rec.split(":",1)[1].split(",") if d.strip().upper() in WD)
         if not days:
@@ -44,10 +46,13 @@ def next_occurrence(rec: str, from_date: dt.date) -> dt.date | None:
         for i in range(1, 8):
             cand = from_date + dt.timedelta(days=i)
             if cand.weekday() in days:
+                # every-other-week: when we wrap into a new week, jump the extra weeks
+                if interval > 1 and cand.isocalendar()[1] != from_date.isocalendar()[1]:
+                    return cand + dt.timedelta(days=7 * (interval - 1))
                 return cand
-        return from_date + dt.timedelta(days=7)
+        return from_date + dt.timedelta(days=7 * interval)
     if rec == "monthly":
-        m = from_date.month + 1; y = from_date.year + (m > 12); m = (m - 1) % 12 + 1
+        m = from_date.month + interval; y = from_date.year + (m - 1) // 12; m = (m - 1) % 12 + 1
         # clamp day to month length
         import calendar
         day = min(from_date.day, calendar.monthrange(y, m)[1])
@@ -87,6 +92,7 @@ def expand_events(base_events, start, end):
             except ValueError:
                 skips = []
         skips = set(str(s)[:10] for s in skips)
+        interval = int(mods["interval"]) if mods.get("interval", "").isdigit() else 1
         # walk occurrences forward from the first date; idx counts cadence slots
         cursor = first
         guard = 0
@@ -107,7 +113,7 @@ def expand_events(base_events, start, end):
                         pass
                 occ["recurring_instance"] = True
                 out.append(occ)
-            nxt = next_occurrence(base, cursor.date())
+            nxt = next_occurrence(base, cursor.date(), interval)
             if not nxt:
                 break
             cursor = dt.datetime.combine(nxt, cursor.time())

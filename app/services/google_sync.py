@@ -63,6 +63,11 @@ def fetch_google_events(days_ahead: int = 30, days_back: int = 0, **kw) -> List[
             "all_day": "date" in item["start"],
             "description": item.get("description"),
         }
+        if item.get("recurringEventId"):
+            # one occurrence of a series: deleting `id` cancels just this one,
+            # deleting `series_id` removes the whole series
+            ev["recurring_instance"] = True
+            ev["series_id"] = item["recurringEventId"]
         cid = item.get("colorId")
         if cid in GOOGLE_COLORS:
             ev["color"] = GOOGLE_COLORS[cid]
@@ -126,6 +131,8 @@ def _rrule(recurrence: str, all_day: bool):
     if not freq:
         return None
     parts = [f"FREQ={freq}"]
+    if mods.get("interval", "").isdigit() and int(mods["interval"]) > 1:
+        parts.append(f"INTERVAL={int(mods['interval'])}")
     if mods.get("count", "").isdigit():
         parts.append(f"COUNT={int(mods['count'])}")
     if mods.get("until"):

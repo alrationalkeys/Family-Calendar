@@ -642,7 +642,12 @@ function renderForm(){
   if(formKind==="event"){
     f.innerHTML=`<input id="e_title" placeholder="Event title">
       <label class="chk"><input type="checkbox" id="e_allday" onchange="toggleAllDay()"> All day</label>
-      <div class="two"><input id="e_date" type="date" value="${today}"><input id="e_time" type="time" value="09:00"></div>
+      <div class="two"><input id="e_date" type="date" value="${today}"><input id="e_time" type="time" value="09:00"><input id="e_end_date" type="date" title="Last day" style="display:none"></div>
+      <div class="two"><select id="e_repeat" title="Repeats" onchange="toggleRepeat()">
+          <option value="">Doesn't repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
+          <option value="weekly;interval=2">Every other week</option><option value="monthly">Every month</option></select>
+        <select id="e_ends" title="Ends" style="display:none" onchange="toggleRepeat()"><option value="never">Never ends</option><option value="count">After…</option><option value="until">Until…</option></select>
+        <input id="e_count" type="number" min="1" value="4" placeholder="times" style="display:none; flex:0 0 84px"><input id="e_until" type="date" style="display:none"></div>
       <div class="two dur"><span class="durlbl">Lasts</span>
         <select id="e_dur_h" title="Hours">${Array.from({length:24},(_,h)=>`<option value="${h}"${h===1?' selected':''}>${h} h</option>`).join('')}</select>
         <select id="e_dur_m" title="Minutes">${Array.from({length:12},(_,i)=>`<option value="${i*5}">${String(i*5).padStart(2,'0')} min</option>`).join('')}</select>
@@ -707,7 +712,10 @@ function nextDay(dateStr){ // YYYY-MM-DD -> next day (all-day end is exclusive i
   const d=new Date(dateStr+"T00:00:00"); d.setDate(d.getDate()+1); const p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
-function toggleAllDay(){ $("#e_time").style.display = $("#e_allday").checked ? "none" : ""; }
+function toggleAllDay(){ const ad=$("#e_allday").checked; $("#e_time").style.display=ad?"none":""; $("#e_end_date").style.display=ad?"":"none"; }
+function toggleRepeat(){ const rep=!!$("#e_repeat").value, m=$("#e_ends").value; $("#e_ends").style.display=rep?"":"none"; $("#e_count").style.display=(rep&&m==="count")?"":"none"; $("#e_until").style.display=(rep&&m==="until")?"":"none"; }
+function eventRecurrence(){ let s=$("#e_repeat")?$("#e_repeat").value:""; if(!s) return null; const m=$("#e_ends").value;
+  if(m==="count") s+=";count="+Math.max(1,parseInt($("#e_count").value,10)||1); else if(m==="until"&&$("#e_until").value) s+=";until="+$("#e_until").value; return s; }
 async function saveEvent(){
   const title=$("#e_title").value.trim(); if(!title)return;
   const date=$("#e_date").value; if(!date){ toast("Pick a date"); return; }
@@ -715,8 +723,10 @@ async function saveEvent(){
   let payload;
   const destination=$("#e_cal")?$("#e_cal").value:"local";
   const person_id=num($("#e_person")?$("#e_person").value:"");
+  const recurrence=eventRecurrence();
   if(allday){
-    payload={title, start:date, end:nextDay(date), all_day:true, destination, person_id, color:chosenColor};
+    const last=$("#e_end_date").value;                                // multi-day trip: last day inclusive
+    payload={title, start:date, end:nextDay(last&&last>date?last:date), all_day:true, destination, person_id, color:chosenColor, recurrence};
   } else {
     const time=$("#e_time").value; if(!time){ toast("Pick a time"); return; }
     const start=`${date}T${time}:00`;
@@ -724,7 +734,7 @@ async function saveEvent(){
     const d=new Date(start); d.setMinutes(d.getMinutes()+mins);
     const p=n=>String(n).padStart(2,"0");
     const end=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
-    payload={title, start, end, destination, person_id, color:chosenColor};
+    payload={title, start, end, destination, person_id, color:chosenColor, recurrence};
   }
   FH.save({defaultCalendar:destination});
   try{

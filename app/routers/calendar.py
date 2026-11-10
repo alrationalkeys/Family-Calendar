@@ -79,8 +79,35 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
     if person_id is not None:
         merged = [e for e in merged
                   if e.get("person_id") in (person_id, None) or e.get("source") in ("holiday", "google", "caldav", "ics")]
+    merged = _explode_multiday(merged, start, end)
     merged.sort(key=lambda e: e.get("start") or "")
     return {"events": merged}
+
+
+def _explode_multiday(events: list, start: date, end: date) -> list:
+    """A vacation that runs Sat→Sun+1 is ONE all-day event with an exclusive end date.
+    The wall and phone place events by their start day, so split such events into a
+    copy per day (same id, so editing/deleting still hits the real event) and tag each
+    copy with day_of/days ("day 2 of 7")."""
+    out = []
+    for e in events:
+        if not e.get("all_day") or not e.get("start") or not e.get("end"):
+            out.append(e); continue
+        try:
+            s = date.fromisoformat(str(e["start"])[:10]); x = date.fromisoformat(str(e["end"])[:10])
+        except ValueError:
+            out.append(e); continue
+        n = (x - s).days
+        if n <= 1:
+            out.append(e); continue
+        for i in range(n):
+            d = s + timedelta(days=i)
+            if d < start or d > end:
+                continue
+            c = dict(e); c["start"] = d.isoformat(); c["end"] = (d + timedelta(days=1)).isoformat()
+            c["day_of"] = i + 1; c["days"] = n; c["span_start"] = s.isoformat(); c["span_end"] = x.isoformat()
+            out.append(c)
+    return out
 
 
 class NewEvent(BaseModel):

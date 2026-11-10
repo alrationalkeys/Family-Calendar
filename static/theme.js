@@ -40,6 +40,7 @@ const FH = (() => {
     doorbellSpeak: true,
     skin: "auto",            // holiday skin: auto | off | christmas | thanksgiving
     skinBanner: true,        // the "Days until …" card in the header
+    skinArt: true,           // painted frame artwork when the skin has one (off = vector frame)
     nightTemp: null,         // Good Night thermostat (null = leave it)
     awayTemp: null,          // Away thermostat setback     // wall says "someone's at the front door"
   };

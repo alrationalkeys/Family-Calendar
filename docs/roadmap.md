@@ -183,3 +183,14 @@ Unordered. Effort: S = an evening, M = a weekend, L = a project. (No kids in the
   school lunch menu + bus delays · kid check-in on the wall · kid tablets in kid mode · kid weather dresser
 
 ★ = suggested first picks: Good Night scene, Arrive home, Leave-the-house countdown, Laundry done, Who's home.
+
+## Holiday skin artwork (Midjourney brief)
+Frames are generated as full 16:9 paintings with a flat-colour centre, then keyed to transparent and
+dropped into `static/skins/<skin>-frame.png` (1920x1080). Prompt that produced the Christmas frame:
+`ornate Christmas picture frame border filling the edges of the image, the entire center is a plain flat
+dark crimson rectangle with nothing in it, storybook painted illustration style, snowy wooden frame with snow
+drifts on top, glowing string lights, brass lanterns with candle glow in the top corners, red velvet bows,
+holly and gold ornaments, wrapped gifts and candy canes piled in the bottom corners, warm cozy lighting,
+high detail, rich red and gold palette --ar 16:9 --style raw --v 6`. Keying: ImageMagick flood-fill from the
+centre (`-fuzz 14% -fill none -draw 'matte 960,540 floodfill'` + a few seeds) then `-fuzz 9% -transparent`
+on the centre colour. Still wanted: Thanksgiving frame, panel cards, sprites (see chat brief).

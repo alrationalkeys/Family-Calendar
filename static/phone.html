@@ -457,6 +457,7 @@
       <option value="auto">Auto by date</option><option value="off">Off</option><option value="thanksgiving">🦃 Thanksgiving</option><option value="christmas">🎄 Christmas</option></select></div>
     <div class="hint">Auto: Thanksgiving from Nov 1, Christmas from the day after Thanksgiving through New Year's Day. Changes the wall right away. The layout never changes, only the frame and colors.</div>
     <label class="chk"><input type="checkbox" id="set-skin-banner"> Show the "Days until…" card in the wall's header</label>
+    <label class="chk"><input type="checkbox" id="set-skin-art"> Painted frame artwork (off = simple drawn frame, more screen room)</label>
     <div class="magic-tools"><a class="tool" id="set-skin-prev-tg" href="/?skin=thanksgiving" target="_blank" style="text-align:center; text-decoration:none">👀 Preview Thanksgiving</a><a class="tool" id="set-skin-prev-xm" href="/?skin=christmas" target="_blank" style="text-align:center; text-decoration:none">👀 Preview Christmas</a></div>
   </div>
 
@@ -1248,6 +1249,7 @@ function loadSettingsUI(){
     c.onchange=()=>saveNested("holidays",c.dataset.hol,c.checked);
   });
   // effects
+  $("#set-skin-art").checked=s.skinArt!==false; $("#set-skin-art").onchange=e=>FH.save({skinArt:e.target.checked});
   $("#set-skin-banner").checked=s.skinBanner!==false; $("#set-skin-banner").onchange=e=>FH.save({skinBanner:e.target.checked});
   $("#set-skin").value=s.skin||"auto"; $("#set-skin").onchange=e=>{ FH.save({skin:e.target.value}); toast("Wall updated"); };
   $("#set-effects").checked=!!s.effects; $("#set-effects").onchange=e=>FH.save({effects:e.target.checked});

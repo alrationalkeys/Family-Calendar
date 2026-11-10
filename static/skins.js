@@ -14,7 +14,10 @@ const Skins = (() => {
       wood: ["#7a4a22", "#4a2a10"], gold: "#d9a84a", snowcaps: true,
       banner: { kicker: "Days until", title: "Christmas", font: "'Mountains of Christmas', 'Brush Script MT', cursive" },
       target: y => new Date(y, 11, 25),
-      corners: "christmas"
+      corners: "christmas",
+      // painted frame (Midjourney, keyed to transparent). zoom crops the thick posts partly off-screen;
+      // pad = how far the live content stays from each screen edge; hpad = extra header side padding (lanterns)
+      art: { src: "/skins/christmas-frame.png", zoom: 1.0, pad: { t: 138, r: 200, b: 160, l: 236 }, hpad: 70 }
     },
     thanksgiving: {
       name: "Thanksgiving", effect: "leaves",
@@ -71,6 +74,13 @@ html[data-skin="christmas"] .main::before, html[data-skin="christmas"] .card::be
   background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 18' preserveAspectRatio='none'><path d='M0 0h200v6c-8 0-10 9-18 9s-8-7-16-7-7 5-14 5-9-9-18-9-8 6-15 6-9-4-17-4-9 8-18 8-8-10-17-10-8 6-15 6-9-2-17-2-8 4-17 4-8-6-18-6V0z' fill='%23ffffff'/></svg>") repeat-x top/200px 18px}
 /* the frame */
 #skin-frame{position:fixed; inset:0; pointer-events:none; z-index:46}
+/* painted artwork sits BEHIND the live panels (they float on top, like widgets on a poster) */
+#skin-art{position:fixed; inset:0; z-index:0; pointer-events:none; background-repeat:no-repeat; background-position:center; background-size:var(--skin-art-size, 100% 100%); display:none}
+html[data-skin][data-skin-art="on"] #skin-art{display:block}
+html[data-skin][data-skin-art="on"] .wrap{position:relative; z-index:1; padding:var(--skin-pad-t) var(--skin-pad-r) var(--skin-pad-b) var(--skin-pad-l)}
+html[data-skin][data-skin-art="on"] #skin-frame{display:none}
+html[data-skin][data-skin-art="on"] header{padding:0 var(--skin-hpad, 0)}
+html[data-skin][data-skin-art="on"] .bottomnav{margin:0}
 #skin-frame .bar{position:absolute; background:linear-gradient(90deg, var(--skin-wood1), var(--skin-wood2) 50%, var(--skin-wood1)); box-shadow:inset 0 0 0 2px rgba(0,0,0,.35), inset 0 0 0 4px color-mix(in srgb, var(--skin-gold) 75%, transparent)}
 #skin-frame .bar.t,#skin-frame .bar.b{left:0; right:0; height:22px; background:linear-gradient(180deg, var(--skin-wood1), var(--skin-wood2))}
 #skin-frame .bar.t{top:0} #skin-frame .bar.b{bottom:0}
@@ -214,23 +224,34 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   }
   function startSurprises(kind){
     stopSurprises(); if (reduced) return;
+    const painted = !!(DEFS[kind].art && artOn);     // painted frame has its own (static) lights: no bulb flicker
     const nextFly = () => { const m = new Date().getMonth(), d = new Date().getDate(); const base = (kind === "christmas" && m === 11 && d >= 24) ? 2 : 6;   // Christmas Eve/Day: every ~2 min
       flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
     flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, 20000);   // first one soon after it comes on
-    if (kind === "christmas") flickTimer = setInterval(flickerBulb, 7000);
+    if (kind === "christmas" && !painted) flickTimer = setInterval(flickerBulb, 7000);
   }
   function stopSurprises(){ clearTimeout(flyTimer); clearInterval(flickTimer); flyTimer = flickTimer = null; if (flyEl) flyEl.classList.remove("go"); if (walkEl) walkEl.classList.remove("go"); }
   function surprise(){ if (current === "christmas") santaFly(); else if (current === "thanksgiving") turkeyWalk(); }
 
   /* ---------- apply ---------- */
-  let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null;
+  let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null, artOn = true, artEl = null;
   function ensure(){
+    if (!artEl){ artEl = document.createElement("div"); artEl.id = "skin-art"; document.body.insertBefore(artEl, document.body.firstChild); }
     if (!styleEl){ styleEl = document.createElement("style"); styleEl.id = "skin-css"; styleEl.textContent = css; document.head.appendChild(styleEl); }
     if (!frameEl){ frameEl = document.createElement("div"); frameEl.id = "skin-frame"; document.body.appendChild(frameEl); }
     if (!bannerEl){ bannerEl = document.createElement("div"); bannerEl.id = "skin-banner"; const h = document.querySelector("header"); const d = h && h.querySelector(".date"); if (d && d.nextSibling) h.insertBefore(bannerEl, d.nextSibling); else if (h) h.appendChild(bannerEl); }
   }
   function buildFrame(kind){
     frameEl.innerHTML = ""; const w = window.innerWidth;
+    const def = DEFS[kind], root = document.documentElement;
+    artEl.style.backgroundImage = "";
+    if (def.art && artOn){
+      artEl.style.backgroundImage = `url("${def.art.src}")`;
+      root.style.setProperty("--skin-art-size", `${Math.round(def.art.zoom * 100)}% ${Math.round(def.art.zoom * 100)}%`);
+      ["t","r","b","l"].forEach(k => root.style.setProperty("--skin-pad-" + k, def.art.pad[k] + "px"));
+      root.style.setProperty("--skin-hpad", (def.art.hpad || 0) + "px");
+      return;
+    }
     ["t","b","l","r"].forEach(k => { const b = document.createElement("div"); b.className = "bar " + k; frameEl.appendChild(b); });
     if (kind === "christmas"){ frameEl.appendChild(snowTop(w)); frameEl.appendChild(lightsString(w - 52, false)); frameEl.appendChild(lightsString(w - 52, true)); }
     else { frameEl.appendChild(leafGarland(w)); }
@@ -261,12 +282,15 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     const kind = pick(settings);
     const root = document.documentElement;
     root.setAttribute("data-skin-banner", (settings && settings.skinBanner === false) ? "off" : "on");
-    if (!kind){ if (current){ stopSurprises(); root.removeAttribute("data-skin"); ["--skin-bg","--skin-gold","--skin-wood1","--skin-wood2","--skin-font"].forEach(v => root.style.removeProperty(v)); Object.keys(DEFS.christmas.vars).forEach(v => root.style.removeProperty(v)); frameEl.innerHTML = ""; bannerEl.innerHTML = ""; current = null; clearInterval(tick); if (typeof FH !== "undefined") FH.apply(FH.get()); } return null; }
+    const wantArt = !(settings && settings.skinArt === false);
+    if (wantArt !== artOn){ artOn = wantArt; current = null; }   // rebuild the frame when the art toggle flips
+    if (!kind){ if (current){ stopSurprises(); root.removeAttribute("data-skin"); ["--skin-bg","--skin-gold","--skin-wood1","--skin-wood2","--skin-font"].forEach(v => root.style.removeProperty(v)); Object.keys(DEFS.christmas.vars).forEach(v => root.style.removeProperty(v)); frameEl.innerHTML = ""; bannerEl.innerHTML = ""; if (artEl) artEl.style.backgroundImage = ""; current = null; clearInterval(tick); if (typeof FH !== "undefined") FH.apply(FH.get()); } return null; }
     const def = DEFS[kind];
     root.setAttribute("data-skin", kind);
     Object.entries(def.vars).forEach(([k, v]) => root.style.setProperty(k, v));
     root.style.setProperty("--skin-bg", def.bg); root.style.setProperty("--skin-gold", def.gold);
     root.style.setProperty("--skin-wood1", def.wood[0]); root.style.setProperty("--skin-wood2", def.wood[1]); root.style.setProperty("--skin-font", def.banner.font);
+    root.setAttribute("data-skin-art", (def.art && artOn) ? "on" : "off");
     if (current !== kind){ buildFrame(kind); current = kind; startSurprises(kind); }
     renderBanner(kind);
     clearInterval(tick); tick = setInterval(() => renderBanner(kind), 60 * 1000);

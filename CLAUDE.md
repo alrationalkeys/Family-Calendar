@@ -57,7 +57,9 @@ static/
                        lights + TV glow driven by HA, tappable device pins. FHHome.render3D(el,h,opts)
   skins.js             holiday skins (Thanksgiving Nov 1→TG, Christmas day-after-TG→Jan 1): painted frame, lights,
                        lanterns, gifts, snow caps, countdown banner; settings.skin auto|off|christmas|thanksgiving,
-                       ?skin= URL override for phone previews. Pins Seasonal.force(snow|leaves).
+                       ?skin= URL override for phone previews. Pins Seasonal.force(snow|leaves). A skin may carry
+                       painted `art` (static/skins/<name>-frame.png, 1920x1080 PNG, centre keyed to transparent) drawn
+                       BEHIND the panels with per-side pads; settings.skinArt=false falls back to the vector frame.
   vendor/three.min.js  three.js r160 (MIT, vendored so the wall works offline)
   manifest.json        PWA (Add to Home Screen)
 ```

@@ -93,10 +93,15 @@ Bias lighting behind the living-room TV, driven by Home Assistant off the Roku's
 
 **Hardware (not built yet):** **Recommended: a pre-built WLED controller** (Athom WLED or
 GLEDOPTO WLED unit, ~$20–25 — WLED pre-flashed, level shifter built in, screw terminals,
-barrel jack; no soldering/flashing) → ~4–5 m **WS2812B 5 V** strip (**60 LEDs/m** is
-noticeably smoother behind a 65"); dedicated **5 V 10 A** supply; **power injected at both
-ends**. DIY alternative: bare ESP32 + WLED + external level shifter (saves ~$10, costs an
-evening). Skip screen-sync for now: a built-in Roku TV has no HDMI path to capture. The Hisense Roku TV is already
+barrel jack; no soldering/flashing). Two power options:
+- **Try first — TV-USB powered (Govee-style, no outlet needed):** 5 m **30 LEDs/m** strip,
+  WLED power limit ≈ **800 mA**, brightness cap ≈ 25%. Soft bias light, and it powers
+  on/off with the TV's USB port by itself (check whether the port stays live in standby; if
+  it does, the HA automation handles off). ~$35 total.
+- **Bright version:** 60 LEDs/m, dedicated **5 V 10 A** supply, **power injected at both
+  ends**. Needs an outlet behind the TV. ~$60.
+DIY alternative: bare ESP32 + WLED + external level shifter (saves ~$10, costs an evening).
+Skip screen-sync for now: a built-in Roku TV has no HDMI path to capture. The Hisense Roku TV is already
 in HA (`media_player.living_room_tv`). The strip joins HA via the **WLED integration** —
 expected entity `light.tv_backlight`, **confirm the real name once discovered** and record
 it here.

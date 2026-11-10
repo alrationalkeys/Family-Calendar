@@ -288,13 +288,14 @@ def _merge_own_link(sp: dict | None) -> dict | None:
                   "title": pb.get("title"), "artist": pb.get("artist"), "album": pb.get("album"),
                   "playlist": None, "art": pb.get("art"), "volume": (pb.get("volume") or 50) / 100,
                   "shuffle": bool(pb.get("shuffle")), "source": pb.get("device"), "sources": []}
+        names = [d.get("name") for d in devs if d.get("name")]
+        # the wall's own speaker always first — even if Spotify's device list is momentarily
+        # stale (it lags a re-registration by up to a minute)
+        wall_name = (sw._load().get("wall_device_name") or "FamilyHub")
+        names = [n for n in names if n.lower() != wall_name.lower()]
+        names.insert(0, wall_name)
+        sp["sources"] = names
         if devs:
-            names = [d.get("name") for d in devs if d.get("name")]
-            # the wall first, then the rest in Spotify's order
-            wall = sw.wall_device()
-            if wall and wall.get("name") in names:
-                names.remove(wall["name"]); names.insert(0, wall["name"])
-            sp["sources"] = names
             active = next((d for d in devs if d.get("is_active")), None)
             if active:
                 sp["source"] = active.get("name")

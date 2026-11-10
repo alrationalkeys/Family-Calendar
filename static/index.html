@@ -217,6 +217,18 @@
   .vo-reply{font-size:16px; color:var(--now); font-weight:600; min-height:22px; margin-bottom:12px}
   .vo-hint{font-size:12px; color:var(--ink-dim); line-height:1.5; margin-bottom:6px}
   @media(max-width:760px){ #voicefab{width:54px; height:54px; font-size:23px; bottom:96px; right:14px} }
+  /* wall volume: big +/- stacked above the timer, on every page */
+  #volfab{position:fixed; right:18px; bottom:236px; z-index:55; display:flex; flex-direction:column; gap:6px; align-items:center}
+  #volfab button{width:48px; height:48px; border-radius:50%; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+    font-size:24px; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.18); display:flex; align-items:center; justify-content:center}
+  #volfab button:active{transform:scale(.92)}
+  #volfab .lvl{font-size:11px; color:var(--ink-dim); font-weight:600; min-height:13px}
+  #voltoast{position:fixed; left:50%; bottom:120px; transform:translateX(-50%); z-index:70; background:var(--panel); color:var(--ink);
+    border-radius:14px; padding:12px 22px; font-size:22px; font-weight:700; box-shadow:0 8px 30px rgba(0,0,0,.35); display:none; align-items:center; gap:12px}
+  #voltoast.on{display:flex}
+  #voltoast .bar{width:200px; height:8px; border-radius:4px; background:var(--line); overflow:hidden}
+  #voltoast .bar i{display:block; height:100%; background:var(--now)}
+  @media(max-width:760px){ #volfab{bottom:214px; right:19px} #volfab button{width:44px; height:44px; font-size:21px} }
   /* TV / Roku remote */
   .remote-card{background:var(--panel); border-radius:20px; padding:20px; width:300px; max-width:92vw; text-align:center}
   .remote-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; font-size:17px; font-weight:600}
@@ -910,6 +922,12 @@
 
 <!-- wall voice command -->
 <div id="kidmode"></div>
+<div id="volfab" aria-label="Wall volume">
+  <button id="vol-up" title="Volume up">+</button>
+  <div class="lvl" id="vol-lvl"></div>
+  <button id="vol-down" title="Volume down">&minus;</button>
+</div>
+<div id="voltoast">&#128266; <div class="bar"><i id="voltoast-bar"></i></div><span id="voltoast-pct"></span></div>
 <button id="timerfab" title="Kitchen timer" aria-label="Kitchen timer">&#9201;</button>
 <div id="timerov">
   <div class="tm-card">
@@ -2904,6 +2922,28 @@ function applyWallMic(){
     if(useServer()) recordAndSend(); else if(rec){ try{ rec.start(); }catch(e){} } else status("Voice isn't set up — run setup/install-voice.sh"); };
   $("#vo-close").onclick=()=>{ stopAll(); hide(); };
   $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
+})();
+
+/* ---- Wall volume buttons: drive the C3's system output (the speaker bar) so they work
+   for Spotify, spoken replies, timers — everything. Server does the mixer call. ---- */
+(function setupVolume(){
+  const up=$("#vol-up"), dn=$("#vol-down"), lvl=$("#vol-lvl"), toast=$("#voltoast"); if(!up) return;
+  let hideT=null;
+  function show(pct){
+    if(pct==null) return;
+    lvl.textContent=pct+"%"; $("#voltoast-bar").style.width=pct+"%"; $("#voltoast-pct").textContent=pct+"%";
+    toast.classList.add("on"); clearTimeout(hideT); hideT=setTimeout(()=>toast.classList.remove("on"),1400);
+  }
+  async function step(delta){
+    resetSleep();
+    try{ const r=await post("/api/display/volume",{delta}).then(r=>r.json()); show(r.percent); }catch(e){}
+  }
+  up.onclick=()=>step(+8); dn.onclick=()=>step(-8);
+  // hold to repeat
+  let rep=null; const hold=(b,d)=>{ b.addEventListener("touchstart",()=>{ rep=setInterval(()=>step(d),350); },{passive:true});
+    ["touchend","touchcancel","mouseleave"].forEach(ev=>b.addEventListener(ev,()=>{ clearInterval(rep); rep=null; })); };
+  hold(up,+8); hold(dn,-8);
+  fetch("/api/display/volume").then(r=>r.json()).then(r=>{ if(r.percent!=null) lvl.textContent=r.percent+"%"; }).catch(()=>{});
 })();
 
 /* ---- Spotify Web Playback: the wall is its own, official Spotify device ("FamilyHub").

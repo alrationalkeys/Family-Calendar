@@ -297,12 +297,21 @@ def voice(text: str, words: set) -> str | None:
             next_track(); return "Skipping."
         if words & {"previous", "back", "last"} and words & {"song", "track"}:
             prev_track(); return "Going back a track."
-        if words & {"louder", "up"} and "play" not in words:
+        if (words & {"louder", "up"} or words & {"quieter", "lower", "softer", "down"}) and "play" not in words:
+            louder = bool(words & {"louder", "up"})
+            # if the wall itself is the active speaker, move the wall's real volume (the bar);
+            # otherwise nudge the active Spotify device
+            wd = wall_device()
+            if wd and (dev is None or dev.get("id") == wd.get("id")):
+                from ..routers.display import _get_volume, _wpctl
+                cur = _get_volume()
+                if cur is not None:
+                    tgt = max(0, min(100, cur + (15 if louder else -15)))
+                    _wpctl("set-volume", "@DEFAULT_AUDIO_SINK@", f"{tgt/100:.2f}")
+                    return ("Turning it up." if louder else "Turning it down.")
             v = (dev or {}).get("volume_percent", 50) or 50
-            set_volume(min(100, v + 15), did); return "Turning it up."
-        if words & {"quieter", "lower", "softer", "down"} and "play" not in words:
-            v = (dev or {}).get("volume_percent", 50) or 50
-            set_volume(max(0, v - 15), did); return "Turning it down."
+            set_volume(min(100, v + 15) if louder else max(0, v - 15), did)
+            return "Turning it up." if louder else "Turning it down."
         if (words & {"what", "whats", "what's", "who", "who's"} or re.search(r"\bwhat'?s\b", tl)) and words & {"playing", "song", "this"}:
             p = playback()
             if p and p.get("title"):

@@ -2291,6 +2291,12 @@ function renderTilesView(body,h){
     });
     html += '</div></div>';
   });
+  // Skip the rebuild when nothing visible changed: the 10 s refresh otherwise re-creates
+  // every tile and chip, which reads as flicker on the touch screen (and drops a tap).
+  // The album-art cache-buster is stripped from the comparison.
+  const sig = html.replace(/&t=\d+/g, "");
+  if (body.dataset.sig === sig) return;
+  body.dataset.sig = sig;
   body.innerHTML = html;
   bindSpotify(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });

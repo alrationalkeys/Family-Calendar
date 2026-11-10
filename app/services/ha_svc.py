@@ -274,6 +274,10 @@ def spotify_state() -> dict | None:
     return _merge_own_link(sp)
 
 
+_last_devs: list = []
+_last_devs_at: float = 0.0
+
+
 def _merge_own_link(sp: dict | None) -> dict | None:
     """If FamilyHub has its own Spotify link, use its live device list (it sees the wall's
     Web Playback speaker, which HA's source_list often lags on) and its now-playing."""
@@ -282,6 +286,14 @@ def _merge_own_link(sp: dict | None) -> dict | None:
         if not sw.linked():
             return sp
         devs = sw.devices()
+        # Spotify's device list flickers (empty / partial when nothing is active). Keep the
+        # last good list for a couple of minutes so chips don't blink in and out.
+        global _last_devs, _last_devs_at
+        now = time.time()
+        if devs:
+            _last_devs, _last_devs_at = devs, now
+        elif _last_devs and now - _last_devs_at < 180:
+            devs = _last_devs
         if sp is None:
             pb = sw.playback() or {}
             sp = {"entity_id": None, "state": "playing" if pb.get("playing") else ("paused" if pb.get("title") else "idle"),

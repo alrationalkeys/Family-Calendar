@@ -2297,7 +2297,7 @@ function spotifyCardHTML(sp){
       </div>
     </div>
     <div class="sp-dev">
-      ${sp.sources&&sp.sources.length?`<select data-sp="source" title="Play on">${sp.sources.map(x=>`<option${x===sp.source?' selected':''}>${esc(x)}</option>`).join("")}</select>`:''}
+      ${sp.sources&&sp.sources.length?`<div class="sp-sub" style="margin-bottom:4px">Play on</div><div class="sp-pl sp-devs">${sp.sources.slice(0,8).map(x=>`<button class="sp-chip${x===sp.source?' on':''}" data-src="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:''}
       ${pls.length?`<div class="sp-pl">${pls.map(p=>`<button class="sp-chip${cur&&(p.name.toLowerCase()===cur||(p.uri||"").toLowerCase().endsWith(":"+cur))?' on':''}" data-uri="${esc(p.uri)}">${esc(p.name)}</button>`).join("")}</div>`
         :'<div class="sp-sub">Pin playlists from the phone app → Settings</div>'}
     </div>
@@ -2308,8 +2308,8 @@ function bindSpotify(body){
   const send=async(action,value)=>{ resetSleep(); try{ await post("/api/ha/spotify",{action,value}); }catch(e){} setTimeout(loadHome,600); };
   card.querySelectorAll("button[data-sp]").forEach(b=>{ b.onclick=()=>send(b.dataset.sp); });
   const vol=card.querySelector('input[data-sp="volume"]'); if(vol) vol.onchange=()=>send("volume", String(vol.value/100));
-  const sel=card.querySelector('select[data-sp="source"]'); if(sel) sel.onchange=()=>send("source", sel.value);
-  card.querySelectorAll(".sp-chip").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
+  card.querySelectorAll(".sp-chip[data-src]").forEach(c=>{ c.onclick=()=>send("source", c.dataset.src); });
+  card.querySelectorAll(".sp-chip[data-uri]").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
   const br=card.querySelector("button[data-browse]"); if(br) br.onclick=()=>openSpotifyBrowser();
 }
 

@@ -182,9 +182,12 @@ def _states_to_tiles(states) -> list:
         domain = eid.split(".", 1)[0]
         if domain not in DOMAIN_GROUP:
             continue
-        if _is_spotify(eid):
+        attrs = s.get("attributes", {}) or {}
+        if _is_spotify(eid, attrs):
             continue          # Spotify gets its own now-playing card, not a TV tile
-        tiles.append(_tile(eid, s.get("state", ""), s.get("attributes", {}) or {}))
+        if eid.startswith("sensor.backup_"):
+            continue          # HA's own backup bookkeeping isn't a household sensor
+        tiles.append(_tile(eid, s.get("state", ""), attrs))
     return tiles
 
 
@@ -193,21 +196,24 @@ def _states_to_tiles(states) -> list:
 # as a now-playing card with transport, volume, Spotify Connect device picker and
 # the family's pinned playlists (settings.spotifyPlaylists).
 
-def _is_spotify(eid: str) -> bool:
-    return eid.startswith("media_player.spotify")
+def _is_spotify(eid: str, attrs: dict | None = None) -> bool:
+    """HA names it media_player.spotify_<account>, but accept any media_player that
+    says it's Spotify (name / attribution / picture host) — users rename entities."""
+    if not eid.startswith("media_player."):
+        return False
+    if eid.startswith("media_player.spotify") or "spotify" in eid:
+        return True
+    a = attrs or {}
+    return ("spotify" in str(a.get("attribution", "")).lower()
+            or "spotify" in str(a.get("entity_picture", "")).lower()
+            or "spotify" in str(a.get("friendly_name", "")).lower())
 
 
 def _spotify_from_states(states) -> dict | None:
     for st in states:
         eid = st.get("entity_id", "")
         a = st.get("attributes", {}) or {}
-        # HA names it media_player.spotify_<account>, but accept any media_player that
-        # says it's Spotify (attribution / picture host) in case the name was customised
-        if not eid.startswith("media_player."):
-            continue
-        if not (_is_spotify(eid) or "spotify" in str(a.get("attribution", "")).lower()
-                or "spotify" in str(a.get("entity_picture", "")).lower()
-                or "spotify" in str(a.get("friendly_name", "")).lower()):
+        if not _is_spotify(eid, a):
             continue
         return {
             "entity_id": eid, "state": st.get("state", ""),

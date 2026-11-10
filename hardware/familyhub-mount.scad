@@ -40,7 +40,7 @@
 // ============================================================================
 
 /* [What to render] */
-part = "back_case"; // [back_case, strap_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview]
+part = "back_case"; // [back_case, strap_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
 screen_w = 356;      // measured 14.0 in
@@ -236,6 +236,24 @@ module preview(){
   echo(str("Case ", case_w, " x ", case_h, " x ", case_d, " mm; bed must be >= ", max(case_w,case_h), " mm"));
 }
 
+// ---------- exploded assembly (how it goes together) ----------
+// Every part pulled apart along the build direction, with labels. Render as PNG:
+//   openscad -o exploded.png -D 'part="exploded"' --camera=0,0,60,65,0,35,900 --imgsize=1800,1300 familyhub-mount.scad
+module num(n, pos, size=22){ color("#1d2430") translate(pos) rotate([90,0,0]) linear_extrude(2) text(n, size=size, halign="center", valign="center", font="Liberation Sans:style=Bold"); }
+// Legend (see hardware/README.md): 1 screen, 2 back_case (4x M4 into VESA), 3 C3 mini PC,
+// 4 strap_bar (2x M3 top bosses), 5 cleat_case (2x M3 bottom bosses), 6 cleat_wall (to the wall), 7 spk_pocket (optional)
+module exploded(gap=55){
+  lx = -case_w/2 - 40;                              // numbers stand in a column left of the stack
+  screen_ghost();                                    num("1", [-screen_w/2 + 30, -screen_h/2 - 30, -hump_d]);
+  color("#e9a23b") back_case();                      num("2", [lx, 0, fp + 14]);
+  color("silver", 0.8) translate([-pc_w/2, -pc_l/2, fp + 2 + gap]) cube([pc_w, pc_l, pc_h]);   num("3", [lx, 0, fp + gap + pc_h/2]);
+  color("#5cb88a") translate([0, boss_y_top, case_d + 2*gap]) strap_bar();                    num("4", [lx, boss_y_top, case_d + 2*gap + 4]);
+  color("#4a90d9") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d + 2*gap]) cleat_bar(flip=true);   num("5", [lx, boss_y_bot, case_d + 2*gap + 12]);
+  color("#8c6a4a") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d + 3*gap + 10]) cleat_bar(flip=false); num("6", [lx, boss_y_bot, case_d + 3*gap + 22]);
+  color("#b06ad9", 0.9) translate([spk_side*(case_w/2 + (spk_t+2*spk_clear+2*wall)/2 + gap), 0, 0]) spk_pocket();
+  num("7", [spk_side*(case_w/2 + 60), -case_h/2 - 30, 20]);
+}
+
 // ---------- dispatch ----------
 if(part=="back_case")       back_case();
 else if(part=="strap_bar")  strap_bar();
@@ -247,3 +265,4 @@ else if(part=="frame_seg")  frame_seg();
 else if(part=="test_vesa")  test_vesa();
 else if(part=="test_pc")    test_pc();
 else if(part=="preview")    preview();
+else if(part=="exploded")   exploded();

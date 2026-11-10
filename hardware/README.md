@@ -77,6 +77,24 @@ VESA badge is the same form factor as the Forzola.
 > Prices/models drift and I can't see live listings from here — verify current
 > availability and that the box includes the USB touch cable + HDMI cable.
 
+## How it goes together
+
+![exploded view](exploded.png)
+
+1. **Screen** (grey) with its raised rear housing (red) — the VESA holes are on that housing's face.
+2. **back_case** (orange) bolts to the VESA holes with 4× M4; corner brackets inside cradle the mini PC.
+3. **C3 mini PC** drops into the brackets, LAN/HDMI/power face down toward the bottom cable slot.
+4. **strap_bar** (green) screws to the two top bosses with M3 — keeps the PC from tipping out.
+5. **cleat_case** (blue) screws to the two bottom bosses with M3 — the lower retaining bar and one half of the French cleat.
+6. **cleat_wall** (brown) screws to the wall; the whole display hangs on it and lifts straight off.
+7. **spk_pocket** (purple, optional) bolts to the case side wall with 2× M3 and holds the speaker/mic bar, grille facing out.
+
+Assembled (from the back, before it goes on the wall):
+
+![assembled view](assembled.png)
+
+Re-render these from the model: `openscad -o hardware/exploded.png -D 'part="exploded"' --camera=20,-10,100,62,0,28,1050 --imgsize=1800,1350 hardware/familyhub-mount.scad`
+
 ## Ready-to-print files → `hardware/stl/`
 
 Every part is pre-exported as an STL from the measured parameters, so you don't need

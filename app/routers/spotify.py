@@ -43,9 +43,12 @@ def callback(code: str = "", state: str = "", error: str = ""):
 
 @router.post("/code")
 def code(payload: dict):
-    code, state = sw.code_from_text((payload or {}).get("text", ""))
-    if not code:
-        raise HTTPException(400, "paste the full address of the page Spotify sent you to")
+    text = (payload or {}).get("text", "")
+    if "accounts.spotify.com" in text:
+        raise HTTPException(400, "That's the login page link. Log in and tap Agree first, then paste the address of the page Spotify sends you to AFTER that — it starts with http://127.0.0.1:8000/api/spotify/callback?code=")
+    code, state = sw.code_from_text(text)
+    if not code or "code=" not in text and len(code) < 40:
+        raise HTTPException(400, "Paste the full address of the page Spotify sent you to after you tapped Agree (starts with http://127.0.0.1:8000/…)")
     try:
         cur = sw.exchange_code(code, None)      # state can't be verified for a hand-pasted URL
     except Exception as e:

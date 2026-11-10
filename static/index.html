@@ -1057,7 +1057,9 @@ let cursor = new Date();              // the date the calendar is centered on
 let cache = {events:[], dash:null};
 let people = [];   // family members, from the dashboard feed
 let forecast = {}; // date 'YYYY-MM-DD' -> {high, low, icon, desc}
-let START_HOUR = 6, END_HOUR = 20;   // visible window, overridden by settings
+let START_HOUR = 6, END_HOUR = 20;   // default visible window (where the grid opens), overridden by settings
+const GRID_H0 = 0, GRID_H1 = 24;     // the grid itself always covers the whole day; scroll/pinch to see the rest
+let tgScroll = null;                 // remembered scroll position so the 10 s refresh doesn't yank it back
 let HOURPX = 46;                     // zoom level (hour-row height), from settings
 const ZOOM_MIN = 26, ZOOM_MAX = 120;
 function syncHours(){
@@ -1145,7 +1147,7 @@ function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>
 function hourLabel(h){ const hh=h%24; return (hh%12||12)+(hh<12?'am':'pm'); }
 
 function renderGrid(daysArr){
-  const body=$("#calbody"); const cols=daysArr.length; const hrs=END_HOUR-START_HOUR;
+  const body=$("#calbody"); const cols=daysArr.length; const hrs=GRID_H1-GRID_H0;
   let head='<div class="cnr"></div>';
   daysArr.forEach(d=>{
     const wx=forecast[dateStr(d)];
@@ -1162,7 +1164,7 @@ function renderGrid(daysArr){
     });
     allday+=`<div class="adcol">${cell}</div>`;
   });
-  let gut=''; for(let h=START_HOUR;h<END_HOUR;h++) gut+=`<div class="gh">${hourLabel(h)}</div>`;
+  let gut=''; for(let h=GRID_H0;h<GRID_H1;h++) gut+=`<div class="gh">${hourLabel(h)}</div>`;
   let dayCols=''; daysArr.forEach((d,i)=> dayCols+=`<div class="tg-day" data-col="${i}"></div>`);
   body.innerHTML=
     `<div class="tg" style="--cols:${cols};--hpx:${HOURPX}px">`
@@ -1176,16 +1178,16 @@ function renderGrid(daysArr){
     // tap an empty slot to create an event at that hour
     col.onclick=(e)=>{ if(e.target!==col) return;
       const y=e.clientY-col.getBoundingClientRect().top;
-      const hour=Math.min(END_HOUR-1, Math.max(START_HOUR, START_HOUR+Math.floor(y/HOURPX)));
+      const hour=Math.min(GRID_H1-1, Math.max(GRID_H0, GRID_H0+Math.floor(y/HOURPX)));
       openCreate(d, `${pad(hour)}:00`); resetSleep();
     };
     cache.events.filter(e=>!e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
       const sdt=evStart(ev); if(!sdt||isNaN(sdt))return;
-      const sh=sdt.getHours()+sdt.getMinutes()/60; if(sh>=END_HOUR)return;
+      const sh=sdt.getHours()+sdt.getMinutes()/60; if(sh>=GRID_H1)return;
       const edt=ev.end?new Date(ev.end):null;
       const dur=(edt&&!isNaN(edt))?Math.max((edt-sdt)/3600000,0.25):1;
-      const top=Math.max(0,sh-START_HOUR)*HOURPX;
-      const h=Math.max(19,Math.min(dur,END_HOUR-Math.max(sh,START_HOUR))*HOURPX);
+      const top=Math.max(0,sh-GRID_H0)*HOURPX;
+      const h=Math.max(19,Math.min(dur,GRID_H1-Math.max(sh,GRID_H0))*HOURPX);
       const el=document.createElement("div"); el.className="tg-ev"; el.style.setProperty("--accent",evColor(ev));
       el.style.top=top+"px"; el.style.height=h+"px"; el.title=ev.title;
       el.innerHTML=`<span class="evt">${esc(ev.title)}</span><span class="tm">${sdt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}</span>`;
@@ -1207,16 +1209,19 @@ function renderGrid(daysArr){
     const line=document.createElement("div"); line.className="tg-now"; line.style.left="54px"; line.style.right="0";
     $("#tgcols").appendChild(line); placeNow();
   }
-  // open scrolled near the workday / now
+  // The grid holds all 24 h; open it at the household's day-start (settings) and keep
+  // whatever the user scrolled to across the 10 s refreshes. Drag up/down to see the rest.
   const tb=body.querySelector(".tg-body");
-  if(tb){ const nh=Math.min(Math.max(new Date().getHours(),START_HOUR),END_HOUR);
-    tb.scrollTop=Math.max(0,(nh-START_HOUR-1))*HOURPX; }
+  if(tb){
+    if(tgScroll===null) tgScroll=Math.max(0,(START_HOUR-GRID_H0))*HOURPX;
+    tb.scrollTop=tgScroll;
+    tb.addEventListener("scroll", ()=>{ tgScroll=tb.scrollTop; }, {passive:true});
+  }
 }
 function placeNow(){
   const cols=$("#tgcols"); if(!cols)return; const line=cols.querySelector(".tg-now"); if(!line)return;
   const n=new Date(); const h=n.getHours()+n.getMinutes()/60;
-  if(h<START_HOUR||h>END_HOUR){ line.style.display="none"; return; }
-  line.style.display=""; line.style.top=((h-START_HOUR)*HOURPX)+"px";
+  line.style.display=""; line.style.top=((h-GRID_H0)*HOURPX)+"px";
 }
 
 function renderMonth(){
@@ -1486,7 +1491,7 @@ function showSlide(){
   if(fit){ const bg=document.createElement("img"); bg.className="bg"; bg.src=src; layer.prepend(bg); requestAnimationFrame(()=>bg.classList.add("show")); }
   layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
 }
-function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer);} }
+function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer); tgScroll=null; render();} }   // fresh look: grid back to the day-start window
 function resetSleep(){ wake(); clearTimeout(sleepTimer); sleepTimer=setTimeout(goToSleep,SLEEP_AFTER); maybeBriefing(); }
 ["click","touchstart","mousemove","keydown"].forEach(ev=>window.addEventListener(ev,resetSleep,{passive:true}));
 

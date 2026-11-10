@@ -130,6 +130,34 @@ async def no_cache_html(request, call_next):
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
+# Who-added-what: when a phone creates an event / to-do / grocery / chore / meal, tell the
+# household (wall speaks it; HA pushes to the other phones). One place, covers the manual
+# forms, quick-add and voice. The phone app sends X-FH-Who (its owner's name); the wall
+# sends X-FH-Source: wall so it doesn't announce back what was typed on it.
+_ACTIVITY_PATHS = {          # keyed without a trailing slash
+    "/api/events": "event", "/api/calendar/events": "event", "/api/todos": "todo",
+    "/api/groceries": "grocery", "/api/chores": "chore", "/api/meals": "meal",
+}
+
+
+@app.middleware("http")
+async def activity_feed(request, call_next):
+    kind = _ACTIVITY_PATHS.get(request.url.path.rstrip("/")) if request.method == "POST" else None
+    if not kind:
+        return await call_next(request)
+    body = await request.body()
+    resp = await call_next(request)
+    if 200 <= resp.status_code < 300:
+        try:
+            from .services import activity
+            import json as _json
+            activity.record(kind, _json.loads(body or b"{}"),
+                            request.headers.get("x-fh-who"), request.headers.get("x-fh-source", "phone"))
+        except Exception:
+            pass
+    return resp
+
+
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(spotify.router, prefix="/api/spotify", tags=["spotify"])
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])

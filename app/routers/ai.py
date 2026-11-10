@@ -1,5 +1,5 @@
 """AI endpoints — natural language in, structured data + auto-save."""
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -79,9 +79,10 @@ def route(req: TextReq):
 
 
 @router.post("/quick-add")
-def quick_add(req: TextReq):
+def quick_add(req: TextReq, request: Request):
     """One-tap magic: route the text AND save it. Returns what was created."""
     parsed = ai_route.route_text(req.text)
+    who = request.headers.get("x-fh-who")
     kind = parsed.get("kind", "todo")
     items = parsed.get("items", [])
     created = []
@@ -98,14 +99,19 @@ def quick_add(req: TextReq):
                     it["person"] = pname
                 conn.execute("INSERT INTO todos (title, person_id, category_id, color) VALUES (?,?,?,?)",
                              (it["title"], pid, req.category_id, req.color))
+                it["person_id"] = pid
             elif kind == "grocery":
                 conn.execute("INSERT INTO groceries (item, qty, category_id, color) VALUES (?,?,?,?)",
                              (it["item"], it.get("qty"), req.category_id, req.color))
             elif kind == "meal":
                 conn.execute("INSERT INTO meals (date, slot, title, category_id, color) VALUES (?,?,?,?,?)",
                              (it["date"], it["slot"], it["title"], req.category_id, req.color))
-            # events are written to the real calendar via /api/calendar/events
+            # events are written to the real calendar via /api/calendar/events (announced there)
             created.append(it)
+    if kind in ("todo", "grocery", "meal"):
+        from ..services import activity
+        for it in created:
+            activity.record(kind, it, who, request.headers.get("x-fh-source", "phone"))
     return {"kind": kind, "created": created}
 
 

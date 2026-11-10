@@ -258,6 +258,11 @@
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <div class="hint">What you call it when you talk to the wall. Hands-free "Hey &lt;name&gt;" needs a matching wake-word model in Home Assistant — see docs/home-assistant-setup.md "Pick the name".</div>
     <label class="chk"><input type="checkbox" id="set-speak"> Wall speaks reminders, announcements &amp; timers</label>
+    <hr>
+    <div class="srow"><span>Your name on this phone</span><input id="set-who" placeholder="Alex" style="width:46%; margin:0"></div>
+    <div class="hint">Lets the wall say "Alex added Dentist, Thursday at 3" and stops your own phone getting buzzed for things you added. Set it on each phone.</div>
+    <label class="chk"><input type="checkbox" id="set-announce-adds"> Wall announces when someone adds an event / to-do / grocery</label>
+    <label class="chk"><input type="checkbox" id="set-push-adds"> Push adds to the other phones (Home Assistant app)</label>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
     <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
   </div>
@@ -612,7 +617,10 @@ async function saveCountdown(){
   toast("Countdown added"); $("#cd_title").value="";
 }
 function num(v){ return v?parseInt(v):null; }
-function post(url,body){ return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); }
+// X-FH-Who: this phone's owner (Settings → "Your name on this phone") so the wall can say
+// "Rachell added …" and HA can skip pushing the add back to the person who made it.
+function whoAmI(){ try{ return localStorage.getItem("fh_who")||""; }catch(e){ return ""; } }
+function post(url,body){ const h={"Content-Type":"application/json"}; const w=whoAmI(); if(w) h["X-FH-Who"]=w; return fetch(url,{method:"POST",headers:h,body:JSON.stringify(body)}); }
 
 /* boot */
 /* ---- voice input (Web Speech API) ---- */
@@ -759,6 +767,9 @@ function loadSettingsUI(){
   $("#set-kbd").checked=!!s.onscreenKbd; $("#set-kbd").onchange=e=>FH.save({onscreenKbd:e.target.checked});
   $("#set-photofit").checked=(s.photoFit||"fit")==="fit"; $("#set-photofit").onchange=e=>FH.save({photoFit:e.target.checked?"fit":"fill"});
   $("#set-speak").checked=s.speakAlerts!==false; $("#set-speak").onchange=e=>FH.save({speakAlerts:e.target.checked});
+  $("#set-who").value=whoAmI(); $("#set-who").onchange=e=>{ try{ localStorage.setItem("fh_who", e.target.value.trim()); }catch(_){} toast("Saved on this phone"); };
+  $("#set-announce-adds").checked=s.announceAdds!==false; $("#set-announce-adds").onchange=e=>FH.save({announceAdds:e.target.checked});
+  $("#set-push-adds").checked=s.pushAdds!==false; $("#set-push-adds").onchange=e=>FH.save({pushAdds:e.target.checked});
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
   $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };

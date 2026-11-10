@@ -1692,7 +1692,8 @@ document.querySelectorAll(".card h2[data-panel]").forEach(h=>{
 });
 
 // quick-add to-dos / groceries / meals straight from the wall
-function post(url, body){ return fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); }
+// X-FH-Source: wall — so adds typed on the wall itself aren't announced back by the wall
+function post(url, body){ return fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-FH-Source":"wall"},body:JSON.stringify(body)}); }
 function startQuickAdd(kind, box){
   const map={todo:"todos", grocery:"groceries", meal:"meals"};
   box=box||$("#"+map[kind]); if(!box) return;

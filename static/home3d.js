@@ -301,7 +301,13 @@
     tiles.forEach(t=>{ if(used.has(t.entity_id)) return;
       if(t.domain==="lock"||t.domain==="alarm_control_panel"||(t.domain==="binary_sensor"&&/front/i.test(t.name))){
         const foyer=rooms.find(r=>/foyer|entry/i.test(r.key||r.name))||rooms.find(r=>(r.floor||1)===1&&/hall/i.test(r.key||r.name)); if(foyer){ out.get(foyer).push(t); used.add(t.entity_id); } }
-      if(t.domain==="cover"&&/garage/i.test(t.name)){ const gar=rooms.find(r=>isGarage(r)); if(gar){ out.get(gar).push(t); used.add(t.entity_id); } } });
+      if(t.domain==="cover"&&/garage/i.test(t.name)){ const gar=rooms.find(r=>isGarage(r)); if(gar){ out.get(gar).push(t); used.add(t.entity_id); } }
+      // outdoor HA areas that aren't rooms: driveway/yard → garage, back yard/garden → patio, front → porch
+      if(!used.has(t.entity_id)&&t.area){ const a=lc(t.area); let host=null;
+        if(/drive|yard|garden|outside|exterior/.test(a)&&!/back/.test(a)) host=rooms.find(r=>isGarage(r));
+        if(/back|garden|pool|deck/.test(a)) host=rooms.find(r=>/patio/i.test(r.key||r.name));
+        if(/front|entry|street/.test(a)) host=rooms.find(r=>/porch/i.test(r.key||r.name));
+        if(host){ out.get(host).push(t); used.add(t.entity_id); } } });
     return out;
   }
 

@@ -996,9 +996,26 @@ function renderHM(h, force){
       });
       html+='</div>';
     });
-    if(other.length){
+    // devices whose HA Area isn't a room on the floor plan (Driveway, Yard, Shed…) get their own card per area
+    const extraAreas=new Map();
+    other.forEach(t=>{ if(t.area){ if(!extraAreas.has(t.area)) extraAreas.set(t.area,[]); extraAreas.get(t.area).push(t); } });
+    const noArea=other.filter(t=>!t.area);
+    if(extraAreas.size){
+      html+=`<div class="hm-sec">Outside &amp; other</div><div class="hm-rooms">`;
+      [...extraAreas.entries()].forEach(([area,devs])=>{
+        const on=devs.some(d=>d.on&&d.domain!=="sensor"), temp=devs.find(d=>d.domain==="sensor"&&d.device_class==="temperature");
+        const ic=/drive|yard|garden|outside|exterior|front|back|shed|pool|patio|deck/i.test(area)?"🌳":"🏠";
+        html+=`<div class="hm-room${on?' on':''}">
+          ${temp?`<div class="hm-room-t">${E(temp.state)}${E(temp.unit||'°')}</div>`:''}
+          <div><div class="hm-room-n"><span class="hm-room-ic">${ic}</span>${E(area)}</div><div class="hm-room-s">${on?E(devs.filter(d=>d.on&&d.domain!=="sensor").map(d=>d.name).slice(0,2).join(', ')):'All off'}</div></div>
+          <div class="hm-room-devs">${devs.filter(d=>d.domain!=="sensor").map(hmDevButton).join('')}</div>
+        </div>`;
+      });
+      html+='</div>';
+    }
+    if(noArea.filter(d=>d.domain!=="sensor").length){
       html+=`<div class="hm-sec">Elsewhere</div><div class="hm-room hm-unassigned"><div><div class="hm-room-n">Unassigned</div><div class="hm-room-s">In Home Assistant: Settings → Areas → pick a room → Add device</div></div>
-        <div class="hm-unl">${other.filter(d=>d.domain!=="sensor").map(t=>`<div class="hm-unl-row">${hmDevButton(t)}<div class="hm-unl-t"><b>${E(t.name)}</b><span>${E(t.entity_id)}</span></div></div>`).join('')}</div></div>`;
+        <div class="hm-unl">${noArea.filter(d=>d.domain!=="sensor").map(t=>`<div class="hm-unl-row">${hmDevButton(t)}<div class="hm-unl-t"><b>${E(t.name)}</b><span>${E(t.entity_id)}</span></div></div>`).join('')}</div></div>`;
     }
     // climate: outside card + a row per temperature sensor / thermostat
     const wx=hmWx, outdoorT=temps.find(t=>/out|exterior/i.test(t.name));
@@ -1016,7 +1033,10 @@ function renderHM(h, force){
           <div class="hm-clim-grid">${wx&&wx.high!=null?`<div><span>High</span><b>${wx.high}°</b></div><div><span>Low</span><b>${wx.low}°</b></div>`:''}${oh?`<div><span>Humidity</span><b>${E(oh.state)}%</b></div>`:''}${wx&&wx.sunrise?`<div><span>Sunrise</span><b>${E(new Date(wx.sunrise).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}))}</b></div>`:''}</div></div>`;
       }
       climates.forEach(c=>{ html+=`<div class="hm-row"><div class="ric">🌡</div><div class="rt"><b>${E(c.name)}</b><span>${E(FHHome.haStateLabel(c))}</span></div><div class="rv">${c.current_temperature!=null?E(c.current_temperature)+'°':''}</div></div>`; });
-      temps.filter(t=>t!==outdoorT).forEach(t=>{ const hh=partner(t); html+=`<div class="hm-row"><div class="ric">${/out|porch|patio|walk/i.test(t.name)?'🌿':'🌡'}</div><div class="rt"><b>${E(t.name.replace(/temp(erature)?/i,'').trim())}</b><span>${hh?'humidity '+E(hh.state)+'%':'temperature'}</span></div><div class="rv">${E(t.state)}${E(t.unit||'°')}</div></div>`; });
+      const num=t=>t&&!isNaN(parseFloat(t.state));
+      temps.filter(t=>t!==outdoorT).forEach(t=>{ const hh=partner(t);
+        const sub=num(hh)?'humidity '+E(hh.state)+'%':(num(t)?'temperature':'offline — check its battery / Bluetooth range');
+        html+=`<div class="hm-row"><div class="ric">${/out|porch|patio|walk/i.test(t.name)?'🌿':'🌡'}</div><div class="rt"><b>${E(t.name.replace(/temp(erature)?/i,'').trim())}</b><span>${sub}</span></div><div class="rv">${num(t)?E(t.state)+E(t.unit||'°'):'<small>—</small>'}</div></div>`; });
     }
   } else if(hmView==="all"){
     (h.groups||[]).forEach(g=>{

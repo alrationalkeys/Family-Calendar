@@ -185,10 +185,43 @@ def _states_to_tiles(states) -> list:
         attrs = s.get("attributes", {}) or {}
         if _is_spotify(eid, attrs):
             continue          # Spotify gets its own now-playing card, not a TV tile
-        if eid.startswith("sensor.backup_"):
-            continue          # HA's own backup bookkeeping isn't a household sensor
+        if _boring(eid, domain, attrs, s.get("state", "")):
+            continue
         tiles.append(_tile(eid, s.get("state", ""), attrs))
     return tiles
+
+
+# Sensors worth a kitchen-wall tile. Everything else HA exposes (Roku diagnostics,
+# sun times, backup bookkeeping, "supports AirPlay", app IDs…) is noise here.
+_SENSOR_CLASSES_OK = {"temperature", "humidity", "power", "energy", "pm25", "co2",
+                      "carbon_dioxide", "aqi", "illuminance", "moisture", "precipitation"}
+_BINARY_CLASSES_OK = {"door", "window", "garage_door", "opening", "motion", "occupancy",
+                      "presence", "moisture", "smoke", "gas", "carbon_monoxide", "lock",
+                      "safety", "tamper", "vibration", "problem"}
+_BORING_PREFIX = ("sensor.backup_", "sensor.sun_", "binary_sensor.backup_")
+_BORING_WORDS = ("active_app", "supports_", "headphones_connected", "_app_id", "find_remote",
+                 "next_dawn", "next_dusk", "next_midnight", "next_noon", "next_rising", "next_setting",
+                 "_rssi", "_signal_strength", "_uptime", "_ip_address", "_mac_address", "_ssid", "_bssid",
+                 "_last_boot", "_firmware", "_version", "_last_seen", "_linkquality")
+
+
+def _boring(eid: str, domain: str, attrs: dict, state: str = "") -> bool:
+    if domain not in ("sensor", "binary_sensor"):
+        return False
+    if eid.startswith(_BORING_PREFIX) or any(w in eid for w in _BORING_WORDS):
+        return True
+    dc = str(attrs.get("device_class", "") or "")
+    if domain == "binary_sensor":
+        return dc not in _BINARY_CLASSES_OK
+    if dc in _SENSOR_CLASSES_OK:
+        return False
+    if dc == "battery":                                     # only shout when it matters
+        try:
+            return float(state) > 20
+        except (TypeError, ValueError):
+            return True
+    # unclassified sensor: keep only if it has a measurement unit (a number), drop text/timestamps
+    return not attrs.get("unit_of_measurement") or dc in ("timestamp", "date", "enum", "duration")
 
 
 # ---- Spotify ------------------------------------------------------------------

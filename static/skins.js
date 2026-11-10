@@ -9,7 +9,7 @@ const Skins = (() => {
   const DEFS = {
     christmas: {
       name: "Christmas", effect: "snow",
-      vars: { "--bg": "#2a0909", "--panel": "#4d1414", "--panel2": "#3a0f0f", "--line": "#c99a46", "--ink": "#f6e9cf", "--ink-dim": "#dcb98a", "--now": "#f2c14e" },
+      vars: { "--bg": "#2a0909", "--panel": "#4d1414", "--panel2": "#3a0f0f", "--line": "#c99a46", "--ink": "#f8ecd4", "--ink-dim": "#e6c99e", "--now": "#f2c14e" },
       bg: "radial-gradient(120% 90% at 50% 20%, #6a1d1d 0%, #3d0f0f 45%, #210606 100%)",
       wood: ["#7a4a22", "#4a2a10"], gold: "#d9a84a", snowcaps: true,
       banner: { kicker: "Days until", title: "Christmas", font: "'Mountains of Christmas', 'Brush Script MT', cursive" },
@@ -82,6 +82,22 @@ html[data-skin] .card h2, html[data-skin] .card h3, html[data-skin] .main h2, ht
   font-family:'Cinzel', Georgia, serif; color:var(--now); letter-spacing:.06em}
 html[data-skin] .gear{background:rgba(0,0,0,.25); border-color:color-mix(in srgb, var(--skin-gold) 60%, transparent); color:var(--ink)}
 html[data-skin] .clock{color:var(--ink)}
+/* ---- readability inside the panels: solid event chips, quiet grid lines, brighter small text ---- */
+html[data-skin]{--skin-grid:rgba(255,255,255,.16)}
+html[data-skin] .tg-ev, html[data-skin] .adev, html[data-skin] .mev, html[data-skin] .ev, html[data-skin] .agenda-ev .chip{
+  background:color-mix(in srgb, var(--accent,#4f86c6) 82%, #000); color:#fff; border-left-color:rgba(255,255,255,.55); text-shadow:0 1px 2px rgba(0,0,0,.6); box-shadow:0 2px 6px rgba(0,0,0,.35)}
+html[data-skin] .tg-ev .tm, html[data-skin] .ev .who, html[data-skin] .mev .mt{color:rgba(255,255,255,.82)}
+html[data-skin] .tg-ev .evt{font-size:12.5px} html[data-skin] .adev{font-size:12px}
+html[data-skin] .tg-day{border-left-color:var(--skin-grid); background-image:repeating-linear-gradient(var(--skin-grid) 0 1px, transparent 1px var(--hpx,46px))}
+html[data-skin] .tg-head .dcol, html[data-skin] .tg-head .cnr, html[data-skin] .tg-allday, html[data-skin] .tg-allday .adcol, html[data-skin] .hour, html[data-skin] .agenda-ev, html[data-skin] .list-row{border-color:var(--skin-grid)}
+html[data-skin] .mcell{background:rgba(0,0,0,.22)}
+html[data-skin] .tg-gut .gh, html[data-skin] .tg-head .dcol .dn, html[data-skin] .tg-head .dcol .dwx, html[data-skin] .tg-allday .lbl, html[data-skin] .qty, html[data-skin] .empty{color:var(--ink); opacity:.85}
+html[data-skin] .tg-gut .gh, html[data-skin] .tg-head .dcol .dwx{font-size:12px}
+html[data-skin] #home-statusbar{color:var(--ink); font-size:14px; text-shadow:0 1px 2px rgba(0,0,0,.6)}
+html[data-skin] .label{font-size:16px}
+/* header text over the painting: a dark halo so lights and icicles behind it never fight the date/clock */
+html[data-skin] .date, html[data-skin] .date small, html[data-skin] .clock, html[data-skin] .wx, html[data-skin] .wx .t{text-shadow:0 2px 4px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.9), 0 0 30px rgba(0,0,0,.8)}
+html[data-skin] .date small{color:var(--ink)}
 /* snow caps on every panel (christmas) */
 html[data-skin="christmas"] .main::before, html[data-skin="christmas"] .card::before, html[data-skin="christmas"] .cc-hero::before{
   content:""; position:absolute; left:-2px; right:-2px; top:-2px; height:18px; pointer-events:none; z-index:3;

@@ -68,7 +68,7 @@ Description=Spotify Connect speaker (go-librespot)
 After=network-online.target pipewire-pulse.service
 
 [Service]
-ExecStart=/usr/local/bin/go-librespot -config_dir %h/.config/go-librespot
+ExecStart=/usr/local/bin/go-librespot
 Restart=always
 RestartSec=3
 

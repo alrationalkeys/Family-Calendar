@@ -193,9 +193,14 @@ for the sound card; pass `plughw:X,Y` instead to grab a card directly.
 > **If every track "loads" then skips** and `journalctl --user -u spotifyd` shows
 > `error audio key 0 1` / `Service unavailable { audio key error }`: Spotify is refusing
 > the open-source Connect client for that account (upstream librespot #1649, no fix on our
-> side, Premium or not). Use the **Bluetooth speaker** fallback instead — no account involved:
+> side, Premium or not). First try the independent Go client, which the block doesn't
+> always catch:
 > ```bash
-> systemctl --user disable --now spotifyd
+> bash setup/install-go-librespot.sh "Kitchen Wall"
+> ```
+> If that skips too, use the **Bluetooth speaker** fallback — no account involved:
+> ```bash
+> systemctl --user disable --now spotifyd go-librespot
 > bash setup/install-bt-speaker.sh "Kitchen Wall"
 > ```
 > Phone → Bluetooth → pair "Kitchen Wall" (no PIN) → anything you play comes out of the bar.

@@ -244,8 +244,10 @@ Then: *"Hey <Name>, play dinner vibes in the kitchen"*, *"pause the music"*, *"n
 | Device | HA integration | Steps |
 |---|---|---|
 | **Deako switches** (D.R. Horton package) | **Deako** (built in, local) | They're on Wi-Fi already if the Deako app works → Settings → Devices & Services → *Discovered: Deako* → Add. Only *Smart* Deako switches appear; the plain modular ones are just switches. |
-| **Z-Wave smart plugs on the IQ Panel** | **Z-Wave JS** | `qolsysgw` only carries the alarm + door/motion sensors — not Z-Wave. Buy a **Zooz ZST39 800-series USB stick (~$30)**, plug into the HA C3, install the *Z-Wave JS* add-on. On the panel: Settings → Advanced → Installation → Devices → Home Devices → **Remove device** (exclusion) for each plug; in HA: Z-Wave JS → **Add device** and press the plug's button. |
-| **Kitchen LED controllers ×4** (Alexa today) | **Flux LED / MagicHome** (local) or **Tuya** | Open the app you used to set them up: *Magic Home / LEDnet* → HA auto-discovers them; *Smart Life / Tuya* → add the **Tuya** integration (sign in with the Smart Life account). Then **remove them from Alexa** so two systems don't fight. |
+| **Z-Wave devices** (plugs on the IQ Panel today, locks/garage later) | **Z-Wave JS** via the **SONOFF Z-Wave 800 Dongle Plus (Dongle-PZG23)** you have | See §I-1 below. `qolsysgw` only carries the alarm + door/motion sensors, not the panel's Z-Wave gear, so each device moves to the stick. |
+| **Kitchen LED strips ×2** — **GLEDOPTO Zigbee Pro Max (GL-C-601P)** on the Aqara hub / Alexa | **ZHA** via a Zigbee USB stick | See §I-2 below. Pairs straight to HA as a colour + white-temperature light; the Aqara hub and Alexa drop out of the loop. |
+| **Aqara motion sensor** (kitchen) | **ZHA** (same stick) | §I-2. The motion → lights rule becomes an HA automation. |
+| **Garage door** (myQ, linked to the IQ Panel) | **ratgdo** (ESPHome, local) | myQ's cloud API was shut to third parties in 2023 and HA dropped the integration. A ratgdo board (~$45, pick the one for your opener's brand/year) wires to the opener and gives open/close + obstruction locally. The 3D house shows the door state and FamilyHub warns when it's left open. |
 | **Govee porch lights** | **Govee** (built in, local LAN) | Govee app → device → ⚙ → **LAN Control: on** → HA discovers it. Recreate the Alexa sunset routine as an HA automation (Settings → Automations → trigger *Sun: sunset* → action *light.turn_on*). |
 | **Roku TVs** | **Roku** (built in) | Fast TV Start on each TV (section D). |
 | **IQ Panel** | `qolsysgw` | Sections B–C. |
@@ -253,6 +255,40 @@ Then: *"Hey <Name>, play dinner vibes in the kitchen"*, *"pause the music"*, *"n
 Then the Home tab, floor plan rooms (matched by name — rename entities to "Kitchen Upper
 Stove", "Kitchen Upper Front", "Kitchen Lower Fridge", "Porch Lights" so voice and rooms
 line up), "all lights off", and "Hey <Name>, kitchen lights off" all just work.
+
+### I-1. Z-Wave: the SONOFF Dongle-PZG23 (~10 min)
+Z-Wave (908 MHz) and Zigbee (2.4 GHz) are different radios — one stick per protocol. Both
+live happily in the same HA box.
+1. Plug the stick in **using the short USB extension cable in its box**, and into a **USB 2
+   port** if the C3 has one (USB 3 ports radiate noise that cripples both Z-Wave and Zigbee).
+   Keep it a foot or two from the box and from the Zigbee stick.
+2. HA → Settings → Devices & Services. It is usually **auto-discovered as "Z-Wave"** → *Configure*
+   → accept "install the Z-Wave JS add-on" → wait ~2 min. If not discovered: Settings → Add-ons →
+   Add-on store → **Z-Wave JS** → Install → Configuration → Device: pick the SONOFF entry → Start;
+   then Settings → Devices & Services → Add integration → *Z-Wave* → use the add-on.
+3. Moving a device off the IQ Panel: on the panel, Settings → Advanced Settings → Installation →
+   Devices → Home Devices → **Remove Device** (exclusion), then press the device's pairing button.
+   In HA: Z-Wave JS → **Add device** → press the button again. Use S2 security when offered (locks
+   need it). Repeat per device.
+4. Give each new device an **Area** so it lands in the right room on the wall and phone.
+
+### I-2. Zigbee: GLEDOPTO strips + Aqara motion (~15 min)
+1. Buy **one** Zigbee USB stick: *Home Assistant Connect ZBT-1* or *SONOFF Zigbee 3.0 USB Dongle
+   Plus* (either ~$30). Same rules: extension cable, USB 2 port, away from the Z-Wave stick.
+2. HA → Settings → Devices & Services → it appears as **Zigbee Home Automation (ZHA)** → *Configure*
+   → create a new network. (Zigbee2MQTT is the power-user alternative; ZHA is enough here.)
+3. Each GLEDOPTO GL-C-601P: unpair it from the Aqara hub first (Aqara app → device → Delete), or
+   **factory reset**: hold the **Reset** button on the controller ~5 s until the strip blinks.
+   In ZHA: **Add device** → within a minute it appears as *GLEDOPTO GL-C-601P*. In the device's
+   settings pick the **light type** (RGB+CCT / RGBW / CCT) matching your strip.
+4. Aqara motion sensor: hold its button ~5 s until the blue light flashes → ZHA *Add device*.
+   Aqara sensors sleep aggressively; if it drops off, re-pair it next to the stick.
+5. Re-create the kitchen rule: Settings → Automations → **Create** → trigger *Motion detected*
+   → condition *Sun below horizon* (or a time window) → action *light.turn_on* the strip, plus a
+   second automation *no motion for 5 min → light.turn_off*. Then **delete the strips from Alexa**
+   and the Aqara app so nothing fights.
+6. Set the Area to **Kitchen** on both strips and the sensor → they appear as pins in the kitchen
+   on the 3D house and the strips light the room in the model when they're on.
 
 ## J. Make the two feel like one product
 

@@ -45,6 +45,7 @@ def delete_category(cat_id: int):
 class Person(BaseModel):
     name: str
     color: str = "#4f86c6"
+    birthday: str | None = None     # "MM-DD" or "YYYY-MM-DD"
 
 
 @router.get("/people")
@@ -56,15 +57,15 @@ def list_people():
 @router.post("/people")
 def add_person(p: Person):
     with get_db() as conn:
-        cur = conn.execute("INSERT INTO people (name,color) VALUES (?,?)", (p.name, p.color))
-        return {"id": cur.lastrowid, "name": p.name, "color": p.color}
+        cur = conn.execute("INSERT INTO people (name,color,birthday) VALUES (?,?,?)", (p.name, p.color, p.birthday or None))
+        return {"id": cur.lastrowid, "name": p.name, "color": p.color, "birthday": p.birthday}
 
 
 @router.put("/people/{pid}")
 def update_person(pid: int, p: Person):
     with get_db() as conn:
-        conn.execute("UPDATE people SET name=?, color=? WHERE id=?", (p.name, p.color, pid))
-        return {"id": pid, "name": p.name, "color": p.color}
+        conn.execute("UPDATE people SET name=?, color=?, birthday=? WHERE id=?", (p.name, p.color, p.birthday or None, pid))
+        return {"id": pid, "name": p.name, "color": p.color, "birthday": p.birthday}
 
 
 @router.delete("/people/{pid}")

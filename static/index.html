@@ -927,9 +927,9 @@
 
   <div class="sd-group"><label>Holiday skin</label>
     <div class="sd-pills" id="sd-skin">
-      <button data-skin="auto">Auto</button><button data-skin="off">Off</button><button data-skin="thanksgiving">🦃 Thanksgiving</button><button data-skin="christmas">🎄 Christmas</button>
+      <button data-skin="auto">Auto</button><button data-skin="off">Off</button>
     </div>
-    <div class="sd-hint">Auto: Thanksgiving from Nov 1, Christmas from the day after Thanksgiving through New Year's Day.</div>
+    <div class="sd-hint">Auto: Thanksgiving from Nov 1, Christmas from the day after Thanksgiving through New Year's Day, and Birthday on any family member's birthday (set birthdays in the phone app → Family members).</div>
     <div class="sd-toggles" style="margin-top:10px"><label><input type="checkbox" id="sd-skin-banner"> Show the "Days until…" card in the header</label>
       <label><input type="checkbox" id="sd-skin-art"> Painted frame artwork (off = simple drawn frame, more room)</label></div>
     <button class="prev" id="sd-skin-surprise" style="margin-top:8px">🛷 Fly Santa / 🦃 walk the turkey now</button>
@@ -1534,6 +1534,7 @@ async function load(){
     cache.dash=dash; cache.events=cal.events||[];
     setOffline(dashR.stale || calR.stale, Math.min(dashR.t||Date.now(), calR.t||Date.now()));
     people = dash.people || [];
+    if(window.Skins && Skins.pick(FH.get())!==Skins.current()) applySeasonal();   // a family birthday today -> party
     render();
     renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
     renderCountdowns(dash.countdowns||[]);
@@ -1657,6 +1658,7 @@ function applySeasonal(){
 }
 $("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); applySeasonal(); };
 (function setupSkinPills(){ const box=$("#sd-skin"); if(!box) return;
+  if(window.Skins) Skins.list().forEach(k=>{ const b=document.createElement("button"); b.dataset.skin=k.key; b.textContent=k.emoji+" "+k.name; box.appendChild(b); });
   const sync=()=>{ const cur=FH.get().skin||"auto"; box.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.skin===cur)); };
   box.querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ FH.save({skin:b.dataset.skin}); sync(); applySeasonal(); resetSleep(); }; });
   sync(); document.addEventListener("fh-settings", sync);

@@ -30,9 +30,23 @@ const Skins = (() => {
     }
   };
 
+  DEFS.birthday = {
+    name: "Birthday", effect: "confetti", emoji: "🎂",
+    vars: { "--bg": "#1b1030", "--panel": "#2a1a4a", "--panel2": "#20133a", "--line": "#f2c14e", "--ink": "#fff5e6", "--ink-dim": "#d9c6ef", "--now": "#ff6fae" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #4a2a7a 0%, #2a1650 45%, #150b2a 100%)",
+    wood: ["#ff6fae", "#7a3cc9"], gold: "#f2c14e", snowcaps: false,
+    banner: { kicker: "Happy Birthday", title: "", font: "'Mountains of Christmas', 'Brush Script MT', cursive" },
+    target: null, corners: "birthday", manual: true          // manual: picked from the menu or auto on a family birthday
+  };
   function thanksgiving(y){ const dow = new Date(y, 10, 1).getDay(); return new Date(y, 10, 1 + ((4 - dow + 7) % 7) + 21); }
+  function birthdayPeople(now){
+    now = now || new Date(); const mmdd = String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+    const list = (typeof people !== "undefined" && Array.isArray(people)) ? people : [];
+    return list.filter(p => p && p.birthday && String(p.birthday).slice(-5) === mmdd);
+  }
   function auto(now){
     now = now || new Date(); const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    if (birthdayPeople(now).length) return "birthday";
     const tg = thanksgiving(y), today = new Date(y, m, d);
     if (m === 10 && today <= tg) return "thanksgiving";
     if ((m === 10 && today > tg) || m === 11 || (m === 0 && d === 1)) return "christmas";
@@ -114,6 +128,11 @@ html[data-skin][data-skin-banner="off"] header{min-height:0}
 #skin-frame .leaves{left:0; right:0; top:0; height:60px; width:100%}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 #skin-frame .lantern{transform-origin:top center; animation:sway 4s ease-in-out infinite}
+/* birthday: balloons bob along the sides, banner shows the name(s) */
+#skin-frame .balloon{animation:float 5s ease-in-out infinite alternate; transform-origin:center bottom}
+@keyframes float{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-14px) rotate(3deg)}}
+html[data-skin="birthday"] #skin-banner .t{font-size:34px}
+html[data-skin="birthday"] #skin-banner .k{color:var(--now)}
 /* the countdown banner in the header */
 #skin-banner{display:none}
 html[data-skin] header{min-height:124px; align-items:center; padding:0 118px}
@@ -176,9 +195,18 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   const ACORN = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><path d="M-8 0h16v3c0 8-4 13-8 13s-8-5-8-13z" fill="#8a5a2b"/><path d="M-10 0q10-8 20 0v2h-20z" fill="#5a3d1a"/><rect x="-1" y="-6" width="2" height="5" fill="#5a3d1a"/></g>`;
   const WHEAT = (x, y, s, r) => `<g transform="translate(${x},${y}) rotate(${r}) scale(${s})"><line x1="0" y1="0" x2="0" y2="40" stroke="#c9a04a" stroke-width="2"/>${[0,6,12,18,24].map(i=>`<ellipse cx="-4" cy="${i}" rx="3" ry="5" fill="#e3b85a" transform="rotate(-25 -4 ${i})"/><ellipse cx="4" cy="${i}" rx="3" ry="5" fill="#e3b85a" transform="rotate(25 4 ${i})"/>`).join("")}</g>`;
 
+  const BALLOON = (x, y, s, c, d) => `<g class="balloon" style="animation-delay:${d||0}s" transform="translate(${x},${y}) scale(${s})"><path d="M0 44 q-2 10 4 22" stroke="#555" stroke-width="1.2" fill="none"/><ellipse rx="16" ry="20" fill="${c}"/><ellipse cx="-6" cy="-7" rx="4" ry="6" fill="#fff" opacity=".4"/><path d="M-3 19 l3 6 3-6z" fill="${c}"/></g>`;
+  const CAKE = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><rect x="-26" y="0" width="52" height="22" rx="4" fill="#f7a8c4"/><rect x="-26" y="0" width="52" height="7" rx="3" fill="#fff"/><rect x="-20" y="-16" width="40" height="18" rx="4" fill="#ffd6e7"/><rect x="-20" y="-16" width="40" height="6" rx="3" fill="#fff"/>${[-12,0,12].map(cx=>`<rect x="${cx-1.5}" y="-30" width="3" height="14" fill="#5bc0eb"/><ellipse cx="${cx}" cy="-33" rx="2.5" ry="4" fill="#ffb347"/><ellipse cx="${cx}" cy="-34" rx="1.2" ry="2" fill="#fff2c0"/>`).join("")}</g>`;
+  const STREAMER = (x, y, s, c, r) => `<g transform="translate(${x},${y}) rotate(${r}) scale(${s})"><path d="M0 0 q8 10 0 20 t0 20 t0 20" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/></g>`;
   function corner(kind, where){
     const svg = svgEl("corner " + where, "0 0 150 150");
     let inner = "";
+    if (kind === "birthday"){
+      const cols = ["#ff6fae", "#5bc0eb", "#f2c14e", "#7cf37c", "#b388ff"];
+      if (where === "tl" || where === "tr") inner = [0,1,2].map(i => BALLOON(30 + i * 36, 40 + (i % 2) * 18, .9 + (i % 2) * .15, cols[i], i * .7)).join("") + STREAMER(120, 10, 1, cols[3], 20) + STREAMER(10, 90, .9, cols[4], -15);
+      else inner = CAKE(60, 110, 1.1) + BALLOON(118, 60, .8, cols[1], .4) + GIFT(120, 120, .8, cols[4], cols[2]) + STREAMER(20, 60, .9, cols[0], 10);
+      svg.innerHTML = inner; return svg;
+    }
     if (kind === "christmas"){
       if (where === "tl" || where === "tr") inner = BOW(40, 36, 1.1) + LANTERN(110, 8, 1.15) + HOLLY(70, 98, .9) + ORNAMENT(26, 96, .8, "#c8102e") + ORNAMENT(48, 120, .7, "#2e7d32");
       else inner = GIFT(44, 104, 1.1, "#c8102e", "#ffd23f") + GIFT(92, 112, .85, "#1565c0", "#fff") + GIFT(70, 76, .7, "#2e7d32", "#ffd23f") + CANDY(118, 60, .9) + HOLLY(118, 118, .8);
@@ -187,6 +215,13 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
       else inner = PUMPKIN(50, 110, 1.2) + PUMPKIN(100, 120, .8) + LEAF(120, 70, 1.1, "#c0392b", 30) + LEAF(20, 70, 1, "#e67e22", -40) + WHEAT(130, 40, 1, 15) + ACORN(84, 76, 1);
     }
     svg.innerHTML = inner; return svg;
+  }
+  function bunting(width){
+    const svg = svgEl("leaves", `0 0 ${width} 60`); svg.setAttribute("preserveAspectRatio", "none");
+    const cols = ["#ff6fae", "#5bc0eb", "#f2c14e", "#7cf37c", "#b388ff"]; let s = `<path d="M0 14 Q ${width/2} 40 ${width} 14" stroke="#fff" stroke-width="3" fill="none"/>`;
+    const n = Math.floor(width / 48);
+    for (let i = 0; i < n; i++){ const x0 = i * (width / n), x1 = (i + 1) * (width / n), t = (x0 + x1) / 2 / width, y = 14 + Math.sin(Math.PI * t) * 26 * 0.5 + 0; s += `<path d="M${x0} ${14 + Math.sin(Math.PI * x0 / width) * 13} L${(x0 + x1) / 2} ${y + 26} L${x1} ${14 + Math.sin(Math.PI * x1 / width) * 13}z" fill="${cols[i % cols.length]}"/>`; }
+    svg.innerHTML = s; return svg;
   }
   function leafGarland(width){
     const svg = svgEl("leaves", `0 0 ${width} 60`); svg.setAttribute("preserveAspectRatio", "none");
@@ -226,8 +261,8 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     stopSurprises(); if (reduced) return;
     const painted = !!(DEFS[kind].art && artOn);     // painted frame has its own (static) lights: no bulb flicker
     const nextFly = () => { const m = new Date().getMonth(), d = new Date().getDate(); const base = (kind === "christmas" && m === 11 && d >= 24) ? 2 : 6;   // Christmas Eve/Day: every ~2 min
-      flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
-    flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, 20000);   // first one soon after it comes on
+      flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else if (kind === "thanksgiving") turkeyWalk(); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
+    flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else if (kind === "thanksgiving") turkeyWalk(); nextFly(); }, 20000);   // first one soon after it comes on
     if (kind === "christmas" && !painted) flickTimer = setInterval(flickerBulb, 7000);
   }
   function stopSurprises(){ clearTimeout(flyTimer); clearInterval(flickTimer); flyTimer = flickTimer = null; if (flyEl) flyEl.classList.remove("go"); if (walkEl) walkEl.classList.remove("go"); }
@@ -254,11 +289,18 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     }
     ["t","b","l","r"].forEach(k => { const b = document.createElement("div"); b.className = "bar " + k; frameEl.appendChild(b); });
     if (kind === "christmas"){ frameEl.appendChild(snowTop(w)); frameEl.appendChild(lightsString(w - 52, false)); frameEl.appendChild(lightsString(w - 52, true)); }
-    else { frameEl.appendChild(leafGarland(w)); }
+    else if (kind === "thanksgiving") { frameEl.appendChild(leafGarland(w)); }
+    else if (kind === "birthday") { frameEl.appendChild(bunting(w)); }
     ["tl","tr","bl","br"].forEach(c => frameEl.appendChild(corner(kind, c)));
   }
   function renderBanner(kind){
     const def = DEFS[kind], y = new Date().getFullYear();
+    if (kind === "birthday"){
+      const who = birthdayPeople().map(p => p.name.split(" ")[0]);
+      const title = who.length ? who.join(" & ") + "!" : "🎉";
+      bannerEl.innerHTML = `<div class="k">${def.banner.kicker}</div><div class="t">${title.replace(/</g, "&lt;")}</div><div class="sub"><b>${who.length ? "🎂 Make a wish" : "Party mode"}</b></div>`;
+      return;
+    }
     let target = def.target(y); if (daysUntil(target) < 0 && kind === "christmas") target = def.target(y + 1);
     const n = daysUntil(target), nn = Math.max(0, Math.min(99, n));
     const digits = String(nn).padStart(2, "0").split("").map(d => `<div class="dg">${d}</div>`).join("");
@@ -300,6 +342,7 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   // auto schedule flips at midnight: re-check every 10 minutes
   setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
 
-  return { apply, pick, auto, thanksgiving, DEFS, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };
+  const list = () => Object.keys(DEFS).map(k => ({ key: k, name: DEFS[k].name, emoji: DEFS[k].emoji || (k === "christmas" ? "🎄" : k === "thanksgiving" ? "🦃" : "✨") }));
+  return { apply, pick, auto, thanksgiving, DEFS, list, birthdayPeople, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };
 })();
 window.Skins = Skins;

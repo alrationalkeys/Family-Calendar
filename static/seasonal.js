@@ -53,6 +53,9 @@ const Seasonal = (() => {
     const p = snowflake(); p.color = ["#f7c9d9","#ffd9b3","#e7c6ff"][Math.floor(Math.random()*3)];
     p.sy *= 0.7; return p;
   }
+  function confetti() {
+    const p = snowflake(); p.color = ["#ff6fae","#5bc0eb","#f2c14e","#7cf37c","#b388ff","#ff8a65"][Math.floor(Math.random()*6)]; p.r = BIG(2+Math.random()*3); p.sp = (p.sp||1)*1.4; return p;
+  }
   function leaf() {
     const p = snowflake(); p.color = ["#d2691e","#cd853f","#b8860b","#a0522d"][Math.floor(Math.random()*4)];
     p.r = BIG(4+Math.random()*5); p.sy *= 0.8; return p;
@@ -86,6 +89,7 @@ const Seasonal = (() => {
     else if (mode === "fog") for (let i=0;i<N(14);i++) particles.push(fogblob());
     else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
     else if (mode === "leaves") for (let i=0;i<N(40);i++) particles.push(leaf());
+    else if (mode === "confetti") for (let i=0;i<N(90);i++) particles.push(confetti());
     else if (mode === "halloween") {
       for (let i=0;i<N(45);i++) particles.push(leaf());
       for (let i=0;i<N(6);i++) particles.push(bat());

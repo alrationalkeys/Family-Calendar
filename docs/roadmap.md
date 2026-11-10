@@ -91,9 +91,12 @@ help. Lift it off the wall, set it on the counter, still does it all.
 ### TV Backlight (65" Hisense Roku TV) — planned, not started
 Bias lighting behind the living-room TV, driven by Home Assistant off the Roku's state.
 
-**Hardware (not built yet):** ESP32 running **WLED** → ~4–5 m **WS2812B 5 V** strip
-(30 or 60 LEDs/m) around the back of the TV; dedicated **5 V 6–10 A** supply; **power
-injected at both ends**; **level shifter** on the data line. The Hisense Roku TV is already
+**Hardware (not built yet):** **Recommended: a pre-built WLED controller** (Athom WLED or
+GLEDOPTO WLED unit, ~$20–25 — WLED pre-flashed, level shifter built in, screw terminals,
+barrel jack; no soldering/flashing) → ~4–5 m **WS2812B 5 V** strip (**60 LEDs/m** is
+noticeably smoother behind a 65"); dedicated **5 V 10 A** supply; **power injected at both
+ends**. DIY alternative: bare ESP32 + WLED + external level shifter (saves ~$10, costs an
+evening). Skip screen-sync for now: a built-in Roku TV has no HDMI path to capture. The Hisense Roku TV is already
 in HA (`media_player.living_room_tv`). The strip joins HA via the **WLED integration** —
 expected entity `light.tv_backlight`, **confirm the real name once discovered** and record
 it here.

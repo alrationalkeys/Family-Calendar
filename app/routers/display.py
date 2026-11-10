@@ -11,10 +11,24 @@ from ..services import display_svc
 
 router = APIRouter()
 
+# "Reload the wall" from the phone: bump a token; the wall polls /state every 20 s
+# and reloads its page when the token changes (no keyboard/SSH needed after a git pull).
+import time
+_reload_token = int(time.time())
+
 
 @router.get("/state")
 def state():
-    return display_svc.tick()      # tick() self-heals the backlight, then returns state
+    st = display_svc.tick()        # tick() self-heals the backlight, then returns state
+    st["reload_token"] = _reload_token
+    return st
+
+
+@router.post("/reload")
+def reload_wall():
+    global _reload_token
+    _reload_token = int(time.time() * 1000)
+    return {"ok": True, "reload_token": _reload_token}
 
 
 @router.post("/wake")

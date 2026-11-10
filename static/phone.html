@@ -332,6 +332,15 @@
   </div>
 
   <div class="form sect">
+    <h2>The wall</h2>
+    <div class="two">
+      <button class="go" id="wall-reload">&#8635; Reload the wall</button>
+      <button class="go" id="wall-wake" style="background:var(--panel2); color:var(--ink)">&#9728; Wake screen</button>
+    </div>
+    <div class="hint">Reload after an update, or if the wall looks stuck. Wake turns the screen on during the night window.</div>
+  </div>
+
+  <div class="form sect">
     <h2>Start fresh</h2>
     <div class="hint">The wall currently shows the <b>sample family</b> (Mom, Dad, Ella, Max and their fake events). When you're ready to put your real family in, clear it. Calendars, photos, settings and Spotify pins are kept.</div>
     <button class="go" id="clear-demo" style="background:#e0533d">Clear the sample data</button>
@@ -1007,6 +1016,8 @@ $("#spl-add").onclick=()=>{
   $("#spl-name").value=""; $("#spl-uri").value=""; toast("Pinned"); loadSPL();
 };
 
+$("#wall-reload").onclick=async()=>{ const r=await fetch("/api/display/reload",{method:"POST"}); toast(r.ok?"Wall will reload in a few seconds":"Couldn't reach the wall"); };
+$("#wall-wake").onclick=async()=>{ const r=await fetch("/api/display/wake",{method:"POST"}); toast(r.ok?"Screen waking":"Couldn't reach the wall"); };
 async function loadDbInfo(){
   const el=$("#dbinfo"); if(!el) return;
   try{ const i=await fetch("/api/admin/dbinfo").then(r=>r.json());

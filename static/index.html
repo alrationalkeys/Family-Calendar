@@ -1992,10 +1992,16 @@ function updateHeroPhase(){
 }
 
 /* ---- scheduled screen-off + wake ---- */
+let _reloadToken=null;
 async function loadDisplayState(){
   try{
     const st=await fetch("/api/display/state").then(r=>r.json());
     $("#screenoff").classList.toggle("on", !st.on);
+    // phone pressed "Reload the wall" (or the server restarted after a git pull)
+    if(st.reload_token!==undefined){
+      if(_reloadToken===null) _reloadToken=st.reload_token;
+      else if(st.reload_token!==_reloadToken){ location.reload(); }
+    }
   }catch(e){}
 }
 async function wakeDisplay(){

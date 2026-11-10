@@ -114,6 +114,98 @@
   .days .dchk{font-size:13px; margin:0}
   .form textarea{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; padding:10px 12px; margin-bottom:10px; resize:vertical}
   body.nocats select[id$="_cat"]{display:none}
+
+  /* ===== Home tab (phone) — the house in your pocket ===== */
+  .hm-tabs{display:flex; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:4px; margin-bottom:14px}
+  .hm-tabs button{flex:1; border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:13.5px; font-weight:600; padding:10px 4px; border-radius:10px}
+  .hm-tabs button.active{background:var(--now); color:#1a1205}
+  /* hero */
+  .hm-hero{position:relative; overflow:hidden; border-radius:22px; padding:20px 18px 16px; margin-bottom:14px; color:var(--ink);
+    background:radial-gradient(120% 90% at 100% 0%, color-mix(in srgb,var(--now) 34%, var(--panel)) 0%, var(--panel) 60%); border:1px solid var(--line)}
+  html[data-theme="dark"] .hm-hero{box-shadow:0 0 0 1px color-mix(in srgb,var(--now) 20%, transparent), 0 14px 40px rgba(0,0,0,.35)}
+  .hm-greet{font-size:26px; font-weight:800; letter-spacing:-.01em; line-height:1.05}
+  .hm-date{font-size:13px; color:var(--ink-dim); margin-top:3px}
+  .hm-live{position:absolute; right:16px; top:16px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#3bb273}
+  .hm-live.off{color:var(--ink-dim)}
+  .hm-chips{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 12px}
+  .hm-chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; background:color-mix(in srgb,var(--panel2) 80%, transparent); border:1px solid var(--line); border-radius:999px; padding:7px 12px}
+  .hm-chip.ok{color:#3bb273} .hm-chip.warn{color:#e0a44a}
+  .hm-kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .hm-kpi{background:color-mix(in srgb,var(--panel2) 85%, transparent); border-radius:14px; padding:12px 6px; text-align:center}
+  .hm-kpi b{display:block; font-size:24px; font-weight:800; line-height:1}
+  .hm-kpi span{display:block; font-size:10.5px; color:var(--ink-dim); margin-top:5px; text-transform:uppercase; letter-spacing:.06em}
+  .hm-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
+  .hm-act{flex:1 1 40%; background:var(--panel); border:1px solid var(--line); color:var(--ink); border-radius:12px; padding:12px 10px; font:inherit; font-size:14px; font-weight:600}
+  .hm-act:active{transform:scale(.98)}
+  /* now playing */
+  .hm-np{display:flex; gap:14px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:14px; margin-bottom:14px}
+  html[data-theme="dark"] .hm-np{box-shadow:0 0 0 1px rgba(29,185,84,.16), 0 0 26px rgba(29,185,84,.1)}
+  .hm-np-art{width:72px; height:72px; border-radius:14px; flex:none; background:linear-gradient(135deg,#1db954,#0d6b35); display:flex; align-items:center; justify-content:center; font-size:30px; overflow:hidden}
+  .hm-np-art img{width:100%; height:100%; object-fit:cover}
+  .hm-np-main{flex:1; min-width:0}
+  .hm-np-t{font-size:16px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .hm-np-s{font-size:12.5px; color:var(--ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .hm-np-ctl{display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap}
+  .hm-np-ctl button{border:0; border-radius:50%; width:38px; height:38px; flex:0 0 38px; background:var(--panel2); color:var(--ink); font-size:16px; display:flex; align-items:center; justify-content:center}
+  .hm-np-ctl button.main{width:46px; height:46px; flex-basis:46px; background:#1db954; color:#fff; font-size:19px}
+  .hm-np-ctl button.pill{width:auto; flex:0 0 auto; border-radius:20px; padding:0 10px; font-size:13px; font-weight:600}
+  .hm-np-ctl .vols{display:flex; gap:6px; margin-left:auto}
+  .hm-np-dev{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
+  .hm-dchip{border:1px solid var(--line); background:var(--panel2); color:var(--ink); border-radius:999px; padding:6px 11px; font:inherit; font-size:12px; font-weight:600}
+  .hm-dchip.on{background:#1db954; color:#fff; border-color:transparent}
+  /* rooms */
+  .hm-sec{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); font-weight:700; margin:16px 4px 8px}
+  .hm-rooms{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .hm-room{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:14px; min-height:104px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden}
+  .hm-room.on{background:linear-gradient(160deg, color-mix(in srgb,var(--now) 30%, var(--panel)), var(--panel) 85%); border-color:color-mix(in srgb,var(--now) 55%, transparent)}
+  html[data-theme="dark"] .hm-room.on{box-shadow:0 0 0 1px color-mix(in srgb,var(--now) 28%, transparent), 0 8px 26px color-mix(in srgb,var(--now) 14%, transparent)}
+  .hm-room-n{font-size:16px; font-weight:700}
+  .hm-room-s{font-size:12px; color:var(--ink-dim); margin-top:2px}
+  .hm-room.on .hm-room-s{color:var(--now)}
+  .hm-room-t{position:absolute; right:12px; top:12px; font-size:13px; font-weight:700; color:var(--ink-dim)}
+  .hm-room-devs{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
+  .hm-dev{border:0; border-radius:12px; width:42px; height:42px; background:var(--panel2); font-size:19px; display:flex; align-items:center; justify-content:center; position:relative}
+  .hm-dev.on{background:color-mix(in srgb,var(--now) 24%, var(--panel2)); box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--now) 60%, transparent)}
+  .hm-dev.on::after{content:""; position:absolute; right:5px; top:5px; width:6px; height:6px; border-radius:50%; background:var(--now); box-shadow:0 0 6px var(--now)}
+  /* everything grid */
+  .tile-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .tile{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; min-height:92px; display:flex; flex-direction:column; gap:4px}
+  .tile.on{background:color-mix(in srgb, var(--now) 20%, var(--panel)); border-color:color-mix(in srgb, var(--now) 55%, transparent)}
+  .tile .t-ico{font-size:24px; line-height:1}
+  .tile.on .t-ico{filter:drop-shadow(0 0 7px color-mix(in srgb, var(--now) 55%, transparent))}
+  .tile .t-name{font-size:14.5px; font-weight:600; margin-top:auto}
+  .tile .t-state{font-size:12px; color:var(--ink-dim)}
+  .tile.on .t-state{color:var(--now)}
+  .tile.ro{opacity:.9}
+  .tile.unavail{opacity:.5}
+  .tile.scene{align-items:center; text-align:center; justify-content:center}
+  /* shared floor plan / 3D (same classes as the wall) */
+  .fp-floors{display:flex; gap:6px; justify-content:center; margin:2px 0 12px}
+  .fp-fbtn{background:var(--panel); border:1px solid var(--line); color:var(--ink-dim); font:inherit; font-size:13px; font-weight:600; padding:8px 14px; border-radius:999px}
+  .fp-fbtn.active{background:var(--now); border-color:var(--now); color:#1a1205}
+  .fp{padding:0}
+  .fp svg{width:100%; height:auto; display:block}
+  .fp .room rect{fill:var(--panel2); stroke:var(--line); stroke-width:2; transition:fill .2s,stroke .2s}
+  .fp .room.has rect{stroke:color-mix(in srgb,var(--ink-dim) 40%, var(--line))}
+  .fp .room.on rect{fill:color-mix(in srgb,var(--now) 30%, var(--panel)); stroke:color-mix(in srgb,var(--now) 60%, transparent)}
+  .fp .room .rname{fill:var(--ink); font-size:11px; font-weight:700}
+  .fp .room .rtemp{fill:var(--ink-dim); font-size:10px}
+  .fp .room .rdot{fill:#6b7280}
+  .fp .room.on .rdot{fill:var(--now); filter:drop-shadow(0 0 4px var(--now))}
+  .fp-note{color:var(--ink-dim); font-size:12px; padding:12px 8px 4px; text-align:center}
+  .iso{padding:6px 0 0}
+  .iso svg{width:100%; height:auto; max-height:52vh; display:block}
+  .iso .top{fill:var(--panel2); stroke:var(--line); stroke-width:1.2; transition:fill .2s}
+  .iso .wl-r{fill:var(--panel)} .iso .wl-f{fill:var(--bg)}
+  .iso .r3d.on .top{fill:color-mix(in srgb,var(--now) 48%, var(--panel))}
+  .iso .r3d.on .wl-r{fill:color-mix(in srgb,var(--now) 32%, var(--panel))}
+  .iso .r3d.on .wl-f{fill:color-mix(in srgb,var(--now) 20%, var(--bg))}
+  .iso .rlbl{fill:var(--ink); font-size:10px; font-weight:700; text-anchor:middle; pointer-events:none}
+  .iso .rtmp{fill:var(--ink-dim); font-size:9px; font-weight:500}
+  .iso-list{display:flex; gap:8px; flex-wrap:wrap; padding:14px 0 6px; justify-content:center}
+  .iso-chip{display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:7px 12px; font-size:13px; font-weight:600}
+  .iso-chip.on{background:color-mix(in srgb,var(--now) 22%, var(--panel)); border-color:color-mix(in srgb,var(--now) 55%, transparent); color:var(--now)}
+  .hm-offline{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:26px 18px; text-align:center; color:var(--ink-dim); font-size:14px; line-height:1.5}
   /* TV remote */
   .tv-pick{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px}
   .tv-pick button{flex:1 1 40%; padding:14px 10px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:16px; font-weight:600}
@@ -137,6 +229,7 @@
 <h1>FamilyHub</h1>
 <div class="topnav">
   <button id="nav-add" class="active">&#10133; Add</button>
+  <button id="nav-home">&#127968; Home</button>
   <button id="nav-tv">&#128250; TV</button>
   <button id="nav-settings">&#9881;&#65039; Settings</button>
   <a href="/" style="flex:0 0 auto; display:flex; align-items:center; padding:0 14px; color:var(--ink-dim); text-decoration:none; font-size:14px; font-weight:600">&#128250; Wall</a>
@@ -192,6 +285,13 @@
 
 <div class="form" id="form"></div>
 </div><!-- /view-add -->
+
+<div id="view-home" hidden>
+  <div class="hm-tabs" id="hm-tabs">
+    <button data-v="rooms" class="active">Rooms</button><button data-v="plan">Floor plan</button><button data-v="3d">3D</button><button data-v="all">Everything</button>
+  </div>
+  <div id="hm-body"><div class="hint" style="padding:30px 0; text-align:center">Loading the house…</div></div>
+</div>
 
 <div id="view-tv" hidden>
   <div class="sub">Pick a TV, then use it like the real remote.</div>
@@ -391,6 +491,7 @@
 
 <script src="/auth.js"></script>
 <script src="/theme.js"></script>
+<script src="/home-shared.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
@@ -695,13 +796,149 @@ camInput.onchange = async () => {
 /* ===================== SETTINGS VIEW ===================== */
 /* top-nav view switch */
 $("#nav-add").onclick=()=>switchView("add");
+$("#nav-home").onclick=()=>switchView("home");
 $("#nav-tv").onclick=()=>switchView("tv");
 $("#nav-settings").onclick=()=>switchView("settings");
+let curView="add", hmTimer=null;
 function switchView(v){
-  ["add","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
+  curView=v;
+  ["add","home","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
   if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); }
   if(v==="tv"){ loadTVs(); }
+  clearInterval(hmTimer);
+  if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 8000); }
+  try{ localStorage.setItem("fh_view", v); }catch(e){}
 }
+
+/* ===================== Home tab: the house in your pocket ===================== */
+let hmView="rooms", hmLast=null, hmSig="";
+FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
+FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
+FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };
+$("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.dataset.v; $("#hm-tabs").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); if(hmLast) renderHM(hmLast, true); }; });
+
+async function loadHM(){
+  let h=null;
+  try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
+  if(!h){ $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
+  renderHM(h,false);
+}
+function hmDevButton(t){
+  const E=FHHome.esc;
+  const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (t.toggleable||t.activatable) ? `onclick="FHHome.toggle('${E(t.entity_id)}')"` : "";
+  return `<button class="hm-dev${t.on?' on':''}" title="${E(t.name)} · ${E(FHHome.haStateLabel(t))}" ${tap}>${FHHome.haIcon(t)}</button>`;
+}
+function renderHM(h, force){
+  hmLast=h; const E=FHHome.esc, body=$("#hm-body");
+  if(!h.connected){ body.innerHTML=`<div class="hm-offline">Home Assistant isn't connected${h.reason?` (${E(h.reason)})`:''}.<br>Check HA_URL / HA_TOKEN on the wall.</div>`; return; }
+  const tiles=FHHome.tilesOf(h);
+  const lights=tiles.filter(t=>t.domain==="light"||t.domain==="switch");
+  const onCount=lights.filter(t=>t.on).length;
+  const openers=tiles.filter(t=>(t.domain==="cover"&&t.state==="open")||(t.domain==="binary_sensor"&&["door","garage_door","window","opening"].includes(t.device_class)&&t.on));
+  const temps=tiles.filter(t=>t.domain==="sensor"&&t.device_class==="temperature");
+  const alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+  const now=new Date(), hr=now.getHours();
+  const greet=hr<12?"Good morning":hr<17?"Good afternoon":"Good evening";
+  const sp=h.spotify;
+
+  let html=`<div class="hm-hero">
+    <div class="hm-live${h.live===false?' off':''}">● ${h.demo?'Demo':'Live'}</div>
+    <div class="hm-greet">${greet}</div>
+    <div class="hm-date">${now.toLocaleDateString([],{weekday:'long', month:'long', day:'numeric'})}</div>
+    <div class="hm-chips">
+      ${alarm?`<span class="hm-chip ${alarm.state==='disarmed'?'ok':'warn'}">🛡 ${E(FHHome.haStateLabel(alarm))}</span>`:''}
+      ${openers.length?`<span class="hm-chip warn">⚠️ ${E(openers.map(o=>o.name).join(', '))} open</span>`:'<span class="hm-chip ok">✓ All closed</span>'}
+      ${temps.slice(0,2).map(t=>`<span class="hm-chip">🌡 ${E(t.state)}${E(t.unit||'°')} ${E((t.name||'').replace(/\(.*?\)|temperature/ig,'').trim())}</span>`).join('')}
+    </div>
+    <div class="hm-kpis">
+      <div class="hm-kpi"><b>${onCount}</b><span>lights on</span></div>
+      <div class="hm-kpi"><b>${tiles.filter(t=>t.domain==="media_player"&&t.on).length}</b><span>playing</span></div>
+      <div class="hm-kpi"><b>${h.count||tiles.length}</b><span>devices</span></div>
+    </div>
+    <div class="hm-actions">
+      <button class="hm-act" id="hm-lights-off">💡 All lights off</button>
+      ${tiles.filter(t=>t.domain==="scene").slice(0,3).map(s=>`<button class="hm-act" onclick="FHHome.toggle('${E(s.entity_id)}')">✨ ${E(s.name)}</button>`).join('')}
+    </div>
+  </div>`;
+
+  if(sp){
+    const playing=sp.state==="playing";
+    html+=`<div class="hm-np${playing?'':' idle'}">
+      <div class="hm-np-art">${sp.art?`<img src="${E(sp.art)}" alt="">`:'🎵'}</div>
+      <div class="hm-np-main">
+        <div class="hm-np-t">${E(sp.title||(playing?'Playing':'Nothing playing'))}</div>
+        <div class="hm-np-s">${E([sp.artist,sp.album].filter(Boolean).join(' · ')||(sp.source?'on '+sp.source:'Tap play, or ask the wall'))}</div>
+        <div class="hm-np-ctl">
+          <button data-sp="prev">⏮</button><button class="main" data-sp="play_pause">${playing?'⏸':'▶'}</button><button data-sp="next">⏭</button>
+          <span class="vols"><button class="pill" data-sp="vol" data-d="-1">🔉</button><button class="pill" data-sp="vol" data-d="1">🔊</button></span>
+        </div>
+        ${sp.sources&&sp.sources.length?`<div class="hm-np-dev">${sp.sources.slice(0,6).map(x=>`<button class="hm-dchip${x===sp.source?' on':''}" data-src="${E(x)}">${E(x)}</button>`).join('')}</div>`:''}
+      </div>
+    </div>`;
+  }
+
+  if(hmView==="rooms"){
+    const rooms=FHHome.resolveRooms(h);
+    const byRoom=new Map();
+    // put every controllable device in a room: explicit area, else name match, else "Other"
+    const used=new Set();
+    rooms.forEach(r=>{ byRoom.set(r.name+"|"+(r.floor||1), {room:r, devs:[]}); });
+    tiles.forEach(t=>{
+      if(!(t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor")) return;
+      const lc=s=>String(s||"").toLowerCase();
+      const hit=rooms.find(r=>lc(t.area||"")&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area||"").includes(lc(r.key)));
+      if(hit){ byRoom.get(hit.name+"|"+(hit.floor||1)).devs.push(t); used.add(t.entity_id); }
+    });
+    const other=tiles.filter(t=>!used.has(t.entity_id)&&(t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor"));
+    const cards=[...byRoom.values()].filter(x=>x.devs.length);
+    if(!cards.length && !other.length){ html+='<div class="hm-offline">No devices yet. Add integrations in Home Assistant and give each device an Area.</div>'; }
+    [1,2].forEach(f=>{
+      const fl=cards.filter(c=>(c.room.floor||1)===f); if(!fl.length) return;
+      html+=`<div class="hm-sec">${f===1?'Downstairs':'Upstairs'}</div><div class="hm-rooms">`;
+      fl.forEach(({room,devs})=>{
+        const on=devs.some(d=>d.on&&d.domain!=="sensor");
+        const temp=devs.find(d=>d.domain==="sensor"&&d.device_class==="temperature");
+        const onNames=devs.filter(d=>d.on&&d.domain!=="sensor").map(d=>d.name.replace(new RegExp(room.name,'i'),'').trim()).filter(Boolean);
+        html+=`<div class="hm-room${on?' on':''}">
+          ${temp?`<div class="hm-room-t">${E(temp.state)}${E(temp.unit||'°')}</div>`:''}
+          <div><div class="hm-room-n">${E(room.name)}</div><div class="hm-room-s">${on?E(onNames.slice(0,2).join(', ')||'On'):'All off'}</div></div>
+          <div class="hm-room-devs">${devs.filter(d=>d.domain!=="sensor").map(hmDevButton).join('')}</div>
+        </div>`;
+      });
+      html+='</div>';
+    });
+    if(other.length){
+      html+=`<div class="hm-sec">Elsewhere</div><div class="hm-rooms"><div class="hm-room"><div><div class="hm-room-n">Unassigned</div><div class="hm-room-s">Give these an Area in HA</div></div><div class="hm-room-devs">${other.filter(d=>d.domain!=="sensor").map(hmDevButton).join('')}</div></div></div>`;
+    }
+  } else if(hmView==="all"){
+    (h.groups||[]).forEach(g=>{
+      html+=`<div class="hm-sec">${E(g.group)}</div><div class="tile-grid">`;
+      g.tiles.forEach(t=>{
+        const scene=t.activatable, ro=!t.toggleable&&!t.activatable, un=t.state==="unavailable";
+        const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (!ro?`onclick="FHHome.toggle('${E(t.entity_id)}')"`:"");
+        html+=`<div class="tile${t.on?' on':''}${scene?' scene':''}${ro?' ro':''}${un?' unavail':''}" ${tap}><div class="t-ico">${FHHome.haIcon(t)}</div><div class="t-name">${E(t.name)}</div>${scene?'':`<div class="t-state">${E(FHHome.haStateLabel(t))}</div>`}</div>`;
+      });
+      html+='</div>';
+    });
+  }
+
+  const sig=html.replace(/&t=\d+/g,"");
+  if(!force && body.dataset.sig===sig) return;
+  body.dataset.sig=sig; body.innerHTML=html;
+
+  if(hmView==="plan"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderFloorView(holder,h,{budget:360}); }
+  if(hmView==="3d"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderIsoView(holder,h); }
+
+  const lo=$("#hm-lights-off"); if(lo) lo.onclick=async()=>{ lo.textContent="…"; for(const t of lights.filter(t=>t.on)){ try{ await post("/api/ha/toggle",{entity_id:t.entity_id}); }catch(e){} } setTimeout(loadHM,500); };
+  body.querySelectorAll(".hm-np [data-sp]").forEach(b=>{ b.onclick=async()=>{
+    const a=b.dataset.sp; if(navigator.vibrate) navigator.vibrate(8);
+    if(a==="vol"){ const v=Math.max(0,Math.min(1,(sp.volume??0.5)+0.1*(+b.dataset.d))); await post("/api/ha/spotify",{action:"volume",value:String(v)}).catch(()=>{}); }
+    else await post("/api/ha/spotify",{action:a}).catch(()=>{});
+    setTimeout(loadHM,600); }; });
+  body.querySelectorAll(".hm-dchip").forEach(c=>{ c.onclick=async()=>{ await post("/api/ha/spotify",{action:"source",value:c.dataset.src}).catch(()=>{}); setTimeout(loadHM,800); }; });
+}
+// come back to the tab you were on last time
+try{ const v=localStorage.getItem("fh_view"); if(v&&v!=="add"&&$("#view-"+v)) setTimeout(()=>switchView(v),0); }catch(e){}
 
 /* ---- TV remote (same /api/ha/media backend as the wall's remote) ---- */
 let tvEid=null, tvList=[];

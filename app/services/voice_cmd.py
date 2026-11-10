@@ -459,6 +459,21 @@ def interpret(text: str) -> dict:
     if ("time" in w and ("what" in w or "whats" in w)) or "clock" in w:
         return {"ok": True, "say": "It's " + datetime.datetime.now().strftime("%I:%M %p").lstrip("0") + "."}
 
+    # house modes: "good night", "we're leaving / going out / bye", "I'm home / we're back"
+    tl = t.lower()
+    if re.search(r"\b(good ?night|night night|bed ?time|going to bed|lights out for the night)\b", tl):
+        from . import house_modes
+        r = house_modes.run("goodnight", close_garage=("close" in w and "garage" in w))
+        return {"ok": True, "say": r.get("say", "Good night."), "refresh": True}
+    if re.search(r"\b(we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|going out|heading out|away mode|bye bye|see you later)\b", tl):
+        from . import house_modes
+        r = house_modes.run("away", close_garage=("close" in w and "garage" in w))
+        return {"ok": True, "say": r.get("say", "Bye for now."), "refresh": True}
+    if re.search(r"\b(i'm home|i am home|im home|we're home|we are home|were home|we're back|we are back|were back|i'm back|i am back|im back|welcome home)\b", tl):
+        from . import house_modes
+        r = house_modes.run("welcome")
+        return {"ok": True, "say": r.get("say", "Welcome home."), "refresh": True}
+
     # alarm (arm by voice; disarm stays behind the PIN pad)
     if "disarm" in w or ("off" in w and "alarm" in w):
         return {"ok": False, "say": "For safety, please disarm at the screen with your PIN.", "focus": "alarm"}

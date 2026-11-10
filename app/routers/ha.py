@@ -14,7 +14,7 @@ import asyncio
 import json
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from ..services import doorbell, ha_svc, ha_live
+from ..services import doorbell, ha_svc, ha_live, house_modes
 
 router = APIRouter()
 
@@ -136,6 +136,21 @@ def doorbell_state():
 def doorbell_test(payload: dict | None = None):
     """Simulate a ring to check the wall pop-up, phone push and TV flash."""
     return doorbell.test_ring((payload or {}).get("kind", "doorbell"))
+
+
+@router.post("/mode")
+def mode(payload: dict):
+    """One-tap house modes: {mode: goodnight|away|welcome, who?, close_garage?, arm?, source?}.
+    Returns what was done + warnings + a sentence the wall speaks."""
+    p = payload or {}
+    return house_modes.run(p.get("mode", ""), who=p.get("who"), close_garage=bool(p.get("close_garage")),
+                           arm=p.get("arm", True) is not False, source=p.get("source", "wall"))
+
+
+@router.get("/presence")
+def presence():
+    """Who's home (HA person.* from the companion app)."""
+    return {"people": house_modes.presence()}
 
 
 @router.get("/art")

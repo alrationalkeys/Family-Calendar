@@ -37,7 +37,9 @@ const FH = (() => {
     morningBriefing: false,  // auto-spoken briefing on first walk-up (off: button / ask)
     briefingHour: 6,         // ...but not before this hour
     doorbellTv: true,        // flash the doorbell snapshot on any Roku that is on
-    doorbellSpeak: true,     // wall says "someone's at the front door"
+    doorbellSpeak: true,
+    nightTemp: null,         // Good Night thermostat (null = leave it)
+    awayTemp: null,          // Away thermostat setback     // wall says "someone's at the front door"
   };
 
   const FONTS = {

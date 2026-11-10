@@ -2234,6 +2234,7 @@ async function loadHomeStatus(){
   bar.onclick=()=>showPage("home");
 }
 async function loadHome(){
+  loadPresence();
   const wrap=$("#home-wrap"); if(!wrap) return;
   let h;
   try{ h=(await cachedFetch("/api/ha/home","ha")).data; }
@@ -2293,13 +2294,17 @@ function renderTilesView(body,h){
     ? `<span class="cc-chip warn">⚠️ ${esc(openThings.join(", "))} open</span>`
     : '<span class="cc-chip ok">✓ All closed</span>');
   if(outdoor) chips.push(`<span class="cc-chip">\u{1F321}️ ${esc(outdoor.state)}${esc(outdoor.unit||"")} outside</span>`);
+  if(lastPresence&&lastPresence.length){ const home=lastPresence.filter(p=>p.home).map(p=>p.name), away=lastPresence.filter(p=>!p.home).map(p=>p.name);
+    chips.push(`<span class="cc-chip ${home.length?'ok':''}">\u{1F3E0} ${home.length?esc(home.join(", "))+" home":"nobody home"}${away.length?' · '+esc(away.join(", "))+' away':''}</span>`); }
 
   const kpis=[`<div class="cc-kpi"><div class="cc-kpi-v">${onCount}</div><div class="cc-kpi-l">on now</div></div>`];
   if(power) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(power.state)}<small>${esc(power.unit||"W")}</small></div><div class="cc-kpi-l">power</div></div>`);
   if(energy) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(energy.state)}<small>${esc(energy.unit||"kWh")}</small></div><div class="cc-kpi-l">today</div></div>`);
   kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${h.count}</div><div class="cc-kpi-l">devices</div></div>`);
 
-  const qa=['<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
+  const qa=['<button class="cc-qa" data-mode="goodnight">\u{1F319} Good night</button>',
+            '<button class="cc-qa" data-mode="away">\u{1F6AA} Leaving</button>',
+            '<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
   tiles.filter(t=>t.domain==="scene").slice(0,3).forEach(s=>
     qa.push(`<button class="cc-qa" data-scene="${esc(s.entity_id)}">✨ ${esc(s.name)}</button>`));
 
@@ -2345,6 +2350,16 @@ function renderTilesView(body,h){
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
   const lo=body.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;
+  body.querySelectorAll(".cc-qa[data-mode]").forEach(b=>{ b.onclick=()=>runMode(b.dataset.mode, b); });
+}
+let lastPresence=null;
+async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then(x=>x.json()); lastPresence=r.people||[]; }catch(e){} }
+/* Good night / Leaving: one tap does the rounds (lights, TVs, locks, alarm) and the wall says what it did */
+async function runMode(mode, btn){
+  resetSleep(); if(btn){ btn.disabled=true; btn.textContent="…"; }
+  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall"}).then(x=>x.json()); }catch(e){}
+  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
+  setTimeout(loadHome, 1200);
 }
 
 /* ---- Spotify now-playing card ---- */

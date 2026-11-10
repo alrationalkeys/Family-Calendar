@@ -312,6 +312,58 @@ live happily in the same HA box.
 6. Set the Area to **Kitchen** on both strips and the sensor → they appear as pins in the kitchen
    on the 3D house and the strips light the room in the model when they're on.
 
+## K. Arrive / leave automatically (geofence → FamilyHub house modes)
+FamilyHub has one-tap **Good night**, **Leaving** and **Welcome home** sequences (wall hero
+buttons, phone Home tab, voice: "good night" / "we're leaving" / "I'm home"). They read the device
+list live, so nothing to configure per device. To fire them from the phones' location:
+
+1. HA → Settings → Devices & services → Companion app on each phone: location sharing **on**.
+   Settings → Areas, labels & zones → **Home** zone: drag the pin onto the house, radius ~100 m.
+2. Add to `configuration.yaml` (File editor add-on), then restart HA:
+   ```yaml
+   rest_command:
+     familyhub_mode:
+       url: "http://familyhub.local:8000/api/ha/mode"      # or the wall's IP
+       method: POST
+       content_type: "application/json"
+       payload: '{"mode": "{{ mode }}", "who": "{{ who }}", "source": "ha"}'
+   ```
+3. Automations (Settings → Automations → Create → ⋮ → Edit in YAML):
+   ```yaml
+   alias: Welcome home
+   trigger:
+     - platform: state
+       entity_id: [person.alex, person.rachell]
+       to: home
+   condition:
+     - condition: template
+       value_template: "{{ (now() - trigger.from_state.last_changed).total_seconds() > 600 }}"
+   action:
+     - service: rest_command.familyhub_mode
+       data: { mode: welcome, who: "{{ trigger.to_state.name }}" }
+   ```
+   ```yaml
+   alias: Everyone left
+   trigger:
+     - platform: state
+       entity_id: [person.alex, person.rachell]
+       from: home
+       for: "00:20:00"
+   condition:
+     - condition: state
+       entity_id: person.alex
+       state: not_home
+     - condition: state
+       entity_id: person.rachell
+       state: not_home
+   action:
+     - service: rest_command.familyhub_mode
+       data: { mode: away, who: "" }
+   ```
+   Welcome never disarms the alarm (PIN pad only); it turns on entry lights after dark and the wall
+   says hello. Away locks up, turns everything off and arms AWAY — unless a door/garage is open, in
+   which case it arms nothing and says so.
+
 ## J. Make the two feel like one product
 
 **FamilyHub inside the Home Assistant app.** Settings → Dashboards → **Add dashboard →

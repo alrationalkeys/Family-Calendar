@@ -431,6 +431,9 @@
     <label class="chk"><input type="checkbox" id="set-doorbell-speak"> Doorbell: wall pops the camera + says "someone's at the front door"</label>
     <label class="chk"><input type="checkbox" id="set-doorbell-tv"> Doorbell: flash the camera on any Roku that's on (about 20 s)</label>
     <button class="tool" id="set-doorbell-test" type="button" style="margin:6px 0 10px">🔔 Test the doorbell</button>
+    <div class="srow"><span>Good Night sets the thermostat to</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
+    <div class="srow"><span>Leaving sets the thermostat to</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
+    <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
     <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
   </div>
@@ -898,7 +901,13 @@ FHHome.camera = (eid,name)=>openCam(eid,name);
 FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };
 $("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.dataset.v; $("#hm-tabs").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); if(hmLast) renderHM(hmLast, true); }; });
 
-let hmWx=null, hmWxAt=0;
+let hmWx=null, hmWxAt=0, hmPresence=null;
+async function hmMode(mode, btn){
+  if(navigator.vibrate) navigator.vibrate(10);
+  if(btn){ btn.disabled=true; btn.querySelector(".ic").textContent="⏳"; }
+  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"phone", who:whoAmI()}).then(x=>x.json()); }catch(e){}
+  toast(r.say||"Done"); setTimeout(loadHM, 900);
+}
 async function hmWeather(){
   if(Date.now()-hmWxAt<10*60*1000) return hmWx;
   hmWxAt=Date.now();
@@ -907,7 +916,7 @@ async function hmWeather(){
 }
 async function loadHM(){
   let h=null;
-  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather()]); }catch(e){}
+  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{})]); }catch(e){}
   if(!h){ $("#hm-hero").innerHTML=""; $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
   renderHM(h,false);
 }
@@ -936,6 +945,8 @@ function renderHero(h, tiles){
   if(wx&&wx.high!=null) bits.push(`high ${wx.high}° · low ${wx.low}°`);
   bits.push(lightsOn?`<span class="warn">${lightsOn} light${lightsOn>1?'s':''} on</span>`:`<span class="good">lights off</span>`);
   if(playing) bits.push(`${playing} playing`);
+  if(hmPresence&&hmPresence.length){ const home=hmPresence.filter(p=>p.home).map(p=>p.name), away=hmPresence.filter(p=>!p.home).map(p=>p.name);
+    bits.push((home.length?`<span class="good">${E(home.join(', '))} home</span>`:'nobody home')+(away.length?` · ${E(away.join(', '))} away`:'')); }
   if(openers.length) bits.push(`<span class="warn">${E(openers.map(o=>o.name.replace(/contact|sensor/ig,'').trim()).join(', '))} open</span>`);
   else bits.push('<span class="good">all closed</span>');
   const txt=`<div class="hm-greet">${greet}</div><div class="hm-wx">${line1||E(now.toLocaleDateString([],{weekday:'long', month:'long', day:'numeric'}))}</div><div class="hm-wx2">${bits.join(' · ')}</div>`;
@@ -969,10 +980,12 @@ function renderHM(h, force){
   renderHero(h, tiles);
 
   // scene shortcuts: all-off first, then the HA scenes (max 4 tiles)
-  const scenes=tiles.filter(t=>t.domain==="scene").slice(0,3);
+  const scenes=tiles.filter(t=>t.domain==="scene"&&!/night|leav|away|home/i.test(t.name)).slice(0,3);   // built-in Good night / Leaving cover those
   let html=`<div class="hm-scenes">
+    <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
+    <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
     <button class="hm-scene" id="hm-lights-off"><span class="ic">💡</span>All off</button>
-    ${scenes.map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
+    ${scenes.slice(0,1).map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
   </div>`;
   // status strip
   const st=[];
@@ -1202,6 +1215,8 @@ function loadSettingsUI(){
   $("#set-push-adds").checked=s.pushAdds!==false; $("#set-push-adds").onchange=e=>FH.save({pushAdds:e.target.checked});
   $("#set-doorbell-speak").checked=s.doorbellSpeak!==false; $("#set-doorbell-speak").onchange=e=>FH.save({doorbellSpeak:e.target.checked});
   $("#set-doorbell-tv").checked=s.doorbellTv!==false; $("#set-doorbell-tv").onchange=e=>FH.save({doorbellTv:e.target.checked});
+  $("#set-nighttemp").value=s.nightTemp||""; $("#set-nighttemp").onchange=e=>FH.save({nightTemp:e.target.value?+e.target.value:null});
+  $("#set-awaytemp").value=s.awayTemp||""; $("#set-awaytemp").onchange=e=>FH.save({awayTemp:e.target.value?+e.target.value:null});
   $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});

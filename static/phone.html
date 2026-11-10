@@ -113,6 +113,7 @@
   .days{display:flex; flex-wrap:wrap; gap:4px 10px; margin:4px 0 10px}
   .days .dchk{font-size:13px; margin:0}
   .form textarea{width:100%; background:var(--panel2); border:1px solid var(--line); border-radius:10px; color:var(--ink); font:inherit; padding:10px 12px; margin-bottom:10px; resize:vertical}
+  body.nocats select[id$="_cat"]{display:none}
   /* TV remote */
   .tv-pick{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px}
   .tv-pick button{flex:1 1 40%; padding:14px 10px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:16px; font-weight:600}
@@ -463,6 +464,9 @@ let formKind="event";
 const today=(d=>{const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;})(new Date());
 
 function catOptions(){
+  // no categories defined yet -> the select is hidden (body.nocats) so forms stay clean;
+  // people colours already do the colour-coding. Define categories in Settings if wanted.
+  document.body.classList.toggle("nocats", !categories.length);
   return `<option value="">No category</option>`+
     categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
 }

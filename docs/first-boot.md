@@ -129,7 +129,7 @@ out the case's bottom slot. Hang on the wall cleat.
 
 | Need | Do |
 |---|---|
-| Update FamilyHub | `cd ~/familyhub && git pull && .venv/bin/pip install -q -r requirements.txt && sudo systemctl restart familyhub` then tap the screen twice to reload (or `sudo reboot`) |
+| Update FamilyHub | **Phone app → Settings → The wall → Update the wall** (works from anywhere over Tailscale: pulls, installs, restarts, the screen reloads itself). By hand: `cd ~/familyhub && git pull && .venv/bin/pip install -q -r requirements.txt && sudo systemctl restart familyhub` |
 | Server logs | `journalctl -u familyhub -f` |
 | Chromium misbehaving | `pkill chromium` — `kiosk.sh` relaunches it in 3 s. The page also reloads itself nightly at 03:45. |
 | Wrong time zone | the installer sets `America/New_York`; change with `sudo timedatectl set-timezone Region/City` |

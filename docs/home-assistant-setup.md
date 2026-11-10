@@ -256,6 +256,22 @@ Then the Home tab, floor plan rooms (matched by name — rename entities to "Kit
 Stove", "Kitchen Upper Front", "Kitchen Lower Fridge", "Porch Lights" so voice and rooms
 line up), "all lights off", and "Hey <Name>, kitchen lights off" all just work.
 
+### I-0. Alarm.com — try this FIRST (~10 min, cloud)
+The IQ Panel reports to Alarm.com, and the house already runs lights/sensors/doorbell through it.
+The community **Alarm.com** integration logs in as you and exposes what the panel knows:
+alarm partition (arm/disarm), every sensor zone, Z-Wave lights/plugs/locks/thermostats paired to
+the panel, the **garage door** (myQ linked through Alarm.com) and the **doorbell** (ring/motion
+events; no video). Cloud round-trip (~1–2 s), unofficial, occasionally breaks for a few days
+when Alarm.com changes their site — so keep **qolsysgw** (§C) for the local, instant alarm +
+sensor path and use Alarm.com for the garage, doorbell and anything else only the cloud has.
+1. HACS → Integrations → search **Alarm.com** → Install → restart HA.
+2. Settings → Devices & services → **Add integration** → *Alarm.com* → your Alarm.com username +
+   password (the same login as the Alarm.com phone app). If two-factor is on, HA asks for a
+   one-time code once; it then stores a device token.
+3. Give the garage door, the doorbell and each light an **Area** → FamilyHub shows them in the
+   right rooms; the 3D house's garage door follows the real one.
+4. If the garage door shows up here, the **ratgdo** board in the table above is optional.
+
 ### I-1. Z-Wave: the SONOFF Dongle-PZG23 (~10 min)
 Z-Wave (908 MHz) and Zigbee (2.4 GHz) are different radios — one stick per protocol. Both
 live happily in the same HA box.

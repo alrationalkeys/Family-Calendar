@@ -2809,9 +2809,12 @@ function applyWallMic(){
       if(spPlayer&&spDeviceId){
         const st=await spPlayer.getCurrentState().catch(()=>null);
         if(st&&!st.paused){
+          // The player's volume is linear gain, which sounds "all loud, then a cliff near 20%".
+          // Step on a perceptual (squared) curve instead: level% -> gain = (level/100)^2.
           const cur=await spPlayer.getVolume();
-          const next=Math.max(0,Math.min(1,cur+delta/100));
-          await spPlayer.setVolume(next); show(Math.round(next*100));
+          const lvl=Math.round(Math.sqrt(Math.max(0,cur))*100);
+          const nextLvl=Math.max(0,Math.min(100,lvl+delta));
+          await spPlayer.setVolume(Math.pow(nextLvl/100,2)); show(nextLvl);
           return;
         }
       }

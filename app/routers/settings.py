@@ -40,6 +40,8 @@ DEFAULTS = {
     "pushAdds": True,                # Home Assistant pushes adds to the other phones (HA Companion app)
     "morningBriefing": False,        # auto-spoken "here's today" on first walk-up (off: use the button / ask)
     "briefingHour": 6,               # ...but not before this hour
+    "doorbellTv": True,              # flash the doorbell snapshot on any Roku that is on
+    "doorbellSpeak": True,           # wall says "someone's at the front door"
 }
 
 

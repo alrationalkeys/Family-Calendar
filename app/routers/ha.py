@@ -14,7 +14,7 @@ import asyncio
 import json
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from ..services import ha_svc, ha_live
+from ..services import doorbell, ha_svc, ha_live
 
 router = APIRouter()
 
@@ -78,12 +78,12 @@ async def events():
     25 s). The wall re-renders the Home tab / status bar the moment something flips."""
     async def gen():
         v = ha_live.version()
-        yield f"data: {json.dumps({'version': v, 'live': ha_live.connected()})}\n\n"
+        yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at()})}\n\n"
         while True:
             nv = await ha_live.wait_for_change(v, timeout=25.0)
             if nv != v:
                 v = nv
-                yield f"data: {json.dumps({'version': v, 'live': ha_live.connected()})}\n\n"
+                yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at()})}\n\n"
             else:
                 yield ": keepalive\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream",
@@ -113,6 +113,29 @@ def spotify_browse(id: str = "", type: str = ""):
     """Browse the Spotify library through HA (playlists, recently played, albums…).
     No args = root. Returns {title, children:[{title, id, type, can_play, can_expand, thumb}]}."""
     return ha_svc.spotify_browse(id or None, type or None)
+
+
+@router.get("/camera/{entity_id}")
+def camera(entity_id: str):
+    """Current snapshot from a camera, proxied through HA with the server-side token
+    (cached ~4 s). The phone, the wall, the 3D pins and the Roku flash all load this."""
+    got = ha_svc.camera_snapshot(entity_id)
+    if not got:
+        raise HTTPException(404, "no snapshot")
+    data, ctype = got
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/doorbell")
+def doorbell_state():
+    """Last ring/motion: {at, kind, camera, name, where}. at=0 means never."""
+    return doorbell.last()
+
+
+@router.post("/doorbell/test")
+def doorbell_test(payload: dict | None = None):
+    """Simulate a ring to check the wall pop-up, phone push and TV flash."""
+    return doorbell.test_ring((payload or {}).get("kind", "doorbell"))
 
 
 @router.get("/art")

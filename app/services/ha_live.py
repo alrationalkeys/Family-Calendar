@@ -103,6 +103,11 @@ async def _run_once(ws_url: str, token: str):
                         _states[eid] = new
                     else:
                         _states.pop(eid, None)
+                    try:
+                        from . import doorbell
+                        doorbell.on_state(eid, data.get("old_state"), new, _states)
+                    except Exception:
+                        pass
                 _updated = time.time()
                 _version += 1
                 if _cond:

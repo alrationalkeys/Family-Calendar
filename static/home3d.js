@@ -292,7 +292,7 @@
   function devicesByRoom(h, rooms){
     const tiles=FHHome.tilesOf(h), lc=s=>String(s||"").toLowerCase(), out=new Map(), used=new Set();
     rooms.forEach(r=>out.set(r, []));
-    const want=t=>t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor"||t.domain==="binary_sensor"||t.domain==="lock"||t.domain==="climate"||t.domain==="cover";
+    const want=t=>t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor"||t.domain==="binary_sensor"||t.domain==="lock"||t.domain==="climate"||t.domain==="cover"||t.domain==="camera";
     tiles.forEach(t=>{
       if(!want(t)||t.domain==="scene"||t.domain==="script") return;
       const hit=rooms.find(r=>lc(t.area)&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area||"").includes(lc(r.key)));
@@ -428,6 +428,7 @@
           const p=document.createElement("button"); p.type="button"; p.className="h3-pin"+(t.on&&t.domain!=="sensor"?" on":"")+(t.domain==="sensor"?" ro":"");
           const lab=pinLabel(t); p.innerHTML=`<span class="ic">${FHHome.haIcon(t)}</span>${lab?`<span class="lb">${E(lab)}</span>`:""}`; p.title=t.name+" · "+FHHome.haStateLabel(t);
           if(t.domain==="media_player") p.onclick=()=>FHHome.remote(t.entity_id,t.name);
+          else if(t.domain==="camera"){ p.classList.remove("ro"); p.onclick=()=>FHHome.camera(t.entity_id,t.name); }
           else if(t.toggleable||t.activatable) p.onclick=()=>FHHome.toggle(t.entity_id);
           else p.classList.add("ro");
           v.overlay.appendChild(p);

@@ -112,7 +112,7 @@
     light:"\u{1F4A1}", switch:"\u{1F50C}", fan:"\u{1F32C}️", cover:"\u{1F6AA}",
     lock:"\u{1F512}", climate:"\u{1F321}️", media_player:"\u{1F4FA}",
     scene:"✨", script:"▶️", alarm_control_panel:"\u{1F6E1}️",
-    binary_sensor:"\u{1F6A6}", sensor:"\u{1F321}️"
+    binary_sensor:"\u{1F6A6}", sensor:"\u{1F321}️", camera:"\u{1F4F7}"
   };
   function haIcon(t){
     if(t.domain==="lock") return t.state==="locked"?"\u{1F512}":"\u{1F513}";
@@ -126,6 +126,7 @@
       return (cur!=null?cur+"° now":"") + (tgt!=null?" → "+tgt+"°":"") || t.state;
     }
     if(t.domain==="sensor") return (t.state||"")+(t.unit||"");
+    if(t.domain==="camera") return "Tap to view";
     if(t.domain==="scene"||t.domain==="script") return "Tap to run";
     const nice={on:"On",off:"Off",open:"Open",closed:"Closed",locked:"Locked",
       unlocked:"Unlocked",playing:"Playing",paused:"Paused",idle:"Idle",standby:"Standby",disarmed:"Disarmed",
@@ -240,6 +241,6 @@
     renderFloorView, renderIsoView,
     get floor(){ return homeFloor; }, set floor(f){ homeFloor=f; },
     // pages override these
-    toggle:function(){}, remote:function(){}, rerender:function(){}
+    toggle:function(){}, remote:function(){}, camera:function(){}, rerender:function(){}
   };
 })();

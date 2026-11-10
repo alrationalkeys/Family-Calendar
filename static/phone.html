@@ -141,6 +141,17 @@
   .hm-status::-webkit-scrollbar{display:none}
   .hm-status .hm-chip{flex:none; background:var(--panel); padding:9px 14px; font-size:13.5px}
   .hm-room-ic{font-size:18px; margin-right:6px; vertical-align:-2px}
+  /* cameras */
+  .hm-cams{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:4px}
+  .hm-cam{position:relative; border-radius:16px; overflow:hidden; background:#000; border:1px solid var(--line); aspect-ratio:16/10; cursor:pointer}
+  .hm-cam img{width:100%; height:100%; object-fit:cover; display:block}
+  .hm-cam .hm-cam-n{position:absolute; left:0; right:0; bottom:0; padding:18px 10px 8px; font-size:13px; font-weight:600; color:#fff; background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.75))}
+  #camov{position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.9); display:none; flex-direction:column; align-items:center; justify-content:center; padding:16px}
+  #camov.on{display:flex}
+  #camov img{width:100%; max-height:70vh; object-fit:contain; border-radius:14px; background:#000}
+  #camov .cam-t{color:#fff; font-size:18px; font-weight:700; margin:0 0 10px; width:100%; display:flex; justify-content:space-between; align-items:center}
+  #camov .cam-t button{border:0; background:rgba(255,255,255,.15); color:#fff; width:40px; height:40px; border-radius:50%; font-size:18px}
+  #camov .cam-h{color:#9a9da6; font-size:12.5px; margin-top:10px}
   .hm-room[data-rn]{cursor:pointer}
   .hm-unassigned{display:block}
   .hm-unl{margin-top:12px; display:flex; flex-direction:column; gap:8px}
@@ -338,6 +349,8 @@
   <div id="hm-body"><div class="hint" style="padding:30px 0; text-align:center">Loading the house…</div></div>
 </div>
 
+<div id="camov"><div class="cam-t"><span id="cam-title">Camera</span><button id="cam-close">✕</button></div><img id="cam-img" alt=""><div class="cam-h">Live snapshot · refreshes every 2 s · tap ✕ to close</div></div>
+
 <div id="view-tv" hidden>
   <div class="sub">Pick a TV, then use it like the real remote.</div>
   <div class="tv-pick" id="tv-pick"><div class="hint">Loading TVs…</div></div>
@@ -415,6 +428,9 @@
     </select></div>
     <div class="hint">Phone pushes and the on-screen banner still happen during quiet hours; only the spoken part pauses.</div>
     <label class="chk"><input type="checkbox" id="set-push-adds"> Push adds to the other phones (Home Assistant app)</label>
+    <label class="chk"><input type="checkbox" id="set-doorbell-speak"> Doorbell: wall pops the camera + says "someone's at the front door"</label>
+    <label class="chk"><input type="checkbox" id="set-doorbell-tv"> Doorbell: flash the camera on any Roku that's on (about 20 s)</label>
+    <button class="tool" id="set-doorbell-test" type="button" style="margin:6px 0 10px">🔔 Test the doorbell</button>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
     <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
   </div>
@@ -873,6 +889,12 @@ function switchView(v){
 let hmView="rooms", hmLast=null, hmSig="";
 FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
+let _camT=null, _camEid=null;
+function openCam(eid,name){ _camEid=eid; $("#cam-title").textContent="📷 "+(name||"Camera"); $("#camov").classList.add("on");
+  const tick=()=>{ if(_camEid!==eid) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; }; tick(); clearInterval(_camT); _camT=setInterval(tick,2000); }
+function closeCam(){ $("#camov").classList.remove("on"); clearInterval(_camT); _camEid=null; }
+$("#cam-close").onclick=closeCam;
+FHHome.camera = (eid,name)=>openCam(eid,name);
 FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };
 $("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.dataset.v; $("#hm-tabs").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); if(hmLast) renderHM(hmLast, true); }; });
 
@@ -962,6 +984,10 @@ function renderHM(h, force){
   if(power) st.push(`<span class="hm-chip">⚡ ${E(power.state)} ${E(power.unit||'W')}</span>`);
   temps.filter(t=>/out|exterior/i.test(t.name)).slice(0,1).forEach(t=>st.push(`<span class="hm-chip">🌡 ${E(t.state)}${E(t.unit||'°')} outside</span>`));
   html+=`<div class="hm-status">${st.join('')}</div>`;
+  const cams=tiles.filter(t=>t.domain==="camera");
+  if(cams.length && hmView!=="all"){
+    html+=`<div class="hm-sec">Cameras</div><div class="hm-cams">${cams.map(c=>`<div class="hm-cam" data-cam="${E(c.entity_id)}" data-name="${E(c.name)}"><img src="${E(c.snapshot)}?v=1&t=${Date.now()}" alt=""><div class="hm-cam-n">📷 ${E(c.name)}</div></div>`).join('')}</div>`;
+  }
 
   if(sp){
     const playing=sp.state==="playing";
@@ -1064,7 +1090,7 @@ function renderHM(h, force){
   }
 
   const sig=html.replace(/&t=\d+/g,"");
-  if(!force && body.dataset.sig===sig) return;
+  if(!force && body.dataset.sig===sig){ body.querySelectorAll(".hm-cam img").forEach(im=>{ im.src=im.src.replace(/&t=\d+/,"&t="+Date.now()); }); return; }
   body.dataset.sig=sig; body.innerHTML=html;
 
   if(hmView==="plan"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderFloorView(holder,h,{budget:360}); }
@@ -1072,6 +1098,7 @@ function renderHM(h, force){
     if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(holder,h,{id:"main", height:Math.min(560,Math.max(380,Math.round(window.innerHeight*0.62))), pins:true});
     else FHHome.renderIsoView(holder,h); }
 
+  body.querySelectorAll(".hm-cam").forEach(c=>{ c.onclick=()=>openCam(c.dataset.cam, c.dataset.name); });
   // tap a room card (not one of its device buttons) -> fly the 3D camera into that room
   body.querySelectorAll(".hm-room[data-rn]").forEach(c=>{ c.onclick=(e)=>{ if(e.target.closest("button")) return;
     const r=FHHome.getLayout().find(x=>x.name===c.dataset.rn&&String(x.floor||1)===c.dataset.rf); if(!r||!(FHHome.has3D&&FHHome.has3D())) return;
@@ -1173,6 +1200,9 @@ function loadSettingsUI(){
   const q=$("#set-announce-quiet"); q.value = s.announceQuietStart==="" ? "never" : (s.announceQuietStart==="20:00" ? "evening" : "night");
   q.onchange=e=>{ const v=e.target.value; FH.save(v==="never"?{announceQuietStart:"",announceQuietEnd:""}: v==="evening"?{announceQuietStart:"20:00",announceQuietEnd:"07:00"}:{announceQuietStart:null,announceQuietEnd:null}); };
   $("#set-push-adds").checked=s.pushAdds!==false; $("#set-push-adds").onchange=e=>FH.save({pushAdds:e.target.checked});
+  $("#set-doorbell-speak").checked=s.doorbellSpeak!==false; $("#set-doorbell-speak").onchange=e=>FH.save({doorbellSpeak:e.target.checked});
+  $("#set-doorbell-tv").checked=s.doorbellTv!==false; $("#set-doorbell-tv").onchange=e=>FH.save({doorbellTv:e.target.checked});
+  $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
   $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };

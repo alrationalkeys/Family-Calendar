@@ -36,6 +36,8 @@ const FH = (() => {
     pushAdds: true,          // Home Assistant pushes adds to the other phones
     morningBriefing: false,  // auto-spoken briefing on first walk-up (off: button / ask)
     briefingHour: 6,         // ...but not before this hour
+    doorbellTv: true,        // flash the doorbell snapshot on any Roku that is on
+    doorbellSpeak: true,     // wall says "someone's at the front door"
   };
 
   const FONTS = {

@@ -63,9 +63,10 @@ DOMAIN_GROUP = {
     "binary_sensor": "Sensors",
     "sensor": "Sensors",
     "alarm_control_panel": "Security",
+    "camera": "Cameras",
 }
 # Order sections appear in on the Home tab.
-GROUP_ORDER = ["Security", "Lights", "Switches & Plugs", "Climate",
+GROUP_ORDER = ["Security", "Cameras", "Lights", "Switches & Plugs", "Climate",
                "Doors & Covers", "Media & TVs", "Scenes", "Sensors"]
 
 # "on-ish" states that mean a tile should look active.
@@ -128,8 +129,11 @@ def _demo_seed():
 # Mutable in-memory demo state, so demo toggles feel live within a server run.
 _DEMO = _demo_seed()
 _DEMO.setdefault("light.driveway", {"state": "off", "attributes": {"friendly_name": "Driveway Light"}})
+_DEMO.setdefault("camera.front_door", {"state": "idle", "attributes": {"friendly_name": "Front Door Doorbell"}})
+_DEMO.setdefault("camera.backyard", {"state": "idle", "attributes": {"friendly_name": "Backyard"}})
+_DEMO.setdefault("binary_sensor.front_door_doorbell", {"state": "off", "attributes": {"friendly_name": "Front Door Doorbell Button", "device_class": "occupancy"}})
 # demo Areas (the real ones come from HA's registries, see entity_areas())
-_DEMO_AREAS = {"light.driveway": "Driveway", "light.porch": "Porch", "light.kitchen": "Kitchen",
+_DEMO_AREAS = {"light.driveway": "Driveway", "camera.front_door": "Front Walkway", "camera.backyard": "Patio", "binary_sensor.front_door_doorbell": "Front Walkway", "light.porch": "Porch", "light.kitchen": "Kitchen",
                "light.living_room": "Living", "light.master_bed": "Master Bedroom",
                "media_player.living_room_tv": "Living", "media_player.bedroom_tv": "Master Bedroom",
                "cover.garage": "Garage", "binary_sensor.garage_motion": "Garage"}
@@ -236,6 +240,11 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
         tile["device_class"] = attrs.get("device_class", "")
     if domain == "alarm_control_panel":
         tile["armed"] = state.startswith("armed")
+    if domain == "camera":
+        # the browser loads snapshots through FamilyHub (token stays server-side)
+        tile["snapshot"] = f"/api/ha/camera/{entity_id}"
+        tile["toggleable"] = False
+        tile["on"] = False
     return tile
 
 
@@ -552,6 +561,38 @@ def entity_picture(entity_id: str):
             return r.read(), r.headers.get("Content-Type", "image/jpeg")
     except Exception:
         return None
+
+
+_SNAP_CACHE: dict = {}
+
+
+def camera_snapshot(entity_id: str, max_age: float = 4.0):
+    """Current still from a camera via HA's camera_proxy, cached a few seconds so a
+    phone + wall + 3D pin all refreshing don't hammer a cloud camera. (bytes, ctype) | None.
+    Demo mode draws a placeholder SVG."""
+    if demo_mode():
+        name = (_DEMO.get(entity_id) or {}).get("attributes", {}).get("friendly_name", "Camera")
+        hr = time.strftime("%H:%M:%S")
+        svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">'
+               f'<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3b55"/><stop offset="1" stop-color="#0f1620"/></linearGradient></defs>'
+               f'<rect width="640" height="360" fill="url(#g)"/><circle cx="520" cy="80" r="26" fill="#f1e6c8" opacity=".8"/>'
+               f'<rect x="0" y="260" width="640" height="100" fill="#1a2330"/><rect x="200" y="150" width="240" height="110" rx="6" fill="#39485f"/>'
+               f'<text x="20" y="340" font-family="sans-serif" font-size="20" fill="#dfe3ea">{name} · demo · {hr}</text></svg>')
+        return svg.encode(), "image/svg+xml"
+    if not entity_id:
+        return None
+    c = _SNAP_CACHE.get(entity_id)
+    if c and time.time() - c[0] < max_age:
+        return c[1], c[2]
+    try:
+        req = urllib.request.Request(ha_url().rstrip("/") + f"/api/camera_proxy/{entity_id}",
+                                     headers={"Authorization": f"Bearer {ha_token()}"})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            data, ctype = r.read(), r.headers.get("Content-Type", "image/jpeg")
+        _SNAP_CACHE[entity_id] = (time.time(), data, ctype)
+        return data, ctype
+    except Exception:
+        return (c[1], c[2]) if c else None
 
 
 def _grouped(tiles: list) -> list:

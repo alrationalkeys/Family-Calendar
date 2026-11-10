@@ -435,6 +435,18 @@
   .tpill.show{display:inline-flex}
   .tpill.ringing{animation:tring .6s infinite alternate}
   @keyframes tring{from{background:var(--now)}to{background:#e0533d}}
+  #camov{position:fixed; inset:0; z-index:62; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; padding:24px}
+  #camov.on{display:flex}
+  #camov.ring .cam-box{box-shadow:0 0 0 4px var(--now), 0 30px 80px rgba(0,0,0,.6)}
+  .cam-box{background:#0e1016; border-radius:22px; overflow:hidden; width:min(92vw, 1180px); box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .cam-top{display:flex; align-items:center; gap:14px; padding:14px 18px; color:#f1efe9; font-size:22px; font-weight:700}
+  .cam-top #cam-when{flex:1; font-size:14px; font-weight:500; color:#9a9da6}
+  .cam-top button{border:0; background:rgba(255,255,255,.1); color:#fff; width:44px; height:44px; border-radius:50%; font-size:20px}
+  #cam-img{display:block; width:100%; max-height:70vh; object-fit:contain; background:#000}
+  .cam-foot{padding:10px 18px 14px; color:#9a9da6; font-size:13px}
+  .tile.cam{padding:0; overflow:hidden; min-height:0}
+  .tile.cam img{display:block; width:100%; aspect-ratio:16/9; object-fit:cover; background:#000}
+  .tile.cam .t-name{padding:10px 14px 12px}
   #timerov{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center}
   #timerov.on{display:flex}
   .tm-card{background:var(--panel); border-radius:20px; padding:22px 22px 18px; width:420px; max-width:92vw}
@@ -987,6 +999,13 @@
     <button class="pin-x" id="remote-close">Close</button>
   </div>
 </div>
+
+<!-- Camera viewer: a tapped camera, or the doorbell pop-up -->
+<div id="camov"><div class="cam-box">
+  <div class="cam-top"><span id="cam-title">Camera</span><span id="cam-when"></span><button id="cam-close" aria-label="Close">✕</button></div>
+  <img id="cam-img" alt="camera snapshot">
+  <div class="cam-foot" id="cam-foot">Live snapshot · refreshes every 2 s</div>
+</div></div>
 
 <!-- Spotify library browser -->
 <div class="pinpad" id="spbrowse">
@@ -1962,6 +1981,7 @@ function showNotification(n){
   // and say it — announcements from a phone, reminders, "events found in email"
   if(FH.get().speakAlerts!==false){
     const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
+    if(n.kind==="doorbell"||n.kind==="motion") return;      // handled live via the SSE ring
     if(n.kind==="announce") sayAloud(clean(n.body||n.title));
     else if(n.kind==="reminder") sayAloud("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
     else if(n.kind==="mail") sayAloud(clean(n.title)+". Approve it on your phone.");
@@ -2298,6 +2318,11 @@ function renderTilesView(body,h){
   (h.groups||[]).forEach(g=>{
     html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
     g.tiles.forEach(t=>{
+      if(t.domain==="camera"){
+        html += '<div class="tile cam" data-ha="'+esc(t.entity_id)+'" data-domain="camera" data-name="'+esc(t.name)+'">'+
+          '<img src="'+esc(t.snapshot)+'?v=1&t='+Date.now()+'" alt="" loading="lazy"><div class="t-name">📷 '+esc(t.name)+'</div></div>';
+        return;
+      }
       const scene = t.activatable;
       const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
       const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
@@ -2313,7 +2338,7 @@ function renderTilesView(body,h){
   // every tile and chip, which reads as flicker on the touch screen (and drops a tap).
   // The album-art cache-buster is stripped from the comparison.
   const sig = html.replace(/&t=\d+/g, "");
-  if (body.dataset.sig === sig) return;
+  if (body.dataset.sig === sig){ body.querySelectorAll(".tile.cam img").forEach(im=>{ im.src=im.src.replace(/&t=\d+/, "&t="+Date.now()); }); return; }
   body.dataset.sig = sig;
   body.innerHTML = html;
   bindSpotify(body);
@@ -2387,6 +2412,29 @@ async function spbLoad(){
 $("#spb-back").onclick=async()=>{ spbStack.pop(); await spbLoad(); };
 $("#spb-close").onclick=closeSpotifyBrowser;
 $("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser(); };
+/* ---- cameras: tap a camera tile/pin, or the doorbell rings ---- */
+let lastRing=null, _camTimer=null, _camClose=null, _camEid=null;
+function openCamera(eid, name, opts){
+  opts=opts||{}; _camEid=eid; resetSleep(); wake();
+  const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.add("on");
+  $("#cam-title").textContent=(opts.ring?"🔔 ":"📷 ")+(name||"Camera");
+  $("#cam-when").textContent=opts.ring?"Someone's at the door":"";
+  const tick=()=>{ if(_camEid!==eid) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; };
+  tick(); clearInterval(_camTimer); _camTimer=setInterval(tick, 2000);
+  clearTimeout(_camClose); _camClose=setTimeout(closeCamera, opts.ring?60000:180000);
+}
+function closeCamera(){ $("#camov").classList.remove("on","ring"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; }
+$("#cam-close").onclick=closeCamera;
+$("#camov").onclick=(e)=>{ if(e.target.id==="camov") closeCamera(); };
+async function onRing(){
+  let r={}; try{ r=await fetch("/api/ha/doorbell").then(x=>x.json()); }catch(e){}
+  if(r.kind==="motion"){ banner("🎥 Motion", `Motion at the ${r.where||"camera"}.`); return; }   // quiet: banner only
+  if(r.camera) openCamera(r.camera, r.name||"Front door", {ring:true}); else banner("🔔 Doorbell", "Someone's at the door.");
+  beep(3);
+  if(FH.get().speakAlerts!==false && FH.get().doorbellSpeak!==false) sayAloud(`Someone's at the ${r.where||"front door"}.`);
+}
+FHHome.camera=(eid,name)=>openCamera(eid,name);
+
 /* ---- live Home Assistant updates: SSE stream of state changes ---- */
 (function liveHA(){
   if(!("EventSource" in window)) return;
@@ -2394,6 +2442,7 @@ $("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser()
   const connect=()=>{
     try{ es=new EventSource("/api/ha/events"); }catch(e){ return; }
     es.onmessage=(m)=>{ backoff=2000; let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
+      if(d.ring!=null){ if(lastRing!==null && d.ring>lastRing) onRing(); lastRing=d.ring; }
       if(lastV!==null && d.version!==lastV){
         if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome();
         if(curPage==="calendar") loadHomeStatus();
@@ -2433,6 +2482,7 @@ async function onTileTap(el){
   const eid=el.dataset.ha, domain=el.dataset.domain;
   if(domain==="alarm_control_panel"){ openAlarmPad(el); return; }
   if(domain==="media_player"){ openRemote(el.dataset.ha, el.dataset.name); return; }
+  if(domain==="camera"){ openCamera(eid, el.dataset.name); return; }
   if(el.classList.contains("ro")) return;      // sensors: nothing to do
   // optimistic flip for instant feedback
   const wasOn=el.classList.contains("on");

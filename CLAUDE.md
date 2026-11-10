@@ -105,6 +105,12 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API
   (snap Chromium has none). Install: `setup/install-voice.sh`; env `FAMILYHUB_STT_MODEL`,
   `FAMILYHUB_PIPER_VOICE`. kiosk.sh passes `--use-fake-ui-for-media-stream` (auto-allow mic).
+- Cameras + doorbell: `GET /api/ha/camera/{entity}` (snapshot via HA camera_proxy, 4 s cache, token server-side),
+  `GET /api/ha/doorbell` (last ring/motion), `POST /api/ha/doorbell/test`. `services/doorbell.py` watches
+  ha_live state changes (binary_sensor/event named doorbell|ring|chime|button → ring; a camera's motion sensor →
+  motion). SSE `/api/ha/events` carries `ring` (timestamp) so the wall pops the snapshot instantly + chime + speech;
+  phones get an HA push with the picture; Rokus that are on show it via media_player.play_media (url/jpg).
+  Settings `doorbellTv`, `doorbellSpeak`; env `FAMILYHUB_URL` = LAN URL phones/TVs load the snapshot from.
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
 - `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
 - `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated

@@ -2910,20 +2910,28 @@ function applyWallMic(){
    Spotify's SDK runs inside this page; FamilyHub hands it a token from /api/spotify/token.
    Only active once Spotify is linked from the phone app (Settings → Spotify). ---- */
 let spPlayer=null, spDeviceId=null;
+// report what the SDK is doing so the phone app can show it (/api/spotify/player_log)
+function spLog(stage, detail){ try{ post("/api/spotify/player_log",{stage, detail:String(detail||"").slice(0,300), ua:navigator.userAgent.slice(0,120)}); }catch(e){} }
 async function setupSpotifyPlayer(){
   let st=null; try{ st=await fetch("/api/spotify/status").then(r=>r.json()); }catch(e){ return; }
   if(!st||!st.linked) return;
+  // the SDK needs EME/Widevine; check up front so the failure is legible
+  try{
+    await navigator.requestMediaKeySystemAccess("com.widevine.alpha",[{initDataTypes:["cenc"],audioCapabilities:[{contentType:'audio/mp4;codecs="mp4a.40.2"'}]}]);
+    spLog("drm","widevine ok");
+  }catch(e){ spLog("drm_error","Widevine not available: "+(e&&e.message)); }
   if(!window.Spotify){
-    await new Promise(res=>{ window.onSpotifyWebPlaybackSDKReady=res; const s=document.createElement("script"); s.src="https://sdk.scdn.co/spotify-player.js"; s.onerror=()=>res(); document.head.appendChild(s); setTimeout(res,15000); });
+    await new Promise(res=>{ window.onSpotifyWebPlaybackSDKReady=res; const s=document.createElement("script"); s.src="https://sdk.scdn.co/spotify-player.js"; s.onerror=()=>{ spLog("sdk_error","script failed to load"); res(); }; document.head.appendChild(s); setTimeout(res,15000); });
   }
-  if(!window.Spotify) return;
+  if(!window.Spotify){ spLog("sdk_error","window.Spotify missing after load"); return; }
+  spLog("sdk","loaded");
   const name=FH.get().spotifyDeviceName||"Kitchen Wall";
   spPlayer=new Spotify.Player({name, volume:1.0,
-    getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); }).catch(()=>{})});
-  spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; post("/api/spotify/device",{device_id,name}).catch(()=>{}); });
-  spPlayer.addListener("not_ready", ()=>{ spDeviceId=null; });
+    getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); else spLog("token_error", JSON.stringify(j)); }).catch(e=>spLog("token_error", e&&e.message))});
+  spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; spLog("ready", device_id); post("/api/spotify/device",{device_id,name}).catch(()=>{}); });
+  spPlayer.addListener("not_ready", ()=>{ spDeviceId=null; spLog("not_ready",""); });
   ["initialization_error","authentication_error","account_error","playback_error"].forEach(ev=>
-    spPlayer.addListener(ev, e=>console.warn("spotify player", ev, e&&e.message)));
+    spPlayer.addListener(ev, e=>{ console.warn("spotify player", ev, e&&e.message); spLog(ev, e&&e.message); }));
   spPlayer.addListener("player_state_changed", ()=>{ if(curPage==="home") setTimeout(loadHome, 800); });
   try{ await spPlayer.connect(); }catch(e){}
   // the SDK drops the device after long idle periods; reconnect on a slow heartbeat

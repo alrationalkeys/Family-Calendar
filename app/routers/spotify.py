@@ -79,6 +79,25 @@ def device(payload: dict):
     return {"ok": True}
 
 
+_player_log: list[dict] = []
+
+
+@router.post("/player_log")
+def player_log(payload: dict):
+    """The wall page reports what Spotify's Web Playback SDK is doing (drm / sdk / ready / errors)."""
+    import time
+    p = payload or {}
+    _player_log.append({"t": time.strftime("%H:%M:%S"), "stage": str(p.get("stage", ""))[:40],
+                        "detail": str(p.get("detail", ""))[:300]})
+    del _player_log[:-30]
+    return {"ok": True}
+
+
+@router.get("/player_log")
+def get_player_log():
+    return {"log": _player_log}
+
+
 @router.get("/devices")
 def devices():
     return {"devices": sw.devices(), "wall": sw.wall_device()}

@@ -190,6 +190,17 @@ password stored; it's discovered over the LAN. `pulse` plays through the desktop
 default output (the speaker bar, per `setup/audio-default.sh`) without fighting Chromium
 for the sound card; pass `plughw:X,Y` instead to grab a card directly.
 
+> **If every track "loads" then skips** and `journalctl --user -u spotifyd` shows
+> `error audio key 0 1` / `Service unavailable { audio key error }`: Spotify is refusing
+> the open-source Connect client for that account (upstream librespot #1649, no fix on our
+> side, Premium or not). Use the **Bluetooth speaker** fallback instead — no account involved:
+> ```bash
+> systemctl --user disable --now spotifyd
+> bash setup/install-bt-speaker.sh "Kitchen Wall"
+> ```
+> Phone → Bluetooth → pair "Kitchen Wall" (no PIN) → anything you play comes out of the bar.
+> Layer 2 below still works for now-playing + voice control of whatever device is playing.
+
 **2. Control + now-playing on the screen.** In HA: Settings → Devices & Services →
 **Add Integration → Spotify**. It walks you through creating a free Spotify *developer
 app* (developer.spotify.com → Create app, redirect URI `https://my.home-assistant.io/redirect/oauth`)

@@ -148,7 +148,12 @@
   .hm-cam .hm-cam-n{position:absolute; left:0; right:0; bottom:0; padding:18px 10px 8px; font-size:13px; font-weight:600; color:#fff; background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.75))}
   #camov{position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.9); display:none; flex-direction:column; align-items:center; justify-content:center; padding:16px}
   #camov.on{display:flex}
-  #camov img{width:100%; max-height:70vh; object-fit:contain; border-radius:14px; background:#000}
+  #camov .cam-stage{position:relative; width:100%; border-radius:14px; overflow:hidden; background:#000}
+  #camov img{width:100%; max-height:70vh; object-fit:contain; display:block; background:#000}
+  #camov video{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:none; background:#000}
+  #camov.live video{display:block} #camov.live img{visibility:hidden}
+  #camov .live-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:#e0533d; margin-right:6px; animation:campulse 1.2s infinite}
+  @keyframes campulse{50%{opacity:.3}}
   #camov .cam-t{color:#fff; font-size:18px; font-weight:700; margin:0 0 10px; width:100%; display:flex; justify-content:space-between; align-items:center}
   #camov .cam-t button{border:0; background:rgba(255,255,255,.15); color:#fff; width:40px; height:40px; border-radius:50%; font-size:18px}
   #camov .cam-h{color:#9a9da6; font-size:12.5px; margin-top:10px}
@@ -349,7 +354,7 @@
   <div id="hm-body"><div class="hint" style="padding:30px 0; text-align:center">Loading the house…</div></div>
 </div>
 
-<div id="camov"><div class="cam-t"><span id="cam-title">Camera</span><button id="cam-close">✕</button></div><img id="cam-img" alt=""><div class="cam-h">Live snapshot · refreshes every 2 s · tap ✕ to close</div></div>
+<div id="camov"><div class="cam-t"><span id="cam-title">Camera</span><button id="cam-close">✕</button></div><div class="cam-stage"><img id="cam-img" alt=""><video id="cam-video" autoplay muted playsinline></video></div><div class="cam-h" id="cam-foot">Connecting to the live feed…</div></div>
 
 <div id="view-tv" hidden>
   <div class="sub">Pick a TV, then use it like the real remote.</div>
@@ -558,6 +563,7 @@
 <script src="/home-shared.js"></script>
 <script src="/vendor/three.min.js"></script>
 <script src="/home3d.js"></script>
+<script src="/adc-stream.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
@@ -892,10 +898,16 @@ function switchView(v){
 let hmView="rooms", hmLast=null, hmSig="";
 FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
-let _camT=null, _camEid=null;
-function openCam(eid,name){ _camEid=eid; $("#cam-title").textContent="📷 "+(name||"Camera"); $("#camov").classList.add("on");
-  const tick=()=>{ if(_camEid!==eid) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; }; tick(); clearInterval(_camT); _camT=setInterval(tick,2000); }
-function closeCam(){ $("#camov").classList.remove("on"); clearInterval(_camT); _camEid=null; }
+let _camT=null, _camEid=null, _camStream=null;
+function openCam(eid,name){ _camEid=eid; const ov=$("#camov"); $("#cam-title").textContent="📷 "+(name||"Camera"); ov.classList.remove("live"); ov.classList.add("on");
+  const tick=()=>{ if(_camEid!==eid||ov.classList.contains("live")) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; }; tick(); clearInterval(_camT); _camT=setInterval(tick,3000);
+  $("#cam-foot").textContent="Connecting to the live feed…";
+  if(_camStream) _camStream.stop();
+  if(window.ADCStream){ _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st)=>{ if(_camEid!==eid) return;
+      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live · tap ✕ to close'; }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").textContent="No live feed right now · latest snapshot · tap ✕ to close"; }
+      else { ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }}); _camStream.start(); } }
+function closeCam(){ $("#camov").classList.remove("on","live"); clearInterval(_camT); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
 $("#cam-close").onclick=closeCam;
 FHHome.camera = (eid,name)=>openCam(eid,name);
 FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };

@@ -126,6 +126,15 @@ def camera(entity_id: str):
     return Response(content=data, media_type=ctype, headers={"Cache-Control": "no-store"})
 
 
+@router.get("/webrtc/{entity_id}")
+def camera_webrtc(entity_id: str):
+    """Live-stream credentials for an Alarm.com camera (short-lived; never cached)."""
+    cfg = ha_svc.camera_webrtc_config(entity_id)
+    if not cfg:
+        raise HTTPException(404, "no live stream for this camera")
+    return cfg
+
+
 @router.get("/doorbell")
 def doorbell_state():
     """Last ring/motion: {at, kind, camera, name, where}. at=0 means never."""

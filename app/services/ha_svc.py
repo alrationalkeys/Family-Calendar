@@ -595,6 +595,35 @@ def camera_snapshot(entity_id: str, max_age: float = 4.0):
         return (c[1], c[2]) if c else None
 
 
+def camera_webrtc_config(entity_id: str):
+    """Short-lived WebRTC credentials for an Alarm.com camera, via the ibasebcast
+    ha-alarmdotcom integration's websocket command. The browser then talks to
+    Alarm.com's streaming servers directly (no video flows through FamilyHub).
+    Returns the config dict, or None when the camera/integration can't stream."""
+    if demo_mode() or not entity_id or not entity_id.startswith("camera."):
+        return None
+    import asyncio
+
+    async def _go():
+        import websockets
+        ws_url = ha_url().replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/api/websocket"
+        async with websockets.connect(ws_url, max_size=4 * 1024 * 1024, open_timeout=10) as ws:
+            await ws.recv()
+            await ws.send(json.dumps({"type": "auth", "access_token": ha_token()}))
+            if json.loads(await ws.recv()).get("type") != "auth_ok":
+                return None
+            await ws.send(json.dumps({"id": 1, "type": "alarmdotcom/webrtc_config", "entity_id": entity_id}))
+            while True:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=25))
+                if msg.get("id") == 1:
+                    return msg.get("result") if msg.get("success") else None
+
+    try:
+        return asyncio.run(_go())
+    except Exception:
+        return None
+
+
 def _grouped(tiles: list) -> list:
     """Return [{group, tiles:[...]}] in GROUP_ORDER, skipping empty groups."""
     buckets = {}

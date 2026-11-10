@@ -442,7 +442,12 @@
   .cam-top{display:flex; align-items:center; gap:14px; padding:14px 18px; color:#f1efe9; font-size:22px; font-weight:700}
   .cam-top #cam-when{flex:1; font-size:14px; font-weight:500; color:#9a9da6}
   .cam-top button{border:0; background:rgba(255,255,255,.1); color:#fff; width:44px; height:44px; border-radius:50%; font-size:20px}
+  .cam-stage{position:relative; background:#000}
   #cam-img{display:block; width:100%; max-height:70vh; object-fit:contain; background:#000}
+  #cam-video{position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:none; background:#000}
+  #camov.live #cam-video{display:block} #camov.live #cam-img{visibility:hidden}
+  .cam-foot .live-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:#e0533d; margin-right:6px; animation:campulse 1.2s infinite}
+  @keyframes campulse{50%{opacity:.3}}
   .cam-foot{padding:10px 18px 14px; color:#9a9da6; font-size:13px}
   .tile.cam{padding:0; overflow:hidden; min-height:0}
   .tile.cam img{display:block; width:100%; aspect-ratio:16/9; object-fit:cover; background:#000}
@@ -1003,8 +1008,8 @@
 <!-- Camera viewer: a tapped camera, or the doorbell pop-up -->
 <div id="camov"><div class="cam-box">
   <div class="cam-top"><span id="cam-title">Camera</span><span id="cam-when"></span><button id="cam-close" aria-label="Close">✕</button></div>
-  <img id="cam-img" alt="camera snapshot">
-  <div class="cam-foot" id="cam-foot">Live snapshot · refreshes every 2 s</div>
+  <div class="cam-stage"><img id="cam-img" alt="camera snapshot"><video id="cam-video" autoplay muted playsinline></video></div>
+  <div class="cam-foot" id="cam-foot">Connecting to the live feed…</div>
 </div></div>
 
 <!-- Spotify library browser -->
@@ -1091,6 +1096,7 @@
 <script src="/home-shared.js"></script>
 <script src="/vendor/three.min.js"></script>
 <script src="/home3d.js"></script>
+<script src="/adc-stream.js"></script>
 <script src="/seasonal.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -2428,17 +2434,27 @@ $("#spb-back").onclick=async()=>{ spbStack.pop(); await spbLoad(); };
 $("#spb-close").onclick=closeSpotifyBrowser;
 $("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser(); };
 /* ---- cameras: tap a camera tile/pin, or the doorbell rings ---- */
-let lastRing=null, _camTimer=null, _camClose=null, _camEid=null;
+let lastRing=null, _camTimer=null, _camClose=null, _camEid=null, _camStream=null;
 function openCamera(eid, name, opts){
   opts=opts||{}; _camEid=eid; resetSleep(); wake();
-  const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.add("on");
+  const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.remove("live"); ov.classList.add("on");
   $("#cam-title").textContent=(opts.ring?"🔔 ":"📷 ")+(name||"Camera");
   $("#cam-when").textContent=opts.ring?"Someone's at the door":"";
-  const tick=()=>{ if(_camEid!==eid) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; };
-  tick(); clearInterval(_camTimer); _camTimer=setInterval(tick, 2000);
-  clearTimeout(_camClose); _camClose=setTimeout(closeCamera, opts.ring?60000:180000);
+  // snapshot first (instant), then the live WebRTC feed takes over when it connects
+  const tick=()=>{ if(_camEid!==eid||ov.classList.contains("live")) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; };
+  tick(); clearInterval(_camTimer); _camTimer=setInterval(tick, 3000);
+  $("#cam-foot").textContent="Connecting to the live feed…";
+  if(_camStream) _camStream.stop();
+  if(window.ADCStream){
+    _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st,why)=>{ if(_camEid!==eid) return;
+      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").textContent="No live feed right now · showing the latest snapshot"; }
+      else if(st==="connecting"){ ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }});
+    _camStream.start();
+  }
+  clearTimeout(_camClose); _camClose=setTimeout(closeCamera, opts.ring?90000:180000);
 }
-function closeCamera(){ $("#camov").classList.remove("on","ring"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; }
+function closeCamera(){ $("#camov").classList.remove("on","ring","live"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
 $("#cam-close").onclick=closeCamera;
 $("#camov").onclick=(e)=>{ if(e.target.id==="camov") closeCamera(); };
 async function onRing(){

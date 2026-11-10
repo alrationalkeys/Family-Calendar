@@ -127,6 +127,70 @@ def _demo_seed():
 
 # Mutable in-memory demo state, so demo toggles feel live within a server run.
 _DEMO = _demo_seed()
+_DEMO.setdefault("light.driveway", {"state": "off", "attributes": {"friendly_name": "Driveway Light"}})
+# demo Areas (the real ones come from HA's registries, see entity_areas())
+_DEMO_AREAS = {"light.driveway": "Driveway", "light.porch": "Porch", "light.kitchen": "Kitchen",
+               "light.living_room": "Living", "light.master_bed": "Master Bedroom",
+               "media_player.living_room_tv": "Living", "media_player.bedroom_tv": "Master Bedroom",
+               "cover.garage": "Garage", "binary_sensor.garage_motion": "Garage"}
+
+
+_AREA_CACHE = {"at": 0.0, "map": {}}
+
+
+def entity_areas(max_age: float = 300.0) -> dict:
+    """entity_id -> Area name, from HA's area/device/entity registries over the WebSocket
+    API (the REST API doesn't expose areas). Cached for 5 min; never raises."""
+    import time as _t
+    if demo_mode():
+        return dict(_DEMO_AREAS)
+    if _AREA_CACHE["map"] and _t.time() - _AREA_CACHE["at"] < max_age:
+        return _AREA_CACHE["map"]
+    if not ha_url() or not ha_token():
+        return {}
+    import asyncio
+
+    async def _go():
+        import websockets
+        ws_url = ha_url().replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/api/websocket"
+        async with websockets.connect(ws_url, max_size=32 * 1024 * 1024, open_timeout=10) as ws:
+            await ws.recv()
+            await ws.send(json.dumps({"type": "auth", "access_token": ha_token()}))
+            if json.loads(await ws.recv()).get("type") != "auth_ok":
+                return None
+            results = {}
+            for i, t in enumerate(("config/area_registry/list", "config/device_registry/list", "config/entity_registry/list"), start=1):
+                await ws.send(json.dumps({"id": i, "type": t}))
+            while len(results) < 3:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                if msg.get("id") in (1, 2, 3) and msg.get("type") == "result":
+                    results[msg["id"]] = msg.get("result") or []
+            areas = {a["area_id"]: a.get("name") or a["area_id"] for a in results[1]}
+            dev_area = {d["id"]: d.get("area_id") for d in results[2]}
+            out = {}
+            for e in results[3]:
+                aid = e.get("area_id") or dev_area.get(e.get("device_id"))
+                if aid and aid in areas:
+                    out[e["entity_id"]] = areas[aid]
+            return out
+
+    try:
+        m = asyncio.run(_go())
+        if m is not None:
+            _AREA_CACHE["map"] = m
+    except Exception:
+        pass
+    _AREA_CACHE["at"] = _t.time()      # on failure keep the old map and don't retry for a while
+    return _AREA_CACHE["map"]
+
+
+def _attach_areas(tiles: list) -> list:
+    areas = entity_areas()
+    for t in tiles:
+        a = areas.get(t["entity_id"])
+        if a:
+            t["area"] = a
+    return tiles
 
 
 # ---- HTTP (real HA) ----------------------------------------------------------
@@ -523,7 +587,7 @@ def get_home() -> dict:
         states = [{"entity_id": eid, "state": v["state"],
                    "attributes": v.get("attributes", {})}
                   for eid, v in _DEMO.items()]
-        tiles = _states_to_tiles(states)
+        tiles = _attach_areas(_states_to_tiles(states))
         sp = _spotify_from_states(states)
         if sp: sp["demo"] = True
         return {"connected": True, "demo": True,
@@ -534,7 +598,7 @@ def get_home() -> dict:
         live = states is not None
         if states is None:
             states = _request("/api/states")
-        tiles = _states_to_tiles(states or [])
+        tiles = _attach_areas(_states_to_tiles(states or []))
         return {"connected": True, "demo": False, "live": live,
                 "groups": _grouped(tiles), "count": len(tiles),
                 "spotify": _spotify_from_states(states or [])}

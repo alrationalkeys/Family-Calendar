@@ -55,6 +55,9 @@ static/
                        mirror image. Furnishing hints per room: bed/tv/counter/tub side, shower corner.
   home3d.js            three.js dollhouse: walls/doorways/furniture from the layout, per-room point
                        lights + TV glow driven by HA, tappable device pins. FHHome.render3D(el,h,opts)
+  skins.js             holiday skins (Thanksgiving Nov 1→TG, Christmas day-after-TG→Jan 1): painted frame, lights,
+                       lanterns, gifts, snow caps, countdown banner; settings.skin auto|off|christmas|thanksgiving,
+                       ?skin= URL override for phone previews. Pins Seasonal.force(snow|leaves).
   vendor/three.min.js  three.js r160 (MIT, vendored so the wall works offline)
   manifest.json        PWA (Add to Home Screen)
 ```

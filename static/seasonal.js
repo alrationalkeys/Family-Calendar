@@ -10,6 +10,7 @@ const Seasonal = (() => {
   let canvas, ctx, raf, particles = [], mode = "none", running = false;
   let fireworkTimer = null;
   let intense = false;   // preview / "make it obvious" mode: more + bigger particles
+  let forced = null;     // a holiday skin can pin the effect (snow for Christmas, leaves for Thanksgiving)
   const N = (base) => Math.round(base * (intense ? 2.4 : 1));
   const BIG = (r) => intense ? r * 1.8 : r;
 
@@ -84,6 +85,7 @@ const Seasonal = (() => {
     else if (mode === "rain" || mode === "thunder") for (let i=0;i<N(180);i++) particles.push(raindrop());
     else if (mode === "fog") for (let i=0;i<N(14);i++) particles.push(fogblob());
     else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
+    else if (mode === "leaves") for (let i=0;i<N(40);i++) particles.push(leaf());
     else if (mode === "halloween") {
       for (let i=0;i<N(45);i++) particles.push(leaf());
       for (let i=0;i<N(6);i++) particles.push(bat());
@@ -207,7 +209,8 @@ const Seasonal = (() => {
     setup();
     mode = detect();
     if (lastPrefs[mode] === false) mode = "none";   // this effect turned off
-    santaHat(enabled && new Date().getMonth()===11 && lastPrefs.snow !== false);
+    if (forced && lastPrefs[forced] !== false) mode = forced;
+    santaHat(enabled && (new Date().getMonth()===11 || forced === "snow") && lastPrefs.snow !== false);
     if (!enabled || reduced || mode === "none") { stop(); ctx && ctx.clearRect(0,0,canvas.width,canvas.height); return; }
     running = true; seed();
     cancelAnimationFrame(raf); step();
@@ -231,7 +234,8 @@ const Seasonal = (() => {
     setup();
     mode = enabled ? weatherMode(code) : "none";
     if (mode === "snow" && lastPrefs.snow === false) mode = "none";
-    santaHat(false);
+    if (forced && lastPrefs[forced] !== false && (mode === "none" || mode === "snow")) mode = forced;   // real rain/fog still wins
+    santaHat(enabled && forced === "snow" && lastPrefs.snow !== false);
     if (!enabled || reduced || mode === "none") { stop(); ctx && ctx.clearRect(0,0,canvas.width,canvas.height); return; }
     running = true; seed();
     cancelAnimationFrame(raf); step();
@@ -242,5 +246,6 @@ const Seasonal = (() => {
     if (ctx) ctx.clearRect(0,0,canvas.width,canvas.height);
   }
 
-  return { start, stop, detect, preview, applyWeather, weatherMode };
+  function force(m) { forced = m || null; }
+  return { start, stop, detect, preview, applyWeather, weatherMode, force };
 })();

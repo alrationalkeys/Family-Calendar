@@ -145,11 +145,11 @@
   function bindFloorBtns(box){
     box.querySelectorAll(".fp-fbtn").forEach(b=>{ b.onclick=()=>{ homeFloor=+b.dataset.floor; FHHome.rerender(); }; });
   }
-  function getLayout(){ const c=(window.FH&&FH.get().homeLayout); return (Array.isArray(c)&&c.length)?c:DEFAULT_LAYOUT; }
+  function getLayout(){ const c=(typeof FH!=="undefined"&&FH.get().homeLayout); return (Array.isArray(c)&&c.length)?c:DEFAULT_LAYOUT; }
   /* doors/windows only exist for the built-in plan; a custom homeLayout falls back to guessed doorways */
   function getPlan(){ return isCustomLayout()?null:DEFAULT_PLAN; }
   function layoutExtent(rooms){ let m=0; rooms.forEach(r=>{ m=Math.max(m,r.gx+r.gw,r.gy+r.gd); }); return m||1; }
-  function isCustomLayout(){ const c=(window.FH&&FH.get().homeLayout); return Array.isArray(c)&&c.length>0; }
+  function isCustomLayout(){ const c=(typeof FH!=="undefined"&&FH.get().homeLayout); return Array.isArray(c)&&c.length>0; }
   function tilesOf(h){ return (h.groups||[]).reduce((a,g)=>a.concat(g.tiles||[]),[]); }
   function resolveRooms(h){
     const tiles=tilesOf(h);

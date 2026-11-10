@@ -2937,7 +2937,7 @@ async function setupSpotifyPlayer(){
   applyHero();
   tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
   loadDispConfig(); loadDisplayState(); loadHomeStatus();
-  setInterval(tick,1000); setInterval(load,60000); setInterval(loadPhotos,300000);
+  setInterval(tick,1000); setInterval(load,10000); setInterval(loadPhotos,300000);   // 10 s: phone adds show up near-instantly
   setInterval(loadWeather, 600000);   // weather every 10 min
   setInterval(loadForecast, 1800000); // forecast every 30 min
   setInterval(checkNotifications, 30000);  // reminders every 30s

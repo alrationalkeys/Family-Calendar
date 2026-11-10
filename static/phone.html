@@ -185,6 +185,8 @@
   .hm-np-ctl button.main{width:46px; height:46px; flex-basis:46px; background:#1db954; color:#fff; font-size:19px}
   .hm-np-ctl button.pill{width:auto; flex:0 0 auto; border-radius:20px; padding:0 10px; font-size:13px; font-weight:600}
   .hm-np-ctl .vols{display:flex; gap:6px; margin-left:auto}
+  .hm-np-ctl button.vol{gap:3px; padding:0 9px; font-size:14px; flex-direction:row}
+  .hm-np-ctl button.vol b{font-size:19px; font-weight:800; line-height:1; color:var(--ink)}
   .hm-np-dev{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
   .hm-dchip{border:1px solid var(--line); background:var(--panel2); color:var(--ink); border-radius:999px; padding:6px 11px; font:inherit; font-size:12px; font-weight:600}
   .hm-dchip.on{background:#1db954; color:#fff; border-color:transparent}
@@ -952,7 +954,7 @@ function renderHM(h, force){
         <div class="hm-np-s">${E([sp.artist,sp.album].filter(Boolean).join(' · ')||(sp.source?'on '+sp.source:'Tap play, or ask the wall'))}</div>
         <div class="hm-np-ctl">
           <button data-sp="prev">⏮</button><button class="main" data-sp="play_pause">${playing?'⏸':'▶'}</button><button data-sp="next">⏭</button>
-          <span class="vols"><button class="pill" data-sp="vol" data-d="-1">🔉</button><button class="pill" data-sp="vol" data-d="1">🔊</button></span>
+          <span class="vols"><button class="pill vol" data-sp="vol" data-d="-1" title="Quieter"><b>−</b>🔉</button><button class="pill vol" data-sp="vol" data-d="1" title="Louder">🔊<b>+</b></button></span>
         </div>
         ${sp.sources&&sp.sources.length?`<div class="hm-np-dev">${sp.sources.slice(0,6).map(x=>`<button class="hm-dchip${x===sp.source?' on':''}" data-src="${E(x)}">${E(x)}</button>`).join('')}</div>`:''}
       </div>

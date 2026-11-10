@@ -116,6 +116,29 @@
   body.nocats select[id$="_cat"]{display:none}
 
   /* ===== Home tab (phone) — the house in your pocket ===== */
+  /* the Home tab is always a dark command center, whatever theme the rest of the app uses */
+  body.home-dark{--bg:#0d0e12; --panel:#16171c; --panel2:#22242b; --line:#2a2c34; --ink:#f1efe9; --ink-dim:#9a9da6; background:#0d0e12}
+  body.home-dark .topnav button.active{background:#2a2c34}
+  .hm-hero3d{position:relative; border-radius:24px; overflow:hidden; margin-bottom:12px; background:#0b0d12; border:1px solid var(--line)}
+  .hm-hero3d .h3{border-radius:0}
+  .hm-hero-txt{position:absolute; left:0; right:0; bottom:0; padding:80px 18px 16px; pointer-events:none; color:#f1efe9;
+    background:linear-gradient(180deg, rgba(11,13,18,0) 0%, rgba(11,13,18,.78) 48%, rgba(11,13,18,.97) 100%)}
+  .hm-hero-txt .hm-greet{font-size:38px; font-weight:300; letter-spacing:-.015em; line-height:1}
+  .hm-wx{font-size:16px; margin-top:8px; color:#d9d6ce; line-height:1.35}
+  .hm-wx b{font-weight:600; color:#fff}
+  .hm-wx2{font-size:13px; color:#9a9da6; margin-top:3px}
+  .hm-wx2 .good{color:#5cb88a} .hm-wx2 .warn{color:#e0a44a}
+  .hm-hero3d .hm-live{left:14px; right:auto; top:12px; background:rgba(12,14,20,.55); padding:5px 9px; border-radius:999px; pointer-events:none}
+  .hm-hero-plain{padding:22px 18px; border-radius:24px; background:linear-gradient(160deg,#1a1c24,#0f1015); border:1px solid var(--line); margin-bottom:12px}
+  .hm-scenes{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px}
+  .hm-scene{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px 4px 12px; text-align:center; color:var(--ink); font:inherit; font-size:12px; font-weight:600;
+    display:flex; flex-direction:column; gap:10px; align-items:center; line-height:1.15}
+  .hm-scene .ic{font-size:26px; line-height:1}
+  .hm-scene:active{transform:scale(.96)}
+  .hm-status{display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; margin-bottom:4px; scrollbar-width:none}
+  .hm-status::-webkit-scrollbar{display:none}
+  .hm-status .hm-chip{flex:none; background:var(--panel); padding:9px 14px; font-size:13.5px}
+  .hm-room-ic{font-size:18px; margin-right:6px; vertical-align:-2px}
   .hm-tabs{display:flex; gap:6px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:4px; margin-bottom:14px}
   .hm-tabs button{flex:1; border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:13.5px; font-weight:600; padding:10px 4px; border-radius:10px}
   .hm-tabs button.active{background:var(--now); color:#1a1205}
@@ -287,6 +310,7 @@
 </div><!-- /view-add -->
 
 <div id="view-home" hidden>
+  <div id="hm-hero"></div>
   <div class="hm-tabs" id="hm-tabs">
     <button data-v="rooms" class="active">Rooms</button><button data-v="plan">Floor plan</button><button data-v="3d">3D</button><button data-v="all">Everything</button>
   </div>
@@ -492,6 +516,8 @@
 <script src="/auth.js"></script>
 <script src="/theme.js"></script>
 <script src="/home-shared.js"></script>
+<script src="/vendor/three.min.js"></script>
+<script src="/home3d.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
@@ -803,6 +829,7 @@ let curView="add", hmTimer=null;
 function switchView(v){
   curView=v;
   ["add","home","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
+  document.body.classList.toggle("home-dark", v==="home");
   if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); }
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
@@ -817,11 +844,54 @@ FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name),
 FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };
 $("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.dataset.v; $("#hm-tabs").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); if(hmLast) renderHM(hmLast, true); }; });
 
+let hmWx=null, hmWxAt=0;
+async function hmWeather(){
+  if(Date.now()-hmWxAt<10*60*1000) return hmWx;
+  hmWxAt=Date.now();
+  try{ const w=await fetch("/api/weather").then(r=>r.json()); if(w&&!w.error) hmWx=w; }catch(e){}
+  return hmWx;
+}
 async function loadHM(){
   let h=null;
-  try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
-  if(!h){ $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
+  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather()]); }catch(e){}
+  if(!h){ $("#hm-hero").innerHTML=""; $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
   renderHM(h,false);
+}
+const HM_ROOM_ICON=[[/bedroom|master/,"🛏"],[/living/,"🛋"],[/kitchen/,"🍳"],[/dining/,"🍽"],[/bath/,"🛁"],[/garage/,"🚗"],[/laundry/,"🧺"],[/porch|patio/,"🌿"],[/loft|sitting/,"🎮"],[/flex|office/,"💼"],[/closet|pantry|butler/,"👔"],[/foyer|hall|entry/,"🚪"]];
+const hmRoomIcon=r=>{ const k=String(r.key||r.name).toLowerCase(); const hit=HM_ROOM_ICON.find(([re])=>re.test(k)); return hit?hit[1]:"🏠"; };
+const hmSceneIcon=n=>{ n=String(n).toLowerCase(); if(/night|sleep|bed/.test(n)) return "🌙"; if(/morning|wake|sunrise/.test(n)) return "☀️"; if(/leav|away|out/.test(n)) return "🚪"; if(/movie|film|tv/.test(n)) return "🎬"; if(/dinner|eat/.test(n)) return "🍽"; if(/party/.test(n)) return "🎉"; if(/relax|chill/.test(n)) return "🕯"; return "✨"; };
+/* hero: the live 3D house with the greeting and the weather over it (Tom-style) */
+function renderHero(h, tiles){
+  const hero=$("#hm-hero"), E=FHHome.esc;
+  if(hmView==="3d"||!h.connected){ hero.innerHTML=""; return; }
+  const now=new Date(), hr=now.getHours();
+  const greet=hr<5?"Good night":hr<12?"Good morning":hr<17?"Good afternoon":hr<21?"Good evening":"Good night";
+  const temps=tiles.filter(t=>t.domain==="sensor"&&t.device_class==="temperature");
+  const inside=temps.filter(t=>!/out|exterior|porch|patio/i.test(t.name)).map(t=>parseFloat(t.state)).filter(n=>!isNaN(n));
+  const hum=tiles.find(t=>t.domain==="sensor"&&t.device_class==="humidity"&&!/out/i.test(t.name));
+  const outdoor=temps.find(t=>/out|exterior/i.test(t.name));
+  const lightsOn=tiles.filter(t=>(t.domain==="light"||t.domain==="switch")&&t.on).length;
+  const playing=tiles.filter(t=>t.domain==="media_player"&&t.on).length;
+  const openers=tiles.filter(t=>(t.domain==="cover"&&t.state==="open")||(t.domain==="binary_sensor"&&["door","garage_door","window","opening"].includes(t.device_class)&&t.on));
+  const wx=hmWx;
+  let line1="";
+  const oT=wx?wx.temp:(outdoor?Math.round(parseFloat(outdoor.state)):null);
+  if(oT!=null) line1+=`<b>${oT}°</b> ${wx?E(String(wx.desc||"").toLowerCase()):"outside"}`;
+  if(inside.length){ const avg=Math.round(inside.reduce((a,b)=>a+b,0)/inside.length); line1+=(line1?", ":"")+`inside <b>${avg}°</b>`+(hum?` and <b>${Math.round(parseFloat(hum.state))}%</b>`:""); }
+  const bits=[now.toLocaleDateString([],{weekday:'long', month:'long', day:'numeric'})];
+  bits.push(lightsOn?`<span class="warn">${lightsOn} light${lightsOn>1?'s':''} on</span>`:`<span class="good">lights off</span>`);
+  if(playing) bits.push(`${playing} playing`);
+  if(openers.length) bits.push(`<span class="warn">${E(openers.map(o=>o.name.replace(/contact|sensor/ig,'').trim()).join(', '))} open</span>`);
+  else bits.push('<span class="good">all closed</span>');
+  const txt=`<div class="hm-greet">${greet}</div><div class="hm-wx">${line1||E(now.toLocaleDateString([],{weekday:'long', month:'long', day:'numeric'}))}</div><div class="hm-wx2">${bits.join(' · ')}</div>`;
+  if(FHHome.has3D&&FHHome.has3D()){
+    if(!hero.querySelector(".hm-hero3d")) hero.innerHTML='<div class="hm-hero3d"><div class="hm-h3"></div><div class="hm-hero-txt"></div><div class="hm-live"></div></div>';
+    FHHome.render3D(hero.querySelector(".hm-h3"), h, {id:"hero", height:300, pins:false, labels:false, controls:true, floorButtons:false, hint:false, zoom:1.22});
+    hero.querySelector(".hm-hero-txt").innerHTML=txt;
+    const lv=hero.querySelector(".hm-live"); lv.className="hm-live"+(h.live===false?" off":""); lv.textContent="● "+(h.demo?"Demo":"Live");
+  } else {
+    hero.innerHTML=`<div class="hm-hero-plain">${txt}</div>`;
+  }
 }
 function hmDevButton(t){
   const E=FHHome.esc;
@@ -830,36 +900,35 @@ function hmDevButton(t){
 }
 function renderHM(h, force){
   hmLast=h; const E=FHHome.esc, body=$("#hm-body");
-  if(!h.connected){ body.innerHTML=`<div class="hm-offline">Home Assistant isn't connected${h.reason?` (${E(h.reason)})`:''}.<br>Check HA_URL / HA_TOKEN on the wall.</div>`; return; }
+  if(!h.connected){ $("#hm-hero").innerHTML=""; body.innerHTML=`<div class="hm-offline">Home Assistant isn't connected${h.reason?` (${E(h.reason)})`:''}.<br>Check HA_URL / HA_TOKEN on the wall.</div>`; return; }
   const tiles=FHHome.tilesOf(h);
   const lights=tiles.filter(t=>t.domain==="light"||t.domain==="switch");
   const onCount=lights.filter(t=>t.on).length;
   const openers=tiles.filter(t=>(t.domain==="cover"&&t.state==="open")||(t.domain==="binary_sensor"&&["door","garage_door","window","opening"].includes(t.device_class)&&t.on));
   const temps=tiles.filter(t=>t.domain==="sensor"&&t.device_class==="temperature");
   const alarm=tiles.find(t=>t.domain==="alarm_control_panel");
-  const now=new Date(), hr=now.getHours();
-  const greet=hr<12?"Good morning":hr<17?"Good afternoon":"Good evening";
+  const locks=tiles.filter(t=>t.domain==="lock"), lockedN=locks.filter(t=>t.state==="locked").length;
+  const power=tiles.find(t=>t.domain==="sensor"&&t.device_class==="power");
+  const playingN=tiles.filter(t=>t.domain==="media_player"&&t.on).length;
   const sp=h.spotify;
+  renderHero(h, tiles);
 
-  let html=`<div class="hm-hero">
-    <div class="hm-live${h.live===false?' off':''}">● ${h.demo?'Demo':'Live'}</div>
-    <div class="hm-greet">${greet}</div>
-    <div class="hm-date">${now.toLocaleDateString([],{weekday:'long', month:'long', day:'numeric'})}</div>
-    <div class="hm-chips">
-      ${alarm?`<span class="hm-chip ${alarm.state==='disarmed'?'ok':'warn'}">🛡 ${E(FHHome.haStateLabel(alarm))}</span>`:''}
-      ${openers.length?`<span class="hm-chip warn">⚠️ ${E(openers.map(o=>o.name).join(', '))} open</span>`:'<span class="hm-chip ok">✓ All closed</span>'}
-      ${temps.slice(0,2).map(t=>`<span class="hm-chip">🌡 ${E(t.state)}${E(t.unit||'°')} ${E((t.name||'').replace(/\(.*?\)|temperature/ig,'').trim())}</span>`).join('')}
-    </div>
-    <div class="hm-kpis">
-      <div class="hm-kpi"><b>${onCount}</b><span>lights on</span></div>
-      <div class="hm-kpi"><b>${tiles.filter(t=>t.domain==="media_player"&&t.on).length}</b><span>playing</span></div>
-      <div class="hm-kpi"><b>${h.count||tiles.length}</b><span>devices</span></div>
-    </div>
-    <div class="hm-actions">
-      <button class="hm-act" id="hm-lights-off">💡 All lights off</button>
-      ${tiles.filter(t=>t.domain==="scene").slice(0,3).map(s=>`<button class="hm-act" onclick="FHHome.toggle('${E(s.entity_id)}')">✨ ${E(s.name)}</button>`).join('')}
-    </div>
+  // scene shortcuts: all-off first, then the HA scenes (max 4 tiles)
+  const scenes=tiles.filter(t=>t.domain==="scene").slice(0,3);
+  let html=`<div class="hm-scenes">
+    <button class="hm-scene" id="hm-lights-off"><span class="ic">💡</span>All off</button>
+    ${scenes.map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
   </div>`;
+  // status strip
+  const st=[];
+  st.push(onCount?`<span class="hm-chip warn">💡 ${onCount} light${onCount>1?'s':''} on</span>`:'<span class="hm-chip">💡 lights off</span>');
+  st.push(playingN?`<span class="hm-chip ok">📺 ${playingN} playing</span>`:'<span class="hm-chip">📺 TVs off</span>');
+  if(alarm) st.push(`<span class="hm-chip ${alarm.state==='disarmed'?'':'ok'}">🛡 ${E(FHHome.haStateLabel(alarm))}</span>`);
+  if(locks.length) st.push(lockedN===locks.length?'<span class="hm-chip ok">🔒 locked</span>':`<span class="hm-chip warn">🔓 ${locks.length-lockedN} unlocked</span>`);
+  if(openers.length) st.push(`<span class="hm-chip warn">⚠️ ${E(openers.map(o=>o.name.replace(/contact|sensor/ig,'').trim()).join(', '))} open</span>`);
+  if(power) st.push(`<span class="hm-chip">⚡ ${E(power.state)} ${E(power.unit||'W')}</span>`);
+  temps.filter(t=>/out|exterior/i.test(t.name)).slice(0,1).forEach(t=>st.push(`<span class="hm-chip">🌡 ${E(t.state)}${E(t.unit||'°')} outside</span>`));
+  html+=`<div class="hm-status">${st.join('')}</div>`;
 
   if(sp){
     const playing=sp.state==="playing";
@@ -898,10 +967,10 @@ function renderHM(h, force){
       fl.forEach(({room,devs})=>{
         const on=devs.some(d=>d.on&&d.domain!=="sensor");
         const temp=devs.find(d=>d.domain==="sensor"&&d.device_class==="temperature");
-        const onNames=devs.filter(d=>d.on&&d.domain!=="sensor").map(d=>d.name.replace(new RegExp(room.name,'i'),'').trim()).filter(Boolean);
+        const onNames=devs.filter(d=>d.on&&d.domain!=="sensor").map(d=>d.name.replace(new RegExp(room.name+'( room)?','i'),'').trim()).filter(Boolean);
         html+=`<div class="hm-room${on?' on':''}">
           ${temp?`<div class="hm-room-t">${E(temp.state)}${E(temp.unit||'°')}</div>`:''}
-          <div><div class="hm-room-n">${E(room.name)}</div><div class="hm-room-s">${on?E(onNames.slice(0,2).join(', ')||'On'):'All off'}</div></div>
+          <div><div class="hm-room-n"><span class="hm-room-ic">${hmRoomIcon(room)}</span>${E(room.name)}</div><div class="hm-room-s">${on?E(onNames.slice(0,2).join(', ')||'On'):'All off'}</div></div>
           <div class="hm-room-devs">${devs.filter(d=>d.domain!=="sensor").map(hmDevButton).join('')}</div>
         </div>`;
       });
@@ -927,7 +996,9 @@ function renderHM(h, force){
   body.dataset.sig=sig; body.innerHTML=html;
 
   if(hmView==="plan"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderFloorView(holder,h,{budget:360}); }
-  if(hmView==="3d"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderIsoView(holder,h); }
+  if(hmView==="3d"){ const holder=document.createElement("div"); body.appendChild(holder);
+    if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(holder,h,{id:"main", height:Math.min(560,Math.max(380,Math.round(window.innerHeight*0.62))), pins:true});
+    else FHHome.renderIsoView(holder,h); }
 
   const lo=$("#hm-lights-off"); if(lo) lo.onclick=async()=>{ lo.textContent="…"; for(const t of lights.filter(t=>t.on)){ try{ await post("/api/ha/toggle",{entity_id:t.entity_id}); }catch(e){} } setTimeout(loadHM,500); };
   body.querySelectorAll(".hm-np [data-sp]").forEach(b=>{ b.onclick=async()=>{

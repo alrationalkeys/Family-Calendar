@@ -1067,6 +1067,8 @@
 <script src="/auth.js"></script>
 <script src="/theme.js"></script>
 <script src="/home-shared.js"></script>
+<script src="/vendor/three.min.js"></script>
+<script src="/home3d.js"></script>
 <script src="/seasonal.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -2375,7 +2377,11 @@ setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pi
 const DEFAULT_LAYOUT=FHHome.DEFAULT_LAYOUT;
 const getLayout=FHHome.getLayout, layoutExtent=FHHome.layoutExtent, isCustomLayout=FHHome.isCustomLayout, resolveRooms=FHHome.resolveRooms;
 function renderFloorView(body,h){ FHHome.renderFloorView(body,h,{budget:760}); }
-function renderIsoView(body,h){ FHHome.renderIsoView(body,h); }
+function renderIsoView(body,h){
+  // live three.js house (lights/TVs follow HA, pins toggle devices); flat isometric SVG if WebGL is missing
+  if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(body,h,{id:"wall", height:Math.round(window.innerHeight*0.66), pins:true});
+  else FHHome.renderIsoView(body,h);
+}
 FHHome.toggle=(eid)=>toggleEntity(eid);
 FHHome.remote=(eid,name)=>openRemote(eid,name);
 FHHome.rerender=()=>{ renderHome(lastHome); resetSleep(); };

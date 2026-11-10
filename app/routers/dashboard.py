@@ -30,6 +30,8 @@ def dashboard():
             "SELECT * FROM meals WHERE date>=? ORDER BY date, slot", (today,)), cats_map, ppl_map)
         todos = _colorize(conn.execute(
             "SELECT * FROM todos WHERE done=0 ORDER BY created_at DESC"), cats_map, ppl_map)
+        from .groceries import purge_got
+        purge_got(conn)
         groceries = _colorize(conn.execute(
             "SELECT * FROM groceries ORDER BY got, created_at DESC"), cats_map, ppl_map)
         from .routines import list_routines, list_countdowns

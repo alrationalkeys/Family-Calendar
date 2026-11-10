@@ -58,7 +58,7 @@ def _migrate(conn):
                       ("due_date", "TEXT"), ("recurrence", "TEXT"),
                       ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"),
                       ("person_id", "INTEGER")],
-        "groceries": [("category_id", "INTEGER"), ("color", "TEXT")],
+        "groceries": [("category_id", "INTEGER"), ("color", "TEXT"), ("got_at", "TEXT")],   # got_at: when ticked; purged 30 min later
         "people":    [("birthday", "TEXT")],        # "MM-DD" or "YYYY-MM-DD"; drives the Birthday skin + countdown
         "local_events": [("description", "TEXT"), ("skip_dates", "TEXT")],   # skip_dates: JSON list of "YYYY-MM-DD" occurrences to leave out
     }

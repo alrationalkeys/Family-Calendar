@@ -13,9 +13,19 @@ class Item(BaseModel):
     color: str | None = None
 
 
+GOT_TTL_MIN = 30   # a ticked item stays crossed out this long (undo window), then leaves the list
+
+
+def purge_got(conn):
+    """Drop items ticked more than GOT_TTL_MIN ago (legacy rows ticked before got_at existed go too)."""
+    conn.execute("DELETE FROM groceries WHERE got=1 AND (got_at IS NULL OR got_at < datetime('now', ?))",
+                 (f"-{GOT_TTL_MIN} minutes",))
+
+
 @router.get("/")
 def list_items():
     with get_db() as conn:
+        purge_got(conn)
         return [dict(r) for r in conn.execute(
             "SELECT * FROM groceries ORDER BY got, created_at DESC")]
 
@@ -34,7 +44,7 @@ def toggle(item_id: int):
     with get_db() as conn:
         row = conn.execute("SELECT got FROM groceries WHERE id=?", (item_id,)).fetchone()
         new = 0 if row["got"] else 1
-        conn.execute("UPDATE groceries SET got=? WHERE id=?", (new, item_id))
+        conn.execute("UPDATE groceries SET got=?, got_at=CASE WHEN ?=1 THEN datetime('now') ELSE NULL END WHERE id=?", (new, new, item_id))
         return {"id": item_id, "got": new}
 
 

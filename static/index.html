@@ -1024,12 +1024,10 @@
   <label class="ev-chk"><input type="checkbox" id="ev-allday"> All day</label>
   <div class="ev-two"><input id="ev-date" type="date"><input id="ev-time" type="time"><input id="ev-end-date" type="date" title="Last day (for trips and multi-day events)" style="display:none"></div>
   <div class="ev-field" id="ev-dur-row"><label>Length</label>
-    <select id="ev-dur">
-      <option value="15">15 min</option><option value="30">30 min</option>
-      <option value="45">45 min</option><option value="60" selected>1 hour</option>
-      <option value="90">1.5 hours</option><option value="120">2 hours</option>
-      <option value="180">3 hours</option><option value="240">4 hours</option>
-    </select>
+    <div class="ev-two" style="flex:1; justify-content:flex-end">
+      <select id="ev-dur-h" title="Hours"></select>
+      <select id="ev-dur-m" title="Minutes"></select>
+    </div>
   </div>
   <div class="ev-field" id="ev-cal-row"><label>Calendar</label>
     <select id="ev-cal"></select>
@@ -1731,6 +1729,14 @@ document.querySelectorAll(".card .addbtn").forEach(b=>{
 let editing = null, modalMode = "view";   // view | create | edit-local | edit-google | edit-icloud
 const pad = n => String(n).padStart(2,"0");
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+/* Length = hours (0–23) + minutes (0–55 by 5); any combination, not just presets */
+(function setupDur(){
+  const h=$("#ev-dur-h"), m=$("#ev-dur-m"); if(!h) return;
+  h.innerHTML=Array.from({length:24},(_,i)=>`<option value="${i}">${i} h</option>`).join("");
+  m.innerHTML=Array.from({length:12},(_,i)=>`<option value="${i*5}">${String(i*5).padStart(2,"0")} min</option>`).join("");
+})();
+function setDurMins(total){ total=Math.max(5,Math.round((total||60)/5)*5); $("#ev-dur-h").value=String(Math.min(23,Math.floor(total/60))); $("#ev-dur-m").value=String(total%60); }
+function getDurMins(){ return (parseInt($("#ev-dur-h").value)||0)*60+(parseInt($("#ev-dur-m").value)||0) || 5; }
 function nextDayStr(s){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+1); return dateStr(d); }
 function prevDayStr(s){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()-1); return dateStr(d); }
 function plusMinutesLocal(start, mins){ const d=new Date(new Date(start).getTime()+mins*60000);
@@ -1826,7 +1832,7 @@ function openCreate(prefDate, prefTime){
   const d=prefDate?new Date(prefDate):new Date();
   $("#ev-date").value=dateStr(d);
   $("#ev-time").value=prefTime||"09:00";
-  $("#ev-dur").value="60";
+  setDurMins(60);
   $("#ev-desc").value=""; $("#ev-desc").disabled=false; $("#ev-desc").style.display="";
   chosenEvColor=null; syncEvColors(); $("#ev-color-row").style.display="flex";
   fillPersonOptions(null); $("#ev-person-row").style.display="flex";
@@ -1854,7 +1860,7 @@ function openEditor(ev){
   // last day of a multi-day all-day event (end is exclusive); blank = single day
   $("#ev-end-date").value = (ev.all_day&&ev.span_end) ? prevDayStr(ev.span_end) : "";
   $("#ev-time").value=(ev.all_day||!valid)?"":d.toTimeString().slice(0,5);
-  $("#ev-dur").value="60";
+  setDurMins(ev.all_day?60:Math.round((new Date(ev.end||ev.start)-evStart(ev))/60000)||60);
   $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=!editable;
   $("#ev-desc").value=ev.description||""; $("#ev-desc").disabled=!editable;
   $("#ev-desc").style.display=(editable||ev.description)?"":"none";
@@ -1896,7 +1902,7 @@ function eventTimes(){
   if(allday){ const last=$("#ev-end-date").value; return {start:date, end:nextDayStr(last&&last>date?last:date), all_day:true}; }
   const time=$("#ev-time").value||"09:00";
   const start=`${date}T${time}:00`;
-  return {start, end:plusMinutesLocal(start, parseInt($("#ev-dur").value)||60), all_day:false};
+  return {start, end:plusMinutesLocal(start, getDurMins()), all_day:false};
 }
 $("#ev-save").onclick=async()=>{
   const title=$("#ev-name").value.trim(); if(!title) return;
@@ -2651,8 +2657,26 @@ function startTimer(seconds, label){
   timers.push({id:Date.now()+Math.random(), end:Date.now()+seconds*1000, label:label||"", total:seconds, rang:false});
   saveTimers(); renderTimers(); resetSleep();
 }
-function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); saveTimers(); renderTimers(); }
-function cancelAllTimers(){ timers=[]; saveTimers(); renderTimers(); }
+function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); if(!timers.some(t=>t.rang)) stopAlarm(); saveTimers(); renderTimers(); }
+function cancelAllTimers(){ timers=[]; stopAlarm(); saveTimers(); renderTimers(); }
+/* The alarm: an Alexa-style two-tone chime that keeps going (up to 60 s) until someone taps
+   the screen, hits Dismiss, or says "stop". A one-off beep is easy to miss from the next room. */
+let _alarm=null;
+function startAlarm(){
+  if(_alarm) return;
+  try{
+    _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_beepCtx, started=Date.now();
+    const ring=()=>{ const t0=ctx.currentTime;
+      [[0,988],[0.18,1319],[0.36,988],[0.54,1319]].forEach(([dt,f])=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type="triangle"; o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+        const t=t0+dt; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.7,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.18); }); };
+    ring(); _alarm=setInterval(()=>{ if(Date.now()-started>60000){ stopAlarm(); return; } ring(); }, 1400);
+    $("#timerpill").classList.add("ringing");
+  }catch(e){}
+}
+function stopAlarm(){ if(_alarm){ clearInterval(_alarm); _alarm=null; } }
+// any tap anywhere silences the ringing (the timer stays "done" until dismissed)
+document.addEventListener("pointerdown", ()=>{ if(_alarm) stopAlarm(); }, true);
 let _beepCtx=null;
 function beep(times=3){
   try{
@@ -2685,7 +2709,7 @@ async function sayAloud(s){
 }
 function tickTimers(){
   const now=Date.now(); let changed=false;
-  timers.forEach(t=>{ if(!t.rang && now>=t.end){ t.rang=true; changed=true; beep(4); sayAloud((t.label?t.label+" timer":"Timer")+" is done."); wake(); } });
+  timers.forEach(t=>{ if(!t.rang && now>=t.end){ t.rang=true; changed=true; wake(); sayAloud((t.label?t.label+" timer":"Timer")+" is done."); setTimeout(()=>{ if(timers.some(x=>x.id===t.id&&x.rang)) startAlarm(); }, 1800); } });
   if(changed) saveTimers();
   // header pill: soonest timer
   const pill=$("#timerpill"), fab=$("#timerfab");

@@ -270,7 +270,15 @@ _SENSOR_CLASSES_OK = {"temperature", "humidity", "power", "energy", "pm25", "co2
                       "carbon_dioxide", "aqi", "illuminance", "moisture", "precipitation"}
 _BINARY_CLASSES_OK = {"door", "window", "garage_door", "opening", "motion", "occupancy",
                       "presence", "moisture", "smoke", "gas", "carbon_monoxide", "lock",
-                      "safety", "tamper", "vibration", "problem"}
+                      "safety", "vibration"}
+# Alarm.com (and friends) hang a Malfunction / Trouble / Tamper / Low battery / AC failure /
+# "Camera not reachable" / Animal-Vehicle-Package-Person detector on EVERY device, plus a
+# dozen account-health sensors ("My Surety System …"). Diagnostics, not kitchen-wall material.
+# They stay in Home Assistant; the wall only shows them while they're actually firing (see _boring).
+_DIAG_WORDS = ("malfunction", "trouble", "tamper", "low battery", "battery count", "ac failure",
+               "not reachable", "auto-off", "auto_off", "alarm in memory", "battery charging",
+               "critical battery", "animal detected", "vehicle detected", "package detected",
+               "person detected", "my surety system", "system (")
 _BORING_PREFIX = ("sensor.backup_", "sensor.sun_", "binary_sensor.backup_")
 _BORING_WORDS = ("active_app", "supports_", "headphones_connected", "_app_id", "find_remote",
                  "next_dawn", "next_dusk", "next_midnight", "next_noon", "next_rising", "next_setting",
@@ -283,7 +291,13 @@ def _boring(eid: str, domain: str, attrs: dict, state: str = "") -> bool:
         return False
     if eid.startswith(_BORING_PREFIX) or any(w in eid for w in _BORING_WORDS):
         return True
+    name = str(attrs.get("friendly_name", "") or "").lower()
+    if any(w in name for w in _DIAG_WORDS):
+        # diagnostics: hidden unless something is wrong right now (then it earns a tile)
+        return state in ("off", "unavailable", "unknown", "", "0", "0devices", None)
     dc = str(attrs.get("device_class", "") or "")
+    if dc in ("problem", "tamper", "battery", "connectivity", "update", "running") and domain == "binary_sensor":
+        return state != "on"
     if domain == "binary_sensor":
         return dc not in _BINARY_CLASSES_OK
     if dc in _SENSOR_CLASSES_OK:

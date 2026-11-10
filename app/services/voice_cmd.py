@@ -153,10 +153,18 @@ def _add_to_list(text):
 
 
 def _music(text: str, w: set):
-    """Spotify through HA. Returns what to say, or None if it isn't a music command."""
+    """Spotify. Prefers FamilyHub's own Spotify link (search anything, play on the wall's
+    own player); falls back to Home Assistant's Spotify player. Returns what to say, or
+    None if it isn't a music command."""
+    from . import spotify_web
+    if spotify_web.linked():
+        said = spotify_web.voice(text, w)
+        if said:
+            return said
     sp = ha_svc.spotify_state()
     if not sp:
-        return "Spotify isn't connected to Home Assistant yet."
+        return ("Spotify isn't connected yet. Link it from the phone app, Settings, Spotify."
+                if spotify_web.configured() else "Spotify isn't connected to Home Assistant yet.")
     tl = text.lower()
     if w & {"pause", "stop"}:
         if sp["state"] == "playing":

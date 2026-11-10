@@ -21,7 +21,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
-                      events, notifications, rewards, display, ha, login, routines, mail, announce, summary, admin)
+                      events, notifications, rewards, display, ha, login, routines, mail, announce, summary, admin,
+                      spotify)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -130,6 +131,7 @@ async def no_cache_html(request, call_next):
     return resp
 
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(spotify.router, prefix="/api/spotify", tags=["spotify"])
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 app.include_router(chores.router, prefix="/api/chores", tags=["chores"])
 app.include_router(meals.router, prefix="/api/meals", tags=["meals"])

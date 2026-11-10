@@ -2901,12 +2901,36 @@ function applyWallMic(){
   $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
 })();
 
+/* ---- Spotify Web Playback: the wall is its own, official Spotify device ("Kitchen Wall").
+   Spotify's SDK runs inside this page; FamilyHub hands it a token from /api/spotify/token.
+   Only active once Spotify is linked from the phone app (Settings → Spotify). ---- */
+let spPlayer=null, spDeviceId=null;
+async function setupSpotifyPlayer(){
+  let st=null; try{ st=await fetch("/api/spotify/status").then(r=>r.json()); }catch(e){ return; }
+  if(!st||!st.linked) return;
+  if(!window.Spotify){
+    await new Promise(res=>{ window.onSpotifyWebPlaybackSDKReady=res; const s=document.createElement("script"); s.src="https://sdk.scdn.co/spotify-player.js"; s.onerror=()=>res(); document.head.appendChild(s); setTimeout(res,15000); });
+  }
+  if(!window.Spotify) return;
+  const name=FH.get().spotifyDeviceName||"Kitchen Wall";
+  spPlayer=new Spotify.Player({name, volume:1.0,
+    getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); }).catch(()=>{})});
+  spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; post("/api/spotify/device",{device_id,name}).catch(()=>{}); });
+  spPlayer.addListener("not_ready", ()=>{ spDeviceId=null; });
+  ["initialization_error","authentication_error","account_error","playback_error"].forEach(ev=>
+    spPlayer.addListener(ev, e=>console.warn("spotify player", ev, e&&e.message)));
+  spPlayer.addListener("player_state_changed", ()=>{ if(curPage==="home") setTimeout(loadHome, 800); });
+  try{ await spPlayer.connect(); }catch(e){}
+  // the SDK drops the device after long idle periods; reconnect on a slow heartbeat
+  setInterval(async()=>{ if(!spDeviceId&&spPlayer){ try{ await spPlayer.connect(); }catch(e){} } }, 120000);
+}
+
 /* ---- boot ---- */
 (async()=>{
   if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
   await FH.load();
   loadCalTargets();
-  applyWallMic(); loadVoiceCaps();
+  applyWallMic(); loadVoiceCaps(); setupSpotifyPlayer();
   setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
   applyPanels();
   applySeasonal();

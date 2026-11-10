@@ -86,6 +86,13 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `GET /api/sources/targets` — writable destinations (FamilyHub / Google / each iCloud calendar); `POST /api/calendar/events` takes `destination`; last choice remembered in `settings.defaultCalendar`
 - iCloud **Reminders ↔ To-Do** two-way: `services/reminders_sync.py` (VTODO over the same CalDAV source, every 5 min + `POST /api/todos/sync`; ticking a synced to-do completes it upstream; `todos.ext_uid/ext_source/ext_list`)
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
+- Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
+  (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The
+  wall page loads Spotify's Web Playback SDK and registers "Kitchen Wall"; voice `_music`
+  prefers this link (search anything → play on the wall) over HA's player. Env
+  `SPOTIFY_CLIENT_ID/SECRET`, redirect `http://127.0.0.1:8000/api/spotify/callback`;
+  tokens in settings key `spotify_auth`. Third-party Connect clients (spotifyd,
+  go-librespot) are blocked by Spotify on this account — keep as fallbacks only.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

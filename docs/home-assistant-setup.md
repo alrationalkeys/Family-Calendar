@@ -179,7 +179,30 @@ dentist"* — plus live lookups — *"did the Panthers win"*, *"is Publix still 
 > **Disarming by voice** is off by default in HA (needs a code) and FamilyHub's own voice
 > interpreter refuses it too. Keep it that way — disarm stays behind the PIN pad.
 
-## H. Spotify (two layers, both optional; needs Spotify Premium)
+## H. Spotify (needs Spotify Premium)
+
+**The way that actually works: the wall is an *official* Spotify device.** Spotify
+blocks third-party Connect clients (spotifyd, go-librespot) on many accounts — every
+track "loads" then skips with `audio key error`. FamilyHub instead runs Spotify's own
+Web Playback SDK inside the wall's Chromium, so "Hey Hub, play Zach Bryan" plays out of
+the wall speaker with no phone involved, and "Kitchen Wall" shows in every Spotify app.
+
+1. developer.spotify.com → your app (the one you made for HA) → **Settings** → Redirect
+   URIs → add `http://127.0.0.1:8000/api/spotify/callback` → Save. Copy Client ID + Secret.
+2. On the wall `.env`: `SPOTIFY_CLIENT_ID=…` and `SPOTIFY_CLIENT_SECRET=…`, then
+   `sudo systemctl restart familyhub`.
+3. Phone app → Settings → **Spotify → Connect Spotify to the wall**. Log in / approve.
+   Spotify then sends you to `http://127.0.0.1:8000/…` which **won't load on the phone**
+   (expected — it's the wall's own address). Copy that page's address from the address
+   bar, paste it into the box under the button, **Finish connecting**.
+4. The wall reloads and registers itself as "Kitchen Wall" (Spotify's DRM module downloads
+   itself into Chromium on first use; give it a minute). Status on that phone page shows
+   "online". Voice: *"play dinner vibes"*, *"play Zach Bryan"*, *"play the album Nation of
+   Two"*, *"pause"*, *"next song"*, *"what's playing"*, *"play … on the living room TV"*.
+
+The two older approaches below are kept for reference / other households.
+
+### H-old. Third-party Connect clients (two layers, both optional)
 
 **1. The wall as a Spotify speaker.** On the **Screen C3**, with the USB speaker plugged in:
 ```bash

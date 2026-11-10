@@ -316,7 +316,19 @@
   </div>
 
   <div class="form sect">
-    <h2>Spotify playlists</h2>
+    <h2>Spotify</h2>
+    <div id="spw-status" class="hint">Checking Spotify link…</div>
+    <div id="spw-connect" hidden>
+      <button class="go" id="spw-login" style="background:#1db954">Connect Spotify to the wall</button>
+      <div class="hint">Opens Spotify's login. After you approve, it sends you to a page that <b>won't load</b> (that's expected). Copy that page's address and paste it below.</div>
+      <input id="spw-code" placeholder="Paste the address Spotify sent you to (http://127.0.0.1:8000/…)">
+      <button class="go" id="spw-finish" style="background:var(--panel2); color:var(--ink)">Finish connecting</button>
+    </div>
+    <div id="spw-linked" hidden>
+      <div class="two"><button class="go" id="spw-test" style="background:var(--panel2); color:var(--ink)">&#9654; Test on the wall</button><button class="go" id="spw-unlink" style="background:var(--panel2); color:#d33">Unlink</button></div>
+    </div>
+    <hr>
+    <h2 style="margin-top:6px">Pinned playlists</h2>
     <div id="spl-list"></div>
     <hr>
     <input id="spl-name" placeholder="Name you'll say (Dinner Vibes)">
@@ -659,7 +671,7 @@ $("#nav-tv").onclick=()=>switchView("tv");
 $("#nav-settings").onclick=()=>switchView("settings");
 function switchView(v){
   ["add","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
-  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); }
+  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); }
   if(v==="tv"){ loadTVs(); }
 }
 
@@ -989,6 +1001,28 @@ async function loadMail(){
     box.appendChild(card);
   });
 }
+
+/* FamilyHub's own Spotify link (wall = official Spotify device) */
+async function loadSPW(){
+  const st=$("#spw-status"); let s=null;
+  try{ s=await fetch("/api/spotify/status").then(r=>r.json()); }catch(e){ st.textContent="Couldn't reach the wall."; return; }
+  $("#spw-connect").hidden=!(s.configured&&!s.linked); $("#spw-linked").hidden=!s.linked;
+  if(!s.configured){ st.innerHTML="Add <b>SPOTIFY_CLIENT_ID</b> and <b>SPOTIFY_CLIENT_SECRET</b> to the wall's .env (same values you gave Home Assistant), restart FamilyHub, then come back here."; return; }
+  if(!s.linked){ st.textContent="Not connected yet. Needs Spotify Premium."; return; }
+  st.innerHTML=`Connected as <b>${s.user||"Spotify"}</b>${s.product&&s.product!=="premium"?' <span style="color:#d33">(not Premium — playback won\'t start)</span>':''}. Wall speaker "${s.wall_device_name||"Kitchen Wall"}": <b>${s.wall_online?"online":"not seen yet (reload the wall)"}</b>.`;
+}
+$("#spw-login").onclick=async()=>{
+  try{ const r=await fetch("/api/spotify/login").then(r=>r.json()); if(r.url){ window.open(r.url,"_blank"); toast("Approve in Spotify, then paste the address it lands on"); } else toast(r.detail||"Couldn't start login"); }
+  catch(e){ toast("Couldn't start login"); }
+};
+$("#spw-finish").onclick=async()=>{
+  const text=$("#spw-code").value.trim(); if(!text){ toast("Paste the address first"); return; }
+  const r=await post("/api/spotify/code",{text}); const j=await r.json().catch(()=>({}));
+  if(r.ok){ toast("Spotify connected"+(j.user?" as "+j.user:"")); $("#spw-code").value=""; fetch("/api/display/reload",{method:"POST"}); loadSPW(); }
+  else toast(j.detail||"Spotify rejected it");
+};
+$("#spw-test").onclick=async()=>{ const r=await post("/api/spotify/cmd",{action:"say", value:"play something"}); const j=await r.json().catch(()=>({})); toast(j.say||j.detail||"sent"); };
+$("#spw-unlink").onclick=async()=>{ if(!confirm("Unlink Spotify from the wall?")) return; await post("/api/spotify/unlink",{}); loadSPW(); };
 
 /* Spotify playlist pins (stored in settings.spotifyPlaylists) */
 function spotifyUri(s){

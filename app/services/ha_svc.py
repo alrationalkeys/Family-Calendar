@@ -200,9 +200,15 @@ def _is_spotify(eid: str) -> bool:
 def _spotify_from_states(states) -> dict | None:
     for st in states:
         eid = st.get("entity_id", "")
-        if not _is_spotify(eid):
-            continue
         a = st.get("attributes", {}) or {}
+        # HA names it media_player.spotify_<account>, but accept any media_player that
+        # says it's Spotify (attribution / picture host) in case the name was customised
+        if not eid.startswith("media_player."):
+            continue
+        if not (_is_spotify(eid) or "spotify" in str(a.get("attribution", "")).lower()
+                or "spotify" in str(a.get("entity_picture", "")).lower()
+                or "spotify" in str(a.get("friendly_name", "")).lower()):
+            continue
         return {
             "entity_id": eid, "state": st.get("state", ""),
             "title": a.get("media_title"), "artist": a.get("media_artist"),

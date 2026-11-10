@@ -247,7 +247,7 @@ Then: *"Hey <Name>, play dinner vibes in the kitchen"*, *"pause the music"*, *"n
 | **Z-Wave devices** (plugs on the IQ Panel today, locks/garage later) | **Z-Wave JS** via the **SONOFF Z-Wave 800 Dongle Plus (Dongle-PZG23)** you have | See §I-1 below. `qolsysgw` only carries the alarm + door/motion sensors, not the panel's Z-Wave gear, so each device moves to the stick. |
 | **Kitchen LED strips ×2** — **GLEDOPTO Zigbee Pro Max (GL-C-601P)** on the Aqara hub / Alexa | **ZHA** via a Zigbee USB stick | See §I-2 below. Pairs straight to HA as a colour + white-temperature light; the Aqara hub and Alexa drop out of the loop. |
 | **Aqara motion sensor** (kitchen) | **ZHA** (same stick) | §I-2. The motion → lights rule becomes an HA automation. |
-| **Garage door** (myQ, linked to the IQ Panel) | **ratgdo** (ESPHome, local) | myQ's cloud API was shut to third parties in 2023 and HA dropped the integration. A ratgdo board (~$45, pick the one for your opener's brand/year) wires to the opener and gives open/close + obstruction locally. The 3D house shows the door state and FamilyHub warns when it's left open. |
+| **Garage door** (myQ, linked to the IQ Panel) | **Alarm.com** (§I-0) | Comes through Alarm.com as a cover — no extra hardware. (ratgdo, ~$45, remains the local fallback if you ever want it to work without internet.) |
 | **Govee porch lights** | **Govee** (built in, local LAN) | Govee app → device → ⚙ → **LAN Control: on** → HA discovers it. Recreate the Alexa sunset routine as an HA automation (Settings → Automations → trigger *Sun: sunset* → action *light.turn_on*). |
 | **Roku TVs** | **Roku** (built in) | Fast TV Start on each TV (section D). |
 | **IQ Panel** | `qolsysgw` | Sections B–C. |
@@ -256,21 +256,27 @@ Then the Home tab, floor plan rooms (matched by name — rename entities to "Kit
 Stove", "Kitchen Upper Front", "Kitchen Lower Fridge", "Porch Lights" so voice and rooms
 line up), "all lights off", and "Hey <Name>, kitchen lights off" all just work.
 
-### I-0. Alarm.com — try this FIRST (~10 min, cloud)
-The IQ Panel reports to Alarm.com, and the house already runs lights/sensors/doorbell through it.
-The community **Alarm.com** integration logs in as you and exposes what the panel knows:
-alarm partition (arm/disarm), every sensor zone, Z-Wave lights/plugs/locks/thermostats paired to
-the panel, the **garage door** (myQ linked through Alarm.com) and the **doorbell** (ring/motion
-events; no video). Cloud round-trip (~1–2 s), unofficial, occasionally breaks for a few days
-when Alarm.com changes their site — so keep **qolsysgw** (§C) for the local, instant alarm +
-sensor path and use Alarm.com for the garage, doorbell and anything else only the cloud has.
-1. HACS → Integrations → search **Alarm.com** → Install → restart HA.
-2. Settings → Devices & services → **Add integration** → *Alarm.com* → your Alarm.com username +
-   password (the same login as the Alarm.com phone app). If two-factor is on, HA asks for a
-   one-time code once; it then stores a device token.
-3. Give the garage door, the doorbell and each light an **Area** → FamilyHub shows them in the
-   right rooms; the 3D house's garage door follows the real one.
-4. If the garage door shows up here, the **ratgdo** board in the table above is optional.
+### I-0. Alarm.com — do this FIRST (~10 min, cloud) ✅ done Nov 2026
+The IQ Panel reports to Alarm.com, and the house already runs lights/sensors/locks/doorbell
+through it. **Use the maintained fork `ibasebcast/ha-alarmdotcom`** — the original
+`pyalarmdotcom/alarmdotcom` (v3.0.x) is abandoned and fails to set up on HA 2025+
+("Failed to set up the alarmdotcom alarm_control_panel platform").
+What it brought in for this house: the panel (arm/disarm), Kwikset front + side door locks,
+the **garage door** (myQ via Alarm.com → no ratgdo needed), every door contact, Family Room
+motion, the Resideo thermostat, the Deako driveway light, the exterior-lights smart plug, and
+**both cameras with snapshots** (doorbell ADC-VDB770 + backyard ADC-V729).
+Cloud round-trip (~1–2 s). `qolsysgw` (§C) is now optional: only add it if you want the alarm +
+contacts to keep working locally when the internet is down.
+1. Settings → Marketplace (HACS) → ⋮ → **Custom repositories** → paste
+   `https://github.com/ibasebcast/ha-alarmdotcom`, type *Integration* → Add.
+2. Marketplace → search **Alarm.com** → the ibasebcast one → Install → restart HA.
+   (If the old `pyalarmdotcom` one is installed, delete its hubs under Devices & services and
+   remove it from the Marketplace first.)
+3. Settings → Devices & services → **Add integration** → *Alarm.com* → Alarm.com username +
+   password (same as the phone app). It may ask for a one-time code that Alarm.com emails/texts
+   (if none arrives: sign out and back in to the Alarm.com app, then retry).
+4. Give every device an **Area** (Garage, Front Walkway, Living, Backyard…) → FamilyHub shows
+   them in the right rooms; the 3D house's garage door follows the real one.
 
 ### I-1. Z-Wave: the SONOFF Dongle-PZG23 (~10 min)
 Z-Wave (908 MHz) and Zigbee (2.4 GHz) are different radios — one stick per protocol. Both

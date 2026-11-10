@@ -227,6 +227,16 @@
   .dpad .up{grid-area:1/2} .dpad .left{grid-area:2/1} .dpad .ok{grid-area:2/2}
   .dpad .right{grid-area:2/3} .dpad .down{grid-area:3/2}
   .dpad .ok{background:var(--now); color:#fff; border-radius:50%; font-weight:700}
+  /* Spotify browser */
+  .spb-card{width:min(980px,94vw); max-height:88vh; display:flex; flex-direction:column; background:var(--panel); border-radius:22px; padding:18px 20px; box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  .spb-top{display:flex; align-items:center; gap:12px; margin-bottom:12px}
+  .spb-top h3{margin:0; flex:1; font-size:22px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .spb-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; overflow-y:auto; padding:2px}
+  .spb-item{background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:10px; text-align:left; color:var(--ink); cursor:pointer; display:flex; flex-direction:column; gap:8px; min-height:150px}
+  .spb-item img,.spb-item .ph{width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:var(--line); display:flex; align-items:center; justify-content:center; font-size:38px}
+  .spb-item .nm{font-size:14px; font-weight:600; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical}
+  .spb-item.play .nm::after{content:" \25B6"; color:#1db954}
+  .spb-empty{padding:30px; text-align:center; color:var(--ink-dim)}
   .remote-row{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px}
   .remote-chan-label{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-dim); margin:14px 2px 8px; text-align:left}
   .remote-apps{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin:0 0 4px; max-height:168px; overflow-y:auto}
@@ -956,6 +966,18 @@
     <div class="remote-chan-label">Channels</div>
     <div class="remote-apps" id="remote-apps"></div>
     <button class="pin-x" id="remote-close">Close</button>
+  </div>
+</div>
+
+<!-- Spotify library browser -->
+<div class="pinpad" id="spbrowse">
+  <div class="spb-card">
+    <div class="spb-top">
+      <button class="rbtn" id="spb-back" title="Back">&#8592;</button>
+      <h3 id="spb-title">Spotify</h3>
+      <button class="pin-x" id="spb-close" style="margin:0">Close</button>
+    </div>
+    <div class="spb-grid" id="spb-grid"></div>
   </div>
 </div>
 
@@ -2264,6 +2286,7 @@ function spotifyCardHTML(sp){
         <button class="sp-btn main" data-sp="play_pause" title="Play/Pause">${playing?'\u23F8':'\u25B6'}</button>
         <button class="sp-btn" data-sp="next" title="Next">\u23ED</button>
         <button class="sp-btn${sp.shuffle?' on':''}" data-sp="shuffle" title="Shuffle" style="${sp.shuffle?'color:#1db954':''}">\u{1F500}</button>
+        <button class="sp-btn" data-browse="1" title="Browse your Spotify library">\u{1F4DA} Browse</button>
         <label class="sp-vol">\u{1F50A}<input type="range" min="0" max="100" value="${Math.round((sp.volume??0.5)*100)}" data-sp="volume"></label>
       </div>
     </div>
@@ -2281,7 +2304,36 @@ function bindSpotify(body){
   const vol=card.querySelector('input[data-sp="volume"]'); if(vol) vol.onchange=()=>send("volume", String(vol.value/100));
   const sel=card.querySelector('select[data-sp="source"]'); if(sel) sel.onchange=()=>send("source", sel.value);
   card.querySelectorAll(".sp-chip").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
+  const br=card.querySelector("button[data-browse]"); if(br) br.onclick=()=>openSpotifyBrowser();
 }
+
+/* ---- Spotify library browser (HA media browse over WebSocket, see /api/ha/spotify/browse) ---- */
+let spbStack=[];   // [{id,type,title}] breadcrumb; empty = root
+async function openSpotifyBrowser(){ spbStack=[]; $("#spbrowse").classList.add("on"); resetSleep(); await spbLoad(); }
+function closeSpotifyBrowser(){ $("#spbrowse").classList.remove("on"); }
+async function spbLoad(){
+  const cur=spbStack[spbStack.length-1]||null;
+  $("#spb-title").textContent=cur?cur.title:"Spotify";
+  $("#spb-back").style.visibility=cur?"visible":"hidden";
+  const grid=$("#spb-grid"); grid.innerHTML='<div class="spb-empty">Loading…</div>';
+  let r=null;
+  try{ r=await fetch("/api/ha/spotify/browse"+(cur?`?id=${encodeURIComponent(cur.id)}&type=${encodeURIComponent(cur.type||"")}`:"")).then(x=>x.json()); }catch(e){}
+  if(!r||!r.children||!r.children.length){ grid.innerHTML=`<div class="spb-empty">${esc((r&&r.reason)||"Nothing here")}</div>`; return; }
+  grid.innerHTML="";
+  r.children.forEach(c=>{
+    const b=document.createElement("button"); b.className="spb-item"+(c.can_play&&!c.can_expand?" play":"");
+    b.innerHTML=(c.thumb?`<img src="${esc(c.thumb)}" alt="" loading="lazy">`:`<div class="ph">${c.can_expand?"\u{1F4C1}":"\u{1F3B5}"}</div>`)+`<div class="nm">${esc(c.title||"")}</div>`;
+    b.onclick=async()=>{
+      resetSleep();
+      if(c.can_expand){ spbStack.push({id:c.id,type:c.type,title:c.title}); await spbLoad(); return; }
+      if(c.can_play){ try{ await post("/api/ha/spotify",{action:"play", value:c.id, kind:c.type||""}); }catch(e){} closeSpotifyBrowser(); setTimeout(loadHome,800); }
+    };
+    grid.appendChild(b);
+  });
+}
+$("#spb-back").onclick=async()=>{ spbStack.pop(); await spbLoad(); };
+$("#spb-close").onclick=closeSpotifyBrowser;
+$("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser(); };
 /* ---- live Home Assistant updates: SSE stream of state changes ---- */
 (function liveHA(){
   if(!("EventSource" in window)) return;

@@ -228,7 +228,62 @@ def spotify_state() -> dict | None:
         return None
 
 
-def spotify_cmd(action: str, value: str = "") -> dict:
+_DEMO_BROWSE = {
+    None: [("Your playlists", "playlists", False, True), ("Recently played", "recent", False, True),
+           ("New releases", "new", False, True)],
+    "playlists": [("Dinner Vibes", "spotify:playlist:1", True, False), ("Kids Dance Party", "spotify:playlist:2", True, False),
+                  ("Sunday Morning", "spotify:playlist:3", True, False), ("Road Trip", "spotify:playlist:4", True, False)],
+    "recent": [("Abbey Road", "spotify:album:1", True, False), ("Come Together", "spotify:track:1", True, False)],
+    "new": [("Something New", "spotify:album:2", True, False)],
+}
+
+
+def spotify_browse(content_id: str | None = None, content_type: str | None = None) -> dict:
+    """Walk HA's media browser for the Spotify player (its WebSocket API; the REST
+    API has no browse). Root = Spotify's top level (Your playlists, Recently played,
+    Top tracks, New releases, Categories…)."""
+    if demo_mode():
+        kids = _DEMO_BROWSE.get(content_id if content_id in _DEMO_BROWSE else None, [])
+        return {"title": content_id or "Spotify", "children": [
+            {"title": t, "id": i, "type": "playlist" if ":playlist:" in i else "album" if ":album:" in i else "track" if ":track:" in i else "library",
+             "can_play": p, "can_expand": e, "thumb": None} for t, i, p, e in kids]}
+    sp = spotify_state()
+    if not sp:
+        return {"title": "Spotify", "children": [], "reason": "no Spotify player in Home Assistant"}
+    import asyncio, json
+
+    async def _go():
+        import websockets
+        ws_url = ha_url().replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/api/websocket"
+        async with websockets.connect(ws_url, max_size=16 * 1024 * 1024, open_timeout=10) as ws:
+            await ws.recv()                                   # auth_required
+            await ws.send(json.dumps({"type": "auth", "access_token": ha_token()}))
+            if json.loads(await ws.recv()).get("type") != "auth_ok":
+                return {"title": "Spotify", "children": [], "reason": "HA token rejected"}
+            req = {"id": 1, "type": "media_player/browse_media", "entity_id": sp["entity_id"]}
+            if content_id:
+                req["media_content_id"] = content_id
+                req["media_content_type"] = content_type or "playlist"
+            await ws.send(json.dumps(req))
+            while True:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+                if msg.get("id") == 1:
+                    if not msg.get("success"):
+                        return {"title": "Spotify", "children": [], "reason": (msg.get("error") or {}).get("message", "browse failed")}
+                    r = msg.get("result") or {}
+                    return {"title": r.get("title") or "Spotify",
+                            "children": [{"title": c.get("title"), "id": c.get("media_content_id"),
+                                          "type": c.get("media_content_type"), "can_play": bool(c.get("can_play")),
+                                          "can_expand": bool(c.get("can_expand")), "thumb": c.get("thumbnail")}
+                                         for c in (r.get("children") or [])]}
+
+    try:
+        return asyncio.run(_go())
+    except Exception as e:
+        return {"title": "Spotify", "children": [], "reason": str(e)}
+
+
+def spotify_cmd(action: str, value: str = "", kind: str = "") -> dict:
     sp = spotify_state()
     if not sp:
         return {"ok": False, "reason": "no Spotify player in Home Assistant"}
@@ -267,10 +322,13 @@ def spotify_cmd(action: str, value: str = "") -> dict:
     if a == "shuffle":
         return call_service("media_player", "shuffle_set", eid, {"shuffle": not sp.get("shuffle")})
     if a == "play" and value:
-        kind = "playlist"
-        if ":album:" in value: kind = "album"
-        elif ":track:" in value: kind = "track"
-        elif ":artist:" in value: kind = "artist"
+        if not kind:
+            kind = "playlist"
+            if ":album:" in value: kind = "album"
+            elif ":track:" in value: kind = "track"
+            elif ":artist:" in value: kind = "artist"
+            elif ":show:" in value: kind = "show"
+            elif ":episode:" in value: kind = "episode"
         return call_service("media_player", "play_media", eid,
                             {"media_content_type": kind, "media_content_id": value})
     return {"ok": False, "reason": f"unknown spotify action {action}"}

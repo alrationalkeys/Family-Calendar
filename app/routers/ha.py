@@ -99,12 +99,20 @@ def spotify():
 
 @router.post("/spotify")
 def spotify_cmd(payload: dict):
-    """{action: play_pause|next|prev|volume|source|shuffle|play, value?}
-    play's value is a Spotify URI (spotify:playlist:...)."""
+    """{action: play_pause|next|prev|volume|source|shuffle|play, value?, kind?}
+    play's value is a Spotify URI (spotify:playlist:...); kind overrides the
+    media_content_type guessed from the URI (browse results supply it)."""
     p = payload or {}
     if not p.get("action"):
         raise HTTPException(400, "action required")
-    return ha_svc.spotify_cmd(p["action"], str(p.get("value", "") or ""))
+    return ha_svc.spotify_cmd(p["action"], str(p.get("value", "") or ""), str(p.get("kind", "") or ""))
+
+
+@router.get("/spotify/browse")
+def spotify_browse(id: str = "", type: str = ""):
+    """Browse the Spotify library through HA (playlists, recently played, albums…).
+    No args = root. Returns {title, children:[{title, id, type, can_play, can_expand, thumb}]}."""
+    return ha_svc.spotify_browse(id or None, type or None)
 
 
 @router.get("/art")

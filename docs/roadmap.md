@@ -88,6 +88,32 @@ help. Lift it off the wall, set it on the counter, still does it all.
 - [ ] Illustrated/3D floor plan — tap a room to toggle its lights (start 2D SVG, upgrade to 3D render; needs a floor plan of the house)
 - [ ] Local voice control (no cloud if possible)
 
+### TV Backlight (65" Hisense Roku TV) — planned, not started
+Bias lighting behind the living-room TV, driven by Home Assistant off the Roku's state.
+
+**Hardware (not built yet):** ESP32 running **WLED** → ~4–5 m **WS2812B 5 V** strip
+(30 or 60 LEDs/m) around the back of the TV; dedicated **5 V 6–10 A** supply; **power
+injected at both ends**; **level shifter** on the data line. The Hisense Roku TV is already
+in HA (`media_player.living_room_tv`). The strip joins HA via the **WLED integration** —
+expected entity `light.tv_backlight`, **confirm the real name once discovered** and record
+it here.
+
+- [ ] 1. Build the hardware, flash WLED, set LED count + color order + a **power limit**,
+      cap brightness at ~50%.
+- [ ] 2. Add the device in HA (Settings → Devices & services → WLED, auto-discovered).
+      Record the final entity IDs in this section:
+      - `light.tv_backlight` → _TBD_
+      - `media_player.living_room_tv` → confirmed
+- [ ] 3. HA automation: strip **on** when the Roku `media_player` is `on` (optionally only
+      after sunset); **off** when the TV is `off`, `standby`, or `unavailable`. Keep the
+      entity IDs in one place (automation variables / a single package file); no secrets
+      hardcoded.
+- [ ] 4. Scenes: *movie* (dim warm white), *game mode*, etc. Surface them as scene tiles
+      on the wall's Home tab (they appear automatically via `/api/ha/home`).
+- [ ] 5. Back up WLED `cfg.json` + `presets.json` into the repo (`hardware/wled/`), with
+      Wi-Fi credentials kept out of git (HA `secrets.yaml`; confirm `.gitignore` covers it).
+- [ ] 6. Later: **screen sync** (HDMI capture + Hyperion → WLED).
+
 ## Hardware
 - **Wall screen:** **HOWENS 15.6" IPS capacitive touchscreen** (ASIN B0D2D8CCY1), ~$150.
   Confirmed: FHD 1920×1080, 10-pt capacitive, VESA 75×75, **36.5 × 23 × 1 cm**, ports on the

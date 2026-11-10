@@ -63,6 +63,21 @@ def describe(kind: str, item: dict, person_name: str | None = None) -> str:
     return t
 
 
+def _quiet_now(s: dict) -> bool:
+    """Spoken announcements pause during quiet hours. Default = the screen-off night
+    window (settings announceQuietStart/End override it, "" disables quiet hours)."""
+    try:
+        from . import display_svc
+        cfg = display_svc.get_config()
+        start = s.get("announceQuietStart") if s.get("announceQuietStart") is not None else cfg.get("off_start", "22:00")
+        end = s.get("announceQuietEnd") if s.get("announceQuietEnd") is not None else cfg.get("off_end", "06:30")
+        if not start or not end:
+            return False
+        return display_svc._in_night_window(datetime.now(), {"off_start": start, "off_end": end})
+    except Exception:
+        return False
+
+
 def _person_name(conn, pid) -> str | None:
     if not pid:
         return None
@@ -88,7 +103,7 @@ def _record(kind: str, item: dict, who: str | None, source: str):
                 return
             who_clean = (who or "").strip()[:40]
             sentence = f"{who_clean} added {what}." if who_clean else f"Added {what}."
-            if s.get("announceAdds", True) and source != "wall":
+            if s.get("announceAdds", True) and source != "wall" and not _quiet_now(s):
                 # the wall speaks announcements; don't echo back something typed on the wall itself
                 conn.execute("INSERT INTO notifications (title, body, kind, at) VALUES (?,?,?,?)",
                              (f"➕ {who_clean or 'Someone'} added", sentence, "announce", datetime.now().isoformat()))

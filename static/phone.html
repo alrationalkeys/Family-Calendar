@@ -263,6 +263,12 @@
     <div class="srow"><span>Your name on this phone</span><input id="set-who" placeholder="Alex" style="width:46%; margin:0"></div>
     <div class="hint">Lets the wall say "Alex added Dentist, Thursday at 3" and stops your own phone getting buzzed for things you added. Set it on each phone.</div>
     <label class="chk"><input type="checkbox" id="set-announce-adds"> Wall announces when someone adds an event / to-do / grocery</label>
+    <div class="srow"><span>…but stay quiet</span><select id="set-announce-quiet" style="width:56%; margin:0">
+      <option value="night">during the screen-off hours (default)</option>
+      <option value="evening">from 8 PM to 7 AM</option>
+      <option value="never">never — always announce</option>
+    </select></div>
+    <div class="hint">Phone pushes and the on-screen banner still happen during quiet hours; only the spoken part pauses.</div>
     <label class="chk"><input type="checkbox" id="set-push-adds"> Push adds to the other phones (Home Assistant app)</label>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
     <div class="srow"><span>…not before</span><select id="set-briefhour" style="margin:0;width:auto"><option value="5">5:00 am</option><option value="6">6:00 am</option><option value="7">7:00 am</option><option value="8">8:00 am</option><option value="9">9:00 am</option></select></div>
@@ -778,6 +784,8 @@ function loadSettingsUI(){
   $("#set-speak").checked=s.speakAlerts!==false; $("#set-speak").onchange=e=>FH.save({speakAlerts:e.target.checked});
   $("#set-who").value=whoAmI(); $("#set-who").onchange=e=>{ try{ localStorage.setItem("fh_who", e.target.value.trim()); }catch(_){} toast("Saved on this phone"); };
   $("#set-announce-adds").checked=s.announceAdds!==false; $("#set-announce-adds").onchange=e=>FH.save({announceAdds:e.target.checked});
+  const q=$("#set-announce-quiet"); q.value = s.announceQuietStart==="" ? "never" : (s.announceQuietStart==="20:00" ? "evening" : "night");
+  q.onchange=e=>{ const v=e.target.value; FH.save(v==="never"?{announceQuietStart:"",announceQuietEnd:""}: v==="evening"?{announceQuietStart:"20:00",announceQuietEnd:"07:00"}:{announceQuietStart:null,announceQuietEnd:null}); };
   $("#set-push-adds").checked=s.pushAdds!==false; $("#set-push-adds").onchange=e=>FH.save({pushAdds:e.target.checked});
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});

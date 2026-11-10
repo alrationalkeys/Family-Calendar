@@ -35,6 +35,8 @@ DEFAULTS = {
     "speakAlerts": True,             # wall speaks reminders / announcements / timers
     "photoFit": "fit",               # slideshow: "fit" = whole photo over a blurred backdrop, "fill" = crop to screen
     "announceAdds": True,            # wall says "Rachell added …" when a phone adds something
+    "announceQuietStart": None,      # "HH:MM"; None = follow the screen-off night window; "" = never quiet
+    "announceQuietEnd": None,
     "pushAdds": True,                # Home Assistant pushes adds to the other phones (HA Companion app)
     "morningBriefing": False,        # auto-spoken "here's today" on first walk-up (off: use the button / ask)
     "briefingHour": 6,               # ...but not before this hour

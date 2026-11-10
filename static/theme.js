@@ -39,6 +39,7 @@ const FH = (() => {
     doorbellTv: true,        // flash the doorbell snapshot on any Roku that is on
     doorbellSpeak: true,
     skin: "auto",            // holiday skin: auto | off | christmas | thanksgiving
+    skinBanner: true,        // the "Days until …" card in the header
     nightTemp: null,         // Good Night thermostat (null = leave it)
     awayTemp: null,          // Away thermostat setback     // wall says "someone's at the front door"
   };

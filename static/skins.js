@@ -81,6 +81,22 @@ html[data-skin="christmas"] .main::before, html[data-skin="christmas"] .card::be
 #skin-frame .lights-b{left:26px; right:26px; bottom:14px; top:auto; height:34px; width:auto}
 #skin-frame .bulb{animation:twinkle 2.4s ease-in-out infinite}
 @keyframes twinkle{0%,100%{opacity:1}50%{opacity:.45}}
+#skin-frame .bulb.flick{animation:flicker .5s steps(2) 3}
+@keyframes flicker{0%{opacity:1}50%{opacity:.08}100%{opacity:1}}
+#skin-frame .flame, #skin-banner .flame{transform-origin:center 80%; animation:flame .9s ease-in-out infinite alternate}
+@keyframes flame{from{transform:scaleY(.9) scaleX(1.05); opacity:.9}to{transform:scaleY(1.12) scaleX(.95); opacity:1}}
+#skin-fly{position:fixed; left:0; top:0; z-index:47; pointer-events:none; display:none}
+#skin-fly.go{display:block; animation:flyover var(--fly-s,16s) linear forwards}
+@keyframes flyover{0%{transform:translate(-420px, var(--fly-y)) }25%{transform:translate(25vw, calc(var(--fly-y) - 22px))}50%{transform:translate(50vw, calc(var(--fly-y) + 10px))}75%{transform:translate(75vw, calc(var(--fly-y) - 16px))}100%{transform:translate(105vw, var(--fly-y))}}
+#skin-fly .bob{animation:bob 1.1s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-5px)}}
+#skin-walk{position:fixed; left:0; bottom:26px; z-index:47; pointer-events:none; display:none; font-size:40px; filter:drop-shadow(0 3px 3px rgba(0,0,0,.5))}
+#skin-walk.go{display:block; animation:walk var(--walk-s,18s) linear forwards}
+@keyframes walk{from{transform:translateX(105vw) scaleX(-1)}to{transform:translateX(-80px) scaleX(-1)}}
+#skin-walk span{display:inline-block; animation:waddle .45s ease-in-out infinite alternate}
+@keyframes waddle{from{transform:rotate(-7deg) translateY(0)}to{transform:rotate(7deg) translateY(-3px)}}
+html[data-skin][data-skin-banner="off"] #skin-banner{display:none}
+html[data-skin][data-skin-banner="off"] header{min-height:0}
 #skin-frame .snowtop{left:0; right:0; top:0; height:30px; width:100%}
 #skin-frame .corner{width:150px; height:150px}
 #skin-frame .corner.tl{left:6px; top:4px} #skin-frame .corner.tr{right:6px; top:4px; transform:scaleX(-1)}
@@ -139,7 +155,7 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     const p2 = document.createElementNS(NS, "path"); p2.setAttribute("d", d); p2.setAttribute("fill", "#dfe9f5"); p2.setAttribute("transform", "translate(0,-5)"); p2.setAttribute("opacity", ".6"); svg.insertBefore(p2, p);
     return svg;
   }
-  const LANTERN = (x, y, s) => `<g class="lantern" transform="translate(${x},${y}) scale(${s})"><rect x="-1" y="-20" width="2" height="22" fill="#2a1a08"/><path d="M-9 0h18l2 4h-22z" fill="#2b2b2b"/><rect x="-8" y="4" width="16" height="22" rx="2" fill="#f7d98a" opacity=".92"/><rect x="-8" y="4" width="16" height="22" rx="2" fill="none" stroke="#2b2b2b" stroke-width="2"/><line x1="0" y1="4" x2="0" y2="26" stroke="#2b2b2b" stroke-width="1.5"/><ellipse cx="0" cy="17" rx="4" ry="6" fill="#ffb347"/><ellipse cx="0" cy="15" rx="2" ry="3.5" fill="#fff2c0"/><path d="M-10 26h20l-2 4h-16z" fill="#2b2b2b"/><ellipse cx="0" cy="18" rx="18" ry="16" fill="#ffcc66" opacity=".16"/></g>`;
+  const LANTERN = (x, y, s) => `<g class="lantern" transform="translate(${x},${y}) scale(${s})"><rect x="-1" y="-20" width="2" height="22" fill="#2a1a08"/><path d="M-9 0h18l2 4h-22z" fill="#2b2b2b"/><rect x="-8" y="4" width="16" height="22" rx="2" fill="#f7d98a" opacity=".92"/><rect x="-8" y="4" width="16" height="22" rx="2" fill="none" stroke="#2b2b2b" stroke-width="2"/><line x1="0" y1="4" x2="0" y2="26" stroke="#2b2b2b" stroke-width="1.5"/><g class="flame"><ellipse cx="0" cy="17" rx="4" ry="6" fill="#ffb347"/><ellipse cx="0" cy="15" rx="2" ry="3.5" fill="#fff2c0"/></g><path d="M-10 26h20l-2 4h-16z" fill="#2b2b2b"/><ellipse cx="0" cy="18" rx="18" ry="16" fill="#ffcc66" opacity=".16"/></g>`;
   const BOW = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><path d="M0 0c-14-14-30-10-28 2 2 10 18 8 28-2z" fill="#c8102e"/><path d="M0 0c14-14 30-10 28 2-2 10-18 8-28-2z" fill="#c8102e"/><path d="M0 0c-12-8-22-6-22 1 0 6 12 6 22-1z" fill="#e3263f"/><path d="M0 0c12-8 22-6 22 1 0 6-12 6-22-1z" fill="#e3263f"/><path d="M-3 2l-8 24 8-4 3-20z" fill="#a50d26"/><path d="M3 2l8 24-8-4-3-20z" fill="#a50d26"/><circle r="5" fill="#ffd23f"/></g>`;
   const GIFT = (x, y, s, c1, c2) => `<g transform="translate(${x},${y}) scale(${s})"><rect x="-18" y="-10" width="36" height="28" rx="2" fill="${c1}"/><rect x="-20" y="-16" width="40" height="8" rx="1" fill="${c1}" stroke="rgba(0,0,0,.2)"/><rect x="-4" y="-16" width="8" height="34" fill="${c2}"/><rect x="-20" y="-13" width="40" height="3" fill="${c2}"/><path d="M0-16c-6-10-14-8-12-2 1 4 8 4 12 2zM0-16c6-10 14-8 12-2-1 4-8 4-12 2z" fill="${c2}"/></g>`;
   const HOLLY = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><path d="M0 0c-8-10-20-8-24 0 6 2 8 10 4 14 8 2 16-2 20-14z" fill="#2e7d32"/><path d="M0 0c8-10 20-8 24 0-6 2-8 10-4 14-8 2-16-2-20-14z" fill="#388e3c"/><circle cx="-3" cy="4" r="4" fill="#d32f2f"/><circle cx="4" cy="2" r="4" fill="#e53935"/><circle cx="1" cy="9" r="4" fill="#c62828"/></g>`;
@@ -169,6 +185,42 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     for (let i = 0; i <= n; i++){ const x = i * (width / n), t = x / width, y = 22 + Math.sin(Math.PI * t) * 24; s += LEAF(x, y, .75 + (i % 3) * .12, cols[i % cols.length], (i * 47) % 360); }
     svg.innerHTML = s; return svg;
   }
+
+  /* ---------- little surprises: Santa flies over, a turkey waddles by, bulbs flicker ---------- */
+  const SLEIGH = `<svg width="400" height="110" viewBox="0 0 400 110"><g class="bob">
+    <g stroke="#caa15a" stroke-width="1.5" fill="none"><path d="M60 62 Q120 50 180 58 Q240 50 300 58"/></g>
+    ${[0,1,2].map(i=>`<g transform="translate(${70+i*78},34)"><path d="M10 40 L6 60 M28 40 L32 60 M14 40 L12 60 M24 40 L26 60" stroke="#6b4a2a" stroke-width="3"/><ellipse cx="19" cy="34" rx="20" ry="11" fill="#8b5a2b"/><ellipse cx="38" cy="26" rx="10" ry="8" fill="#9a6a3a"/><path d="M40 18 l4-14 M42 18 l9-10 M46 18 l12-6" stroke="#5a3a1a" stroke-width="2.5" fill="none"/><circle cx="47" cy="25" r="2.6" fill="${i===0?'#ff3b30':'#2a1a0a'}"/><ellipse cx="2" cy="30" rx="4" ry="7" fill="#8b5a2b"/></g>`).join("")}
+    <g transform="translate(300,36)"><path d="M0 30 Q-6 48 10 50 H78 Q96 50 92 36 L82 14 H6 Z" fill="#c8102e" stroke="#8a0a1e" stroke-width="2"/><path d="M-4 56 H98" stroke="#caa15a" stroke-width="3"/><path d="M-4 56 q-10 0 -10 -8" stroke="#caa15a" stroke-width="3" fill="none"/>
+      <rect x="18" y="0" width="30" height="20" rx="4" fill="#7b4a1e"/><rect x="48" y="-6" width="26" height="26" rx="4" fill="#2e7d32"/><rect x="50" y="-4" width="22" height="22" fill="none" stroke="#ffd23f" stroke-width="2"/>
+      <circle cx="12" cy="4" r="9" fill="#f5cfa0"/><path d="M3 2 q9-16 20-2 l-2 2 q-8-8-16 0z" fill="#d32f2f"/><circle cx="24" cy="2" r="3" fill="#fff"/><path d="M4 10 q8 10 16 0 v6 q-8 8 -16 0z" fill="#fff"/><rect x="2" y="14" width="22" height="18" rx="4" fill="#d32f2f"/></g>
+    <g fill="#ffd23f">${[0,1,2,3,4,5].map(i=>`<circle cx="${20+i*9}" cy="${70+(i%2)*6}" r="${2-i*0.2}" opacity="${.9-i*.12}"/>`).join("")}</g>
+  </g></svg>`;
+  let flyEl = null, walkEl = null, flyTimer = null, flickTimer = null;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function santaFly(){
+    if (!flyEl){ flyEl = document.createElement("div"); flyEl.id = "skin-fly"; document.body.appendChild(flyEl); }
+    flyEl.innerHTML = SLEIGH; flyEl.classList.remove("go"); void flyEl.offsetWidth;
+    flyEl.style.setProperty("--fly-y", (40 + Math.random() * 80) + "px"); flyEl.style.setProperty("--fly-s", (14 + Math.random() * 6) + "s");
+    flyEl.classList.add("go"); setTimeout(() => flyEl && flyEl.classList.remove("go"), 22000);
+  }
+  function turkeyWalk(){
+    if (!walkEl){ walkEl = document.createElement("div"); walkEl.id = "skin-walk"; document.body.appendChild(walkEl); }
+    walkEl.innerHTML = "<span>🦃</span>"; walkEl.classList.remove("go"); void walkEl.offsetWidth;
+    walkEl.style.setProperty("--walk-s", (16 + Math.random() * 6) + "s"); walkEl.classList.add("go"); setTimeout(() => walkEl && walkEl.classList.remove("go"), 24000);
+  }
+  function flickerBulb(){
+    const bulbs = frameEl ? frameEl.querySelectorAll(".bulb") : []; if (!bulbs.length) return;
+    const b = bulbs[Math.floor(Math.random() * bulbs.length)]; b.classList.add("flick"); setTimeout(() => b.classList.remove("flick"), 1600);
+  }
+  function startSurprises(kind){
+    stopSurprises(); if (reduced) return;
+    const nextFly = () => { const m = new Date().getMonth(), d = new Date().getDate(); const base = (kind === "christmas" && m === 11 && d >= 24) ? 2 : 6;   // Christmas Eve/Day: every ~2 min
+      flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
+    flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else turkeyWalk(); nextFly(); }, 20000);   // first one soon after it comes on
+    if (kind === "christmas") flickTimer = setInterval(flickerBulb, 7000);
+  }
+  function stopSurprises(){ clearTimeout(flyTimer); clearInterval(flickTimer); flyTimer = flickTimer = null; if (flyEl) flyEl.classList.remove("go"); if (walkEl) walkEl.classList.remove("go"); }
+  function surprise(){ if (current === "christmas") santaFly(); else if (current === "thanksgiving") turkeyWalk(); }
 
   /* ---------- apply ---------- */
   let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null;
@@ -208,13 +260,14 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     ensure();
     const kind = pick(settings);
     const root = document.documentElement;
-    if (!kind){ if (current){ root.removeAttribute("data-skin"); ["--skin-bg","--skin-gold","--skin-wood1","--skin-wood2","--skin-font"].forEach(v => root.style.removeProperty(v)); Object.keys(DEFS.christmas.vars).forEach(v => root.style.removeProperty(v)); frameEl.innerHTML = ""; bannerEl.innerHTML = ""; current = null; clearInterval(tick); if (typeof FH !== "undefined") FH.apply(FH.get()); } return null; }
+    root.setAttribute("data-skin-banner", (settings && settings.skinBanner === false) ? "off" : "on");
+    if (!kind){ if (current){ stopSurprises(); root.removeAttribute("data-skin"); ["--skin-bg","--skin-gold","--skin-wood1","--skin-wood2","--skin-font"].forEach(v => root.style.removeProperty(v)); Object.keys(DEFS.christmas.vars).forEach(v => root.style.removeProperty(v)); frameEl.innerHTML = ""; bannerEl.innerHTML = ""; current = null; clearInterval(tick); if (typeof FH !== "undefined") FH.apply(FH.get()); } return null; }
     const def = DEFS[kind];
     root.setAttribute("data-skin", kind);
     Object.entries(def.vars).forEach(([k, v]) => root.style.setProperty(k, v));
     root.style.setProperty("--skin-bg", def.bg); root.style.setProperty("--skin-gold", def.gold);
     root.style.setProperty("--skin-wood1", def.wood[0]); root.style.setProperty("--skin-wood2", def.wood[1]); root.style.setProperty("--skin-font", def.banner.font);
-    if (current !== kind){ buildFrame(kind); current = kind; }
+    if (current !== kind){ buildFrame(kind); current = kind; startSurprises(kind); }
     renderBanner(kind);
     clearInterval(tick); tick = setInterval(() => renderBanner(kind), 60 * 1000);
     return kind;
@@ -223,6 +276,6 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   // auto schedule flips at midnight: re-check every 10 minutes
   setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
 
-  return { apply, pick, auto, thanksgiving, DEFS, effect: () => current ? DEFS[current].effect : null, current: () => current };
+  return { apply, pick, auto, thanksgiving, DEFS, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };
 })();
 window.Skins = Skins;

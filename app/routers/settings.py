@@ -43,6 +43,7 @@ DEFAULTS = {
     "doorbellTv": True,              # flash the doorbell snapshot on any Roku that is on
     "doorbellSpeak": True,
     "skin": "auto",                  # holiday skin: auto | off | christmas | thanksgiving
+    "skinBanner": True,              # the "Days until …" card in the header
     "nightTemp": None,               # Good Night sets the thermostat to this (None = leave it)
     "awayTemp": None,                # Away mode thermostat setback           # wall says "someone's at the front door"
 }

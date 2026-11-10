@@ -146,28 +146,23 @@ it here.
 - Simple, commented code; easy DB backups; no clever tricks.
 
 ## Idea backlog (brainstorm, Nov 2026)
-Unordered. Effort: S = an evening, M = a weekend, L = a project.
+Unordered. Effort: S = an evening, M = a weekend, L = a project. (No kids in the house yet — the kid-specific ideas are parked at the bottom for later.)
 
 **Wall / family**
-- Leave-the-house countdown: next event with a location → live drive time → "Leave for soccer in 14 min" bar, spoken at T-5 (M)
-- Who's-home strip: avatars from HA phone presence; kids tap to "check in" after the bus → push to parents (S)
-- Morning dashboard mode 6–8 AM: big type — weather, each kid's day, lunch, dinner, first bus (M)
-- Chore photo proof: kid snaps a photo on finish, parent approves from phone, stars land (M)
-- Screen-time bank: stars → Roku minutes; redeem turns the TV on, wall counts down, TV off (M) ★
+- Leave-the-house countdown: next event with a location → live drive time → "Leave for the dentist in 14 min" bar, spoken at T-5 (M) ★
+- Who's-home strip: avatars from HA phone presence; "Rachell home since 5:12" (S) ★
+- Morning dashboard mode 6–8 AM: big type — weather, each person's day, dinner plan, commute (M)
 - Meal plan → pre-filled Walmart / Instacart cart (M)
-- Guest/sitter QR view: kids' schedules, emergency numbers, Wi-Fi, how the TV works (S)
+- Guest/sitter QR view: house notes, emergency numbers, Wi-Fi, how the TV works (S)
 - Photo of the day: "3 years ago today" from the iCloud album (S)
-- School lunch menu + bus delays from district feeds (S if a feed exists)
-- Package radar: USPS/UPS emails via the mail importer + porch motion snapshot (M)
+- Package radar: USPS/UPS emails via the mail importer + doorbell/porch motion snapshot (M)
 - Birthday / anniversary memory with an auto "buy a gift" to-do (S)
-- Kid weather dresser: "jacket and rain boots today" (S)
+- Weather dresser: "jacket and umbrella today" (S)
 - 3D house as the night screensaver, slow orbit with real lights glowing (M)
-- Kid tablets running the phone app in kid mode (M)
 
 **Home Assistant automations**
 - Good Night scene: lights off, alarm home, lock, garage check (wall asks if open), TVs off, thermostat down, wall night mode (S after ratgdo) ★
-- Kids' bedtime nudge: 8:15 LEDs warm/dim, 8:30 Roku off, wall announces (S after Zigbee stick)
-- Arrive home: geofence → garage opens, porch + kitchen strips after dark, alarm disarms, "Welcome home" (M) + CarPlay manual button
+- Arrive home: geofence → garage opens, porch + kitchen strips after dark, alarm disarms, "Welcome home" (M) + CarPlay manual button ★
 - Away mode: 30 min empty → lights off, thermostat eco, lived-in lighting, alarm away; vacation events extend it (M)
 - Freeze/storm alerts spoken on the wall; garage ThermoPro confirms (S)
 - Laundry done: Zigbee vibration/power sensor on the washer → wall + phones + to-do (S) ★
@@ -175,10 +170,16 @@ Unordered. Effort: S = an evening, M = a weekend, L = a project.
 - Motion-lit night path at 10 % between 11 PM and 6 AM (S)
 - TV off when nobody's watching (motion quiet 45 min) (S)
 - Wake-word satellite upstairs (HA Voice PE / ESP32) (S)
+- Doorbell on the wall: the existing doorbell camera is tied to the IQ Panel (Alarm.com?). If it's Alarm.com, the
+  HACS `alarmdotcom` integration gives ring + motion events (no video); ring → wall chime + snapshot if the
+  camera exposes RTSP. Otherwise a Reolink/UniFi doorbell later gives full video on the wall + Roku PiP (M–L)
 
 **Bigger builds**
 - Energy dashboard: Emporia Vue per-circuit power → today's cost, dryer running, water heater load (L)
-- Doorbell camera pop-up on the wall + Roku picture-in-picture (L)
 - TV backlight synced to the Roku picture (see above)
 
-★ = suggested first picks: Good Night scene, Screen-time bank, Leave-the-house countdown, Laundry done, Who's home.
+**Parked until there are kids**
+- Chore photo proof · screen-time bank (stars → Roku minutes) · bedtime nudge (LEDs dim, Roku off) ·
+  school lunch menu + bus delays · kid check-in on the wall · kid tablets in kid mode · kid weather dresser
+
+★ = suggested first picks: Good Night scene, Arrive home, Leave-the-house countdown, Laundry done, Who's home.

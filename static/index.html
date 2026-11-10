@@ -2802,7 +2802,21 @@ function applyWallMic(){
   }
   async function step(delta){
     resetSleep();
-    try{ const r=await post("/api/display/volume",{delta}).then(r=>r.json()); show(r.percent); }catch(e){}
+    // While Spotify is playing through the wall's own player, the volume people hear is the
+    // player's volume (the one the Spotify app shows for "FamilyHub"), so move that one.
+    // Otherwise move the C3's system output (spoken replies, timers, HA players).
+    try{
+      if(spPlayer&&spDeviceId){
+        const st=await spPlayer.getCurrentState().catch(()=>null);
+        if(st&&!st.paused){
+          const cur=await spPlayer.getVolume();
+          const next=Math.max(0,Math.min(1,cur+delta/100));
+          await spPlayer.setVolume(next); show(Math.round(next*100));
+          return;
+        }
+      }
+      const r=await post("/api/display/volume",{delta}).then(r=>r.json()); show(r.percent);
+    }catch(e){}
   }
   up.onclick=()=>step(+8); dn.onclick=()=>step(-8);
   // hold to repeat

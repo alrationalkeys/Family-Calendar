@@ -299,16 +299,8 @@ def voice(text: str, words: set) -> str | None:
             prev_track(); return "Going back a track."
         if (words & {"louder", "up"} or words & {"quieter", "lower", "softer", "down"}) and "play" not in words:
             louder = bool(words & {"louder", "up"})
-            # if the wall itself is the active speaker, move the wall's real volume (the bar);
-            # otherwise nudge the active Spotify device
-            wd = wall_device()
-            if wd and (dev is None or dev.get("id") == wd.get("id")):
-                from ..routers.display import _get_volume, _wpctl
-                cur = _get_volume()
-                if cur is not None:
-                    tgt = max(0, min(100, cur + (15 if louder else -15)))
-                    _wpctl("set-volume", "@DEFAULT_AUDIO_SINK@", f"{tgt/100:.2f}")
-                    return ("Turning it up." if louder else "Turning it down.")
+            # nudge the active Spotify device's own volume (for the wall that's the Web
+            # Playback player, the same level the Spotify app shows for "FamilyHub")
             v = (dev or {}).get("volume_percent", 50) or 50
             set_volume(min(100, v + 15) if louder else max(0, v - 15), did)
             return "Turning it up." if louder else "Turning it down."

@@ -46,6 +46,24 @@ def _get_volume() -> int | None:
         return None
 
 
+def _sinks() -> list[str]:
+    """Every audio output PipeWire knows about (ids), so a volume change lands on the
+    speaker bar even when the default sink points at the screen's HDMI audio."""
+    try:
+        out = _wpctl("status")
+        block = out.split("Sinks:", 1)[1].split("Sources:", 1)[0] if "Sinks:" in out else ""
+        ids = re.findall(r"^\s*[│├└─\s]*\*?\s*(\d+)\.", block, flags=re.M)
+        return ids or ["@DEFAULT_AUDIO_SINK@"]
+    except Exception:
+        return ["@DEFAULT_AUDIO_SINK@"]
+
+
+def _set_all_sinks(target: int):
+    for sid in _sinks():
+        _wpctl("set-volume", sid, f"{target/100:.2f}")
+        _wpctl("set-mute", sid, "0")
+
+
 @router.get("/volume")
 def get_volume():
     return {"percent": _get_volume()}
@@ -64,8 +82,7 @@ def set_volume(payload: dict):
         target = cur + int(p.get("delta", 0))
     target = max(0, min(100, target))
     try:
-        _wpctl("set-volume", "@DEFAULT_AUDIO_SINK@", f"{target/100:.2f}")
-        _wpctl("set-mute", "@DEFAULT_AUDIO_SINK@", "0")
+        _set_all_sinks(target)
     except Exception as e:
         return {"percent": cur, "error": str(e)}
     return {"percent": _get_volume() if _get_volume() is not None else target}

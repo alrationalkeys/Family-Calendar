@@ -99,8 +99,8 @@ def _demo_seed():
         "media_player.spotify_family": {"state": "playing",
             "attributes": {"friendly_name": "Spotify", "media_title": "Here Comes the Sun",
                            "media_artist": "The Beatles", "media_album_name": "Abbey Road",
-                           "volume_level": 0.45, "shuffle": False, "source": "Kitchen Wall",
-                           "source_list": ["Kitchen Wall", "Living Room TV", "Bedroom TV", "Alex's iPhone"],
+                           "volume_level": 0.45, "shuffle": False, "source": "FamilyHub",
+                           "source_list": ["FamilyHub", "Living Room TV", "Bedroom TV", "Alex's iPhone"],
                            "media_playlist": "Dinner Vibes"}},
         "scene.movie_time": {"state": "scening", "attributes": {"friendly_name": "Movie Time"}},
         "scene.good_night": {"state": "scening", "attributes": {"friendly_name": "Good Night"}},
@@ -268,9 +268,40 @@ def spotify_state() -> dict | None:
             sp["demo"] = True
         return sp
     try:
-        return _spotify_from_states(_request("/api/states") or [])
+        sp = _spotify_from_states(_request("/api/states") or [])
     except Exception:
-        return None
+        sp = None
+    return _merge_own_link(sp)
+
+
+def _merge_own_link(sp: dict | None) -> dict | None:
+    """If FamilyHub has its own Spotify link, use its live device list (it sees the wall's
+    Web Playback speaker, which HA's source_list often lags on) and its now-playing."""
+    try:
+        from . import spotify_web as sw
+        if not sw.linked():
+            return sp
+        devs = sw.devices()
+        if sp is None:
+            pb = sw.playback() or {}
+            sp = {"entity_id": None, "state": "playing" if pb.get("playing") else ("paused" if pb.get("title") else "idle"),
+                  "title": pb.get("title"), "artist": pb.get("artist"), "album": pb.get("album"),
+                  "playlist": None, "art": pb.get("art"), "volume": (pb.get("volume") or 50) / 100,
+                  "shuffle": bool(pb.get("shuffle")), "source": pb.get("device"), "sources": []}
+        if devs:
+            names = [d.get("name") for d in devs if d.get("name")]
+            # the wall first, then the rest in Spotify's order
+            wall = sw.wall_device()
+            if wall and wall.get("name") in names:
+                names.remove(wall["name"]); names.insert(0, wall["name"])
+            sp["sources"] = names
+            active = next((d for d in devs if d.get("is_active")), None)
+            if active:
+                sp["source"] = active.get("name")
+        sp["own_link"] = True
+    except Exception:
+        pass
+    return sp
 
 
 _DEMO_BROWSE = {
@@ -328,12 +359,57 @@ def spotify_browse(content_id: str | None = None, content_type: str | None = Non
         return {"title": "Spotify", "children": [], "reason": str(e)}
 
 
+def _own_link_cmd(a: str, value: str, sp: dict):
+    """Run a card command through FamilyHub's own Spotify link. Returns a result dict,
+    or None to fall through to Home Assistant."""
+    try:
+        from . import spotify_web as sw
+        if not sw.linked():
+            return None
+        devs = sw.devices()
+        by_name = {d.get("name"): d for d in devs}
+        active = next((d for d in devs if d.get("is_active")), None)
+        if a == "source" and value in by_name:
+            sw.transfer(by_name[value]["id"], play_now=sp.get("state") == "playing")
+            return {"ok": True}
+        if a == "play" and value:
+            target = (active or sw.wall_device() or (devs[0] if devs else None))
+            did = target.get("id") if target else None
+            if value.startswith("spotify:track:"):
+                sw.play(did, uris=[value])
+            else:
+                sw.play(did, context_uri=value)
+            return {"ok": True}
+        if a == "play_pause":
+            if sp.get("state") == "playing":
+                sw.pause()
+            else:
+                target = active or sw.wall_device()
+                sw.play(target.get("id") if target else None)
+            return {"ok": True}
+        if a == "next":
+            sw.next_track(); return {"ok": True}
+        if a == "prev":
+            sw.prev_track(); return {"ok": True}
+        if a == "volume":
+            sw.set_volume(int(float(value) * 100), active.get("id") if active else None); return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)}
+    return None
+
+
 def spotify_cmd(action: str, value: str = "", kind: str = "") -> dict:
     sp = spotify_state()
     if not sp:
         return {"ok": False, "reason": "no Spotify player in Home Assistant"}
-    eid = sp["entity_id"]
     a = (action or "").lower()
+    if not demo_mode():
+        r = _own_link_cmd(a, value, sp)
+        if r is not None:
+            return r
+    eid = sp.get("entity_id")
+    if not eid:
+        return {"ok": False, "reason": "no Spotify player in Home Assistant"}
     if demo_mode():
         cur = _DEMO[eid]
         if a == "play_pause":

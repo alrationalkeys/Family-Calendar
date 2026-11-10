@@ -1014,7 +1014,7 @@ async function loadSPW(){
   $("#spw-connect").hidden=!(s.configured&&!s.linked); $("#spw-linked").hidden=!s.linked;
   if(!s.configured){ st.innerHTML="Add <b>SPOTIFY_CLIENT_ID</b> and <b>SPOTIFY_CLIENT_SECRET</b> to the wall's .env (same values you gave Home Assistant), restart FamilyHub, then come back here."; return; }
   if(!s.linked){ st.textContent="Not connected yet. Needs Spotify Premium."; return; }
-  st.innerHTML=`Connected as <b>${s.user||"Spotify"}</b>${s.product&&s.product!=="premium"?' <span style="color:#d33">(not Premium — playback won\'t start)</span>':''}. Wall speaker "${s.wall_device_name||"Kitchen Wall"}": <b>${s.wall_online?"online":"not seen yet (reload the wall)"}</b>.`;
+  st.innerHTML=`Connected as <b>${s.user||"Spotify"}</b>${s.product&&s.product!=="premium"?' <span style="color:#d33">(not Premium — playback won\'t start)</span>':''}. Wall speaker "${s.wall_device_name||"FamilyHub"}": <b>${s.wall_online?"online":"not seen yet (reload the wall)"}</b>.`;
   if(!s.wall_online){
     try{ const l=await fetch("/api/spotify/player_log").then(r=>r.json());
       if(l.log&&l.log.length){ st.innerHTML+=`<div style="margin-top:6px;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-line">Wall player log:\n${l.log.slice(-6).map(x=>`${x.t} ${x.stage}: ${x.detail}`).join("\n")}</div>`; }

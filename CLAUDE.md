@@ -88,7 +88,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
   (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The
-  wall page loads Spotify's Web Playback SDK and registers "Kitchen Wall"; voice `_music`
+  wall page loads Spotify's Web Playback SDK and registers "FamilyHub"; voice `_music`
   prefers this link (search anything → play on the wall) over HA's player. Env
   `SPOTIFY_CLIENT_ID/SECRET`, redirect `http://127.0.0.1:8000/api/spotify/callback`;
   tokens in settings key `spotify_auth`. Third-party Connect clients (spotifyd,

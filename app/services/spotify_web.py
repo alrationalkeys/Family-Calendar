@@ -1,6 +1,6 @@
 """
 FamilyHub's own Spotify link (Web API + Web Playback SDK) — the wall becomes an
-*official* Spotify Connect device ("Kitchen Wall") inside its own Chromium, so
+*official* Spotify Connect device ("FamilyHub") inside its own Chromium, so
 "Hey Hub, play Zach Bryan" comes out of the wall speaker with no phone involved.
 
 Why not spotifyd/go-librespot: Spotify refuses audio keys to third-party clients

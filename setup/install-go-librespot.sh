@@ -4,14 +4,14 @@
 # Go-based Connect client). Try this when spotifyd skips every track with
 # "audio key error" — Spotify's block on librespot doesn't always hit this one.
 #
-#   cd ~/familyhub && bash setup/install-go-librespot.sh ["Kitchen Wall"] [pulse|alsa-device]
+#   cd ~/familyhub && bash setup/install-go-librespot.sh ["FamilyHub"] [pulse|alsa-device]
 #
 # Plays through the desktop's default output (the speaker bar, per
 # setup/audio-default.sh). Runs as a user service. Needs Spotify Premium.
-# No password stored: pick "Kitchen Wall" in the Spotify app (zeroconf).
+# No password stored: pick "FamilyHub" in the Spotify app (zeroconf).
 # ============================================================================
 set -euo pipefail
-NAME="${1:-Kitchen Wall}"
+NAME="${1:-FamilyHub}"
 DEV="${2:-pulse}"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 

@@ -2906,7 +2906,7 @@ function applyWallMic(){
   $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
 })();
 
-/* ---- Spotify Web Playback: the wall is its own, official Spotify device ("Kitchen Wall").
+/* ---- Spotify Web Playback: the wall is its own, official Spotify device ("FamilyHub").
    Spotify's SDK runs inside this page; FamilyHub hands it a token from /api/spotify/token.
    Only active once Spotify is linked from the phone app (Settings → Spotify). ---- */
 let spPlayer=null, spDeviceId=null;
@@ -2925,7 +2925,7 @@ async function setupSpotifyPlayer(){
   }
   if(!window.Spotify){ spLog("sdk_error","window.Spotify missing after load"); return; }
   spLog("sdk","loaded");
-  const name=FH.get().spotifyDeviceName||"Kitchen Wall";
+  const name=FH.get().spotifyDeviceName||"FamilyHub";
   spPlayer=new Spotify.Player({name, volume:1.0,
     getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); else spLog("token_error", JSON.stringify(j)); }).catch(e=>spLog("token_error", e&&e.message))});
   spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; spLog("ready", device_id); post("/api/spotify/device",{device_id,name}).catch(()=>{}); });

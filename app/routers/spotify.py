@@ -75,7 +75,7 @@ def device(payload: dict):
     p = payload or {}
     if not p.get("device_id"):
         raise HTTPException(400, "device_id required")
-    sw.set_wall_device(p["device_id"], p.get("name") or "Kitchen Wall")
+    sw.set_wall_device(p["device_id"], p.get("name") or "FamilyHub")
     return {"ok": True}
 
 

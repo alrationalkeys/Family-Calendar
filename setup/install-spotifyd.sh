@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================================
-# Make the wall a Spotify Connect speaker ("Kitchen Wall" in the Spotify app),
+# Make the wall a Spotify Connect speaker ("FamilyHub" in the Spotify app),
 # playing through the USB speaker bar. Runs spotifyd as a systemd service on
 # the SCREEN box. Needs Spotify Premium (Connect is a Premium feature).
 #
 #   bash setup/install-spotifyd.sh [pulse|alsa-device] [device-name]
-#   e.g. bash setup/install-spotifyd.sh pulse "Kitchen Wall"        (recommended)
-#        bash setup/install-spotifyd.sh plughw:1,0 "Kitchen Wall"   (raw ALSA)
+#   e.g. bash setup/install-spotifyd.sh pulse "FamilyHub"        (recommended)
+#        bash setup/install-spotifyd.sh plughw:1,0 "FamilyHub"   (raw ALSA)
 #
 # "pulse" plays through the desktop's sound server (PipeWire), i.e. whatever
 # setup/audio-default.sh made the default output, and doesn't fight Chromium
@@ -16,7 +16,7 @@
 # ============================================================================
 set -euo pipefail
 DEV="${1:-pulse}"
-NAME="${2:-Kitchen Wall}"
+NAME="${2:-FamilyHub}"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 
 say "packages"

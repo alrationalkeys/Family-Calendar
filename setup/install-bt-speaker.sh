@@ -1,16 +1,16 @@
 #!/bin/bash
 # ============================================================================
-# Make the wall a Bluetooth speaker ("Kitchen Wall" in any phone's Bluetooth
+# Make the wall a Bluetooth speaker ("FamilyHub" in any phone's Bluetooth
 # list) playing through the USB speaker bar. Account-independent fallback for
 # when Spotify refuses the open-source Connect client (librespot #1649).
 #
-#   cd ~/familyhub && bash setup/install-bt-speaker.sh ["Kitchen Wall"]
+#   cd ~/familyhub && bash setup/install-bt-speaker.sh ["FamilyHub"]
 #
 # Pairing is "just works" (no PIN): the wall auto-accepts and remembers each
 # phone. Audio goes to the desktop's default output (setup/audio-default.sh).
 # ============================================================================
 set -euo pipefail
-NAME="${1:-Kitchen Wall}"
+NAME="${1:-FamilyHub}"
 say(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 
 say "packages (bluez + PipeWire Bluetooth plugin + bt-agent)"

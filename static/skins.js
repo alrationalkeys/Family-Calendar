@@ -111,7 +111,7 @@ html[data-skin][data-skin-art="on"] .bottomnav{margin:0}
 @keyframes flame{from{transform:scaleY(.9) scaleX(1.05); opacity:.9}to{transform:scaleY(1.12) scaleX(.95); opacity:1}}
 #skin-fly{position:fixed; left:0; top:0; z-index:47; pointer-events:none; display:none}
 #skin-fly.go{display:block; animation:flyover var(--fly-s,16s) linear forwards}
-@keyframes flyover{0%{transform:translate(-420px, var(--fly-y)) }25%{transform:translate(25vw, calc(var(--fly-y) - 22px))}50%{transform:translate(50vw, calc(var(--fly-y) + 10px))}75%{transform:translate(75vw, calc(var(--fly-y) - 16px))}100%{transform:translate(105vw, var(--fly-y))}}
+@keyframes flyover{0%{transform:translate(-520px, var(--fly-y)) }25%{transform:translate(25vw, calc(var(--fly-y) - 22px))}50%{transform:translate(50vw, calc(var(--fly-y) + 10px))}75%{transform:translate(75vw, calc(var(--fly-y) - 16px))}100%{transform:translate(105vw, var(--fly-y))}}
 #skin-fly .bob{animation:bob 1.1s ease-in-out infinite alternate}
 @keyframes bob{from{transform:translateY(0)}to{transform:translateY(-5px)}}
 #skin-walk{position:fixed; left:0; bottom:26px; z-index:47; pointer-events:none; display:none; font-size:40px; filter:drop-shadow(0 3px 3px rgba(0,0,0,.5))}
@@ -242,9 +242,11 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   </g></svg>`;
   let flyEl = null, walkEl = null, flyTimer = null, flickTimer = null;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const SANTA_IMG = "/skins/santa.png";     // painted sprite (green-screen keyed); vector SLEIGH is the fallback
   function santaFly(){
     if (!flyEl){ flyEl = document.createElement("div"); flyEl.id = "skin-fly"; document.body.appendChild(flyEl); }
-    flyEl.innerHTML = SLEIGH; flyEl.classList.remove("go"); void flyEl.offsetWidth;
+    flyEl.innerHTML = `<div class="bob"><img src="${SANTA_IMG}" alt="" style="width:460px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))" onerror="this.parentNode.innerHTML=${JSON.stringify(SLEIGH).replace(/"/g, "&quot;")}"></div>`;
+    flyEl.classList.remove("go"); void flyEl.offsetWidth;
     flyEl.style.setProperty("--fly-y", (40 + Math.random() * 80) + "px"); flyEl.style.setProperty("--fly-s", (14 + Math.random() * 6) + "s");
     flyEl.classList.add("go"); setTimeout(() => flyEl && flyEl.classList.remove("go"), 22000);
   }

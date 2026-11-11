@@ -48,7 +48,7 @@ phone doorbell video, sleep mode.
       says "Time to leave".
 
 ## Wall — slideshow
-- [ ] **16.** Phone → Settings → Photos → slideshow after **1 minute** → don't touch the wall for a minute →
+- [x] **16.** Phone → Settings → Photos → slideshow after **1 minute** → don't touch the wall for a minute →
       photos start; each stays the time you picked. Tap → back. Set it back to what you like.
 
 ## Phone — Automations (Settings → Automations)

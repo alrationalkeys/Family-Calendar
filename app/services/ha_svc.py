@@ -234,6 +234,13 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
     if domain == "climate":
         tile["current_temperature"] = attrs.get("current_temperature")
         tile["target_temperature"] = attrs.get("temperature")
+    if domain == "light":
+        modes = attrs.get("supported_color_modes") or []
+        tile["dimmable"] = bool(modes) and any(m != "onoff" for m in modes) or attrs.get("brightness") is not None
+        if attrs.get("brightness") is not None:
+            tile["brightness"] = round(int(attrs["brightness"]) * 100 / 255)
+    if domain == "fan" and attrs.get("percentage") is not None:
+        tile["percentage"] = attrs.get("percentage")
     if domain in ("sensor",):
         tile["unit"] = attrs.get("unit_of_measurement", "")
         tile["device_class"] = attrs.get("device_class", "")
@@ -725,6 +732,8 @@ def call_service(domain: str, service: str, entity_id: str = "", extra: dict = N
     if demo_mode():
         if entity_id:
             _demo_toggle(entity_id, service)
+            if (extra or {}).get("brightness_pct") is not None and entity_id in _DEMO:
+                _DEMO[entity_id].setdefault("attributes", {})["brightness"] = round(float(extra["brightness_pct"]) * 2.55)
         try:
             from . import ha_live
             ha_live.bump()                 # so the wall's live stream refreshes in demo too

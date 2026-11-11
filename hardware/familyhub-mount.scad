@@ -25,8 +25,8 @@
 //                 display drops from wall to stand in seconds.
 //   spk_pocket  : OPTIONAL side pocket for the USB speaker/mic bar, grille facing
 //                 out the screen's side edge. Bolts to the case side wall (M3).
-//   frame_seg   : OPTIONAL cosmetic front-frame edge piece. The 365mm frame is
-//                 bigger than the 250mm bed, so it prints as joinable segments.
+//   frame_tl/tr/bl/br : OPTIONAL picture frame in four quarters (seams at the centre of each edge);
+//                 hides the whole bezel, wraps and hooks behind the panel. Dowel with 1.75 mm filament.
 //   test_vesa / test_pc : small coupons — PRINT THESE FIRST to check fit.
 //   preview     : everything assembled, to eyeball clearances.
 //
@@ -41,7 +41,7 @@
 // ============================================================================
 
 /* [What to render] */
-part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview, exploded]
+part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_tl, frame_tr, frame_bl, frame_br, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
 screen_w = 366.7;    // measured 14 7/16 in
@@ -293,29 +293,58 @@ module f_corner(border_a, ext_a, border_b, ext_b){
     translate([0, ext_a, 0]) mirror([0, 1, 0]) rotate([0, 0, 90]) f_arm(f_arm, border_b, ext_b);
   }
 }
-// the whole frame in display coordinates (glass front at z = -hump_d - screen_t, +z toward the wall)
-module frame_assembled(){
-  ex_side = f_face - (lit_left - f_clear); ex_top = f_face - (lit_top - f_clear); ex_bot = f_face - (lit_bot - f_clear);
-  oy = (lit_bot - lit_top)/2;                 // opening centre sits this far above the panel centre
-  x_l = -panel_w/2; x_r = panel_w/2; y_t = panel_h/2 - oy; y_b = -panel_h/2 - oy;   // panel edges in opening coords
-  translate([0, oy - vesa_dy, -hump_d - screen_t]) {
-    translate([0, y_t, 0]) f_bar(f_long, lit_top, ex_top);
-    translate([0, y_b, 0]) mirror([0, 1, 0]) f_bar(f_long, lit_bot, ex_bot);
-    translate([x_l, 0, 0]) rotate([0, 0, 90])  f_bar(f_short, lit_left, ex_side);
-    translate([x_r, 0, 0]) rotate([0, 0, -90]) f_bar(f_short, lit_left, ex_side);
-    translate([x_l, y_t, 0])                  f_corner(lit_top, ex_top, lit_left, ex_side);
-    translate([x_r, y_t, 0]) mirror([1, 0, 0]) f_corner(lit_top, ex_top, lit_left, ex_side);
-    translate([x_l, y_b, 0]) mirror([0, 1, 0]) f_corner(lit_bot, ex_bot, lit_left, ex_side);
-    translate([x_r, y_b, 0]) mirror([1, 0, 0]) mirror([0, 1, 0]) f_corner(lit_bot, ex_bot, lit_left, ex_side);
+// ---------- one-piece frame geometry, cut into four quarters ----------
+// Coordinates centred on the OPENING; glass front at z=0, +z toward the back. Each edge is a bar
+// with 45deg mitres (the face is the same width on every edge, so the mitres run corner to corner).
+f_ow = lit_w/2 + f_clear;  f_oh = lit_h/2 + f_clear;          // opening half-sizes
+f_W  = f_ow + f_face;      f_H  = f_oh + f_face;              // outer half-sizes
+f_oy = (lit_bot - lit_top)/2;                                  // opening centre sits this far above the panel centre
+f_ext_side = f_face - (lit_left - f_clear); f_ext_top = f_face - (lit_top - f_clear); f_ext_bot = f_face - (lit_bot - f_clear);
+module f_trap(pts){ translate([0, 0, -20]) linear_extrude(80) offset(delta=0.02) polygon(pts); }   // tiny overlap so the mitres fuse cleanly
+module frame_whole(){
+  x_l = -panel_w/2; x_r = panel_w/2; y_t = panel_h/2 - f_oy; y_b = -panel_h/2 - f_oy;   // panel edges
+  W = f_W; H = f_H; ow = f_ow; oh = f_oh; L = 2*W + 40;
+  union(){
+    intersection(){ translate([0, y_t, 0]) f_bar(L, lit_top, f_ext_top);                     f_trap([[-W,H],[W,H],[ow,oh],[-ow,oh]]); }
+    intersection(){ translate([0, y_b, 0]) mirror([0,1,0]) f_bar(L, lit_bot, f_ext_bot);     f_trap([[-W,-H],[W,-H],[ow,-oh],[-ow,-oh]]); }
+    intersection(){ translate([x_l, 0, 0]) rotate([0,0,90])  f_bar(2*H+40, lit_left, f_ext_side); f_trap([[-W,-H],[-W,H],[-ow,oh],[-ow,-oh]]); }
+    intersection(){ translate([x_r, 0, 0]) rotate([0,0,-90]) f_bar(2*H+40, lit_left, f_ext_side); f_trap([[W,-H],[W,H],[ow,oh],[ow,-oh]]); }
   }
 }
-// printable parts (face down)
-module frame_top(){    translate([0,0,f_front]) f_bar(f_long,  lit_top,  f_face - (lit_top - f_clear)); }
-module frame_bottom(){ translate([0,0,f_front]) f_bar(f_long,  lit_bot,  f_face - (lit_bot - f_clear)); }
-module frame_side(){   translate([0,0,f_front]) f_bar(f_short, lit_left, f_face - (lit_left - f_clear)); }
-module frame_corner_top(){    translate([0,0,f_front]) f_corner(lit_top, f_face - (lit_top - f_clear), lit_left, f_face - (lit_left - f_clear)); }   // top-left; print 2, mirror one in the slicer for top-right
-module frame_corner_bottom(){ translate([0,0,f_front]) f_corner(lit_bot, f_face - (lit_bot - f_clear), lit_left, f_face - (lit_left - f_clear)); }   // bottom-left; mirror one for bottom-right
-module frame_seg(len=0){ frame_top(); }   // old name kept
+// Seams are stepped lap joints: the 2 mm face plate splits on the centre line, the thick part behind it
+// splits f_lap further over, so the halves overlap. One hairline on the front, no light through the joint,
+// lots of glue area. Dowel holes for 1.75 mm filament sit across the back split.
+f_lap = 5;
+f_pin_d = 1.95; f_pin_l = 14;
+module f_pins(){
+  zc = f_depth/2 - f_front;
+  y_t = panel_h/2 - f_oy;  x_r = panel_w/2;
+  uc_top  = (f_gap + f_wall + f_ext_top)/2;   uc_side = (f_gap + f_wall + f_ext_side)/2;
+  translate([f_lap, y_t + uc_top, zc]) rotate([0,90,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);     // top seam
+  for(sx=[-1,1]) translate([sx*(x_r + uc_side), f_lap, zc]) rotate([90,0,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);   // side seams
+  // bottom seam: the moulding there is only ~3.5 mm wide, so it is glue-only (the panel holds the frame square)
+}
+// the region one quarter owns: front layer split at 0, back layer split at f_lap
+module f_region(sx, sy){
+  for(layer=[0,1]){
+    d = layer == 0 ? 0 : f_lap;
+    z0 = layer == 0 ? -50 : -0.01;
+    translate([sx > 0 ? d : -400, sy > 0 ? d : -400, z0]) cube([sx > 0 ? 400 - d : 400 + d, sy > 0 ? 400 - d : 400 + d, 50.01]);
+  }
+}
+// one quarter, face down for printing (sx, sy = +1/-1: which corner)
+module frame_quarter(sx, sy){
+  translate([0, 0, f_front]) difference(){
+    intersection(){ frame_whole(); f_region(sx, sy); }
+    f_pins();
+  }
+}
+// the whole frame in display coordinates (glass front at z = -hump_d - screen_t, +z toward the wall)
+module frame_assembled(){ translate([0, f_oy - vesa_dy, -hump_d - screen_t]) frame_whole(); }
+module frame_tl(){ frame_quarter(-1,  1); }
+module frame_tr(){ frame_quarter( 1,  1); }
+module frame_bl(){ frame_quarter(-1, -1); }
+module frame_br(){ frame_quarter( 1, -1); }
 
 // ---------- test coupons ----------
 module test_vesa(){ difference(){ cube([vesa+24, vesa+24, fp], center=true);
@@ -373,12 +402,10 @@ else if(part=="cleat_case") cleat_case();
 else if(part=="cleat_wall") cleat_wall();
 else if(part=="stand")      stand();
 else if(part=="spk_pocket") spk_pocket();
-else if(part=="frame_seg")  frame_seg();
-else if(part=="frame_top")    frame_top();
-else if(part=="frame_bottom") frame_bottom();
-else if(part=="frame_side")   frame_side();
-else if(part=="frame_corner_top")    frame_corner_top();
-else if(part=="frame_corner_bottom") frame_corner_bottom();
+else if(part=="frame_tl") frame_tl();
+else if(part=="frame_tr") frame_tr();
+else if(part=="frame_bl") frame_bl();
+else if(part=="frame_br") frame_br();
 else if(part=="asm:frame")    frame_assembled();
 else if(part=="test_vesa")  test_vesa();
 else if(part=="test_pc")    test_pc();

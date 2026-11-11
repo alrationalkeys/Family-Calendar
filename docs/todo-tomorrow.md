@@ -25,18 +25,18 @@
 
 ## Test on the real gear
 - [ ] Status bar says **"Door to garage open"** (not "Garage Door") when the house→garage door is open.
-- [x] **Doorbell:** press it — wall pops the camera + chimes + speaks; a Roku that's on flashes the picture;
+- [ ] **Doorbell:** press it — wall pops the camera + chimes + speaks; a Roku that's on flashes the picture;
       phones get a notification with the picture.
-- [x] **Live camera:** open a camera on the wall and on the phone — does it play live or stay a still?
-- [x] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
+- [ ] **Live camera:** phone works (Nov 11) — still check it on the wall — does it play live or stay a still?
+- [ ] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
 - [x] **Sleep mode** works (tested Nov 11 with the panel's Sleep scene). ~~arm the IQ Panel for the night — the wall should go dark right away and stay dark
       (a tap shows it for a minute). Disarm in the morning — it comes back. If it doesn't go dark, tell Claude
       what the panel's arming mode is called (Night / Sleep / Stay).
-- [x] **New today:** wall to-do **+** and calendar taps open the Add pop-up; festive keyboard types by touch;
-      phone room pop-ups, thermostat pop-up, Front/Back Porch cards; doorbell live view (or "Try live again").
-- [x] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
+- [ ] **New today:** wall to-do **+** and calendar taps open the Add pop-up; festive keyboard types by touch.
+      (Phone room pop-ups, thermostat pop-up, porch cards, phone doorbell video — done Nov 11.)
+- [ ] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
       or wall Settings → Display → uncheck the on-screen keyboard (keeps Ubuntu's).
-- [x] **I'm home** (phone + wall): keypad → disarms → opens the garage → lights after dark. Wrong code = garage stays shut.
+- [ ] **I'm home** (phone + wall): keypad → disarms → opens the garage → lights after dark. Wrong code = garage stays shut.
 - [ ] **Slideshow timing:** phone → Settings → Photos → "Start the photo slideshow after".
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 

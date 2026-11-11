@@ -115,7 +115,11 @@ Slicer / Cura / PrusaSlicer).
 3. `foot_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast. Print the cleats bevel-up as exported (no supports).
 4. `stand.stl` — optional counter easel (199 mm wide, 166 mm tall, base on the bed, no supports).
 5. `spk_pocket.stl` — optional, only if you want the speaker bar hidden in the case.
-6. `frame_seg.stl` ×4 — optional cosmetic front frame.
+6. **Picture frame** (optional, hides the whole black bezel): `frame_corner_top.stl` ×2 and
+   `frame_corner_bottom.stl` ×2 (mirror one of each in the slicer for the right-hand corners),
+   `frame_top.stl`, `frame_bottom.stl`, `frame_side.stl` ×2. Print **face down**, no supports.
+   **Before printing, measure the screen's outer width and height** and set `panel_w` / `panel_h`
+   in the `.scad` (the frame wraps the panel edge, so these two numbers decide the fit), then re-export.
 
 Re-export after editing the `.scad`:
 ```bash
@@ -137,7 +141,7 @@ front. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 | `cleat_wall` | 1 | 166×30×12 French-cleat half that screws to the wall; bevel on its top edge sloping down toward the wall. |
 | `stand` | 1 | Counter easel: 12° leaning plate with a `cleat_wall` tongue at the matching height and a front lip, so the display drops from wall → stand in seconds. |
 | `spk_pocket` | 0–1 | **Optional** pocket for the USB speaker/mic bar, bolted to the case's side wall (M3 + nuts). The bar stands vertically, grille + mic facing out the screen's side edge — hidden from the front. |
-| `frame_seg` | 2–4 | **Optional** cosmetic front frame. 365mm > the Kobra's 250mm bed, so it prints as **joinable segments** (2 long + 2 short) you pin/glue at the corners. |
+| `frame_*` | 8 | **Optional** picture frame: covers the black bezel (measured ~10 mm sides, 12 top, 24 bottom) so only the lit 344×194 picture shows. 28 mm flat face, 2 mm over the glass, wraps the edge and hooks behind the panel. 4 L-shaped corners (110×110) + 4 straights (231 / 81 long) that slide fully into the corner sleeves; all fit a 250 mm bed. |
 | `test_vesa` / `test_pc` | 1 ea | Small coupons — **print these first**. |
 | `preview` | — | Everything assembled over a ghost of the screen; the console **echoes the port-hump clearance**. |
 

@@ -97,10 +97,30 @@ spk_t    = 44;       // measured 1.75 in — thickness -> pocket width across
 spk_side = 1;        // 1 = right of the case (viewed from the back), -1 = left
 spk_clear = 1;
 
-/* [Optional front frame] */
-frame_face  = 16;    // how wide the visible frame border is
-frame_lip   = 7;     // overlap onto the screen's black border (<= real border)
-seg_len     = 220;   // length of one printed segment (< bed size)
+/* [Picture frame — hides the whole black bezel, shows only the lit picture] */
+// VERIFY panel_w / panel_h with a tape: outer edge to outer edge of the screen. The frame wraps
+// the panel's edge and clips behind it, so these two numbers set whether it fits.
+panel_w   = 364;     // VERIFY (listing says 365; borders in the photos say ~364)
+panel_h   = 229.5;   // VERIFY
+lit_w     = 344.2;   // 15.6in FHD active area (standard)
+lit_h     = 193.6;
+lit_top   = 12;      // black border above the picture (measured ~12)
+lit_left  = (panel_w - lit_w)/2;              // ~10 each side
+lit_bot   = panel_h - lit_top - lit_h;        // ~24
+f_clear   = 0.5;     // opening clearance beyond the lit picture, each side
+f_face    = 28;      // visible frame face, opening to outer edge, same all round
+f_front   = 2;       // thickness of the face plate over the glass
+f_depth   = 10;      // how deep the outer moulding looks from the front
+f_wall    = 2.4;     // return wall / sleeve wall
+f_lip     = 3;       // back lip hooking behind the panel
+f_gap     = 0.3;     // clearance to the panel edge / face
+f_arm     = 110;     // corner piece arm length (outer)
+f_sleeve  = 25;      // sleeve depth at the end of each corner arm
+f_insert  = 25;      // straights seat fully in the corner sleeves (no gap in the face)
+f_outer_w = lit_w + 2*f_clear + 2*f_face;     // ~401
+f_outer_h = lit_h + 2*f_clear + 2*f_face;     // ~251
+f_long    = f_outer_w - 2*f_arm + 2*f_insert; // ~221 — fits a 250 bed
+f_short   = f_outer_h - 2*f_arm + 2*f_insert; // ~71
 
 // ---------- helpers ----------
 module rrect(w, h, r){ hull() for(x=[-1,1],y=[-1,1]) translate([x*(w/2-r), y*(h/2-r)]) circle(r); }
@@ -237,14 +257,65 @@ module spk_pocket(){
   }
 }
 
-// ---------- optional cosmetic front frame (segmented) ----------
-module frame_seg(len=seg_len){
+// ---------- picture frame (segmented, clips onto the panel) ----------
+// Edge profile in (u, v): u = outward from the panel edge (u<0 is over the glass), v = depth from
+// the glass front (v>0 toward the back). A C-channel: face plate over the bezel, outer moulding,
+// return wall down the panel's edge, back lip hooking behind the panel (chamfered so it prints
+// face-down without supports). border = bezel width on this edge; ext = how far the face runs past the panel edge.
+module f_profile(border, ext, lip=true){
+  t = screen_t;
+  polygon(concat(
+    [[-(border - f_clear), -f_front], [ext, -f_front], [ext, f_depth - f_front], [f_gap + f_wall, f_depth - f_front]],
+    lip ? [[f_gap + f_wall, t + f_gap + f_wall], [-f_lip, t + f_gap + f_wall], [-f_lip, t + f_gap + 0.2], [f_gap, t + f_gap], [f_gap, 0]]
+        : [[f_gap + f_wall, t + f_gap], [f_gap, t + f_gap], [f_gap, 0]],
+    [[-(border - f_clear), 0]]));
+}
+// 2D clip so a sleeve never grows into the opening, in front of the face, or into the panel
+module f_clip(border, ext){ intersection(){ children(); union(){ translate([f_gap, -f_front]) square([ext - f_gap, 200]); translate([-(border - f_clear), -f_front]) square([border - f_clear + ext, f_front]); } } }   // never past the outer edge or into the opening
+// straight bar, centred on x; u -> +y (outward), v -> +z (toward the back). Front face at z = -f_front.
+module f_bar(len, border, ext){ rotate([90, 0, 90]) translate([0, 0, -len/2]) linear_extrude(len) f_profile(border, ext, true); }
+// corner arm from x=0 to x=len, same orientation, no back lip (so the corner pushes on over the panel corner),
+// ending in a sleeve the bar slides into (±5 mm adjustment; a drop of glue once it fits).
+module f_arm(len, border, ext){
   difference(){
-    cube([len, frame_face, fp+screen_t+2]);
-    translate([-1, frame_lip, fp]) cube([len+2, frame_face, screen_t+4]);
-    for(x=[6, len-6]) translate([x, frame_face/2, -1]) cylinder(h=fp+3, d=3);
+    union(){
+      rotate([90, 0, 90]) linear_extrude(len - f_sleeve + 0.01) f_profile(border, ext, false);
+      translate([len - f_sleeve, 0, 0]) rotate([90, 0, 90]) linear_extrude(f_sleeve) f_clip(border, ext) offset(delta=f_wall + 0.2) f_profile(border, ext, false);
+    }
+    translate([len - f_sleeve - 0.01, 0, 0]) rotate([90, 0, 90]) linear_extrude(f_sleeve + 1) offset(delta=0.2) f_profile(border, ext, true);   // pocket
   }
 }
+// top-left corner as modelled: local origin at the panel's top-left corner (x = left edge, y = top edge).
+// Arm A runs along the top edge (+x), arm B down the left edge (-y). Mirror for the other corners.
+module f_corner(border_a, ext_a, border_b, ext_b){
+  union(){
+    translate([-ext_b, 0, 0]) f_arm(f_arm, border_a, ext_a);
+    translate([0, ext_a, 0]) mirror([0, 1, 0]) rotate([0, 0, 90]) f_arm(f_arm, border_b, ext_b);
+  }
+}
+// the whole frame in display coordinates (glass front at z = -hump_d - screen_t, +z toward the wall)
+module frame_assembled(){
+  ex_side = f_face - (lit_left - f_clear); ex_top = f_face - (lit_top - f_clear); ex_bot = f_face - (lit_bot - f_clear);
+  oy = (lit_bot - lit_top)/2;                 // opening centre sits this far above the panel centre
+  x_l = -panel_w/2; x_r = panel_w/2; y_t = panel_h/2 - oy; y_b = -panel_h/2 - oy;   // panel edges in opening coords
+  translate([0, oy - vesa_dy, -hump_d - screen_t]) {
+    translate([0, y_t, 0]) f_bar(f_long, lit_top, ex_top);
+    translate([0, y_b, 0]) mirror([0, 1, 0]) f_bar(f_long, lit_bot, ex_bot);
+    translate([x_l, 0, 0]) rotate([0, 0, 90])  f_bar(f_short, lit_left, ex_side);
+    translate([x_r, 0, 0]) rotate([0, 0, -90]) f_bar(f_short, lit_left, ex_side);
+    translate([x_l, y_t, 0])                  f_corner(lit_top, ex_top, lit_left, ex_side);
+    translate([x_r, y_t, 0]) mirror([1, 0, 0]) f_corner(lit_top, ex_top, lit_left, ex_side);
+    translate([x_l, y_b, 0]) mirror([0, 1, 0]) f_corner(lit_bot, ex_bot, lit_left, ex_side);
+    translate([x_r, y_b, 0]) mirror([1, 0, 0]) mirror([0, 1, 0]) f_corner(lit_bot, ex_bot, lit_left, ex_side);
+  }
+}
+// printable parts (face down)
+module frame_top(){    translate([0,0,f_front]) f_bar(f_long,  lit_top,  f_face - (lit_top - f_clear)); }
+module frame_bottom(){ translate([0,0,f_front]) f_bar(f_long,  lit_bot,  f_face - (lit_bot - f_clear)); }
+module frame_side(){   translate([0,0,f_front]) f_bar(f_short, lit_left, f_face - (lit_left - f_clear)); }
+module frame_corner_top(){    translate([0,0,f_front]) f_corner(lit_top, f_face - (lit_top - f_clear), lit_left, f_face - (lit_left - f_clear)); }   // top-left; print 2, mirror one in the slicer for top-right
+module frame_corner_bottom(){ translate([0,0,f_front]) f_corner(lit_bot, f_face - (lit_bot - f_clear), lit_left, f_face - (lit_left - f_clear)); }   // bottom-left; mirror one for bottom-right
+module frame_seg(len=0){ frame_top(); }   // old name kept
 
 // ---------- test coupons ----------
 module test_vesa(){ difference(){ cube([vesa+24, vesa+24, fp], center=true);
@@ -303,6 +374,12 @@ else if(part=="cleat_wall") cleat_wall();
 else if(part=="stand")      stand();
 else if(part=="spk_pocket") spk_pocket();
 else if(part=="frame_seg")  frame_seg();
+else if(part=="frame_top")    frame_top();
+else if(part=="frame_bottom") frame_bottom();
+else if(part=="frame_side")   frame_side();
+else if(part=="frame_corner_top")    frame_corner_top();
+else if(part=="frame_corner_bottom") frame_corner_bottom();
+else if(part=="asm:frame")    frame_assembled();
 else if(part=="test_vesa")  test_vesa();
 else if(part=="test_pc")    test_pc();
 else if(part=="preview")    preview();

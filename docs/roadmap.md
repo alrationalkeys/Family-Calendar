@@ -136,6 +136,15 @@ it here.
 - **Mounting:** the **VESA 75×75** makes this easy — a cheap VESA wall bracket, or 3D-print a VESA
   plate (wall) + tilt stand (counter). Parametric files in `hardware/` get sized to this screen.
 - **Screen sleep:** the Pi-side `vcgencmd` night screen-off we already built applies here.
+- **Wall power (Nov 2026, current plan):** Leviton 689-W recessed outlet in a 1-gang old-work box,
+  fed from the 3-switch box on the other side of the wall (always-hot bundle). Box centred under the
+  screen, ~1 in below centre, behind the lower half of the back case. Flat-plug cords. Parts:
+  `docs/screen-power-shopping.md`. The printed back case + cleat + frame stay as they are.
+- **Later — flush version (~1½ in off the wall instead of ~2½ in):** C3 + bricks go into a recessed
+  in-wall media box (e.g. Sanus 9" Media Box Kit, Lowe's) replacing the Leviton outlet. Needs: a slim
+  printed VESA-75 wall plate + thin cleat instead of the back case; frame sides deepened to reach the
+  wall (reads as a framed picture from the side); a speaker choice (screen speakers, or a down-facing
+  slot in the frame's bottom edge). Get the media box's inside dimensions first. Watch C3 heat (vented box).
 
 > Cost: ~$240 once, then **$0/yr** — vs Skylight ~$300 + ~$40–80/yr forever. Full 15" size, wired
 > like the Skylight itself.

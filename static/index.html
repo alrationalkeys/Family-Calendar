@@ -2429,6 +2429,7 @@ function renderTilesView(body,h){
 
   const qa=['<button class="cc-qa" data-mode="goodnight">\u{1F319} Good night</button>',
             '<button class="cc-qa" data-mode="away">\u{1F6AA} Leaving</button>',
+            '<button class="cc-qa" data-mode="welcome">\u{1F3E1} I\'m home</button>',
             '<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
   tiles.filter(t=>t.domain==="scene").slice(0,3).forEach(s=>
     qa.push(`<button class="cc-qa" data-scene="${esc(s.entity_id)}">✨ ${esc(s.name)}</button>`));
@@ -2483,7 +2484,7 @@ async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then
 async function runMode(mode, btn){
   resetSleep(); if(btn){ btn.disabled=true; btn.textContent="…"; }
   let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall"}).then(x=>x.json()); }catch(e){}
-  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
+  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
   setTimeout(loadHome, 1200);
 }
 

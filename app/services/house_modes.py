@@ -9,7 +9,8 @@ device list live.
              optional thermostat setback (settings.nightTemp)
   away       everything in goodnight but arm AWAY, outdoor lights off too,
              thermostat eco (settings.awayTemp)
-  welcome    after dark: porch/driveway/entry + kitchen lights on; say hello.
+  welcome    after dark: porch/driveway/entry + kitchen lights on; thermostat back to settings.homeTemp
+             (skipped during Santee Cooper peak); say hello.
              (Never disarms — that stays behind the PIN pad.)
 
 Each run returns {done:[...], warnings:[...], say:"..."} and queues the sentence
@@ -152,6 +153,15 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
                 ha_svc.call_service("light", "turn_on", t["entity_id"])
             if entry:
                 done.append(f"turned on {', '.join(t['name'] for t in entry)}")
+        temp = s.get("homeTemp")
+        if temp and by("climate"):
+            peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
+            if peak and peak.get("on"):
+                notes.append("It's peak hours, so I left the heat and air off until peak ends.")
+            else:
+                for t in by("climate"):
+                    ha_svc.call_service("climate", "set_temperature", t["entity_id"], {"temperature": float(temp)})
+                done.append(f"set the thermostat to {int(float(temp))}")
         for t in by("alarm_control_panel"):
             if t["state"].startswith("armed"):
                 warnings.append("the alarm is still armed, disarm it on the screen")

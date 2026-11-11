@@ -59,6 +59,7 @@ DEFAULTS = {
     "leaveBuffer": 5,                # minutes added to the drive for parking/walking in
     "leaveAlerts": True,             # show "Leave in N min" on the wall for events with a place           # due-dated to-dos + chores show as all-day chips on the calendar
     "nightTemp": None,               # Good Night sets the thermostat to this (None = leave it)
+    "homeTemp": None,                # "I'm home" thermostat setting
     "awayTemp": None,                # Away mode thermostat setback           # wall says "someone's at the front door"
 }
 

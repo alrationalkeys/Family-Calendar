@@ -544,8 +544,9 @@
     <div class="srow"><span>Extra minutes to park &amp; walk in</span><input id="set-leavebuf" type="number" min="0" max="30" style="width:84px; margin:0"></div>
     <label class="chk"><input type="checkbox" id="set-leave"> Wall shows "Leave in N min" for events with a place, and says it at leave time</label>
     <div class="srow"><span>Good Night sets the thermostat to</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
+    <div class="srow"><span>I'm home sets the thermostat to</span><input id="set-hometemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
     <div class="srow"><span>Leaving sets the thermostat to</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
-    <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
+    <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. I'm home turns on the porch, driveway and entry lights after dark (it never disarms the alarm). Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
     <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage door (like the Surety Sleep and Away scenes)</label>
     <label class="chk"><input type="checkbox" id="set-sleeparm"> Wall goes dark (no photo screensaver) when the alarm is armed for the night (Stay between 8 PM and 5 AM, or Night), until it's disarmed in the morning or someone says "good morning". A tap shows it for a minute.</label>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
@@ -1315,8 +1316,9 @@ function renderHM(h, force){
   let html=`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
+    <button class="hm-scene" onclick="hmMode('welcome',this)"><span class="ic">🏡</span>I'm home</button>
     <button class="hm-scene" id="hm-lights-off"><span class="ic">💡</span>All off</button>
-    ${scenes.slice(0,1).map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
+    ${scenes.slice(0,0).map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
   </div>`;
   // status strip
   const st=[];
@@ -1587,6 +1589,7 @@ function loadSettingsUI(){
   $("#set-doorbell-speak").checked=s.doorbellSpeak!==false; $("#set-doorbell-speak").onchange=e=>FH.save({doorbellSpeak:e.target.checked});
   $("#set-doorbell-tv").checked=s.doorbellTv!==false; $("#set-doorbell-tv").onchange=e=>FH.save({doorbellTv:e.target.checked});
   $("#set-nighttemp").value=s.nightTemp||""; $("#set-nighttemp").onchange=e=>FH.save({nightTemp:e.target.value?+e.target.value:null});
+  $("#set-hometemp").value=s.homeTemp||""; $("#set-hometemp").onchange=e=>FH.save({homeTemp:e.target.value?+e.target.value:null});
   $("#set-awaytemp").value=s.awayTemp||""; $("#set-awaytemp").onchange=e=>FH.save({awayTemp:e.target.value?+e.target.value:null});
   $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});

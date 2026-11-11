@@ -337,7 +337,10 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
     bannerEl.innerHTML = `${sideL}${sideR}<div class="k">${n === 0 ? "" : def.banner.kicker}</div><div class="t">${def.banner.title}</div><div class="digits">${n === 0 ? "" : digits}</div><div class="sub">${sub}</div>`;
     bannerEl.querySelector(".digits").style.display = n === 0 ? "none" : "";
   }
+  // The phone loads this file only for the settings menu (list/previews); the painted frame is for the wall.
+  const WALL = !/phone\.html$/i.test(location.pathname);
   function apply(settings){
+    if (!WALL) return null;
     ensure();
     const kind = pick(settings);
     const root = document.documentElement;
@@ -358,7 +361,7 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   }
   window.addEventListener("resize", () => { if (current) buildFrame(current); });
   // auto schedule flips at midnight: re-check every 10 minutes
-  setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
+  if (WALL) setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
 
   const list = () => Object.keys(DEFS).map(k => ({ key: k, name: DEFS[k].name, emoji: DEFS[k].emoji || (k === "christmas" ? "🎄" : k === "thanksgiving" ? "🦃" : "✨") }));
   return { apply, pick, auto, thanksgiving, DEFS, list, birthdayPeople, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };

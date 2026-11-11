@@ -259,7 +259,8 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   </g></svg>`;
   let flyEl = null, walkEl = null, flyTimer = null, flickTimer = null;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const SANTA_IMG = "/skins/santa.png";     // painted sprite (green-screen keyed); vector SLEIGH is the fallback
+  const SANTA_IMG = "/skins/santa.png";
+  const TURKEY_IMG = "/skins/turkey.png";   // painted sprite (green-screen keyed); emoji fallback     // painted sprite (green-screen keyed); vector SLEIGH is the fallback
   function santaFly(){
     if (!flyEl){ flyEl = document.createElement("div"); flyEl.id = "skin-fly"; document.body.appendChild(flyEl); }
     flyEl.innerHTML = `<div class="bob"><img src="${SANTA_IMG}" alt="" style="width:460px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))" onerror="this.parentNode.innerHTML=${JSON.stringify(SLEIGH).replace(/"/g, "&quot;")}"></div>`;
@@ -269,7 +270,7 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
   }
   function turkeyWalk(){
     if (!walkEl){ walkEl = document.createElement("div"); walkEl.id = "skin-walk"; document.body.appendChild(walkEl); }
-    walkEl.innerHTML = "<span>🦃</span>"; walkEl.classList.remove("go"); void walkEl.offsetWidth;
+    walkEl.innerHTML = `<span><img src="${TURKEY_IMG}" alt="" style="height:120px;width:auto;display:block" onerror="this.parentNode.textContent='🦃'"></span>`; walkEl.classList.remove("go"); void walkEl.offsetWidth;
     walkEl.style.setProperty("--walk-s", (16 + Math.random() * 6) + "s"); walkEl.classList.add("go"); setTimeout(() => walkEl && walkEl.classList.remove("go"), 24000);
   }
   function flickerBulb(){

@@ -2,7 +2,7 @@
 
 ## First thing
 - [ ] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.
-- [ ] **Family PIN:** phone → Settings → Family PIN → 4–8 digits → Turn on. Enter it once on the wall.
+- [x] **Family PIN:** phone → Settings → Family PIN → 4–8 digits → Turn on. Enter it once on the wall.
 
 ## Zigbee stick arrives — move the kitchen off Alexa + Aqara (in this order)
 - [ ] Plug the stick into the Home Assistant box on a **short USB extension** (~1 ft away from the box).
@@ -32,6 +32,10 @@
 - [x] **Sleep mode** works (tested Nov 11 with the panel's Sleep scene). ~~arm the IQ Panel for the night — the wall should go dark right away and stay dark
       (a tap shows it for a minute). Disarm in the morning — it comes back. If it doesn't go dark, tell Claude
       what the panel's arming mode is called (Night / Sleep / Stay).
+- [ ] **New today:** wall to-do **+** and calendar taps open the Add pop-up; festive keyboard types by touch;
+      phone room pop-ups, thermostat pop-up, Front/Back Porch cards; doorbell live view (or "Try live again").
+- [ ] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
+      or wall Settings → Display → uncheck the on-screen keyboard (keeps Ubuntu's).
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 
 ## Set up the two unused Surety outdoor AI cameras
@@ -79,4 +83,4 @@
 ## Send Claude when you have it
 - [ ] Alarm.com rule screenshots (to move them into Home Assistant).
 - [ ] What should happen when someone gets home (after the HA app is on both phones, location "Always").
-- [ ] Holiday art from `docs/holiday-art-prompts.md`, one image per message.
+- [x] Holiday art — all installed.

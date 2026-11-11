@@ -10,7 +10,6 @@ FamilyHub talks only to Home Assistant (separate Pi); HA talks to the gear. See
 app/services/ha_svc.py and docs/home-assistant-setup.md. Works in demo mode out
 of the box so the Home tab is explorable before real HA exists.
 """
-import asyncio
 import json
 from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse

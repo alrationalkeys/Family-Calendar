@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 
 _states: dict[str, dict] = {}

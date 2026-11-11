@@ -1,7 +1,6 @@
 """Housekeeping the phone app can trigger.
     POST /api/admin/clear-demo   wipe the sample family so the real one can go in.
 Also sets settings.demo_cleared so SEED_DEMO never re-seeds on restart."""
-import json
 from fastapi import APIRouter, HTTPException
 from ..db import get_db
 

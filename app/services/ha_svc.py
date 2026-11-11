@@ -27,7 +27,6 @@ from __future__ import annotations
 import os
 import re
 import time
-import copy
 import json
 import urllib.request
 import urllib.error

@@ -14,7 +14,6 @@ phone"). Nothing here ever raises into the request that created the item.
 """
 from __future__ import annotations
 
-import json
 import re
 import threading
 from datetime import datetime

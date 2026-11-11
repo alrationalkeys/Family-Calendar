@@ -18,7 +18,7 @@ import os
 import re
 import datetime
 
-from . import ha_svc, voice_more
+from . import ha_svc, voice_more, voice_agent
 from ..db import get_db
 
 FHSTATE = {"open": "open", "closed": "closed", "opening": "opening", "closing": "closing", "locked": "locked",
@@ -423,6 +423,10 @@ def _timer_label(text: str):
     t = re.sub(r"(?:\d+\s+)*" + _DUR_RE, " ", text.lower().replace("-", " "))
     t = re.sub(r"\b(and|a|an)\s+(a\s+)?(half)?\b", " ", t)
     m = re.search(r"\bfor (?:the |my |our )?([a-z][a-z ]{1,30}?)\s*(?:timer|,|\bfor\b|$)", t)
+    if not m:       # "set a pasta timer for 9 minutes"
+        m = re.search(r"\b(?:a|the|my)\s+([a-z]+(?: [a-z]+)?)\s+timer\b", text.lower())
+        if m and set(m.group(1).split()) & (set(_NUM_WORDS) | {"minute", "minutes", "hour", "second", "kitchen", "new"}):
+            m = None
     if not m:
         return None
     lbl = m.group(1).strip()
@@ -618,14 +622,16 @@ def stt_prompt() -> str:
                 and not x["entity_id"].startswith("script.fh_")][:25]
     except Exception:
         pass
-    return (f"{_assistant_name()}. " + (", ".join(names) + ". " if names else "")
-            + "Add milk to the grocery list. Add a chore for " + (names[0] if names else "Alex")
-            + " to take out the trash every Thursday. Add to the to-do list. Add dentist on Friday at 3 PM. "
-            + "What's on the calendar today? Set a timer for 10 minutes. Set the thermostat to 70. Good night. "
-            + ("Turn on the " + ", ".join(devs) + "." if devs else ""))[:800]
+    words = [_assistant_name()] + names + ["chore", "chores", "to-do list", "groceries", "calendar", "thermostat",
+                                           "upstairs", "downstairs", "garage"] + devs
+    return ("Glossary: " + ", ".join(dict.fromkeys(words)) + ".")[:600]
 
 
-def _interpret(text: str) -> dict:
+def _interpret(text: str, use_ai: bool = True) -> dict:
+    """Instant rules for the obvious commands; with an Anthropic key everything else (lists, calendar,
+    check-offs, thermostats, questions) goes to voice_agent, which understands loose phrasing and acts with tools.
+    Without a key, or if the AI can't be reached, the rule-based helpers below do their best."""
+    ai = use_ai and voice_agent.enabled()
     t = (text or "").strip()
     name = _assistant_name().lower()
     t = re.sub(r"^(?:hey|ok|okay|hi|yo)?\s*(?:" + re.escape(name) + r"|family\s*hub|hub|wall|screen)\s*[,!.]?\s*", "", t, flags=re.I).strip() or t
@@ -636,27 +642,27 @@ def _interpret(text: str) -> dict:
 
     # "add …" / "remind …" / "create a chore …" are always about the lists, never a device or scene
     t = re.sub(r"^new\s+(chore|to[\s-]?do|task|reminder|event|appointment)\b[,:]?\s*", r"add a \1 ", t, flags=re.I)
-    if re.match(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:add|remind|create|put|schedule|book|make an? (?:chore|to[\s-]?do|event|appointment))\b", t, flags=re.I):
+    if not ai and re.match(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:add|remind|create|put|schedule|book|make an? (?:chore|to[\s-]?do|event|appointment))\b", t, flags=re.I):
         said = _add_to_list(re.sub(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:create|make|put|schedule|book)\b", "add", t, flags=re.I))
         if said:
             return {"ok": True, "say": said, "refresh": True}
 
     # "I need to call the plumber" / "we have to renew the tags" -> to-do (buy/get/pick up -> groceries, below)
-    mn = re.match(r"^(?:we|i)\s+(?:really\s+)?(?:need|have|gotta|got)\s+to\s+(?!buy\b|get\b|grab\b|pick up\b)(\w+(?:\s+\S+)+)$", t.strip(" .!"), flags=re.I)
+    mn = None if ai else re.match(r"^(?:we|i)\s+(?:really\s+)?(?:need|have|gotta|got)\s+to\s+(?!buy\b|get\b|grab\b|pick up\b)(\w+(?:\s+\S+)+)$", t.strip(" .!"), flags=re.I)
     if mn:
         said = _add_todo("add to the to-do list " + mn.group(1))
         if said:
             return {"ok": True, "say": said, "refresh": True}
     # "we need paper towels", "we're out of coffee"
-    said = voice_more.grocery_phrase(t)
+    said = None if ai else voice_more.grocery_phrase(t)
     if said:
         return {"ok": True, "say": said, "refresh": True}
     # "check off milk", "mark take out the trash as done", "remove eggs from the grocery list"
-    said = voice_more.complete(t)
+    said = None if ai else voice_more.complete(t)
     if said:
         return {"ok": True, "say": said, "refresh": True}
     # "what's on the grocery list", "what chores does Alex have"
-    said = voice_more.list_query(t)
+    said = None if ai else voice_more.list_query(t)
     if said:
         return {"ok": True, "say": said}
 
@@ -770,7 +776,7 @@ def _interpret(text: str) -> dict:
             return {"ok": True, "say": f"The {dev['name']} is {FHSTATE.get(dev['state'], dev['state'])}."}
 
     # thermostats: "set the thermostat to 70", "turn the heat up", "turn off the AC"
-    said = voice_more.climate(t, tiles)
+    said = None if ai else voice_more.climate(t, tiles)
     if said:
         return {"ok": True, "say": said, "refresh": True}
 
@@ -798,6 +804,10 @@ def _interpret(text: str) -> dict:
         return {"ok": False, "say": "I don't know which plugs are the Christmas lights yet. Pick them in Settings, Automations."}
     if control and (on or off) and not q:
         dev = _match(w, tiles, {"light", "switch", "fan", "cover", "lock", "media_player"})
+        if dev and ai and not ({_sing(x) for x in re.findall(r"[a-z0-9]+", dev["name"].lower())} & {_sing(x) for x in w}) - _GENERIC - _STOP:
+            dev = None
+        if dev and ai and re.search(r"\b(and|then|also|except|but|after|before|minutes?|percent|%|dim|bright)\b", tl):
+            dev = None                      # "turn off the kitchen and the porch", "dim to 30%": let the AI do it
         if dev:
             dom = dev["domain"]
             if dom in ("light", "switch", "fan", "media_player"):
@@ -814,6 +824,12 @@ def _interpret(text: str) -> dict:
                 ha_svc.call_service("lock", "lock", dev["entity_id"])
                 verb = "Locking"
             return {"ok": True, "say": f"{verb} {dev['name']}.", "refresh": True}
+
+    if ai:
+        r = voice_agent.run(t, tiles)
+        if r:
+            return r
+        return _interpret(text, use_ai=False)
 
     # add to a list ("add …", "remind Rachell to …", "Ella needs to …")
     if "add" in w or "remind" in w or re.search(r"\b(needs?|has|have)\s+to\b", t.lower()):

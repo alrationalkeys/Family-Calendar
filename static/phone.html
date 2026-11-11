@@ -419,6 +419,12 @@
   <div class="sub">Changes apply to the wall display and this phone.</div>
 
   <div class="form sect">
+    <h2>Automations</h2>
+    <div class="sub" style="margin:-4px 0 6px">Everything the house does on its own: peak hours, outdoor and holiday lights, kitchen lights.</div>
+    <div id="au-box"><div class="hint">Loading…</div></div>
+  </div>
+
+  <div class="form sect">
     <h2>Appearance</h2>
     <div class="srow"><span>Theme</span>
       <div class="pill-toggle" id="set-theme">
@@ -621,6 +627,7 @@
 <script src="/adc-stream.js"></script>
 <script src="/seasonal.js"></script>
 <script src="/skins.js"></script>
+<script src="/automations.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
@@ -982,7 +989,7 @@ function switchView(v){
   ["add","home","cal","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
   if(v==="cal"){ loadAgenda(); }
   document.body.classList.toggle("home-dark", v==="home");
-  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); }
+  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); if(window.FHAutomations) FHAutomations.load($("#au-box"), toast); }
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
   if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 8000); }

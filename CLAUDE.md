@@ -99,6 +99,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/ha/events` (SSE) + `/api/ha/version` — live HA state changes via `services/ha_live.py` (WebSocket mirror; demo toggles bump too)
 - `GET /api/sources/targets` — writable destinations (FamilyHub / Google / each iCloud calendar); `POST /api/calendar/events` takes `destination`; last choice remembered in `settings.defaultCalendar`
 - iCloud **Reminders ↔ To-Do** two-way: `services/reminders_sync.py` (VTODO over the same CalDAV source, every 5 min + `POST /api/todos/sync`; ticking a synced to-do completes it upstream; `todos.ext_uid/ext_source/ext_list`)
+- Automations page: `GET /api/ha/automations` (+ `/toggle`, `/setting`) — HA routines grouped (peak, outdoor/holiday, kitchen, other) with plain-English text (`services/automations.py` DESCRIBE, keyed by the `fh_` yaml ids in `docs/ha/*.yaml`), on/off, last run, editable helpers. Only automation/input_number/input_datetime/input_boolean are writable. UI: `static/automations.js` in phone Settings (wall gets it via Settings > Everything).
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
   (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The

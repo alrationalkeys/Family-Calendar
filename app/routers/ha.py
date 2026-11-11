@@ -198,3 +198,23 @@ def alarm(payload: dict):
         raise HTTPException(404, "no alarm panel found")
     extra = {"code": code} if code else {}
     return ha_svc.call_service("alarm_control_panel", svc, eid, extra)
+
+
+# ---- Automations page (phone + wall): see, switch and tune the Home Assistant routines -------------
+@router.get("/automations")
+def automations_list():
+    from ..services import automations
+    return automations.list_all()
+
+
+@router.post("/automations/toggle")
+def automations_toggle(payload: dict):
+    from ..services import automations
+    return automations.set_automation(str((payload or {}).get("entity_id", "")), bool((payload or {}).get("on")))
+
+
+@router.post("/automations/setting")
+def automations_setting(payload: dict):
+    from ..services import automations
+    p = payload or {}
+    return automations.set_helper(str(p.get("entity_id", "")), p.get("value"))

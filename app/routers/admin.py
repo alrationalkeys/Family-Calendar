@@ -171,6 +171,56 @@ def restart():
     return {"ok": True}
 
 
+def _desktop_env() -> dict:
+    """Environment to reach the wall's own desktop session (FamilyHub runs as the same user)."""
+    env = dict(os.environ)
+    env.setdefault("DISPLAY", ":0")
+    env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{os.getuid()}/bus"
+    xa = os.path.expanduser("~/.Xauthority")
+    if os.path.exists(xa):
+        env.setdefault("XAUTHORITY", xa)
+    return env
+
+
+@router.post("/screen-keyboard")
+def screen_keyboard(payload: dict | None = None):
+    """Turn Ubuntu's own on-screen keyboard on/off ({on: false}). FamilyHub has its own (themed) one."""
+    import subprocess
+    on = bool((payload or {}).get("on"))
+    try:
+        r = subprocess.run(["gsettings", "set", "org.gnome.desktop.a11y.applications", "screen-keyboard-enabled",
+                            "true" if on else "false"], env=_desktop_env(), capture_output=True, text=True, timeout=8)
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"ok": False, "reason": f"couldn't run gsettings: {e}"}
+    return {"ok": r.returncode == 0, "reason": (r.stderr or "").strip()[:200] or None}
+
+
+@router.post("/desktop")
+def to_desktop():
+    """Close the full-screen wall browser so Ubuntu's desktop shows (Back to FamilyHub reopens it)."""
+    import subprocess
+    try:
+        subprocess.run(["pkill", "-f", "familyhub-kiosk-profile"], timeout=5)
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"ok": False, "reason": str(e)}
+    return {"ok": True}
+
+
+@router.post("/kiosk")
+def to_kiosk():
+    """Start the full-screen wall browser again (runs kiosk.sh on the wall's desktop)."""
+    import subprocess
+    script = os.path.join(ROOT, "kiosk.sh")
+    if not os.path.exists(script):
+        return {"ok": False, "reason": "kiosk.sh not found"}
+    try:
+        subprocess.Popen(["bash", script], env=_desktop_env(), start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as e:
+        return {"ok": False, "reason": str(e)}
+    return {"ok": True}
+
+
 @router.post("/clear-demo")
 def clear_demo(payload: dict | None = None):
     if not (payload or {}).get("confirm"):

@@ -275,7 +275,10 @@
   #add-box.on{display:flex}
   #add-box .ah{display:flex; align-items:center; justify-content:space-between; padding:12px 14px 6px 20px}
   #add-box .ah b{font-size:20px}
-  #add-box .ah button{border:0; background:var(--panel2); color:var(--ink); width:44px; height:44px; border-radius:50%; font-size:18px; cursor:pointer}
+  #add-box .ah{font-family:var(--font, inherit)}
+  #add-box .ahb{display:flex; gap:8px; align-items:center}
+  #add-box .ah button{border:0; background:var(--panel2); color:var(--ink); width:52px; height:52px; border-radius:50%; font-size:20px; cursor:pointer; touch-action:manipulation}
+  #add-box .ah button.txt{width:auto; border-radius:26px; padding:0 18px; font:inherit; font-size:16px; font-weight:600}
   #add-box iframe{flex:1; border:0; width:100%; background:transparent}
 
   /* on-screen keyboard (touch wall has no physical keyboard) */
@@ -1090,7 +1093,7 @@
 </div>
 
 <div id="add-ov"></div>
-<div id="add-box" role="dialog" aria-modal="true"><div class="ah"><b>Add</b><button id="add-x" aria-label="Close">✕</button></div><iframe id="add-frame" title="Add"></iframe></div>
+<div id="add-box" role="dialog" aria-modal="true"><div class="ah"><b>Add</b><span class="ahb"><button id="add-cancel" class="txt">Cancel</button><button id="add-x" aria-label="Close">✕</button></span></div><iframe id="add-frame" title="Add"></iframe></div>
 
 <!-- event editor / creator modal -->
 <div id="ev-overlay"></div>
@@ -1462,6 +1465,10 @@ function applyPanelSizes(sz){
 
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
+  // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
+  const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
+  const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done).length;
+  todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done));
   if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
   todos.forEach(t=>{
     const row=document.createElement("div"); row.className="list-row"+(t.done?" done":"");
@@ -1470,6 +1477,7 @@ function renderTodos(todos, box){
     row.onclick=async()=>{await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"});load();resetSleep();};
     box.appendChild(row);
   });
+  if(later){ const n=document.createElement("div"); n.className="empty"; n.style.fontSize="12px"; n.textContent=`+ ${later} later (next week or after)`; box.appendChild(n); }
 }
 function renderGroceries(items, box){
   box=box||$("#groceries"); if(!box) return; box.innerHTML="";
@@ -2016,7 +2024,10 @@ function openAdd(kind, date, time){
   $("#add-ov").classList.add("on"); $("#add-box").classList.add("on"); resetSleep();
 }
 function closeAdd(){ $("#add-ov").classList.remove("on"); $("#add-box").classList.remove("on"); oskHide(); setTimeout(()=>{ if(!$("#add-box").classList.contains("on")) $("#add-frame").src="about:blank"; }, 300); }
-$("#add-x").onclick=closeAdd; $("#add-ov").onclick=closeAdd;
+// close on finger-up as well as click (a touch that starts while a field inside the frame has focus can lose its click)
+["#add-x","#add-cancel"].forEach(q=>{ const b=$(q); b.onclick=closeAdd; b.addEventListener("pointerup", e=>{ e.preventDefault(); closeAdd(); }); });
+$("#add-ov").onclick=closeAdd;
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && $("#add-box").classList.contains("on")) closeAdd(); });
 window.addEventListener("message", e=>{ if(e.origin!==location.origin||!e.data||e.data.fh!=="added") return;
   load(); banner(e.data.msg||"Added"); closeAdd(); });
 $("#ev-cancel").onclick=closeEditor;

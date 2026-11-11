@@ -9,6 +9,12 @@
 
 URL="${FAMILYHUB_URL:-http://localhost:8000}"
 
+# Ubuntu's own on-screen keyboard pops up next to FamilyHub's; keep it off unless the family chose it
+# (phone > Settings > The wall). FAMILYHUB_UBUNTU_OSK=1 in .env leaves it alone.
+if [ "${FAMILYHUB_UBUNTU_OSK:-0}" != "1" ] && command -v gsettings >/dev/null; then
+  gsettings set org.gnome.desktop.a11y.applications screen-keyboard-enabled false 2>/dev/null || true
+fi
+
 # never let the desktop blank/sleep the screen — FamilyHub owns that schedule
 xset s off; xset -dpms; xset s noblank
 

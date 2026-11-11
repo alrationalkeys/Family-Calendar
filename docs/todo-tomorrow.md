@@ -34,6 +34,16 @@
       what the panel's arming mode is called (Night / Sleep / Stay).
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 
+## Set up the two unused Surety outdoor AI cameras
+- [ ] Mount near outdoor power, under the eaves ~8–10 ft up (suggested: driveway/garage, and the side by the garage side door).
+      Check phone Wi-Fi at each spot first.
+- [ ] Alarm.com app → Settings → Video Devices → Add. Name them clearly ("Driveway Camera", "Side Yard Camera").
+- [ ] Home Assistant → Devices & services → Alarm.com → ⋮ → Reload. They appear on the wall + phone automatically.
+
+## Flaky door sensor (PowerG, always the same door)
+- [ ] New battery (PG9303 = CR2032, PG9945 = CR123A), fix the magnet gap (≤ ½ in, marks lined up, off metal),
+      test 5× at the panel's sensor screen and compare its signal to a good door. Still bad → Surety support for a swap.
+
 ## Quick settings (Home Assistant)
 - [ ] Add **Waze Travel Time** (any start/end) so leave-by uses live traffic.
 - [ ] Turn on **two-factor login** (your profile → Multi-factor authentication).

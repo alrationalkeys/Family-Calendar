@@ -45,6 +45,7 @@ DEFAULTS = {
     "skin": "auto",                  # holiday skin: auto | off | christmas | thanksgiving
     "skinBanner": True,              # the "Days until …" card in the header
     "skinArt": True,                 # painted frame artwork when the skin has one (off = vector frame)
+    "calendarTasks": True,           # due-dated to-dos + chores show as all-day chips on the calendar
     "nightTemp": None,               # Good Night sets the thermostat to this (None = leave it)
     "awayTemp": None,                # Away mode thermostat setback           # wall says "someone's at the front door"
 }

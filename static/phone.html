@@ -289,6 +289,16 @@
   .remote-apps{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
   .remote-apps .rbtn{font-size:13px; padding:10px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .remote-apps .rbtn.cur{outline:2px solid var(--now)}
+  /* phone agenda */
+  .ag-day{font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); margin:14px 0 6px}
+  .ag-day:first-child{margin-top:0} .ag-day.today{color:var(--now)}
+  .ag-ev{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line)}
+  .ag-time{font-size:13px; color:var(--ink-dim); width:66px; flex:none; font-variant-numeric:tabular-nums}
+  .ag-dot{width:10px; height:10px; border-radius:50%; flex:none}
+  .ag-title{font-size:16px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .ag-ev.task .ag-time{font-size:20px; line-height:1}
+  .ag-ev.task.done .ag-title{text-decoration:line-through; opacity:.5}
+  .ag-kind{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.06em}
   /* embed=settings: shown inside the wall's settings drawer (iframe) — just the settings, no chrome */
   body.embed{padding:0 4px 24px; max-width:none}
   body.embed>h1, body.embed .topnav, body.embed #view-settings>.sub, body.embed #startfresh{display:none}
@@ -300,6 +310,7 @@
 <div class="topnav">
   <button id="nav-add" class="active">&#10133; Add</button>
   <button id="nav-home">&#127968; Home</button>
+  <button id="nav-cal">&#128197; Calendar</button>
   <button id="nav-tv">&#128250; TV</button>
   <button id="nav-settings">&#9881;&#65039; Settings</button>
   <a href="/" style="flex:0 0 auto; display:flex; align-items:center; padding:0 14px; color:var(--ink-dim); text-decoration:none; font-size:14px; font-weight:600">&#128250; Wall</a>
@@ -366,6 +377,12 @@
 
 <div id="camov"><div class="cam-t"><span id="cam-title">Camera</span><button id="cam-close">✕</button></div><div class="cam-stage"><img id="cam-img" alt=""><video id="cam-video" autoplay muted playsinline></video></div><div class="cam-h" id="cam-foot">Connecting to the live feed…</div></div>
 
+<div id="view-cal" hidden>
+  <div class="pill-toggle" id="cal-range" style="margin-bottom:12px"><button data-v="7" class="active">This week</button><button data-v="14">2 weeks</button><button data-v="31">Month</button></div>
+  <div class="form sect" id="cal-list"><div class="hint">Loading…</div></div>
+  <div class="hint">Events from every calendar, plus to-dos and chores that have a due date. Tap a to-do or chore to check it off. Add things from the Add tab.</div>
+</div>
+
 <div id="view-tv" hidden>
   <div class="sub">Pick a TV, then use it like the real remote.</div>
   <div class="tv-pick" id="tv-pick"><div class="hint">Loading TVs…</div></div>
@@ -427,6 +444,7 @@
     <label class="chk"><input type="checkbox" data-panel="groceries"> Groceries</label>
     <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
     <hr>
+    <label class="chk"><input type="checkbox" id="set-caltasks"> Show to-dos &amp; chores on the calendar (wall + this phone)</label>
     <label class="chk"><input type="checkbox" id="set-kbd"> On-screen keyboard on the wall</label>
     <label class="chk"><input type="checkbox" id="set-photofit"> Slideshow shows the whole photo (blurred edges) instead of cropping to fill the screen</label>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
@@ -898,16 +916,52 @@ camInput.onchange = async () => {
   camBtn.textContent = "📷 Photo"; camBtn.disabled = false; camInput.value = "";
 };
 
+/* ===================== CALENDAR (agenda) VIEW ===================== */
+let agDays=7;
+$("#cal-range").querySelectorAll("button").forEach(b=>b.onclick=()=>{ agDays=+b.dataset.v; $("#cal-range").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); loadAgenda(); });
+async function loadAgenda(){
+  const box=$("#cal-list");
+  try{
+    const [cal,dash]=await Promise.all([ fetch(`/api/calendar/events?days=${agDays+1}`).then(r=>r.json()), fetch("/api/dashboard").then(r=>r.json()) ]);
+    const E=FHHome.esc, today=new Date(); today.setHours(0,0,0,0); const todayKey=today.toISOString().slice(0,10);
+    const end=new Date(today); end.setDate(end.getDate()+agDays);
+    const items=[];
+    (cal.events||[]).forEach(e=>{ const s=new Date(e.start); if(isNaN(s)) return; const d=e.all_day&&e.start.length===10?new Date(e.start+"T00:00"):s; if(d<today||d>=end) return; items.push({d, e}); });
+    const showTasks=FH.get().calendarTasks!==false;
+    if(showTasks){
+      (dash.todos||[]).forEach(t=>{ if(!t.due_date) return; const d=new Date(t.due_date+"T00:00"); if(d>=end) return; items.push({d:d<today?today:d, e:{title:t.title, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, late:d<today}}); });
+      (dash.chores||[]).forEach(c=>{ const d=c.due_date?new Date(c.due_date+"T00:00"):today; if(d>=end) return; items.push({d:d<today?today:d, e:{title:(c.stars?"\u2B50 ":"")+c.title, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, late:d<today}}); });
+    }
+    items.sort((a,b)=>(a.d-b.d) || ((a.e.task?0:1)-(b.e.task?0:1)) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
+    if(!items.length){ box.innerHTML=`<div class="hint">Nothing in the next ${agDays} days.</div>`; return; }
+    let html="", last="";
+    items.forEach(({d,e})=>{
+      const key=d.toDateString();
+      if(key!==last){ last=key; const isT=d.toISOString().slice(0,10)===todayKey || d.getTime()===today.getTime(); html+=`<div class="ag-day${isT?' today':''}">${isT?"Today":d.toLocaleDateString([],{weekday:"long",month:"short",day:"numeric"})}</div>`; }
+      const time = e.task ? "\u2610" : e.all_day ? "all day" : d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+      html+=`<div class="ag-ev${e.task?' task':''}" ${e.task?`data-kind="${e.task.kind}" data-id="${e.task.id}"`:""}><span class="ag-time">${time}</span><span class="ag-dot" style="background:${E(e.color||'#4f86c6')}"></span><span class="ag-title">${E(e.title)}</span>${e.task?`<span class="ag-kind">${e.task.kind==="chore"?"chore":"to-do"}${e.late?" \u00b7 overdue":""}</span>`:""}</div>`;
+    });
+    box.innerHTML=html;
+    box.querySelectorAll(".ag-ev.task").forEach(row=>row.onclick=async()=>{
+      row.classList.toggle("done"); row.querySelector(".ag-time").textContent=row.classList.contains("done")?"\u2611":"\u2610"; if(navigator.vibrate) navigator.vibrate(10);
+      try{ await post(`/api/${row.dataset.kind==="todo"?"todos":"chores"}/${row.dataset.id}/toggle`,{}); toast("Checked off"); }catch(e){ toast("Couldn't reach the wall"); }
+      setTimeout(loadAgenda, 600);
+    });
+  }catch(e){ box.innerHTML='<div class="hint">Couldn\u2019t load the calendar.</div>'; }
+}
+
 /* ===================== SETTINGS VIEW ===================== */
 /* top-nav view switch */
 $("#nav-add").onclick=()=>switchView("add");
 $("#nav-home").onclick=()=>switchView("home");
 $("#nav-tv").onclick=()=>switchView("tv");
+$("#nav-cal").onclick=()=>switchView("cal");
 $("#nav-settings").onclick=()=>switchView("settings");
 let curView="add", hmTimer=null;
 function switchView(v){
   curView=v;
-  ["add","home","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
+  ["add","home","cal","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
+  if(v==="cal"){ loadAgenda(); }
   document.body.classList.toggle("home-dark", v==="home");
   if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); }
   if(v==="tv"){ loadTVs(); }
@@ -1290,6 +1344,7 @@ function loadSettingsUI(){
   $("#set-skin-art").checked=s.skinArt!==false; $("#set-skin-art").onchange=e=>FH.save({skinArt:e.target.checked});
   if(window.Skins&&!$("#set-skin-previews").children.length) Skins.list().forEach(k=>{ const a=document.createElement("a"); a.className="tool"; a.href="/?skin="+k.key; a.target=document.body.classList.contains("embed")?"_top":"_blank"; a.style.cssText="text-align:center; text-decoration:none"; a.textContent="👀 "+k.emoji+" "+k.name; $("#set-skin-previews").appendChild(a); });
   $("#set-skin-banner").checked=s.skinBanner!==false; $("#set-skin-banner").onchange=e=>FH.save({skinBanner:e.target.checked});
+  $("#set-caltasks").checked=s.calendarTasks!==false; $("#set-caltasks").onchange=e=>FH.save({calendarTasks:e.target.checked});
   if(window.Skins&&$("#set-skin").options.length<=2) Skins.list().forEach(k=>{ const o=document.createElement("option"); o.value=k.key; o.textContent=k.emoji+" "+k.name; $("#set-skin").appendChild(o); });
   $("#set-skin").value=s.skin||"auto"; $("#set-skin").onchange=e=>{ FH.save({skin:e.target.value}); toast("Wall updated"); };
   $("#set-effects").checked=!!s.effects; $("#set-effects").onchange=e=>FH.save({effects:e.target.checked});

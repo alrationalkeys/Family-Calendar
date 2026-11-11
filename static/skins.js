@@ -107,6 +107,11 @@ html[data-skin="christmas"] .main::before, html[data-skin="christmas"] .card::be
 /* the frame */
 #skin-frame{position:fixed; inset:0; pointer-events:none; z-index:46}
 /* painted artwork sits BEHIND the live panels (they float on top, like widgets on a poster) */
+/* lite: phone-sized screens keep the colors but drop the frame, art, pads and banner */
+html[data-skin][data-skin-lite="on"] #skin-art, html[data-skin][data-skin-lite="on"] #skin-frame, html[data-skin][data-skin-lite="on"] #skin-banner, html[data-skin][data-skin-lite="on"] #skin-fly, html[data-skin][data-skin-lite="on"] #skin-walk{display:none!important}
+html[data-skin][data-skin-lite="on"] .wrap{padding:0!important}
+html[data-skin][data-skin-lite="on"] header{padding:0!important; min-height:0!important}
+html[data-skin][data-skin-lite="on"] .bottomnav{margin:0!important}
 #skin-art{position:fixed; inset:0; z-index:0; pointer-events:none; background-repeat:no-repeat; background-position:center; background-size:var(--skin-art-size, 100% 100%); display:none}
 html[data-skin][data-skin-art="on"] #skin-art{display:block}
 html[data-skin][data-skin-art="on"] .wrap{position:relative; z-index:1; padding:var(--skin-pad-t) var(--skin-pad-r) var(--skin-pad-b) var(--skin-pad-l)}
@@ -365,12 +370,13 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     root.style.setProperty("--skin-bg", def.bg); root.style.setProperty("--skin-gold", def.gold);
     root.style.setProperty("--skin-wood1", def.wood[0]); root.style.setProperty("--skin-wood2", def.wood[1]); root.style.setProperty("--skin-font", def.banner.font);
     root.setAttribute("data-skin-art", (def.art && artOn) ? "on" : "off");
+    root.setAttribute("data-skin-lite", window.innerWidth < 900 ? "on" : "off");   // a phone looking at the wall page: colors only
     if (current !== kind){ buildFrame(kind); current = kind; startSurprises(kind); }
     renderBanner(kind);
     clearInterval(tick); tick = setInterval(() => renderBanner(kind), 60 * 1000);
     return kind;
   }
-  window.addEventListener("resize", () => { if (current) buildFrame(current); });
+  window.addEventListener("resize", () => { if (current){ buildFrame(current); document.documentElement.setAttribute("data-skin-lite", window.innerWidth < 900 ? "on" : "off"); } });
   // auto schedule flips at midnight: re-check every 10 minutes
   if (WALL) setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
 

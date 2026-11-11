@@ -576,6 +576,11 @@
   .tg-allday{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); flex:none; border-bottom:1px solid var(--line); max-height:78px; overflow-y:auto; padding-right:var(--sbw,0px)}
   .tg-allday .lbl{font-size:9px; color:var(--ink-dim); padding:5px 4px 0; text-transform:uppercase; text-align:right; letter-spacing:.04em}
   .tg-allday .adcol{border-left:1px solid var(--line); padding:3px; display:flex; flex-direction:column; gap:3px; min-height:24px}
+  .adev.task, .mev.task, .agenda-ev.task{border-style:dashed}
+  .adev.task::before, .mev.task::before{content:"\2610"; margin-right:4px; opacity:.85}
+  .adev.task.done, .mev.task.done, .agenda-ev.task.done .agenda-title{text-decoration:line-through; opacity:.55}
+  .adev.task.done::before, .mev.task.done::before{content:"\2611"}
+  .agenda-ev.task .agenda-time{font-size:18px; line-height:1}
   .adev{font-size:11px; font-weight:600; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
   .tg-body{flex:1; overflow-y:auto; position:relative; min-height:0; scrollbar-gutter:stable}
   .tg-cols{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); position:relative}
@@ -891,6 +896,12 @@
     </div>
   </div>
 
+  <div class="sd-group"><label>Calendar</label>
+    <div class="sd-toggles">
+      <label><input type="checkbox" id="sd-caltasks"> Show to-dos &amp; chores on the calendar (tap a chip to check it off)</label>
+    </div>
+  </div>
+
   <div class="sd-group"><label>On-screen keyboard</label>
     <div class="sd-toggles">
       <label><input type="checkbox" id="kbd-enabled"> Pop up a keyboard when I tap a text field</label>
@@ -1191,7 +1202,7 @@ function renderAgenda(){
   // agenda follows the same week as the Week view, so the header shows its dates
   const start=weekStart(cursor);
   const horizon=new Date(start); horizon.setDate(horizon.getDate()+7);
-  const evs=cache.events.map(e=>({e,s:evStart(e)}))
+  const evs=calItems().map(e=>({e,s:evStart(e)}))
     .filter(x=>x.s && !isNaN(x.s) && x.s>=start && x.s<horizon)
     .sort((a,b)=> (a.s-b.s) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
   if(!evs.length){
@@ -1208,17 +1219,34 @@ function renderAgenda(){
       hd.textContent = isToday ? "Today" : s.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
       wrap.appendChild(hd);
     }
-    const row=document.createElement("div"); row.className="agenda-ev";
-    const time = e.all_day ? "All day" : s.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    const row=document.createElement("div"); row.className="agenda-ev"+(e.task?" task":"")+(e.done?" done":"");
+    const time = e.task ? (e.done?"\u2611":"\u2610") : e.all_day ? "All day" : s.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
     row.innerHTML=`<span class="agenda-time">${time}</span>`
       +`<span class="agenda-dot" style="background:${esc(evColor(e))}"></span>`
-      +`<span class="agenda-title">${esc(e.title)}</span>`;
-    row.onclick=()=>{ openEditor(e); resetSleep(); };
+      +`<span class="agenda-title">${esc(e.title)}</span>${e.task?`<span class="agenda-time" style="width:auto;font-size:12px;margin-left:auto">${e.task.kind==="chore"?"chore":"to-do"}</span>`:""}`;
+    row.onclick=()=>{ openItem(e,row); resetSleep(); };
     wrap.appendChild(row);
   });
   body.innerHTML=""; body.appendChild(wrap);
 }
 function evColor(ev){ return ev.color || "#4f86c6"; }
+/* To-dos and chores with a due date ride the calendar as all-day chips (chores default to today).
+   They're pseudo-events: id "todo:5" / "chore:9", task={kind,id}, and tapping one checks it off. */
+function taskEvents(){
+  if(FH.get().calendarTasks===false || !cache.dash) return [];
+  const today=dateStr(new Date()); const out=[];
+  (cache.dash.todos||[]).forEach(t=>{ if(t.due_date) out.push({id:"todo:"+t.id, title:t.title, start:t.due_date, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!t.done}); });
+  (cache.dash.chores||[]).forEach(c=>{ const d=c.due_date||today; if(d>=today || c.due_date) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:c.due_date||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!c.done}); });
+  return out;
+}
+function calItems(){ return cache.events.concat(taskEvents()); }
+async function toggleTask(ev, el){
+  if(el){ el.classList.toggle("done"); }
+  try{ await fetch(`/api/${ev.task.kind==="todo"?"todos":"chores"}/${ev.task.id}/toggle`,{method:"POST"}); }catch(e){}
+  if(ev.task.kind==="chore" && el && !el.classList.contains("done")===false) try{ celebrate(el); }catch(e){}
+  setTimeout(load, 400);
+}
+function openItem(ev, el){ if(ev.task) toggleTask(ev, el); else openEditor(ev); }
 function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;}); }
 function hourLabel(h){ const hh=h%24; return (hh%12||12)+(hh<12?'am':'pm'); }
 
@@ -1235,8 +1263,8 @@ function renderGrid(daysArr){
   let allday='<div class="lbl">all-day</div>';
   daysArr.forEach(d=>{
     let cell='';
-    cache.events.filter(e=>e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
-      cell+=`<div class="adev" data-id="${encodeURIComponent(ev.id||'')}" style="--accent:${evColor(ev)}">${esc(ev.title)}</div>`;
+    calItems().filter(e=>e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
+      cell+=`<div class="adev${ev.task?' task':''}${ev.done?' done':''}" data-id="${encodeURIComponent(ev.id||'')}" style="--accent:${evColor(ev)}">${esc(ev.title)}</div>`;
     });
     allday+=`<div class="adcol">${cell}</div>`;
   });
@@ -1274,7 +1302,7 @@ function renderGrid(daysArr){
   // all-day chips clickable
   body.querySelectorAll(".adev").forEach(el=>{
     el.onclick=(e)=>{ e.stopPropagation(); const id=decodeURIComponent(el.dataset.id);
-      const ev=cache.events.find(x=>String(x.id||'')===id && x.all_day); if(ev)openEditor(ev); };
+      const ev=calItems().find(x=>String(x.id||'')===id && x.all_day); if(ev)openItem(ev,el); };
   });
   // day header → jump into that day
   body.querySelectorAll(".dcol").forEach(el=>{
@@ -1314,14 +1342,14 @@ function renderMonth(){
     cell.className="mcell"+(d.getMonth()!==ref.getMonth()?" dim":"")+(sameDay(d,new Date())?" today":"");
     cell.innerHTML=`<div class="num">${d.getDate()}</div>`;
     const evbox=document.createElement("div"); evbox.className="mevs";
-    const dayEvs=cache.events.filter(e=>sameDay(evStart(e),d))
+    const dayEvs=calItems().filter(e=>sameDay(evStart(e),d))
       .sort((a,b)=>(a.all_day?0:1)-(b.all_day?0:1) || (a.start||"").localeCompare(b.start||""));
     dayEvs.slice(0,3).forEach(ev=>{
-      const chip=document.createElement("div"); chip.className="mev"; chip.style.setProperty("--accent",evColor(ev));
+      const chip=document.createElement("div"); chip.className="mev"+(ev.task?" task":"")+(ev.done?" done":""); chip.style.setProperty("--accent",evColor(ev));
       chip.title=ev.title;
       const sdt=evStart(ev); const tm=(!ev.all_day && sdt && !isNaN(sdt)) ? sdt.toLocaleTimeString([],{hour:"numeric"}) : "";
       chip.innerHTML=`${tm?`<span class="mt">${tm}</span>`:""}${esc(ev.title)}`;
-      chip.onclick=(e)=>{ e.stopPropagation(); openEditor(ev); };
+      chip.onclick=(e)=>{ e.stopPropagation(); openItem(ev,chip); };
       evbox.appendChild(chip);
     });
     if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3} more`;evbox.appendChild(m);}
@@ -1677,6 +1705,7 @@ $("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); appl
   const sync=()=>{ const cur=FH.get().skin||"auto"; box.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.skin===cur)); };
   box.querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ FH.save({skin:b.dataset.skin}); sync(); applySeasonal(); resetSleep(); }; });
   sync(); document.addEventListener("fh-settings", sync);
+  const ct=$("#sd-caltasks"); if(ct){ ct.checked=FH.get().calendarTasks!==false; ct.onchange=()=>{ FH.save({calendarTasks:ct.checked}); render(); }; }
   const sb=$("#sd-skin-banner"); if(sb){ sb.checked=FH.get().skinBanner!==false; sb.onchange=()=>{ FH.save({skinBanner:sb.checked}); applySeasonal(); }; }
   const sa=$("#sd-skin-art"); if(sa){ sa.checked=FH.get().skinArt!==false; sa.onchange=()=>{ FH.save({skinArt:sa.checked}); applySeasonal(); }; }
   const su=$("#sd-skin-surprise"); if(su) su.onclick=()=>{ closeSettings(); Skins.surprise(); resetSleep(); }; })();

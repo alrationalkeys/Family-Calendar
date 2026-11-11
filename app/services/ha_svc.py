@@ -583,7 +583,8 @@ def entity_picture(entity_id: str):
         if not pic:
             return None
         url = pic if pic.startswith("http") else ha_url() + pic
-        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {ha_token()}"})
+        hdr = {"Authorization": f"Bearer {ha_token()}"} if url.startswith(ha_url()) else {}   # never send the token elsewhere
+        req = urllib.request.Request(url, headers=hdr)
         with urllib.request.urlopen(req, timeout=6) as r:
             return r.read(), r.headers.get("Content-Type", "image/jpeg")
     except Exception:

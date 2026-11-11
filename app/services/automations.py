@@ -255,7 +255,11 @@ def set_helper(entity_id: str, value) -> dict:
     if d == "input_text":
         return ha_svc.call_service("input_text", "set_value", entity_id, {"value": value})
     if d == "input_number":
-        return ha_svc.call_service("input_number", "set_value", entity_id, {"value": float(value)})
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "That needs to be a number"}
+        return ha_svc.call_service("input_number", "set_value", entity_id, {"value": num})
     if d == "input_datetime" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value)):
         return ha_svc.call_service("input_datetime", "set_datetime", entity_id, {"date": str(value)})
     if d == "input_datetime":
@@ -348,7 +352,7 @@ def build(spec: dict) -> dict:
     t = w.get("type")
     if t == "time":
         at = str(w.get("at") or "")
-        if not re.fullmatch(r"\d{1,2}:\d{2}", at):
+        if not re.fullmatch(r"\d{1,2}:\d{2}", at) or int(at.split(":")[0]) > 23 or int(at.split(":")[1]) > 59:
             raise ValueError("Pick a time")
         trig = {"trigger": "time", "at": at + ":00"}
     elif t == "sun":
@@ -393,14 +397,14 @@ def build(spec: dict) -> dict:
     for a in spec.get("do") or []:
         k = a.get("type")
         if k in ("on", "off"):
-            ids = _ids(a.get("entities"), "light", "switch", "fan", "media_player", "cover")
+            ids = _ids(a.get("entities"), "light", "switch", "fan", "media_player")     # garage doors: "close" only
             if ids:
                 acts.append({"action": f"homeassistant.turn_{k}", "target": {"entity_id": ids}})
         elif k == "dim":
             ids = _ids(a.get("entities"), "light")
             if ids:
                 acts.append({"action": "light.turn_on", "target": {"entity_id": ids},
-                             "data": {"brightness_pct": max(1, min(100, int(a.get("pct") or 50)))}})
+                             "data": {"brightness_pct": max(1, min(100, int(float(a.get("pct") or 50))))}})
         elif k == "thermostat":
             ids = _ids(a.get("entities"), "climate")
             mode = a.get("mode") or "heat"
@@ -409,7 +413,7 @@ def build(spec: dict) -> dict:
                 if mode in ("heat", "cool") and a.get("temp"):
                     acts.append({"delay": {"seconds": 5}})
                     acts.append({"action": "climate.set_temperature", "target": {"entity_id": ids},
-                                 "data": {"temperature": max(45, min(95, int(a.get("temp"))))}})
+                                 "data": {"temperature": max(45, min(95, int(float(a.get("temp")))))}})
         elif k == "lock":                                    # lock only — never unlock from a routine
             ids = _ids(a.get("entities"), "lock")
             if ids:
@@ -457,10 +461,13 @@ def get_routine(rid: str) -> dict:
 
 
 def save_routine(spec: dict, rid: str | None = None) -> dict:
+    if not isinstance(spec, dict) or not isinstance(spec.get("when") or {}, dict) or not isinstance(spec.get("do") or [], list) \
+            or not all(isinstance(a, dict) for a in spec.get("do") or []):
+        return {"ok": False, "reason": "That routine didn't come through right. Try again."}
     try:
         cfg = build(spec)
-    except (ValueError, TypeError) as e:
-        return {"ok": False, "reason": str(e)}
+    except (ValueError, TypeError, AttributeError) as e:
+        return {"ok": False, "reason": str(e) if isinstance(e, ValueError) and "invalid literal" not in str(e) else "Check the numbers in the routine"}
     rid = rid if (rid and re.fullmatch(r"fhu_[a-z0-9]+", rid)) else f"fhu_{int(time.time() * 1000):x}"
     if ha_svc.demo_mode():
         _MINE[rid] = spec

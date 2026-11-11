@@ -54,7 +54,7 @@ _locked = {}                 # ip -> unlock_time
 def _client_ip(request: Request) -> str:
     # behind a reverse proxy (Caddy / Railway), the real client is the first
     # X-Forwarded-For hop
-    xff = request.headers.get("X-Forwarded-For")
+    xff = request.headers.get("X-Forwarded-For") if os.getenv("FAMILYHUB_TRUST_PROXY") == "1" else None
     if xff:
         return xff.split(",")[0].strip()
     return request.client.host if request.client else "?"

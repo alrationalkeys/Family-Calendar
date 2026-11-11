@@ -1,5 +1,5 @@
 """Chore chart with stars, person/category color, recurrence, and edit/delete."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime, date
 from ..db import get_db
@@ -98,18 +98,24 @@ def toggle(chore_id: int):
     with get_db() as conn:
         row = conn.execute("SELECT done, recurrence, due_date, stars, person_id, title FROM chores WHERE id=?",
                            (chore_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "no such chore")
         rec = row["recurrence"]
         completing = not row["done"]
-        if completing and row["stars"] and row["person_id"]:
+        already = conn.execute("SELECT 1 FROM reward_ledger WHERE person_id=? AND reason=? AND date(at,'localtime')=date('now','localtime') LIMIT 1",
+                               (row["person_id"], f"chore: {row['title']}")).fetchone() if (rec and row["person_id"]) else None
+        if completing and row["stars"] and row["person_id"] and not already:
             conn.execute("INSERT INTO reward_ledger (person_id,stars,reason) VALUES (?,?,?)",
                          (row["person_id"], row["stars"], f"chore: {row['title']}"))
         if rec and completing:
             base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()
             nxt = next_occurrence(rec, base)
+            while nxt and nxt <= date.today():          # an overdue repeat jumps to its next date after today
+                nxt = next_occurrence(rec, nxt)
             conn.execute("UPDATE chores SET due_date=?, done=0 WHERE id=?",
                          (nxt.isoformat() if nxt else None, chore_id))
             return {"id": chore_id, "recurred": True, "next": nxt.isoformat() if nxt else None,
-                    "stars_earned": row["stars"] if row["person_id"] else 0}
+                    "stars_earned": row["stars"] if (row["person_id"] and not already) else 0}
         new = 0 if row["done"] else 1
         conn.execute("UPDATE chores SET done=?, done_at=? WHERE id=?",
                      (new, datetime.now().isoformat() if new else None, chore_id))

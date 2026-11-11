@@ -1,5 +1,5 @@
 """To-do list with category/color, recurrence, and edit/delete."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import date
 from ..db import get_db
@@ -54,6 +54,8 @@ def toggle(todo_id: int):
     with get_db() as conn:
         row = conn.execute("SELECT done, recurrence, due_date FROM todos WHERE id=?",
                            (todo_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "no such to-do")
         rec = row["recurrence"]
         if rec and not row["done"]:
             base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()

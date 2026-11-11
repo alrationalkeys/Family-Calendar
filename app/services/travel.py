@@ -142,4 +142,6 @@ def drive(dest: str) -> dict | None:
         out = {"minutes": round(m * 1.1), "traffic": False, "source": "osrm"} if m is not None else None   # +10%: no live traffic
     if out is not None:
         _cache[key] = (time.time(), out)
+    else:
+        _cache[key] = (time.time() - TTL + 180, None)     # unknown place / services down: retry in 3 min, not every poll
     return out

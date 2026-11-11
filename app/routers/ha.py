@@ -42,7 +42,18 @@ def service(payload: dict):
     domain, svc = p.get("domain"), p.get("service")
     if not domain or not svc:
         raise HTTPException(400, "domain and service required")
-    return ha_svc.call_service(domain, svc, p.get("entity_id", ""), p.get("data") or {})
+    if domain not in _SERVICE_DOMAINS:
+        raise HTTPException(403, f"{domain} can't be controlled from here")
+    data = p.get("data") or {}
+    if domain == "alarm_control_panel" and svc == "alarm_disarm" and not str(data.get("code") or "").strip():
+        raise HTTPException(400, "code required to disarm")
+    return ha_svc.call_service(domain, svc, p.get("entity_id", ""), data)
+
+
+# what the phone/wall may call directly (lights, the room pop-up, thermostat, TV remote…); never HA itself
+_SERVICE_DOMAINS = {"light", "switch", "fan", "cover", "lock", "climate", "media_player", "scene", "script",
+                    "alarm_control_panel", "input_boolean", "input_number", "input_datetime", "input_text",
+                    "remote", "button", "number", "select", "vacuum", "humidifier", "water_heater", "siren"}
 
 
 @router.post("/media")

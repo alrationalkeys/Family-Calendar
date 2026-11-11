@@ -109,6 +109,12 @@ def _poll_alarm():
     """Fallback when the live link isn't running: read the panel at most every 30 s."""
     if time.time() - _state["alarm_checked"] < 30:
         return
+    try:
+        from . import ha_live
+        if ha_live.connected():          # the live link already calls on_alarm on every change
+            return
+    except Exception:
+        pass
     _state["alarm_checked"] = time.time()
     try:
         from . import ha_svc

@@ -13,6 +13,7 @@ Architecture:
   - Static frontend (static/index.html) polls /api/dashboard and renders the wall view.
   - AI endpoints (/api/ai/parse) turn natural language / pasted text into events.
 """
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -112,12 +113,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="FamilyHub", version="0.1.0", lifespan=lifespan,
               dependencies=[Depends(pin_guard)])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],   # LAN-only device; tighten if exposed
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# No CORS: the wall and phone pages come from FamilyHub itself, so other websites a family member has
+# open must not be able to call the house's API. FAMILYHUB_CORS="https://a.example,https://b.example" if needed.
+if os.getenv("FAMILYHUB_CORS"):
+    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in os.getenv("FAMILYHUB_CORS").split(",") if o.strip()],
+                       allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")

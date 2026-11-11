@@ -21,6 +21,8 @@ import datetime
 from . import ha_svc
 from ..db import get_db
 
+FHSTATE = {"open": "open", "closed": "closed", "opening": "opening", "closing": "closing", "locked": "locked",
+           "unlocked": "unlocked", "on": "on", "off": "off", "unavailable": "not responding"}
 ON_WORDS = {"on", "up", "start", "open", "unlock", "enable", "brighten", "resume"}
 OFF_WORDS = {"off", "down", "stop", "close", "lock", "disable", "shut", "kill"}
 _STOP = {"the", "a", "an", "to", "please", "my", "our", "turn", "switch", "set",
@@ -240,7 +242,7 @@ def _add_todo(text: str):
             pid, pname, title = extract_person(conn, title)
             if not pid:                                 # "Alex's" was taken out with the list words: look again
                 pid, pname, _ = extract_person(conn, text)
-            title = re.sub(r"^(?:remind|tell)\b", "", title, flags=re.I)
+            title = re.sub(r"^(?:remind|tell)\b\s*(?:me|us)?\s*(?:to\b)?", "", title, flags=re.I)
             title = re.sub(r"\b(?:needs?|has|have)\s+to\b", " ", title, flags=re.I)
             title = _tidy_title(title)
             if not title:
@@ -262,14 +264,20 @@ def _add_to_list(text):
     m = re.search(r"\badd\b(.*)", low)
     # "remind <name> to ..." / "<name> needs to ..." are to-dos even without "add"
     assign_only = re.search(r"\b(remind\s+\w+\s+to|\w+\s+(needs?|has|have)\s+to)\b", low)
+    if assign_only and not m and not low.startswith("remind"):
+        from .people import extract_person as _xp
+        try:
+            with get_db() as _c:
+                if not _xp(_c, text)[0]:          # "I have to go" isn't a to-do; "Rachell needs to…" is
+                    return None
+        except Exception:
+            return None
     if not m and not assign_only:
         return None
     body = m.group(1) if m else low
     if re.search(r"\b(?:chores?|shores?|chords?)\b", body):
         text = re.sub(r"\b(?:shore|chord)(s?)\b", r"chore\1", text, flags=re.I)
-        said = _add_chore(text)
-        if said:
-            return said
+        return _add_chore(text) or "What's the chore? Say something like: add a chore for Alex to take out the trash every Thursday."
     todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things|remind|needs? to|has to|have to", body)) or bool(assign_only and not m)
     if todo:
         said = _add_todo(text)
@@ -370,8 +378,8 @@ def _timer_seconds(text: str) -> int:
     """'10 minutes', 'an hour and a half', 'ninety seconds', '1 hour 20 minutes' -> seconds."""
     t = text.lower().replace("-", " ")
     total = 0.0
-    for m in re.finditer(r"(\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+(half))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b", t):
-        n, half, unit = m.group(1), m.group(2), m.group(3)
+    for m in re.finditer(r"(\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+(half))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b(?:\s+and\s+a\s+(half))?", t):
+        n, half, unit = m.group(1), m.group(2) or m.group(4), m.group(3)
         try:
             val = float(n)
         except ValueError:
@@ -389,7 +397,7 @@ def _timer_seconds(text: str) -> int:
     return int(round(total))
 
 
-_DUR_RE = r"(?:\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+half)?\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)\b"
+_DUR_RE = r"(?:\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+half)?\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)\b(?:\s+and\s+a\s+half)?"
 
 
 def _timer_label(text: str):
@@ -614,21 +622,25 @@ def interpret(text: str) -> dict:
     if ("time" in w and ("what" in w or "whats" in w)) or "clock" in w:
         return {"ok": True, "say": "It's " + datetime.datetime.now().strftime("%I:%M %p").lstrip("0") + "."}
 
-    # house modes: "good night", "we're leaving / going out / bye", "I'm home / we're back"
-    tl = t.lower()
-    if re.search(r"\b(good ?night|night night|bed ?time|going to bed|lights out for the night)\b", tl):
+    # house modes: "good night", "we're leaving / going out / bye", "I'm home / we're back".
+    # Only as a command at the start of what was said, never inside a question ("is it bedtime yet?",
+    # "the power is going out" must not lock up the house).
+    tl = t.lower().strip(" .!")
+    q = bool(re.match(r"^(?:is|are|did|does|do|was|were|has|have|can|could|will|would|should|what|whats|what's|when|where|who|how|why)\b", tl)) or t.strip().endswith("?")
+    lead = r"^(?:ok(?:ay)?\s+|hey\s+|alright\s+|so\s+)?"
+    if not q and re.search(lead + r"(?:good ?night|night night|(?:it'?s\s+)?bed ?time|(?:we'?re|i'?m|we are|i am)\s+going to bed|lights out for the night)\b", tl):
         from . import house_modes
         r = house_modes.run("goodnight", close_garage=(True if ("close" in w and "garage" in w) else None))
         return {"ok": True, "say": r.get("say", "Good night."), "refresh": True}
-    if re.search(r"\b(good ?morning|morning everyone|rise and shine|wake up)\b", tl):
+    if not q and re.search(lead + r"(?:good ?morning|morning everyone|rise and shine|wake up)\b", tl):
         from . import display_svc
         display_svc.exit_sleep("voice")
         return {"ok": True, "say": "Good morning!", "refresh": True, "briefing": True}
-    if re.search(r"\b(we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|going out|heading out|away mode|bye bye|see you later)\b", tl):
+    if not q and re.search(lead + r"(?:we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|(?:we're |we are |i'm |i am )?(?:going|heading) out|away mode|bye bye|see you later)\b", tl):
         from . import house_modes
         r = house_modes.run("away", close_garage=(True if ("close" in w and "garage" in w) else None))
         return {"ok": True, "say": r.get("say", "Bye for now."), "refresh": True}
-    if re.search(r"\b(i'm home|i am home|im home|we're home|we are home|were home|we're back|we are back|were back|i'm back|i am back|im back|welcome home)\b", tl):
+    if not q and re.search(lead + r"(?:i'm home|i am home|im home|we're home|we are home|were home|we're back|we are back|were back|i'm back|i am back|im back|welcome home)\b", tl):
         from . import house_modes
         r = house_modes.run("welcome")
         return {"ok": True, "say": r.get("say", "Welcome home."), "refresh": True}
@@ -647,13 +659,19 @@ def interpret(text: str) -> dict:
     scene = _match(w, tiles, {"scene", "script"})
     wants_scene = scene and (("run" in w or "activate" in w or "start" in w or "scene" in w)
                              or not (w & ON_WORDS or w & OFF_WORDS))
-    if scene and wants_scene:
+    if scene and wants_scene and not q:
         ha_svc.toggle(scene["entity_id"])
         return {"ok": True, "say": f"Running {scene['name']}.", "refresh": True}
 
-    # on/off device control
+    # questions about a device: "is the garage door open?", "did I lock the front door?" -> just answer
+    if q:
+        dev = _match(w, tiles, {"cover", "lock", "light", "switch", "binary_sensor", "media_player"})
+        if dev:
+            return {"ok": True, "say": f"The {dev['name']} is {FHSTATE.get(dev['state'], dev['state'])}."}
+
+    # on/off device control. Safety: voice can close the garage and lock doors, never open or unlock.
     on, off = bool(w & ON_WORDS), bool(w & OFF_WORDS)
-    if on or off:
+    if (on or off) and not q:
         dev = _match(w, tiles, {"light", "switch", "fan", "cover", "lock", "media_player"})
         if dev:
             dom = dev["domain"]
@@ -661,11 +679,15 @@ def interpret(text: str) -> dict:
                 ha_svc.call_service(dom, "turn_on" if on else "turn_off", dev["entity_id"])
                 verb = "Turning on" if on else "Turning off"
             elif dom == "cover":
-                ha_svc.call_service("cover", "open_cover" if on else "close_cover", dev["entity_id"])
-                verb = "Opening" if on else "Closing"
+                if on and not off:
+                    return {"ok": False, "say": f"For safety I don't open the {dev['name']} by voice. Use the phone or the I'm home button."}
+                ha_svc.call_service("cover", "close_cover", dev["entity_id"])
+                verb = "Closing"
             else:  # lock
-                ha_svc.call_service("lock", "unlock" if on else "lock", dev["entity_id"])
-                verb = "Unlocking" if on else "Locking"
+                if "unlock" in w or (on and not off):
+                    return {"ok": False, "say": "For safety I don't unlock doors by voice. Use the phone."}
+                ha_svc.call_service("lock", "lock", dev["entity_id"])
+                verb = "Locking"
             return {"ok": True, "say": f"{verb} {dev['name']}.", "refresh": True}
 
     # add to a list ("add …", "remind Rachell to …", "Ella needs to …")

@@ -63,5 +63,5 @@ def extract_person(conn, text: str):
                 cleaned = (text[:m.start()] + " " + text[m.end():]).strip()
                 cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,.:")
                 cleaned = re.sub(r"^(?:assign(?:ed)?|please)\s+", "", cleaned, flags=re.I).strip()
-                return pid, name, cleaned or text.strip()
+                return pid, name, cleaned
     return None, None, text.strip()

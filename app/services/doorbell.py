@@ -23,12 +23,12 @@ import socket
 import threading
 import time
 
-_last = {"at": 0.0, "kind": "", "camera": "", "name": "", "where": ""}
+_last = {"at": 0.0, "kind": "", "camera": "", "name": "", "where": "", "source": ""}
 _cooldown = {}        # entity_id -> last fire time
 
 
 def last() -> dict:
-    return dict(_last)
+    return {**_last, "tv_flashes": _TV_LOG[-10:]}
 
 
 def last_at() -> float:
@@ -56,7 +56,10 @@ def base_url() -> str:
     return f"http://{ip}:{os.getenv('PORT', '8000')}"
 
 
-_RING = re.compile(r"doorbell|door_bell|ring|chime|button", re.I)
+# whole words only: plain "ring" used to match names like "monitoring", so any such sensor flipping
+# fired a fake ring (and switched every Roku that was on to the doorbell picture)
+_RING = re.compile(r"doorbell|door_bell|door bell|door.{0,12}button|(?<![a-z])(ring|chime)(?![a-z])", re.I)
+_TV_LOG: list = []        # last Roku flashes: [{at, tv, source}]  -> GET /api/ha/doorbell
 _lc = lambda s: str(s or "").lower()
 
 
@@ -106,7 +109,7 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
         _cooldown[eid] = now
         cam, cam_name = _find_camera(states, name, eid)
         where = re.sub(r"(doorbell|door bell|button|ring|chime|motion|sensor|camera)", "", name, flags=re.I).strip() or "the door"
-        _last.update({"at": now, "kind": kind, "camera": cam, "name": cam_name or name, "where": where})
+        _last.update({"at": now, "kind": kind, "camera": cam, "name": cam_name or name, "where": where, "source": eid})
         threading.Thread(target=_fanout, args=(kind, cam, where), daemon=True).start()
     except Exception:
         pass
@@ -155,6 +158,8 @@ def _fanout(kind: str, cam: str, where: str):
                     continue
                 if st.get("state") in ("off", "unavailable", "standby", None):
                     continue           # don't wake a TV that's off
+                _TV_LOG.append({"at": time.time(), "tv": a.get("friendly_name") or eid, "source": _last.get("source", "")})
+                del _TV_LOG[:-20]
                 try:
                     ha_svc.call_service("media_player", "play_media", eid,
                                         {"media_content_type": "url", "media_content_id": img,

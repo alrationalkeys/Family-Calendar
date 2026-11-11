@@ -610,6 +610,14 @@
     border-left:1px solid var(--line); z-index:61; transform:translateX(100%); transition:transform .28s;
     padding:24px; overflow-y:auto}
   #settings-drawer.on{transform:translateX(0)}
+  #settings-drawer.all{width:560px}
+  .sd-tabs{display:flex; gap:6px; margin-bottom:18px}
+  .sd-tabs button{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--ink-dim); border-radius:10px; padding:10px; font:inherit; font-size:14px; font-weight:600; cursor:pointer}
+  .sd-tabs button.active{background:var(--now); border-color:var(--now); color:#1a1205}
+  #sd-all{display:none; height:calc(100vh - 150px)}
+  #settings-drawer.all #sd-all{display:block}
+  #settings-drawer.all .sd-native{display:none}
+  #sd-all iframe{width:100%; height:100%; border:0; border-radius:12px; background:var(--bg)}
   .sd-phone{display:block; background:var(--now); color:#1a1205; border-radius:12px; padding:11px 14px; text-decoration:none; margin-bottom:16px; font-size:14px}
   .sd-phone span{display:block; font-size:12px; opacity:.8; margin-top:2px}
   .sd-title{font-size:22px; font-weight:700; margin-bottom:20px}
@@ -823,7 +831,10 @@
 <!-- settings drawer -->
 <div id="settings-overlay"></div>
 <div id="settings-drawer">
-  <h2 class="sd-title">Display settings</h2>
+  <h2 class="sd-title">Settings</h2>
+  <div class="sd-tabs"><button id="sd-tab-display" class="active">Display</button><button id="sd-tab-all">Everything</button></div>
+  <div id="sd-all"><iframe id="sd-all-frame" title="All settings"></iframe></div>
+  <div class="sd-native">
   <a class="sd-phone" href="/phone.html">&#128241; <b>Open the phone app</b><span>add events &amp; family · routines · rewards · calendars · photos · Spotify · start fresh</span></a>
 
   <div class="sd-group"><label>Theme</label>
@@ -944,6 +955,7 @@
 
   <div class="sd-group"><label>Trouble?</label>
     <button class="sd-addbtn" id="sd-reload">&#8635; Reload the display</button>
+  </div>
   </div>
 
   <button class="sd-close" id="sd-close">Done</button>
@@ -1564,9 +1576,12 @@ function resetSleep(){ wake(); clearTimeout(sleepTimer); sleepTimer=setTimeout(g
 const ACCENTS = ["#e9a23b","#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e0533d","#3db5c9","#1d2430"];
 
 function openSettings(){ $("#settings-drawer").classList.add("on"); $("#settings-overlay").classList.add("on"); syncSettingsUI(); }
-function closeSettings(){ $("#settings-drawer").classList.remove("on"); $("#settings-overlay").classList.remove("on"); load(); }
+function closeSettings(){ $("#settings-drawer").classList.remove("on"); $("#settings-overlay").classList.remove("on"); load(); if($("#sd-all-frame").src) syncSettings(); }   // pick up anything changed on the Everything tab right away
 
 $("#gear").onclick=openSettings;
+/* "Everything" = the phone app's full settings page, embedded, so the wall and phone always offer the same options */
+$("#sd-tab-all").onclick=()=>{ $("#settings-drawer").classList.add("all"); $("#sd-tab-all").classList.add("active"); $("#sd-tab-display").classList.remove("active"); const f=$("#sd-all-frame"); if(!f.src) f.src="/phone.html?embed=settings"; };
+$("#sd-tab-display").onclick=async()=>{ $("#settings-drawer").classList.remove("all"); $("#sd-tab-display").classList.add("active"); $("#sd-tab-all").classList.remove("active"); await syncSettings(); syncSettingsUI(); };
 $("#sd-close").onclick=closeSettings;
 $("#sd-reload").onclick=()=>location.reload();
 $("#settings-overlay").onclick=closeSettings;

@@ -289,6 +289,10 @@
   .remote-apps{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
   .remote-apps .rbtn{font-size:13px; padding:10px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .remote-apps .rbtn.cur{outline:2px solid var(--now)}
+  /* embed=settings: shown inside the wall's settings drawer (iframe) — just the settings, no chrome */
+  body.embed{padding:0 4px 24px; max-width:none}
+  body.embed>h1, body.embed .topnav, body.embed #view-settings>.sub, body.embed #startfresh{display:none}
+  body.embed #view-settings .form.sect{margin:0 0 14px}
 </style>
 </head>
 <body>
@@ -909,7 +913,7 @@ function switchView(v){
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
   if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 8000); }
-  try{ localStorage.setItem("fh_view", v); }catch(e){}
+  if(!document.body.classList.contains("embed")) try{ localStorage.setItem("fh_view", v); }catch(e){}
 }
 
 /* ===================== Home tab: the house in your pocket ===================== */
@@ -1181,7 +1185,9 @@ function renderHM(h, force){
   body.querySelectorAll(".hm-dchip").forEach(c=>{ c.onclick=async()=>{ await post("/api/ha/spotify",{action:"source",value:c.dataset.src}).catch(()=>{}); setTimeout(loadHM,800); }; });
 }
 // come back to the tab you were on last time
-try{ const v=localStorage.getItem("fh_view"); if(v&&v!=="add"&&$("#view-"+v)) setTimeout(()=>switchView(v),0); }catch(e){}
+const EMBED = new URLSearchParams(location.search).get("embed");
+if(EMBED==="settings"){ document.body.classList.add("embed"); setTimeout(()=>switchView("settings"),0); }
+else try{ const v=localStorage.getItem("fh_view"); if(v&&v!=="add"&&$("#view-"+v)) setTimeout(()=>switchView(v),0); }catch(e){}
 
 /* ---- TV remote (same /api/ha/media backend as the wall's remote) ---- */
 let tvEid=null, tvList=[];
@@ -1282,7 +1288,7 @@ function loadSettingsUI(){
   });
   // effects
   $("#set-skin-art").checked=s.skinArt!==false; $("#set-skin-art").onchange=e=>FH.save({skinArt:e.target.checked});
-  if(window.Skins&&!$("#set-skin-previews").children.length) Skins.list().forEach(k=>{ const a=document.createElement("a"); a.className="tool"; a.href="/?skin="+k.key; a.target="_blank"; a.style.cssText="text-align:center; text-decoration:none"; a.textContent="👀 "+k.emoji+" "+k.name; $("#set-skin-previews").appendChild(a); });
+  if(window.Skins&&!$("#set-skin-previews").children.length) Skins.list().forEach(k=>{ const a=document.createElement("a"); a.className="tool"; a.href="/?skin="+k.key; a.target=document.body.classList.contains("embed")?"_top":"_blank"; a.style.cssText="text-align:center; text-decoration:none"; a.textContent="👀 "+k.emoji+" "+k.name; $("#set-skin-previews").appendChild(a); });
   $("#set-skin-banner").checked=s.skinBanner!==false; $("#set-skin-banner").onchange=e=>FH.save({skinBanner:e.target.checked});
   if(window.Skins&&$("#set-skin").options.length<=2) Skins.list().forEach(k=>{ const o=document.createElement("option"); o.value=k.key; o.textContent=k.emoji+" "+k.name; $("#set-skin").appendChild(o); });
   $("#set-skin").value=s.skin||"auto"; $("#set-skin").onchange=e=>{ FH.save({skin:e.target.value}); toast("Wall updated"); };

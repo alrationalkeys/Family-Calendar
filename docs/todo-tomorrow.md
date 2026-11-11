@@ -55,8 +55,11 @@
 - [ ] Install `docs/ha/peak-thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
 - [ ] Then simplify the Alarm.com schedule on BOTH thermostats, once: Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM; Cool 70° all day.
 
+## Live traffic for leave-by (optional, 5 min)
+- [ ] Free key at developer.tomtom.com → add `TOMTOM_API_KEY=...` to the wall's `.env` → phone Settings → Restart FamilyHub.
+      (Skip the Waze integration — it broke in early November.)
+
 ## Quick settings (Home Assistant)
-- [ ] Add **Waze Travel Time** (any start/end) so leave-by uses live traffic.
 - [x] Two-factor login — done Nov 11.
 
 ## Around the house

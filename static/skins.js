@@ -17,7 +17,7 @@ const Skins = (() => {
       corners: "christmas",
       // painted frame (Midjourney, keyed to transparent). zoom crops the thick posts partly off-screen;
       // pad = how far the live content stays from each screen edge; hpad = extra header side padding (lanterns)
-      art: { src: "/skins/christmas-frame.png", zoom: 1.0, pad: { t: 138, r: 200, b: 160, l: 236 }, hpad: 70 }
+      art: { src: "/skins/christmas-frame.png", zoom: 1.0, pad: { t: 180, r: 228, b: 158, l: 232 }, hpad: 60 }
     },
     thanksgiving: {
       name: "Thanksgiving", effect: "leaves",

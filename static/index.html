@@ -953,7 +953,8 @@
     </div>
     <div class="sd-hint">Auto: Thanksgiving from Nov 1, Christmas from the day after Thanksgiving through New Year's Day, and Birthday on any family member's birthday (set birthdays in the phone app → Family members).</div>
     <div class="sd-toggles" style="margin-top:10px"><label><input type="checkbox" id="sd-skin-banner"> Show the "Days until…" card in the header</label>
-      <label><input type="checkbox" id="sd-skin-art"> Painted frame artwork (off = simple drawn frame, more room)</label></div>
+      <label><input type="checkbox" id="sd-skin-art"> Painted frame artwork (off = simple drawn frame, more room)</label>
+      <label><input type="checkbox" id="sd-skin-slim"> Thin frame (crops the painting so the calendar gets more room)</label></div>
     <button class="prev" id="sd-skin-surprise" style="margin-top:8px">🛷 Fly Santa / 🦃 walk the turkey now</button>
   </div>
   <div class="sd-group"><label>Seasonal effects</label>
@@ -1707,6 +1708,7 @@ $("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); appl
   sync(); document.addEventListener("fh-settings", sync);
   const ct=$("#sd-caltasks"); if(ct){ ct.checked=FH.get().calendarTasks!==false; ct.onchange=()=>{ FH.save({calendarTasks:ct.checked}); render(); }; }
   const sb=$("#sd-skin-banner"); if(sb){ sb.checked=FH.get().skinBanner!==false; sb.onchange=()=>{ FH.save({skinBanner:sb.checked}); applySeasonal(); }; }
+  const ss=$("#sd-skin-slim"); if(ss){ ss.checked=FH.get().skinSlim!==false; ss.onchange=()=>{ FH.save({skinSlim:ss.checked}); applySeasonal(); }; }
   const sa=$("#sd-skin-art"); if(sa){ sa.checked=FH.get().skinArt!==false; sa.onchange=()=>{ FH.save({skinArt:sa.checked}); applySeasonal(); }; }
   const su=$("#sd-skin-surprise"); if(su) su.onclick=()=>{ closeSettings(); Skins.surprise(); resetSleep(); }; })();
 $("#sd-weatherfx").onchange=(e)=>{ FH.save({weatherFx:e.target.checked}); applySeasonal(); };

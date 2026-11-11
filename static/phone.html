@@ -486,6 +486,7 @@
     <div class="hint">Auto: Thanksgiving from Nov 1, Christmas from the day after Thanksgiving through New Year's Day, Birthday on any family member's birthday (set them under Family members). Changes the wall right away. The layout never changes, only the frame and colors.</div>
     <label class="chk"><input type="checkbox" id="set-skin-banner"> Show the "Days until…" card in the wall's header</label>
     <label class="chk"><input type="checkbox" id="set-skin-art"> Painted frame artwork (off = simple drawn frame, more screen room)</label>
+    <label class="chk"><input type="checkbox" id="set-skin-slim"> Thin frame (crops the painting so the calendar gets more room)</label>
     <div class="magic-tools" id="set-skin-previews"></div>
   </div>
 
@@ -1341,6 +1342,7 @@ function loadSettingsUI(){
     c.onchange=()=>saveNested("holidays",c.dataset.hol,c.checked);
   });
   // effects
+  $("#set-skin-slim").checked=s.skinSlim!==false; $("#set-skin-slim").onchange=e=>FH.save({skinSlim:e.target.checked});
   $("#set-skin-art").checked=s.skinArt!==false; $("#set-skin-art").onchange=e=>FH.save({skinArt:e.target.checked});
   if(window.Skins&&!$("#set-skin-previews").children.length) Skins.list().forEach(k=>{ const a=document.createElement("a"); a.className="tool"; a.href="/?skin="+k.key; a.target=document.body.classList.contains("embed")?"_top":"_blank"; a.style.cssText="text-align:center; text-decoration:none"; a.textContent="👀 "+k.emoji+" "+k.name; $("#set-skin-previews").appendChild(a); });
   $("#set-skin-banner").checked=s.skinBanner!==false; $("#set-skin-banner").onchange=e=>FH.save({skinBanner:e.target.checked});

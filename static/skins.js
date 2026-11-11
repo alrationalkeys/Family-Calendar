@@ -141,6 +141,7 @@ html[data-skin][data-skin-art="on"] .bottomnav{margin:0}
 #skin-walk.go{display:block; animation:walk var(--walk-s,18s) linear forwards}
 @keyframes walk{from{transform:translateX(105vw) scaleX(-1)}to{transform:translateX(-80px) scaleX(-1)}}
 #skin-walk span{display:inline-block; animation:waddle .45s ease-in-out infinite alternate}
+#skin-walk img{transform:scaleX(-1)}   /* the painted turkey faces left; the walk flips the whole thing, so flip him back */
 @keyframes waddle{from{transform:rotate(-7deg) translateY(0)}to{transform:rotate(7deg) translateY(-3px)}}
 html[data-skin][data-skin-banner="off"] #skin-banner{display:none}
 html[data-skin][data-skin-banner="off"] header{min-height:0}
@@ -303,7 +304,8 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
   function surprise(){ if (current === "christmas") santaFly(); else if (current === "thanksgiving") turkeyWalk(); }
 
   /* ---------- apply ---------- */
-  let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null, artOn = true, artEl = null;
+  let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null, artOn = true, artEl = null, slim = true;
+  const SLIM_ZOOM = 1.22;
   function ensure(){
     if (!artEl){ artEl = document.createElement("div"); artEl.id = "skin-art"; document.body.insertBefore(artEl, document.body.firstChild); }
     if (!styleEl){ styleEl = document.createElement("style"); styleEl.id = "skin-css"; styleEl.textContent = css; document.head.appendChild(styleEl); }
@@ -315,10 +317,14 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     const def = DEFS[kind], root = document.documentElement;
     artEl.style.backgroundImage = "";
     if (def.art && artOn){
+      // slim: zoom the painting so its border is cropped partly off-screen -> thinner frame, more room for the panels
+      const z = def.art.zoom * (slim ? SLIM_ZOOM : 1);
+      const inset = (p, full) => Math.max(40, Math.round(p * z - (z - 1) * full / 2));
       artEl.style.backgroundImage = `url("${def.art.src}")`;
-      root.style.setProperty("--skin-art-size", `${Math.round(def.art.zoom * 100)}% ${Math.round(def.art.zoom * 100)}%`);
-      ["t","r","b","l"].forEach(k => root.style.setProperty("--skin-pad-" + k, def.art.pad[k] + "px"));
-      root.style.setProperty("--skin-hpad", (def.art.hpad || 0) + "px");
+      root.style.setProperty("--skin-art-size", `${Math.round(z * 100)}% ${Math.round(z * 100)}%`);
+      root.style.setProperty("--skin-pad-t", inset(def.art.pad.t, 1080) + "px"); root.style.setProperty("--skin-pad-b", inset(def.art.pad.b, 1080) + "px");
+      root.style.setProperty("--skin-pad-l", inset(def.art.pad.l, 1920) + "px"); root.style.setProperty("--skin-pad-r", inset(def.art.pad.r, 1920) + "px");
+      root.style.setProperty("--skin-hpad", Math.round((def.art.hpad || 0) * z) + "px");
       return;
     }
     ["t","b","l","r"].forEach(k => { const b = document.createElement("div"); b.className = "bar " + k; frameEl.appendChild(b); });
@@ -363,6 +369,8 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     root.setAttribute("data-skin-banner", (settings && settings.skinBanner === false) ? "off" : "on");
     const wantArt = !(settings && settings.skinArt === false);
     if (wantArt !== artOn){ artOn = wantArt; current = null; }   // rebuild the frame when the art toggle flips
+    const wantSlim = !(settings && settings.skinSlim === false);
+    if (wantSlim !== slim){ slim = wantSlim; current = null; }
     if (!kind){ if (current){ stopSurprises(); root.removeAttribute("data-skin"); ["--skin-bg","--skin-gold","--skin-wood1","--skin-wood2","--skin-font"].forEach(v => root.style.removeProperty(v)); Object.keys(DEFS.christmas.vars).forEach(v => root.style.removeProperty(v)); frameEl.innerHTML = ""; bannerEl.innerHTML = ""; if (artEl) artEl.style.backgroundImage = ""; current = null; clearInterval(tick); if (typeof FH !== "undefined") FH.apply(FH.get()); } return null; }
     const def = DEFS[kind];
     root.setAttribute("data-skin", kind);

@@ -1,6 +1,6 @@
 # FamilyHub — automatic peak-hour thermostat changes (Nov 2026)
 #
-# What it does, every weekday (weekends too if you turn that on):
+# What it does, every day (Santee Cooper's peak includes weekends; turn the weekends helper off if your plan changes):
 #   - PRE-COOL / PRE-HEAT: an hour before peak, nudges both thermostats 2° the "comfortable" way so the
 #     house banks some cool (summer) or warmth (winter) while power is cheap.
 #   - PEAK: at peak start, remembers each thermostat's setting and moves it N° the energy-saving way
@@ -8,7 +8,7 @@
 #   - AFTER PEAK: puts each thermostat back exactly where it was.
 # Your Alarm.com/Resideo "Basic Schedule" keeps running the rest of the day; this only overrides it around peak.
 #
-# Santee Cooper peak hours: summer (Apr 1 – Oct 31) 3–6 PM, winter (Nov 1 – Mar 31) 6–9 AM, weekdays.
+# Santee Cooper peak hours: summer (Apr 1 – Oct 31) 3–6 PM, winter (Nov 1 – Mar 31) 6–9 AM, every day including weekends.
 # Change them any time in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
 #
 # INSTALL: check the two climate entity IDs below (Settings > Entities, search "thermostat"),
@@ -29,7 +29,7 @@ input_number:
 
 input_boolean:
   peak_enabled:  { name: Peak-hour thermostat changes, icon: mdi:transmission-tower, initial: true }
-  peak_weekends: { name: Peak hours on weekends too }
+  peak_weekends: { name: Peak hours on weekends too, initial: true }   # Santee Cooper: peak every day
   peak_active:   { name: Peak in progress (automatic) }
 
 template:

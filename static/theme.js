@@ -47,6 +47,7 @@ const FH = (() => {
     sleepArmStates: ["armed_night", "armed_home"],
     sleepStayWindow: ["20:00", "05:00"],
     closeGarageOnModes: true,
+    rokuApps: [],
     awayArm: "stay",
     homeAddress: "",
     leaveBuffer: 5,

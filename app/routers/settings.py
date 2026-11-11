@@ -51,6 +51,7 @@ DEFAULTS = {
     "sleepArmStates": ["armed_night", "armed_home"],
     "sleepStayWindow": ["20:00", "05:00"],
     "closeGarageOnModes": True,
+    "rokuApps": [],                  # TV remote: favorite apps shown first (both phones)
     "awayArm": "stay",               # Leaving arms Stay (dogs + motion sensors); "away" to arm Away      # Good night / Leaving close the garage door (like the Surety scenes)   # Armed Stay only means bedtime inside this window
     "homeAddress": "",               # where drive times start from (blank = Home Assistant's home location)
     "leaveBuffer": 5,                # minutes added to the drive for parking/walking in

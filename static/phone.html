@@ -498,6 +498,26 @@
   <div class="sub">Changes apply to the wall display and this phone.</div>
 
   <div class="form sect">
+    <h2>The wall</h2>
+    <div class="hint" id="wall-ver" style="font-family:ui-monospace,monospace">Checking version…</div>
+    <div class="two">
+      <button class="go" id="wall-update" style="background:#2f9e44">&#11015; Update the wall</button>
+      <button class="go" id="wall-restart" style="background:var(--panel2); color:var(--ink)">&#8635; Restart FamilyHub</button>
+    </div>
+    <div class="two">
+      <button class="go" id="wall-reload" style="background:var(--panel2); color:var(--ink)">&#8635; Reload the wall</button>
+      <button class="go" id="wall-wake" style="background:var(--panel2); color:var(--ink)">&#9728; Wake screen</button>
+    </div>
+    <div class="two">
+      <button class="go" id="wall-desktop" style="background:var(--panel2); color:var(--ink)">&#128421; Show Ubuntu desktop</button>
+      <button class="go" id="wall-kiosk" style="background:var(--panel2); color:var(--ink)">&#8617; Back to FamilyHub</button>
+    </div>
+    <button class="go" id="wall-osk-off" style="background:var(--panel2); color:var(--ink)">&#9000; Turn off Ubuntu's screen keyboard</button>
+    <div class="hint">Use these when you need Ubuntu's own settings on the wall. The desktop works by touch; tap Back to FamilyHub when you're done.</div>
+    <div class="hint"><b>Update</b> pulls the newest FamilyHub code and restarts, from anywhere (Tailscale). <b>Restart</b> re-reads .env. <b>Reload</b> refreshes the screen. <b>Wake</b> turns it on during the night window.</div>
+  </div>
+
+  <div class="form sect">
     <h2>Automations</h2>
     <div class="sub" style="margin:-4px 0 6px">Everything the house does on its own: peak hours, outdoor and holiday lights, kitchen lights.</div>
     <div id="au-box"><div class="hint">Loading…</div></div>
@@ -657,26 +677,6 @@
     <h2>Routines &amp; countdowns</h2>
     <div id="rc-list"></div>
     <div class="hint">Add new ones from the Add tab (Routine / Countdown).</div>
-  </div>
-
-  <div class="form sect">
-    <h2>The wall</h2>
-    <div class="hint" id="wall-ver" style="font-family:ui-monospace,monospace">Checking version…</div>
-    <div class="two">
-      <button class="go" id="wall-update" style="background:#2f9e44">&#11015; Update the wall</button>
-      <button class="go" id="wall-restart" style="background:var(--panel2); color:var(--ink)">&#8635; Restart FamilyHub</button>
-    </div>
-    <div class="two">
-      <button class="go" id="wall-reload" style="background:var(--panel2); color:var(--ink)">&#8635; Reload the wall</button>
-      <button class="go" id="wall-wake" style="background:var(--panel2); color:var(--ink)">&#9728; Wake screen</button>
-    </div>
-    <div class="two">
-      <button class="go" id="wall-desktop" style="background:var(--panel2); color:var(--ink)">&#128421; Show Ubuntu desktop</button>
-      <button class="go" id="wall-kiosk" style="background:var(--panel2); color:var(--ink)">&#8617; Back to FamilyHub</button>
-    </div>
-    <button class="go" id="wall-osk-off" style="background:var(--panel2); color:var(--ink)">&#9000; Turn off Ubuntu's screen keyboard</button>
-    <div class="hint">Use these when you need Ubuntu's own settings on the wall. The desktop works by touch; tap Back to FamilyHub when you're done.</div>
-    <div class="hint"><b>Update</b> pulls the newest FamilyHub code and restarts, from anywhere (Tailscale). <b>Restart</b> re-reads .env. <b>Reload</b> refreshes the screen. <b>Wake</b> turns it on during the night window.</div>
   </div>
 
   <div class="form sect">

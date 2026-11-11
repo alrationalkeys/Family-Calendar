@@ -25,6 +25,7 @@ degrades gracefully instead of showing a stack trace.
 from __future__ import annotations
 
 import os
+import re
 import time
 import copy
 import json
@@ -671,7 +672,7 @@ def get_home() -> dict:
         states = [{"entity_id": eid, "state": v["state"],
                    "attributes": v.get("attributes", {})}
                   for eid, v in _DEMO.items()]
-        tiles = _attach_areas(_states_to_tiles(states))
+        tiles = _name_garage(_attach_areas(_states_to_tiles(states)))
         sp = _spotify_from_states(states)
         if sp: sp["demo"] = True
         return {"connected": True, "demo": True,
@@ -682,7 +683,7 @@ def get_home() -> dict:
         live = states is not None
         if states is None:
             states = _request("/api/states")
-        tiles = _attach_areas(_states_to_tiles(states or []))
+        tiles = _name_garage(_attach_areas(_states_to_tiles(states or [])))
         return {"connected": True, "demo": False, "live": live,
                 "groups": _grouped(tiles), "count": len(tiles),
                 "spotify": _spotify_from_states(states or [])}
@@ -827,19 +828,60 @@ def media_info(entity_id: str) -> dict:
                 "muted": False, "reason": "can't reach Home Assistant"}
 
 
+_GARAGE = re.compile(r"garage", re.I)
+
+
+def has_garage_cover(tiles) -> bool:
+    return any(t["domain"] == "cover" and _GARAGE.search(t["name"] or "") for t in tiles)
+
+
+def opening_label(t, garage_cover: bool) -> str | None:
+    """What to call an open door/window sensor, or None to leave it out.
+    Alarm.com often names the contact on the house->garage door "Garage Door". When the real
+    garage door is a cover (MyQ), that cover is the garage door; the contact is the door INTO
+    the garage. A garage_door-class contact that just mirrors the cover is dropped as a duplicate."""
+    name = t["name"] or ""
+    dc = t.get("device_class")
+    if garage_cover and _GARAGE.search(name):
+        if dc == "garage_door":
+            return None
+        return "Door to garage"
+    return name
+
+
+def _name_garage(tiles: list) -> list:
+    """Home-tab tiles: once a garage cover exists, the contact Alarm.com calls "Garage Door" is
+    shown as "Door to garage", and a garage_door-class contact that duplicates the cover is hidden."""
+    if not has_garage_cover(tiles):
+        return tiles
+    out = []
+    for t in tiles:
+        if t["domain"] == "binary_sensor" and _GARAGE.search(t["name"] or "") and t.get("device_class") in ("door", "garage_door", "window", "opening"):
+            lbl = opening_label(t, True)
+            if not lbl:
+                continue
+            t = {**t, "name": lbl, "ha_name": t["name"]}
+        out.append(t)
+    return out
+
+
 def status() -> dict:
     """Light-weight status for the calendar's top bar: connected? alarm state?
     open doors/garage? a couple of temperatures?"""
     home = get_home()
     alarm, open_doors, temps = None, [], []
+    tiles = [t for grp in home.get("groups", []) for t in grp["tiles"]]
+    gcover = has_garage_cover(tiles)
     for grp in home.get("groups", []):
         for t in grp["tiles"]:
             if t["domain"] == "alarm_control_panel":
                 alarm = t["state"]
-            if t["domain"] == "binary_sensor" and t.get("device_class") in ("door", "garage_door", "window") and t["on"]:
-                open_doors.append(t["name"])
+            if t["domain"] == "binary_sensor" and t.get("device_class") in ("door", "garage_door", "window", "opening") and t["on"]:
+                lbl = opening_label(t, gcover)
+                if lbl and lbl not in open_doors:
+                    open_doors.append(lbl)
             if t["domain"] == "cover" and t["state"] in ("open", "opening"):
-                open_doors.append(t["name"])
+                open_doors.append("Garage door" if _GARAGE.search(t["name"] or "") else t["name"])
             if t["domain"] == "sensor" and t.get("device_class") == "temperature":
                 try:
                     temps.append({"name": t["name"], "value": round(float(t["state"])),

@@ -109,11 +109,14 @@ def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool
                     ha_svc.call_service("cover", "close_cover", t["entity_id"])
                     done.append(f"closed the {t['name']}")
                 else:
-                    warnings.append(f"the {t['name']} is still open")
+                    warnings.append("the garage door is still open" if re.search(r"garage", t["name"], re.I) else f"the {t['name']} is still open")
         # open doors/windows the sensors see
+        gcover = ha_svc.has_garage_cover(by("cover"))
         for t in by("binary_sensor"):
-            if t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"] and not re.search(r"garage", t["name"], re.I):
-                warnings.append(f"{t['name']} is open")
+            if t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"]:
+                lbl = ha_svc.opening_label(t, gcover)          # the house->garage door is reported, the cover's own twin isn't
+                if lbl:
+                    warnings.append(f"the {lbl.lower()} is open" if lbl == "Door to garage" else f"{lbl} is open")
         # alarm
         if arm:
             for t in by("alarm_control_panel"):

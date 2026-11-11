@@ -625,6 +625,9 @@
 
   #sleep{position:fixed; inset:0; background:#000; z-index:50; opacity:0; pointer-events:none; transition:opacity 1.2s}
   #sleep.on{opacity:1; pointer-events:auto}
+  /* the floating mic / timer / volume buttons can't be used over the slideshow, so hide them while it's up */
+  #voicefab, #volfab, #timerfab{transition:opacity .6s}
+  body.slideshow #voicefab, body.slideshow #volfab, body.slideshow #timerfab{opacity:0; pointer-events:none}
   #sleep img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 2s}
   #sleep img.show{opacity:1}
   /* photoFit="fit": whole photo visible (no cropping) over a blurred, zoomed copy of itself */
@@ -1716,7 +1719,7 @@ let sleepTimer, slideTimer, photos=[], pIdx=0, asleep=false;
 const sleepAfterMs=()=>{ const m=parseFloat(FH.get().slideshowAfter); return isNaN(m)?5*60000:m*60000; };
 const slideMs=()=>Math.max(3, parseFloat(FH.get().slideSeconds)||8)*1000;
 async function loadPhotos(){ try{ const r=await fetch("/api/photos/").then(r=>r.json()); photos=r.photos||[]; if(curPage==="photos") renderPhotosPage(); }catch(e){} }
-function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
+function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); document.body.classList.add("slideshow"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
 function showSlide(){
   const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
   const fit=(FH.get().photoFit||"fit")==="fit"; layer.classList.toggle("fit", fit);
@@ -1726,7 +1729,7 @@ function showSlide(){
   if(fit){ const bg=document.createElement("img"); bg.className="bg"; bg.src=src; layer.prepend(bg); requestAnimationFrame(()=>bg.classList.add("show")); }
   layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
 }
-function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer); tgScroll=null; render();} }   // fresh look: grid back to the day-start window
+function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on"); document.body.classList.remove("slideshow");clearInterval(slideTimer); tgScroll=null; render();} }   // fresh look: grid back to the day-start window
 function resetSleep(){ wake(); clearTimeout(sleepTimer); const ms=sleepAfterMs(); if(ms>0) sleepTimer=setTimeout(goToSleep,ms); maybeBriefing(); }
 ["click","touchstart","mousemove","keydown"].forEach(ev=>window.addEventListener(ev,resetSleep,{passive:true}));
 

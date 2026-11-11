@@ -29,7 +29,7 @@
       phones get a notification with the picture.
 - [ ] **Live camera:** open a camera on the wall and on the phone — does it play live or stay a still?
 - [ ] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
-- [ ] **Sleep mode:** arm the IQ Panel for the night — the wall should go dark right away and stay dark
+- [x] **Sleep mode** works (tested Nov 11 with the panel's Sleep scene). ~~arm the IQ Panel for the night — the wall should go dark right away and stay dark
       (a tap shows it for a minute). Disarm in the morning — it comes back. If it doesn't go dark, tell Claude
       what the panel's arming mode is called (Night / Sleep / Stay).
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
@@ -44,9 +44,13 @@
 - [ ] New battery (PG9303 = CR2032, PG9945 = CR123A), fix the magnet gap (≤ ½ in, marks lined up, off metal),
       test 5× at the panel's sensor screen and compare its signal to a good door. Still bad → Surety support for a swap.
 
+## Thermostat peak hours
+- [ ] Tell Claude your power company + its peak hours (summer and winter, weekdays only?) and how many degrees you usually change.
+- [ ] Install `docs/ha/peak-thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
+
 ## Quick settings (Home Assistant)
 - [ ] Add **Waze Travel Time** (any start/end) so leave-by uses live traffic.
-- [ ] Turn on **two-factor login** (your profile → Multi-factor authentication).
+- [x] Two-factor login — done Nov 11.
 
 ## Around the house
 - [ ] 4× AA (lithium) in the **side-door Kwikset** (Alarm.com critical battery).

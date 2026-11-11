@@ -58,8 +58,19 @@ def _sleep_settings():
         s = get_settings() or {}
     except Exception:
         s = {}
-    states = s.get("sleepArmStates") or ["armed_night"]
+    states = s.get("sleepArmStates") or ["armed_night", "armed_home"]
     return s.get("sleepOnNightArm", True) is not False, set(states)
+
+
+def _stay_counts_as_bedtime(now=None) -> bool:
+    """Surety's Sleep scene arms STAY. Stay also gets used in the daytime, so Stay only means
+    'bedtime' inside settings.sleepStayWindow (default 8 PM to 5 AM). Night always counts."""
+    try:
+        from ..routers.settings import get_settings
+        w = (get_settings() or {}).get("sleepStayWindow") or ["20:00", "05:00"]
+    except Exception:
+        w = ["20:00", "05:00"]
+    return _in_night_window(now or datetime.now(), {"off_start": w[0], "off_end": w[1]})
 
 
 def enter_sleep(reason="alarm"):
@@ -88,7 +99,7 @@ def on_alarm(new_state: str | None, old_state: str | None = None):
         return
     prev = _state["alarm"] if old_state is None else old_state
     _state["alarm"] = new_state
-    if new_state in arm_states:
+    if new_state in arm_states and (new_state != "armed_home" or _stay_counts_as_bedtime()):
         enter_sleep()
     elif _state["sleep_mode"] and new_state == "disarmed":
         exit_sleep()          # only disarming ends the night: a Stay fallback or leaving (Away) keeps it dark

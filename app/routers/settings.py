@@ -48,7 +48,8 @@ DEFAULTS = {
     "skinSlim": True,                # crop the painted frame so it's thinner and the panels get more room
     "calendarTasks": True,
     "sleepOnNightArm": True,         # alarm armed for the night -> wall dark (no screensaver) until morning
-    "sleepArmStates": ["armed_night"],
+    "sleepArmStates": ["armed_night", "armed_home"],
+    "sleepStayWindow": ["20:00", "05:00"],   # Armed Stay only means bedtime inside this window
     "homeAddress": "",               # where drive times start from (blank = Home Assistant's home location)
     "leaveBuffer": 5,                # minutes added to the drive for parking/walking in
     "leaveAlerts": True,             # show "Leave in N min" on the wall for events with a place           # due-dated to-dos + chores show as all-day chips on the calendar

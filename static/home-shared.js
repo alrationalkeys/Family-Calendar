@@ -15,7 +15,7 @@
   const PLAN_W=38, MIRROR=true;
   const ROOMS_DRAWN=[
     // ---- first floor ----
-    {floor:1, name:"Patio",     key:"patio",     gx:28,   gy:0,    gw:10,   gd:8,    open:true},
+    {floor:1, name:"Back Porch", key:"patio",     gx:28,   gy:0,    gw:10,   gd:8,    open:true},
     {floor:1, name:"Bedroom 4", key:"bedroom 4", gx:0,    gy:8,    gw:11,   gd:13,   bed:"e"},
     {floor:1, name:"Living",    key:"living",    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w"},
     {floor:1, name:"Dining",    key:"dining",    gx:25,   gy:8,    gw:13,   gd:13.4},
@@ -29,7 +29,7 @@
     {floor:1, name:"Pantry",    key:"pantry",    gx:25,   gy:31.8, gw:7.7,  gd:8.7},
     {floor:1, name:"Butler's",  key:"butler",    gx:32.7, gy:31.8, gw:5.3,  gd:8.7},
     {floor:1, name:"Flex Room", key:"flex",      gx:25,   gy:40.5, gw:13,   gd:11.7, tv:"n"},
-    {floor:1, name:"Porch",     key:"porch",     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
+    {floor:1, name:"Front Porch", key:"porch",     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
     // ---- second floor ----
     {floor:2, name:"Sitting",       key:"sitting",       gx:0,    gy:8,    gw:9.5,  gd:13.8},
     {floor:2, name:"Bedroom 1",     key:"master",        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n"},
@@ -150,17 +150,25 @@
   function getPlan(){ return isCustomLayout()?null:DEFAULT_PLAN; }
   function layoutExtent(rooms){ let m=0; rooms.forEach(r=>{ m=Math.max(m,r.gx+r.gw,r.gy+r.gd); }); return m||1; }
   function isCustomLayout(){ const c=(typeof FH!=="undefined"&&FH.get().homeLayout); return Array.isArray(c)&&c.length>0; }
+  /* which plan room a device belongs to: anything "back" + porch/patio/deck goes to the back porch,
+     then the HA Area by name, then the room key in the device name, then the key in its Area */
+  function roomFor(t, rooms){
+    const lc=s=>String(s||"").toLowerCase(), txt=lc(t.name)+" "+lc(t.area);
+    if(/\bback\b/.test(txt)&&/porch|patio|deck/.test(txt)){ const b=rooms.find(r=>/patio|back porch/.test(lc(r.key)+" "+lc(r.name))); if(b) return b; }
+    return rooms.find(r=>lc(t.area)&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area).includes(lc(r.key))) || null;
+  }
   function tilesOf(h){ return (h.groups||[]).reduce((a,g)=>a.concat(g.tiles||[]),[]); }
   function resolveRooms(h){
     const tiles=tilesOf(h);
     const lc=s=>String(s||"").toLowerCase();
     const byId=id=>tiles.find(t=>t.entity_id===id);
-    const byKey=(dom,k,dc)=>tiles.find(t=>t.domain===dom&&(!dc||t.device_class===dc)&&(lc(t.name).includes(lc(k))||lc(t.area||"").includes(lc(k))));
-    return getLayout().map(r=>{
-      const light=(r.light&&byId(r.light))||byKey("light",r.key);
-      const cover=(r.cover&&byId(r.cover))||byKey("cover",r.key);
-      const temp =(r.temp &&byId(r.temp)) ||byKey("sensor",r.key,"temperature");
-      const media=byKey("media_player",r.key);
+    const layout=getLayout();
+    const byKey=(dom,k,dc,r)=>tiles.find(t=>t.domain===dom&&(!dc||t.device_class===dc)&&(lc(t.name).includes(lc(k))||lc(t.area||"").includes(lc(k)))&&roomFor(t,layout)===r);
+    return layout.map(r=>{
+      const light=(r.light&&byId(r.light))||byKey("light",r.key,null,r);
+      const cover=(r.cover&&byId(r.cover))||byKey("cover",r.key,null,r);
+      const temp =(r.temp &&byId(r.temp)) ||byKey("sensor",r.key,"temperature",r);
+      const media=byKey("media_player",r.key,null,r);
       const ctrl=light||cover;
       const on=light?light.on:(cover?cover.state!=="closed":(media?media.on:false));
       return {...r, light, cover, temp, media, ctrl, on};
@@ -237,7 +245,7 @@
 
   window.FHHome = {
     DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc,
-    getLayout, getPlan, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
+    getLayout, getPlan, roomFor, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
     renderFloorView, renderIsoView,
     get floor(){ return homeFloor; }, set floor(f){ homeFloor=f; },
     // pages override these

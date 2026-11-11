@@ -1175,8 +1175,7 @@ function renderHM(h, force){
     rooms.forEach(r=>{ byRoom.set(r.name+"|"+(r.floor||1), {room:r, devs:[]}); });
     tiles.forEach(t=>{
       if(!(t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor")) return;
-      const lc=s=>String(s||"").toLowerCase();
-      const hit=rooms.find(r=>lc(t.area||"")&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area||"").includes(lc(r.key)));
+      const hit=FHHome.roomFor(t, rooms);
       if(hit){ byRoom.get(hit.name+"|"+(hit.floor||1)).devs.push(t); used.add(t.entity_id); }
     });
     const other=tiles.filter(t=>!used.has(t.entity_id)&&t.domain!=="scene"&&t.domain!=="script"&&(t.toggleable||t.domain==="media_player"||t.domain==="sensor"));

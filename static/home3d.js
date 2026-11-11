@@ -295,7 +295,7 @@
     const want=t=>t.toggleable||t.activatable||t.domain==="media_player"||t.domain==="sensor"||t.domain==="binary_sensor"||t.domain==="lock"||t.domain==="climate"||t.domain==="cover"||t.domain==="camera";
     tiles.forEach(t=>{
       if(!want(t)||t.domain==="scene"||t.domain==="script") return;
-      const hit=rooms.find(r=>lc(t.area)&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area||"").includes(lc(r.key)));
+      const hit=FHHome.roomFor(t, rooms);
       if(hit){ out.get(hit).push(t); used.add(t.entity_id); }
     });
     tiles.forEach(t=>{ if(used.has(t.entity_id)) return;

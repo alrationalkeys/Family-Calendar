@@ -6,6 +6,8 @@ when to leave. Two sources, best first:
   1. Home Assistant's Waze Travel Time integration (free, live traffic). Needs the integration
      added once in HA (Settings -> Devices & services -> Add -> Waze Travel Time, any route);
      we then call its `waze_travel_time.get_travel_times` action with our own origin/destination.
+  1b. TomTom Routing (live traffic, free tier 2,500 requests/day) when TOMTOM_API_KEY is in .env.
+     Used when Waze isn't set up or fails (Waze's integration broke in early Nov 2026).
   2. Fallback with no traffic: OpenStreetMap's Nominatim to find the place + the public OSRM
      router for the drive. Both free, no key. A generic User-Agent, nothing personal sent.
 
@@ -94,6 +96,23 @@ def _waze(orig: str, dest: str) -> float | None:
         return None
 
 
+def _tomtom(orig: str, dest: str) -> float | None:
+    import os
+    key = os.getenv("TOMTOM_API_KEY", "").strip()
+    if not key:
+        return None
+    a, b = _coords(orig), _coords(dest)
+    if not a or not b:
+        return None
+    try:
+        url = (f"https://api.tomtom.com/routing/1/calculateRoute/{a[0]},{a[1]}:{b[0]},{b[1]}/json?"
+               + urllib.parse.urlencode({"key": key, "traffic": "true", "travelMode": "car", "routeType": "fastest"}))
+        res = _get_json(url)
+        return float(res["routes"][0]["summary"]["travelTimeInSeconds"]) / 60.0
+    except Exception:
+        return None
+
+
 def _osrm(orig: str, dest: str) -> float | None:
     a, b = _coords(orig), _coords(dest)
     if not a or not b:
@@ -115,6 +134,9 @@ def drive(dest: str) -> dict | None:
     orig = origin()
     m = _waze(orig, dest)
     out = {"minutes": round(m), "traffic": True, "source": "waze"} if m is not None else None
+    if out is None:
+        m = _tomtom(orig, dest)
+        out = {"minutes": round(m), "traffic": True, "source": "tomtom"} if m is not None else None
     if out is None:
         m = _osrm(orig, dest)
         out = {"minutes": round(m * 1.1), "traffic": False, "source": "osrm"} if m is not None else None   # +10%: no live traffic

@@ -1,0 +1,163 @@
+# FamilyHub — kitchen + back patio lights, rebuilt from the Alexa routines (Nov 2026)
+#
+# HOW TO INSTALL (once the four GLEDOPTO controllers, the Aqara motion sensor and the button are
+# paired to the Zigbee stick, and the Govee Back Patio light is in Home Assistant):
+#   1. In Home Assistant: Settings > Devices & services > Entities. Rename the entity IDs to match
+#      the names below (click the entity > gear > Entity ID). Easiest, because then nothing here
+#      needs editing:
+#        light.fridge_upper        light.stove_upper
+#        light.fridge_lower        light.stove_lower
+#        light.back_patio                     (Govee, already in HA)
+#        binary_sensor.kitchen_motion         (Aqara motion sensor)
+#        sensor.kitchen_illuminance           (same sensor's light level; optional, see bottom)
+#   2. Put this file in /config/packages/ (File editor or Studio Code Server add-on), and make sure
+#      configuration.yaml has:
+#        homeassistant:
+#          packages: !include_dir_named packages
+#   3. Developer tools > YAML > Check configuration, then Restart.
+#   4. Turn the matching Alexa routines OFF (don't delete yet) so the two systems don't fight.
+#
+# Each automation below is one Alexa routine, same times, same brightness, same colours.
+# Warm White = 2700 K, Cool White = 5000 K.
+
+automation:
+
+  # Alexa: "Kitchen Upper Lights Evening" — 8:00 PM: uppers on warm white 10 %, back patio on cool white
+  - id: fh_kitchen_evening
+    alias: "Kitchen: uppers + patio on at 8 PM"
+    triggers:
+      - trigger: time
+        at: "20:00:00"
+    actions:
+      - action: light.turn_on
+        target: { entity_id: [light.fridge_upper, light.stove_upper] }
+        data: { brightness_pct: 10, color_temp_kelvin: 2700 }
+      - action: light.turn_on
+        target: { entity_id: light.back_patio }
+        data: { color_temp_kelvin: 5000 }
+
+  # Alexa: "Govee Lights Off" — 9:45 PM: back patio off
+  - id: fh_patio_off
+    alias: "Patio: off at 9:45 PM"
+    triggers:
+      - trigger: time
+        at: "21:45:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: light.back_patio }
+
+  # Alexa: "Kitchen Uppers Off at Midnight"
+  - id: fh_kitchen_uppers_midnight
+    alias: "Kitchen: uppers off at midnight"
+    triggers:
+      - trigger: time
+        at: "00:00:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: [light.fridge_upper, light.stove_upper] }
+
+  # Alexa: "Kitchen Uppers Motion Activated" — motion, 12 AM to 8 AM: uppers on warm white 20 %
+  - id: fh_kitchen_uppers_motion_on
+    alias: "Kitchen: uppers on with motion overnight"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.kitchen_motion
+        to: "on"
+    conditions:
+      - condition: time
+        after: "00:00:00"
+        before: "08:00:00"
+    actions:
+      - action: light.turn_on
+        target: { entity_id: [light.fridge_upper, light.stove_upper] }
+        data: { brightness_pct: 20, color_temp_kelvin: 2700 }
+
+  # Alexa: "Kitchen Uppers Auto-Off" — no motion for 10 min, 12 AM to 8 AM: uppers off
+  - id: fh_kitchen_uppers_motion_off
+    alias: "Kitchen: uppers off after 10 min quiet overnight"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.kitchen_motion
+        to: "off"
+        for: "00:10:00"
+    conditions:
+      - condition: time
+        after: "00:00:00"
+        before: "08:00:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: [light.fridge_upper, light.stove_upper] }
+
+  # Alexa: "Kitchen Lowers Motion On" — motion, 8 PM to 8 AM: lowers on warm white 20 %
+  - id: fh_kitchen_lowers_motion_on
+    alias: "Kitchen: lowers on with motion at night"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.kitchen_motion
+        to: "on"
+    conditions:
+      - condition: time
+        after: "20:00:00"
+        before: "08:00:00"
+    actions:
+      - action: light.turn_on
+        target: { entity_id: [light.fridge_lower, light.stove_lower] }
+        data: { brightness_pct: 20, color_temp_kelvin: 2700 }
+
+  # Alexa: "Kitchen Lowers Off No Motion" — no motion for 10 min, 8 PM to 8 AM: lowers off
+  - id: fh_kitchen_lowers_motion_off
+    alias: "Kitchen: lowers off after 10 min quiet at night"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.kitchen_motion
+        to: "off"
+        for: "00:10:00"
+    conditions:
+      - condition: time
+        after: "20:00:00"
+        before: "08:00:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: [light.fridge_lower, light.stove_lower] }
+
+  # Alexa: "Kitchen Lights Off at 8:10 AM" — the screenshot shows the two uppers; all four are turned
+  # off here so nothing is left on for the day (the lowers are night-only anyway).
+  - id: fh_kitchen_morning_off
+    alias: "Kitchen: everything off at 8:10 AM"
+    triggers:
+      - trigger: time
+        at: "08:10:00"
+    actions:
+      - action: light.turn_off
+        target: { entity_id: [light.fridge_upper, light.stove_upper, light.fridge_lower, light.stove_lower] }
+
+  # Alexa: "Single Press Lights On" / "Double Press Lights Off" — the Aqara button.
+  # PLACEHOLDER until the details are confirmed: single press = all four kitchen lights on (warm white,
+  # 100 %), double press = all four off. Easiest way to wire the button: create these two in the UI
+  # (Settings > Automations > Create > "Device" trigger > the button > "single press" / "double press")
+  # and copy the actions below into them; then delete these two YAML ones.
+  - id: fh_kitchen_button_single
+    alias: "Kitchen button: single press = lights on"
+    triggers:
+      - trigger: event
+        event_type: zha_event
+        event_data: { command: single }        # add  device_ieee: "xx:xx:..."  from the button's ZHA page
+    actions:
+      - action: light.turn_on
+        target: { entity_id: [light.fridge_upper, light.stove_upper, light.fridge_lower, light.stove_lower] }
+        data: { brightness_pct: 100, color_temp_kelvin: 2700 }
+  - id: fh_kitchen_button_double
+    alias: "Kitchen button: double press = lights off"
+    triggers:
+      - trigger: event
+        event_type: zha_event
+        event_data: { command: double }        # add  device_ieee: "xx:xx:..."  from the button's ZHA page
+    actions:
+      - action: light.turn_off
+        target: { entity_id: [light.fridge_upper, light.stove_upper, light.fridge_lower, light.stove_lower] }
+
+# OPTIONAL upgrade Alexa couldn't do: only light up on motion when the kitchen is actually dark.
+# Add this under `conditions:` in the two "on with motion" automations above:
+#      - condition: numeric_state
+#        entity_id: sensor.kitchen_illuminance
+#        below: 30

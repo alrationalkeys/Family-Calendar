@@ -1229,7 +1229,7 @@ function renderRoom(){
 }
 /* ---- thermostat pop-up: mode, setpoint(s), fan; taps are batched and sent after a short pause ---- */
 let _thPend=null, _thTimer=null;
-const TH_MODE={off:"Off", heat:"Heat", cool:"Cool", heat_cool:"Auto", auto:"Auto", dry:"Dry", fan_only:"Fan"};
+const TH_MODE={off:"Off", heat:"Heat", cool:"Cool", heat_cool:"Heat/Cool", auto:"Auto", dry:"Dry", fan_only:"Fan"};
 function renderThermostat(){
   const E=FHHome.esc, tiles=FHHome.tilesOf(hmLast||{}), t=tiles.find(x=>x.entity_id===_rmKey.climate);
   $("#rm-3d").hidden=true;
@@ -1246,11 +1246,13 @@ function renderThermostat(){
   const modes=(t.hvac_modes||["off","heat","cool","heat_cool"]).filter(m=>TH_MODE[m]);
   h+=`<div class="th-lab">Mode</div><div class="th-chips">${modes.map(m=>`<button data-mode="${m}" class="${m===mode?"on":""} ${m==="heat"?"heat":m==="cool"?"cool":""}">${TH_MODE[m]}</button>`).join("")}</div>`;
   const row=(cls,label,sub,key,val)=>`<div class="th-set ${cls}"><div class="l">${label}<small>${sub}</small></div><button data-adj="${key}" data-d="-1" aria-label="${label} down">−</button><div class="v">${val!=null?E(val)+"°":"—"}</div><button data-adj="${key}" data-d="1" aria-label="${label} up">+</button></div>`;
-  if(mode==="heat_cool"||mode==="auto"){
-    h+=`<div class="th-lab">Keep it between</div>`+row("heat","Heat to","heat comes on below","low",low)+row("cool","Cool to","AC comes on above","high",high);
-  } else if(mode==="heat"||mode==="cool"){
-    h+=`<div class="th-lab">Set to</div>`+row(mode,mode==="heat"?"Heat to":"Cool to",mode==="heat"?"heat runs below this":"AC runs above this","temp",one);
-  } else h+=`<div class="hint" style="margin-top:10px">The system is off. Pick Heat, Cool or Auto to turn it on.</div>`;
+  // show the setpoints the thermostat actually reports (a range, or one number), not what the mode name suggests
+  const range=(low!=null||high!=null)&&(mode==="heat_cool"||mode==="auto"||one==null);
+  if(mode==="off") h+=`<div class="hint" style="margin-top:10px">The system is off. Pick Heat, Cool or Heat/Cool to turn it on.</div>`;
+  else if(range) h+=`<div class="th-lab">Keep it between</div>`+row("heat","Heat to","heat comes on below","low",low)+row("cool","Cool to","AC comes on above","high",high);
+  else { const c=mode==="heat"?"heat":mode==="cool"?"cool":(act==="heating"?"heat":act==="cooling"?"cool":"");
+    h+=`<div class="th-lab">Set to</div>`+row(c,c==="heat"?"Heat to":c==="cool"?"Cool to":"Target",c==="heat"?"heat runs below this":c==="cool"?"AC runs above this":(mode==="auto"?"the thermostat decides heat or cool":""),"temp",one); }
+  if(mode==="auto") h+=`<div class="hint" style="margin-top:6px">Auto: the thermostat decides on its own (usually following its Alarm.com schedule). Heat/Cool keeps it between two numbers you pick.</div>`;
   if(t.fan_modes&&t.fan_modes.length) h+=`<div class="th-lab">Fan</div><div class="th-chips">${t.fan_modes.map(f=>`<button data-fan="${E(f)}" class="${f===t.fan_mode?"on":""}">${E(f.charAt(0).toUpperCase()+f.slice(1).replace(/_/g," "))}</button>`).join("")}</div>`;
   h+=`<div class="hint" style="margin-top:12px">Your Alarm.com schedule can change this later; the peak-hours routine still turns the system off during peak.</div><div class="rm-eid" style="margin-left:0">${E(t.entity_id)}</div>`;
   const list=$("#rm-list"); if(list.dataset.sig===h) return; list.dataset.sig=h; list.innerHTML=h;
@@ -1267,7 +1269,7 @@ function renderThermostat(){
     if(k==="high"&&(_thPend.low??low)!=null&&v<(_thPend.low??low)+2) return toast("Cool has to stay at least 2° above heat");
     _thPend[k]=v; b.parentElement.querySelector(".v").textContent=v+"°"; _rmBusy=Date.now()+3000;
     clearTimeout(_thTimer); _thTimer=setTimeout(()=>{ const pd=_thPend; if(!pd) return;
-      const data=(mode==="heat_cool"||mode==="auto")?{target_temp_low:pd.low??low, target_temp_high:pd.high??high}:{temperature:pd.temp??one};
+      const data=range?{target_temp_low:pd.low??low, target_temp_high:pd.high??high}:{temperature:pd.temp??one};
       toast(`${t.name}: `+(data.temperature!=null?data.temperature+"°":`${data.target_temp_low}°–${data.target_temp_high}°`)); svc("set_temperature",data); }, 1200); });
 }
 function openRoom(key){ _rmKey=key; if(navigator.vibrate) navigator.vibrate(6); $("#rm-list").dataset.sig=""; renderRoom(); $("#rmov").classList.add("on"); }

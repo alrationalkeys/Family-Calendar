@@ -264,6 +264,15 @@
   .rm-dim input{flex:1; -webkit-appearance:none; appearance:none; height:8px; border-radius:4px; background:linear-gradient(90deg, color-mix(in srgb,var(--now) 35%, var(--panel2)), var(--now)); margin:0}
   .rm-dim input::-webkit-slider-thumb{-webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.4)}
   .rm-dim input::-moz-range-thumb{width:26px; height:26px; border:0; border-radius:50%; background:#fff} .rm-dim small{width:38px; text-align:right; color:var(--ink-dim); font-size:12px}
+  #wkov{position:fixed; inset:0; z-index:85; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px}
+  #wkov.on{display:flex}
+  .wk-card{background:var(--panel); color:var(--ink); border-radius:22px; padding:18px; width:100%; max-width:340px; text-align:center}
+  .wk-card h3{margin:0 0 4px; font-size:20px} .wk-sub{font-size:13px; color:var(--ink-dim)}
+  .wk-dots{font-size:30px; letter-spacing:8px; height:40px; margin:8px 0}
+  .wk-keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .wk-keys button{height:62px; border:0; border-radius:16px; background:var(--panel2); color:var(--ink); font:inherit; font-size:24px; font-weight:600}
+  .wk-keys button:active{background:var(--now); color:#fff}
+  .wk-x{margin-top:12px; border:0; background:none; color:var(--ink-dim); font:inherit; font-size:15px; padding:8px 16px}
   .hm-clim-row{cursor:pointer} .hm-clim-row .rv::after{content:" ›"; color:var(--ink-dim); font-weight:400}
   .th-now{display:flex; align-items:flex-end; justify-content:space-between; margin:4px 0 12px}
   .th-now .big{font-size:56px; font-weight:300; line-height:1}
@@ -544,9 +553,10 @@
     <div class="srow"><span>Extra minutes to park &amp; walk in</span><input id="set-leavebuf" type="number" min="0" max="30" style="width:84px; margin:0"></div>
     <label class="chk"><input type="checkbox" id="set-leave"> Wall shows "Leave in N min" for events with a place, and says it at leave time</label>
     <div class="srow"><span>Good Night sets the thermostat to</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
+    <label class="chk"><input type="checkbox" id="set-opengarage"> I'm home opens the garage door (after the alarm is disarmed)</label>
     <div class="srow"><span>I'm home sets the thermostat to</span><input id="set-hometemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
     <div class="srow"><span>Leaving sets the thermostat to</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
-    <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. I'm home turns on the porch, driveway and entry lights after dark (it never disarms the alarm). Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
+    <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. I'm home works like the Surety Home scene: asks for the alarm code, disarms, opens the garage, lights on after dark (voice "I'm home" only does lights). Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
     <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage door (like the Surety Sleep and Away scenes)</label>
     <label class="chk"><input type="checkbox" id="set-sleeparm"> Wall goes dark (no photo screensaver) when the alarm is armed for the night (Stay between 8 PM and 5 AM, or Night), until it's disarmed in the morning or someone says "good morning". A tap shows it for a minute.</label>
     <label class="chk"><input type="checkbox" id="set-brief"> Auto-speak a morning briefing when someone first walks up (off = only the ☀️ button or when asked)</label>
@@ -1087,10 +1097,30 @@ FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };
 $("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.dataset.v; $("#hm-tabs").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===b)); if(hmLast) renderHM(hmLast, true); }; });
 
 let hmWx=null, hmWxAt=0, hmPresence=null;
-async function hmMode(mode, btn){
+/* I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code (sent to the alarm, never saved) */
+function hmWelcome(btn){
+  const tiles=FHHome.tilesOf(hmLast||{}), alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+  if(!(alarm && /^armed|pending|arming/.test(alarm.state||""))) return hmMode("welcome", btn);
+  let ov=$("#wkov");
+  if(!ov){ ov=document.createElement("div"); ov.id="wkov";
+    ov.innerHTML=`<div class="wk-card"><h3>🏡 Welcome home</h3><div class="wk-sub">Alarm code to disarm and open the garage</div>
+      <div class="wk-dots" id="wk-dots"></div><div class="wk-keys">${[1,2,3,4,5,6,7,8,9,"⌫",0,"✓"].map(k=>`<button data-k="${k}">${k}</button>`).join("")}</div>
+      <button class="wk-x">Cancel</button></div>`;
+    document.body.appendChild(ov); }
+  let buf=""; const dots=()=>{ $("#wk-dots").textContent="•".repeat(buf.length)||" "; }; dots();
+  ov.classList.add("on");
+  ov.querySelector(".wk-x").onclick=()=>{ buf=""; ov.classList.remove("on"); };
+  ov.querySelectorAll(".wk-keys button").forEach(b=>b.onclick=()=>{ if(navigator.vibrate) navigator.vibrate(6);
+    const k=b.dataset.k;
+    if(k==="⌫") buf=buf.slice(0,-1);
+    else if(k==="✓"){ const c=buf; buf=""; ov.classList.remove("on"); if(c) hmMode("welcome", btn, c); return; }
+    else if(buf.length<8) buf+=k;
+    dots(); });
+}
+async function hmMode(mode, btn, code){
   if(navigator.vibrate) navigator.vibrate(10);
   if(btn){ btn.disabled=true; btn.querySelector(".ic").textContent="⏳"; }
-  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"phone", who:whoAmI()}).then(x=>x.json()); }catch(e){}
+  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"phone", who:whoAmI(), code:code||null, open_garage:mode==="welcome"}).then(x=>x.json()); }catch(e){}
   toast(r.say||"Done"); setTimeout(loadHM, 900);
 }
 async function hmWeather(){
@@ -1316,7 +1346,7 @@ function renderHM(h, force){
   let html=`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
-    <button class="hm-scene" onclick="hmMode('welcome',this)"><span class="ic">🏡</span>I'm home</button>
+    <button class="hm-scene" onclick="hmWelcome(this)"><span class="ic">🏡</span>I'm home</button>
     <button class="hm-scene" id="hm-lights-off"><span class="ic">💡</span>All off</button>
     ${scenes.slice(0,0).map(s=>`<button class="hm-scene" onclick="FHHome.toggle('${E(s.entity_id)}')"><span class="ic">${hmSceneIcon(s.name)}</span>${E(s.name.replace(/scene/i,'').trim())}</button>`).join('')}
   </div>`;
@@ -1589,6 +1619,7 @@ function loadSettingsUI(){
   $("#set-doorbell-speak").checked=s.doorbellSpeak!==false; $("#set-doorbell-speak").onchange=e=>FH.save({doorbellSpeak:e.target.checked});
   $("#set-doorbell-tv").checked=s.doorbellTv!==false; $("#set-doorbell-tv").onchange=e=>FH.save({doorbellTv:e.target.checked});
   $("#set-nighttemp").value=s.nightTemp||""; $("#set-nighttemp").onchange=e=>FH.save({nightTemp:e.target.value?+e.target.value:null});
+  $("#set-opengarage").checked=s.openGarageOnHome!==false; $("#set-opengarage").onchange=e=>FH.save({openGarageOnHome:e.target.checked});
   $("#set-hometemp").value=s.homeTemp||""; $("#set-hometemp").onchange=e=>FH.save({homeTemp:e.target.value?+e.target.value:null});
   $("#set-awaytemp").value=s.awayTemp||""; $("#set-awaytemp").onchange=e=>FH.save({awayTemp:e.target.value?+e.target.value:null});
   $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };

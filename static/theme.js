@@ -55,7 +55,8 @@ const FH = (() => {
     leaveBuffer: 5,
     leaveAlerts: true,     // due-dated to-dos + chores show as all-day chips on the calendar
     nightTemp: null,         // Good Night thermostat (null = leave it)
-    homeTemp: null,          // "I'm home" thermostat setting
+    homeTemp: null,
+    openGarageOnHome: true,  // "I'm home" button opens the garage (after disarming)          // "I'm home" thermostat setting
     awayTemp: null,          // Away thermostat setback     // wall says "someone's at the front door"
   };
 

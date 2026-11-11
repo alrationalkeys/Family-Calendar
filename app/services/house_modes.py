@@ -9,9 +9,11 @@ device list live.
              optional thermostat setback (settings.nightTemp)
   away       everything in goodnight but arm AWAY, outdoor lights off too,
              thermostat eco (settings.awayTemp)
-  welcome    after dark: porch/driveway/entry + kitchen lights on; thermostat back to settings.homeTemp
-             (skipped during Santee Cooper peak); say hello.
-             (Never disarms — that stays behind the PIN pad.)
+  welcome    like the Surety Home scene: disarm (only with the panel code typed on the keypad — passed
+             to HA, never stored), then open the garage (button only, settings.openGarageOnHome; never
+             while the alarm is still armed), after dark porch/driveway/entry + kitchen lights on,
+             thermostat back to settings.homeTemp (skipped during Santee Cooper peak); say hello.
+             Voice "I'm home" does lights + thermostat only.
 
 Each run returns {done:[...], warnings:[...], say:"..."} and queues the sentence
 as an announcement so the wall speaks it even when a phone triggered it.
@@ -72,7 +74,8 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
     return f"{n} {one if n == 1 else (many or one + 's')}"
 
 
-def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm: bool = True, source: str = "wall") -> dict:
+def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm: bool = True, source: str = "wall",
+        code: str | None = None, open_garage: bool = False) -> dict:
     mode = (mode or "").lower()
     tiles = _tiles()
     s = _settings()
@@ -147,6 +150,30 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
             except Exception:
                 pass
     elif mode == "welcome":
+        # 1) disarm with the code from the keypad
+        still_armed = False
+        for t in by("alarm_control_panel"):
+            if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending", "triggered"):
+                continue
+            if code:
+                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)})
+                if r.get("ok"):
+                    done.append("disarmed the alarm")
+                else:
+                    still_armed = True
+                    warnings.append("the alarm didn't disarm, check the code")
+            else:
+                still_armed = True
+                warnings.append("the alarm is still armed, disarm it on the keypad")
+        # 2) open the garage, only once the alarm is off (opening it while armed would set it off)
+        if open_garage and s.get("openGarageOnHome", True) is not False:
+            for t in by("cover"):
+                if re.search(r"garage", t["name"] + " " + t["entity_id"], re.I) and t["state"] in ("closed", "closing"):
+                    if still_armed:
+                        warnings.append("I left the garage closed because the alarm is armed")
+                        break
+                    ha_svc.call_service("cover", "open_cover", t["entity_id"])
+                    done.append(f"opened the {t['name']}")
         if _after_dark():
             entry = [t for t in by("light") if not t["on"] and _ENTRY.search(t["name"] + " " + str(t.get("area") or ""))]
             for t in entry:
@@ -162,9 +189,6 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
                 for t in by("climate"):
                     ha_svc.call_service("climate", "set_temperature", t["entity_id"], {"temperature": float(temp)})
                 done.append(f"set the thermostat to {int(float(temp))}")
-        for t in by("alarm_control_panel"):
-            if t["state"].startswith("armed"):
-                warnings.append("the alarm is still armed, disarm it on the screen")
         lead = f"Welcome home{', ' + who if who else ''}."
     else:
         return {"ok": False, "reason": "mode must be goodnight | away | welcome"}

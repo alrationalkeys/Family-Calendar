@@ -2481,9 +2481,16 @@ function renderTilesView(body,h){
 let lastPresence=null;
 async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then(x=>x.json()); lastPresence=r.people||[]; }catch(e){} }
 /* Good night / Leaving: one tap does the rounds (lights, TVs, locks, alarm) and the wall says what it did */
-async function runMode(mode, btn){
-  resetSleep(); if(btn){ btn.disabled=true; btn.textContent="…"; }
-  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall"}).then(x=>x.json()); }catch(e){}
+async function runMode(mode, btn, code){
+  resetSleep();
+  // I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code first
+  if(mode==="welcome" && code===undefined){
+    const tiles=lastHome?FHHome.tilesOf(lastHome):[], alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+    if(alarm && /^armed|pending|arming/.test(alarm.state||"")){ openWelcomePad(btn); return; }
+  }
+  const label=btn?btn.textContent:""; if(btn){ btn.disabled=true; btn.textContent="…"; }
+  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall", code:code||null, open_garage:mode==="welcome"}).then(x=>x.json()); }catch(e){}
+  if(btn){ btn.disabled=false; btn.textContent=label; }
   if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
   setTimeout(loadHome, 1200);
 }
@@ -2646,8 +2653,14 @@ async function onTileTap(el){
 
 /* ---- alarm PIN pad ---- */
 let pinBuf="", pinTile=null;
+let pinWelcome=null;
+function openWelcomePad(btn){
+  pinTile=null; pinWelcome={btn}; pinBuf="";
+  $("#pin-title").textContent="Welcome home"; $("#pin-sub").textContent="Enter your alarm code to disarm and open the garage";
+  renderPinDots(); $("#pinpad").classList.add("on");
+}
 function openAlarmPad(el){
-  pinTile=el; pinBuf="";
+  pinWelcome=null; pinTile=el; pinBuf="";
   const armed = el.classList.contains("on");
   $("#pin-title").textContent = armed ? "Disarm alarm" : "Arm alarm";
   $("#pin-sub").textContent = armed ? "Enter your panel code" : "Arm the system (away)";
@@ -2655,8 +2668,9 @@ function openAlarmPad(el){
   $("#pinpad").classList.add("on");
 }
 function renderPinDots(){ $("#pin-dots").textContent = "•".repeat(pinBuf.length); }
-function closePinPad(){ $("#pinpad").classList.remove("on"); pinBuf=""; pinTile=null; }
+function closePinPad(){ $("#pinpad").classList.remove("on"); pinBuf=""; pinTile=null; pinWelcome=null; }
 async function submitPin(){
+  if(pinWelcome){ const w=pinWelcome, c=pinBuf; closePinPad(); if(c) runMode("welcome", w.btn, c); return; }
   if(!pinTile){ closePinPad(); return; }
   const armed = pinTile.classList.contains("on");
   const action = armed ? "disarm" : "arm_away";

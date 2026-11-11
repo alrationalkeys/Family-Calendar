@@ -46,6 +46,7 @@ const FH = (() => {
     sleepOnNightArm: true,
     sleepArmStates: ["armed_night", "armed_home"],
     sleepStayWindow: ["20:00", "05:00"],
+    closeGarageOnModes: true,
     homeAddress: "",
     leaveBuffer: 5,
     leaveAlerts: true,     // due-dated to-dos + chores show as all-day chips on the calendar

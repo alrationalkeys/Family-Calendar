@@ -5,7 +5,7 @@ Rokus, thermostat). No HA automations to write; FamilyHub figures out the
 device list live.
 
   goodnight  interior lights + fans off, TVs off, lock every lock, arm the alarm
-             (night, falling back to stay), darken the wall, report a garage left open (close only if asked),
+             (stay, like the Surety Sleep scene), darken the wall, close the garage (close only if asked),
              optional thermostat setback (settings.nightTemp)
   away       everything in goodnight but arm AWAY, outdoor lights off too,
              thermostat eco (settings.awayTemp)
@@ -71,10 +71,12 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
     return f"{n} {one if n == 1 else (many or one + 's')}"
 
 
-def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool = True, source: str = "wall") -> dict:
+def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm: bool = True, source: str = "wall") -> dict:
     mode = (mode or "").lower()
     tiles = _tiles()
     s = _settings()
+    if close_garage is None:                       # match the Alarm.com Sleep/Away scenes: close it (setting can turn this off)
+        close_garage = s.get("closeGarageOnModes", True) is not False
     done, warnings, notes = [], [], []
     by = lambda dom: [t for t in tiles if t["domain"] == dom]
 
@@ -83,7 +85,8 @@ def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool
         lights = [t for t in by("light") if t["on"]] + [t for t in by("fan") if t["on"]]
         lights += [t for t in by("switch") if t["on"] and re.search(r"light|lamp|led|strip", t["name"], re.I)]
         if mode == "goodnight":
-            lights = [t for t in lights if not _OUTDOOR.search(t["name"] + " " + str(t.get("area") or ""))]
+            # outdoor lights stay on for the night schedule, except floodlights (the Sleep scene turns BackyardFL off)
+            lights = [t for t in lights if not _OUTDOOR.search(t["name"] + " " + str(t.get("area") or "")) or re.search(r"flood|\bfl\b|fl$", t["name"], re.I)]
         for t in lights:
             ha_svc.call_service(t["domain"], "turn_off", t["entity_id"])
         if lights:
@@ -123,10 +126,8 @@ def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool
                 if warnings and mode == "away":
                     warnings.append("I didn't arm the alarm")
                     break
-                svc = "alarm_arm_night" if mode == "goodnight" else "alarm_arm_away"
+                svc = "alarm_arm_home" if mode == "goodnight" else "alarm_arm_away"   # = the Surety Sleep scene (Stay); leaving arms Away
                 r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
-                if mode == "goodnight" and not r.get("ok"):          # panel without a Night mode: fall back to Stay
-                    r = ha_svc.call_service("alarm_control_panel", "alarm_arm_home", t["entity_id"])
                 done.append("armed the alarm" + (" for the night" if mode == "goodnight" else "") if r.get("ok") else "couldn't arm the alarm")
         # thermostat
         temp = s.get("nightTemp") if mode == "goodnight" else s.get("awayTemp")

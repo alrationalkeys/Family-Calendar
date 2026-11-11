@@ -152,7 +152,7 @@ def mode(payload: dict):
     """One-tap house modes: {mode: goodnight|away|welcome, who?, close_garage?, arm?, source?}.
     Returns what was done + warnings + a sentence the wall speaks."""
     p = payload or {}
-    return house_modes.run(p.get("mode", ""), who=p.get("who"), close_garage=bool(p.get("close_garage")),
+    return house_modes.run(p.get("mode", ""), who=p.get("who"), close_garage=(None if p.get("close_garage") is None else bool(p.get("close_garage"))),
                            arm=p.get("arm", True) is not False, source=p.get("source", "wall"))
 
 

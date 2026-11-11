@@ -463,7 +463,7 @@ def interpret(text: str) -> dict:
     tl = t.lower()
     if re.search(r"\b(good ?night|night night|bed ?time|going to bed|lights out for the night)\b", tl):
         from . import house_modes
-        r = house_modes.run("goodnight", close_garage=("close" in w and "garage" in w))
+        r = house_modes.run("goodnight", close_garage=(True if ("close" in w and "garage" in w) else None))
         return {"ok": True, "say": r.get("say", "Good night."), "refresh": True}
     if re.search(r"\b(good ?morning|morning everyone|rise and shine|wake up)\b", tl):
         from . import display_svc
@@ -471,7 +471,7 @@ def interpret(text: str) -> dict:
         return {"ok": True, "say": "Good morning!", "refresh": True, "briefing": True}
     if re.search(r"\b(we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|going out|heading out|away mode|bye bye|see you later)\b", tl):
         from . import house_modes
-        r = house_modes.run("away", close_garage=("close" in w and "garage" in w))
+        r = house_modes.run("away", close_garage=(True if ("close" in w and "garage" in w) else None))
         return {"ok": True, "say": r.get("say", "Bye for now."), "refresh": True}
     if re.search(r"\b(i'm home|i am home|im home|we're home|we are home|were home|we're back|we are back|were back|i'm back|i am back|im back|welcome home)\b", tl):
         from . import house_modes

@@ -135,28 +135,23 @@ _WDAYS = {"monday": "MO", "tuesday": "TU", "wednesday": "WE", "thursday": "TH", 
 _WDNUM = {"MO": 0, "TU": 1, "WE": 2, "TH": 3, "FR": 4, "SA": 5, "SU": 6}
 
 
-def _add_chore(text: str):
-    """'add a chore for Alex to bring in the garbage cans every Thursday' -> a chore for Alex, weekly on
-    Thursdays, first due this Thursday. Understands every day / weekdays / weekends / every <day(s)> /
-    every week / every month / on <day> / today / tomorrow, and 'for 3 stars'. Returns what to say."""
-    from .people import extract_person
-    low = text.lower()
-    today = datetime.date.today()
+def _parse_schedule(low: str, today: datetime.date):
+    """Spoken schedule -> (recurrence, first due date or None, words to say). Understands every day / weekdays /
+    weekends / every <day(s)> / every week|month / on <day> / today / tomorrow / next week."""
     days = [code for word, code in _WDAYS.items() if re.search(rf"\b{word}s?\b", low)]
-    rec, due, when = None, today, ""
+    rec, due, when = None, None, ""
     if re.search(r"\b(every ?day|daily|each day|every night|nightly)\b", low):
-        rec, when = "daily", "every day"
+        rec, due, when = "daily", today, "every day"
     elif re.search(r"\bweekdays?\b", low) and not days:
         days, rec = ["MO", "TU", "WE", "TH", "FR"], "weekly:MO,TU,WE,TH,FR"
     elif re.search(r"\bweekends?\b", low) and not days:
         days, rec = ["SA", "SU"], "weekly:SA,SU"
-    elif days and re.search(r"\b(every|each|on)\s+(other\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b|\b(mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\b|\b(repeat|repeating|recurring|weekly)\b", low) \
-            and re.search(r"\b(every|each|repeat|repeating|recurring|weekly|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\b", low):
+    elif days and re.search(r"\b(every|each|repeat|repeating|recurring|weekly|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\b", low):
         rec = "weekly" if len(days) == 1 else "weekly:" + ",".join(days)
     elif re.search(r"\b(every week|weekly|each week)\b", low):
-        rec, when = "weekly", "every week"
+        rec, due, when = "weekly", today, "every week"
     elif re.search(r"\b(every month|monthly|each month)\b", low):
-        rec, when = "monthly", "every month"
+        rec, due, when = "monthly", today, "every month"
     if days:                                                   # first due date: the next of those days (today counts)
         due = min(today + datetime.timedelta(days=(_WDNUM[d] - today.weekday()) % 7) for d in days)
         names = [w.capitalize() for w, c in _WDAYS.items() if c in days]
@@ -165,38 +160,97 @@ def _add_chore(text: str):
             when = "every weekday"
         elif rec == "weekly:SA,SU":
             when = "every weekend day"
-    elif re.search(r"\btomorrow\b", low):
-        due = today + datetime.timedelta(days=1)
-        when = when or "tomorrow"
+    elif not rec and re.search(r"\btomorrow\b", low):
+        due, when = today + datetime.timedelta(days=1), "tomorrow"
+    elif not rec and re.search(r"\btoday|tonight\b", low):
+        due, when = today, "today"
+    elif not rec and re.search(r"\bnext week\b", low):
+        due, when = today + datetime.timedelta(days=7 - today.weekday()), "next week"
+    return rec, due, when
+
+
+# schedule words, list words and fillers that come out of a spoken title
+_SCHED_RE = (r"\b(?:every|each|on|by|this|next)\s+(?:other\s+)?(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?:\s*(?:,|and)\s*)?)+"
+             r"|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b"
+             r"|\b(?:every ?day|daily|each day|every night|nightly|every week|weekly|each week|every month|monthly|each month|"
+             r"on weekdays|weekdays|on weekends|weekends|today|tonight|tomorrow|next week|repeating|recurring|repeat(?:s|ing)?(?: weekly)?)\b")
+
+
+def _when_say(rec, due, when, today):
+    if not due:
+        return ""
+    first = "today" if due == today else ("tomorrow" if due == today + datetime.timedelta(days=1) else due.strftime("%A %B %-d"))
+    return f", {when}, starting {first}" if rec else f", {first}"
+
+
+def _add_chore(text: str):
+    """'add a chore for Alex to bring in the garbage cans every Thursday' -> a chore for Alex, weekly on
+    Thursdays, first due this Thursday. Also 'for 3 stars'. Returns what to say."""
+    from .people import extract_person
+    low = text.lower()
+    today = datetime.date.today()
+    rec, due, when = _parse_schedule(low, today)
+    due = due or today
     m = re.search(r"\b(?:for|worth)\s+(\d|one|two|three|four|five)\s+stars?\b", low)
     stars = 0
     if m:
         stars = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}.get(m.group(1), None) or int(m.group(1))
-    # the title: what's left once the command words, schedule and stars are taken out
-    title = re.sub(r"^.*?\badd\b", "", text, flags=re.I)
-    title = re.sub(r"\b(?:a|an|new)?\s*chores?\b\s*(?:list)?", " ", title, flags=re.I)
-    title = re.sub(r"\b(?:to|on)\s+(?:the|my|our)\s+chores?\s*(?:list)?\b", " ", title, flags=re.I)
+    title = re.sub(r"^.*?\b(?:add|put|create|make)\b", "", text, flags=re.I)
+    title = re.sub(r"\b(?:to|on|onto)\s+(?:the|my|our)\s+chores?\s*(?:list|chart)?\b", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:a|an|new)?\s*chores?\b\s*(?:list|chart)?", " ", title, flags=re.I)
     title = re.sub(r"\b(?:for|worth)\s+(?:\d|one|two|three|four|five)\s+stars?\b", " ", title, flags=re.I)
-    title = re.sub(r"\b(?:every|each|on)\s+(?:other\s+)?(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?:\s*(?:,|and)\s*)?)+", " ", title, flags=re.I)
-    title = re.sub(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b", " ", title, flags=re.I)
-    title = re.sub(r"\b(?:every ?day|daily|each day|every night|nightly|every week|weekly|each week|every month|monthly|each month|"
-                   r"on weekdays|weekdays|on weekends|weekends|today|tomorrow|repeating|recurring|repeat(?:s|ing)?(?: weekly)?)\b", " ", title, flags=re.I)
+    title = re.sub(_SCHED_RE, " ", title, flags=re.I)
     try:
         with get_db() as conn:
             pid, pname, title = extract_person(conn, title)
-            title = re.sub(r"\s{2,}", " ", title).strip(" ,.:;-")
-            title = re.sub(r"^(?:to|that|which)\s+", "", title, flags=re.I).strip()
+            title = _tidy_title(title)
             if not title:
                 return None
-            title = title[0].upper() + title[1:120]
             conn.execute("INSERT INTO chores (title, person_id, due_date, recurrence, stars) VALUES (?,?,?,?,?)",
                          (title, pid, due.isoformat(), rec, stars))
     except Exception:
         return None
-    first = "today" if due == today else ("tomorrow" if due == today + datetime.timedelta(days=1) else due.strftime("%A %B %-d"))
     s = f"Added the chore {title}" + (f" for {pname}" if pname else "")
-    s += f", {when}, starting {first}" if rec else (f", {first}" if due != today else "")
+    s += _when_say(rec, due, when, today) if (rec or due != today) else ""
     return s + (f", worth {stars} star" + ("s" if stars != 1 else "") if stars else "") + "."
+
+
+def _tidy_title(title: str) -> str:
+    title = re.sub(r"\s{2,}", " ", title or "").strip(" ,.:;-")
+    for _ in range(3):   # leftover glue words at the front: "to finish…", "something to…", "that…"
+        title = re.sub(r"^(?:to|that|which|a|an|the thing|a thing|something|an item|item|please|and)\b\s*", "", title, flags=re.I).strip(" ,.:;-")
+    return (title[0].upper() + title[1:120]) if title else ""
+
+
+def _add_todo(text: str):
+    """Any to-do sentence, in any order: 'add to the to-do list for Alex to finish the Christmas village',
+    'add a to-do for Rachell to call the vet tomorrow', 'remind Alex to take out the trash every Tuesday',
+    'Rachell needs to book the dentist', 'put finish the village on Alex's to-do list'. Keeps capitals."""
+    from .people import extract_person
+    low = text.lower()
+    today = datetime.date.today()
+    rec, due, when = _parse_schedule(low, today)
+    title = re.sub(r"^\s*(?:please\s+)?(?:can you\s+)?(?:add|put|create|make)\b", "", text, flags=re.I)
+    # the list itself, wherever it's said: "to the to-do list", "on Alex's to do", "a to-do", "my task list", "a reminder"
+    title = re.sub(r"\b(?:to|on|onto|in|into)?\s*(?:the|my|our|a|an|\w+'s)?\s*(?:to[\s-]?do|todo|task|reminder)s?(?:\s+list)?\b", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:to|on|onto|in|into)\s+(?:the|my|our|\w+'s)\s+list\b", " ", title, flags=re.I)
+    title = re.sub(_SCHED_RE, " ", title, flags=re.I)
+    try:
+        with get_db() as conn:
+            pid, pname, title = extract_person(conn, title)
+            if not pid:                                 # "Alex's" was taken out with the list words: look again
+                pid, pname, _ = extract_person(conn, text)
+            title = re.sub(r"^(?:remind|tell)\b", "", title, flags=re.I)
+            title = re.sub(r"\b(?:needs?|has|have)\s+to\b", " ", title, flags=re.I)
+            title = _tidy_title(title)
+            if not title:
+                return None
+            conn.execute("INSERT INTO todos (title, person_id, due_date, recurrence) VALUES (?,?,?,?)",
+                         (title, pid, due.isoformat() if due else None, rec))
+    except Exception:
+        return None
+    s = f"Added {title} to {pname}'s to-do list" if pname else f"Added {title} to the to-do list"
+    return s + _when_say(rec, due, when, today) + "."
 
 
 def _add_to_list(text):
@@ -216,6 +270,10 @@ def _add_to_list(text):
         if said:
             return said
     todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things|remind|needs? to|has to|have to", body)) or bool(assign_only and not m)
+    if todo:
+        said = _add_todo(text)
+        if said:
+            return said
     explicit_list = todo or bool(re.search(r"grocer|shopping|list", body))
     # No list named ("add nanner landing the Sunday before Thanksgiving"): let the same
     # classifier the phone's quick-add uses decide event / to-do / grocery / meal.

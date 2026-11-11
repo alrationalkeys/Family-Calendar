@@ -29,7 +29,7 @@
   .au-set > label:not(.au-sw){font-size:13.5px; flex:1}
   .au-set .u{font-size:13px; color:var(--ink-dim); margin-left:-4px}
   .au-note{font-size:12.5px; color:var(--ink-dim); margin-top:8px; line-height:1.4}
-  .au-set input[type=time], .au-set input[type=number]{width:auto; max-width:120px; margin:0; padding:6px 8px; font:inherit; font-size:14px;
+  .au-set input[type=time], .au-set input[type=number], .au-set input[type=date]{width:auto; max-width:120px; margin:0; padding:6px 8px; font:inherit; font-size:14px;
     background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px}
   .au-sub{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); margin:10px 0 2px; font-weight:700}
   .au-missing{font-size:13px; color:var(--ink-dim); background:var(--panel2); border-radius:10px; padding:8px 10px; margin:4px 0 8px}
@@ -131,7 +131,8 @@
             return;
           }
           let ctl = "";
-          if (s.kind === "time") ctl = `<input type="time" id="${id}" data-helper="${esc(s.entity_id)}" value="${esc(s.value)}">`;
+          if (s.kind === "date") ctl = `<input type="date" id="${id}" data-helper="${esc(s.entity_id)}" value="${esc(s.value)}">`;
+          else if (s.kind === "time") ctl = `<input type="time" id="${id}" data-helper="${esc(s.entity_id)}" value="${esc(s.value)}">`;
           else if (s.kind === "number") ctl = `<input type="number" id="${id}" data-helper="${esc(s.entity_id)}" value="${esc(parseFloat(s.value))}" min="${esc(s.min)}" max="${esc(s.max)}" step="${esc(s.step || 1)}"> <span class="u">${esc(s.unit)}</span>`;
           else if (s.kind === "toggle") ctl = sw(`id="${id}" data-helper="${esc(s.entity_id)}"`, s.value === "on");
           html += `<div class="au-set"><label for="${id}">${esc(s.name)}</label>${ctl}</div>`;

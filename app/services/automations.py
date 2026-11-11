@@ -12,6 +12,7 @@ The FamilyHub packages (docs/ha/*.yaml) give every automation an id starting fh_
 """
 from __future__ import annotations
 
+import datetime
 import json
 import re
 import time
@@ -30,7 +31,7 @@ DESCRIBE = {
     "fh_outdoor_sunset": "Sunset: holiday lights on in holiday season, otherwise the nightly lights on.",
     "fh_outdoor_1150": "Holiday season, {input_datetime.fh_outdoor_switchover}: holiday lights off, nightly lights on for the rest of the night.",
     "fh_outdoor_sunrise": "Sunrise: everything outside off.",
-    "fh_christmas_upstairs_on": "Christmas season: window lights on at sunset.",
+    "fh_christmas_upstairs_on": "Christmas season (from {input_datetime.fh_outdoor_xmas_start}): window lights on at sunset.",
     "fh_christmas_upstairs_off": "Window lights off at {input_datetime.fh_outdoor_windows_off}.",
     # kitchen_lights.yaml
     "fh_kitchen_evening": "{input_datetime.fh_kitchen_evening_on}: kitchen uppers on warm white {input_number.fh_kitchen_evening_bright}, back patio on.",
@@ -60,7 +61,7 @@ GROUPS = [
      "blurb": "Nightly lights from sunset to sunrise; holiday lights switch on by date (October, and Thanksgiving into January).",
      "auto": r"^fh_(outdoor|christmas)_", "helpers": r"^(input_boolean|input_datetime|input_number|input_text)\.(holiday_|fh_outdoor_)",
      "order": ["input_text.fh_outdoor_night_lights", "input_text.fh_outdoor_holiday_lights", "input_text.fh_outdoor_window_lights",
-               "input_datetime.fh_outdoor_switchover", "input_datetime.fh_outdoor_windows_off",
+               "input_datetime.fh_outdoor_xmas_start", "input_datetime.fh_outdoor_switchover", "input_datetime.fh_outdoor_windows_off",
                "input_boolean.fh_outdoor_halloween", "input_boolean.fh_outdoor_christmas",
                "input_number.fh_outdoor_xmas_last_day", "input_boolean.holiday_lights_force"],
      "status": ["binary_sensor.halloween_season", "binary_sensor.christmas_season"]},
@@ -117,6 +118,12 @@ def _nice(s: dict | None) -> str:
     if not s:
         return "?"
     d, a, v = s["entity_id"].split(".")[0], s.get("attributes") or {}, s.get("state")
+    if d == "input_datetime" and a.get("has_date") and not a.get("has_time"):
+        try:
+            dd = datetime.date.fromisoformat(str(v)[:10])
+            return "the day after Thanksgiving" if dd.year == 1970 or dd.month < 11 else dd.strftime("%B %-d")
+        except ValueError:
+            return "the day after Thanksgiving"
     if d == "input_datetime":
         return _nice_time(v)
     if d == "input_number":
@@ -141,6 +148,9 @@ def _setting(s: dict, names: dict) -> dict:
     out = {"entity_id": eid, "name": a.get("friendly_name") or eid, "value": s.get("state")}
     if d == "input_number":
         out.update(kind="number", min=a.get("min"), max=a.get("max"), step=a.get("step"), unit=a.get("unit_of_measurement") or "")
+    elif d == "input_datetime" and a.get("has_date") and not a.get("has_time"):
+        v = s.get("state") or ""
+        out.update(kind="date", value=v[:10] if v[:4] not in ("", "1970", "unkn") else "")
     elif d == "input_datetime":
         out.update(kind="time", value=(s.get("state") or "")[:5])
     elif d == "input_boolean":
@@ -250,6 +260,8 @@ def set_helper(entity_id: str, value) -> dict:
         return ha_svc.call_service("input_text", "set_value", entity_id, {"value": value})
     if d == "input_number":
         return ha_svc.call_service("input_number", "set_value", entity_id, {"value": float(value)})
+    if d == "input_datetime" and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value)):
+        return ha_svc.call_service("input_datetime", "set_datetime", entity_id, {"date": str(value)})
     if d == "input_datetime":
         v = str(value)
         if not re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", v):
@@ -515,6 +527,7 @@ def _demo_seed() -> dict:
     helper("input_text.fh_outdoor_window_lights", "Christmas window lights", "")
     helper("input_datetime.fh_outdoor_switchover", "Holiday lights off / nightly lights on at", "23:50:00")
     helper("input_datetime.fh_outdoor_windows_off", "Christmas window lights off at", "22:30:00")
+    helper("input_datetime.fh_outdoor_xmas_start", "Christmas lights start on", "1970-01-01", has_date=True, has_time=False)
     helper("input_boolean.fh_outdoor_halloween", "Halloween lights in October", "on")
     helper("input_boolean.fh_outdoor_christmas", "Christmas lights (Thanksgiving to January)", "on")
     helper("input_number.fh_outdoor_xmas_last_day", "Christmas lights last day in January", "6", min=1, max=31, step=1)

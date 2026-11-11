@@ -265,7 +265,8 @@ def _add_to_list(text):
     if not m and not assign_only:
         return None
     body = m.group(1) if m else low
-    if re.search(r"\bchores?\b", body):
+    if re.search(r"\b(?:chores?|shores?|chords?)\b", body):
+        text = re.sub(r"\b(?:shore|chord)(s?)\b", r"chore\1", text, flags=re.I)
         said = _add_chore(text)
         if said:
             return said

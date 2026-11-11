@@ -29,6 +29,8 @@ input_boolean:
 input_datetime:
   fh_outdoor_switchover:   { name: Holiday lights off / nightly lights on at, has_date: false, has_time: true }
   fh_outdoor_windows_off:  { name: Christmas window lights off at, has_date: false, has_time: true }
+  # leave empty (or any date before November) for "the day after Thanksgiving"; the year is ignored
+  fh_outdoor_xmas_start:   { name: Christmas lights start on, has_date: true, has_time: false }
 
 input_number:
   fh_outdoor_xmas_last_day: { name: Christmas lights last day in January, min: 1, max: 31, step: 1, mode: box, icon: mdi:calendar-end }
@@ -45,13 +47,18 @@ template:
         state: "{{ now().month == 10 and is_state('input_boolean.fh_outdoor_halloween', 'on') }}"
       - name: Christmas season
         unique_id: fh_christmas_season
-        # Thanksgiving = 4th Thursday of November
+        # starts on the chosen date (month + day), or the day after Thanksgiving (4th Thursday of November)
         state: >
           {% set n1 = now().replace(month=11, day=1) %}
           {% set tg = 1 + ((3 - n1.weekday()) % 7) + 21 %}
           {% set last = states('input_number.fh_outdoor_xmas_last_day') | int(6) %}
+          {% set st = states('input_datetime.fh_outdoor_xmas_start') %}
+          {% set sm = st[5:7] | int(0) if st | length >= 10 else 0 %}
+          {% set sd = st[8:10] | int(0) if st | length >= 10 else 0 %}
+          {% set start = (sm, sd) if sm in [11, 12] else (11, tg + 1) %}
+          {% set md = (now().month, now().day) %}
           {{ is_state('input_boolean.fh_outdoor_christmas', 'on') and
-             ((now().month == 11 and now().day > tg) or now().month == 12 or (now().month == 1 and now().day <= last)) }}
+             ((now().month in [11, 12] and md >= start) or (now().month == 1 and now().day <= last)) }}
       - name: Holiday lights season
         unique_id: fh_holiday_lights_season
         state: >

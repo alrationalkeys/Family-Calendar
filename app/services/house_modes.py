@@ -4,9 +4,9 @@ Home Assistant exposes (now: Alarm.com panel + locks + garage, Deako lights,
 Rokus, thermostat). No HA automations to write; FamilyHub figures out the
 device list live.
 
-  goodnight  interior lights + fans off, TVs off, lock every lock, arm the alarm
-             (stay, like the Surety Sleep scene), darken the wall, close the garage (close only if asked),
-             optional thermostat setback (settings.nightTemp)
+  goodnight  like the panel's Sleep scene: lock every lock, arm Stay, close the garage, darken the wall.
+             Lights and TVs are left alone (holiday plugs run on their own schedule) unless
+             settings.goodnightLightsOff is on. Optional thermostat setback (settings.nightTemp).
   away       everything in goodnight but arm AWAY, outdoor lights off too,
              thermostat eco (settings.awayTemp)
   welcome    like the Surety Home scene: disarm (only with the panel code typed on the keypad — passed
@@ -85,9 +85,10 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
     by = lambda dom: [t for t in tiles if t["domain"] == dom]
 
     if mode in ("goodnight", "away"):
+        lights_too = mode == "away" or s.get("goodnightLightsOff", False) is True
         # lights + fans + switches that are lights
-        lights = [t for t in by("light") if t["on"]] + [t for t in by("fan") if t["on"]]
-        lights += [t for t in by("switch") if t["on"] and re.search(r"light|lamp|led|strip", t["name"], re.I)]
+        lights = [t for t in by("light") if t["on"]] + [t for t in by("fan") if t["on"]] if lights_too else []
+        lights += [t for t in by("switch") if t["on"] and re.search(r"light|lamp|led|strip", t["name"], re.I)] if lights_too else []
         if mode == "goodnight":
             # outdoor lights stay on for the night schedule, except floodlights (the Sleep scene turns BackyardFL off)
             lights = [t for t in lights if not _OUTDOOR.search(t["name"] + " " + str(t.get("area") or "")) or re.search(r"flood|\bfl\b|fl$", t["name"], re.I)]
@@ -96,7 +97,7 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         if lights:
             done.append(f"turned off {_plural(len(lights), 'light')}")
         # TVs / players
-        tvs = [t for t in by("media_player") if t["state"] not in ("off", "unavailable", "standby") and not re.search(r"spotify|familyhub", t["entity_id"] + t["name"], re.I)]
+        tvs = [t for t in by("media_player") if t["state"] not in ("off", "unavailable", "standby") and not re.search(r"spotify|familyhub", t["entity_id"] + t["name"], re.I)] if lights_too else []
         for t in tvs:
             ha_svc.call_service("media_player", "turn_off", t["entity_id"])
         if tvs:

@@ -50,7 +50,13 @@ def _stt_model():
         return _stt
 
 
-def transcribe(audio: bytes, suffix: str = ".webm") -> str:
+# Whisper's favourite hallucinations on a clip of silence / room noise
+_GHOSTS = {"you", "thank you", "thanks", "thank you.", "thanks for watching", "thanks for watching!", "bye",
+           "thank you for watching", "so", "okay", "the end", "."}
+BEAM = int(os.environ.get("FAMILYHUB_STT_BEAM", "5"))
+
+
+def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
     """Bytes of any container PyAV can read (webm/opus from MediaRecorder, wav, ogg)."""
     if not audio:
         return ""
@@ -59,9 +65,12 @@ def transcribe(audio: bytes, suffix: str = ".webm") -> str:
         f.write(audio)
         path = f.name
     try:
-        segments, _info = model.transcribe(path, language="en", beam_size=1, vad_filter=True,
-                                           condition_on_previous_text=False)
-        return " ".join(s.text.strip() for s in segments).strip()
+        segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=True,
+                                           vad_parameters={"min_silence_duration_ms": 700},
+                                           condition_on_previous_text=False,
+                                           initial_prompt=prompt or None)
+        text = " ".join(s.text.strip() for s in segments if (s.no_speech_prob or 0) < 0.8).strip()
+        return "" if text.lower().strip(" .!") in {g.strip(" .!") for g in _GHOSTS} else text
     finally:
         try:
             os.unlink(path)

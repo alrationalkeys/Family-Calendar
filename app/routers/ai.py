@@ -32,6 +32,19 @@ def voice_status():
     return speech.status()
 
 
+@router.get("/voice/log")
+def voice_log():
+    """What the wall heard and what it did (newest first) — Settings > Advanced > Voice history."""
+    return {"log": voice_cmd.voice_log()}
+
+
+@router.delete("/voice/log")
+def voice_log_clear():
+    with get_db() as conn:
+        conn.execute("DELETE FROM settings WHERE key='voice_log'")
+    return {"ok": True}
+
+
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """Audio clip (webm/opus from MediaRecorder, or wav) -> {text}."""
@@ -43,7 +56,12 @@ async def transcribe(audio: UploadFile = File(...)):
     ct = (audio.content_type or "").lower()
     suffix = ".wav" if "wav" in ct else ".ogg" if "ogg" in ct else ".webm"
     try:
-        return {"text": speech.transcribe(data, suffix)}
+        import time
+        t0 = time.time()
+        text = speech.transcribe(data, suffix, voice_cmd.stt_prompt())
+        if not text:
+            voice_cmd.log_voice("", f"(heard nothing in a {len(data) // 1024} KB clip, {time.time() - t0:.1f} s)", "heard")
+        return {"text": text, "secs": round(time.time() - t0, 2)}
     except Exception as e:
         import traceback, sys
         print(f"[transcribe] {len(data)} bytes {ct} -> {e!r}", file=sys.stderr)

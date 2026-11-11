@@ -684,6 +684,12 @@
     <details class="more sub"><summary>Voice</summary>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <label class="chk"><input type="checkbox" id="set-kbd"> FamilyHub's own on-screen keyboard on the wall</label>
+    <div class="hint" style="margin:10px 0 4px"><b>Try a command</b> — typed here, it runs exactly like saying it to the wall.</div>
+    <div class="srow"><input id="vh-try" placeholder="add dentist Friday at 3" style="width:70%; margin:0"><button class="tool" type="button" id="vh-go" style="margin:0">Run</button></div>
+    <div id="vh-out" class="hint" style="min-height:1em"></div>
+    <div class="hint" style="margin:10px 0 4px"><b>Voice history</b> — what the wall heard and what it did. Screenshot this if it gets something wrong.</div>
+    <div id="vh-list" style="max-height:340px; overflow:auto; font-size:.86rem"></div>
+    <div class="srow"><button class="tool" type="button" id="vh-refresh" style="margin:6px 0">Refresh</button><button class="tool" type="button" id="vh-clear" style="margin:6px 0">Clear</button></div>
     </details>
     <details class="more sub"><summary>Display details</summary>
     <div class="srow"><span>Font</span>
@@ -1630,7 +1636,32 @@ function buildPersonColors(){
   });
 }
 
+async function loadVoiceHistory(){
+  const box=$("#vh-list"); if(!box) return;
+  let log=[]; try{ log=(await fetch("/api/ai/voice/log").then(r=>r.json())).log||[]; }catch(e){}
+  box.textContent="";
+  if(!log.length){ box.textContent="Nothing yet — talk to the wall, then tap Refresh."; return; }
+  for(const e of log){
+    const row=document.createElement("div"); row.style.cssText="padding:6px 0;border-bottom:1px solid rgba(127,127,127,.2)";
+    const when=document.createElement("small"); when.style.opacity=".6"; when.textContent=(e.at||"").replace("T"," ").slice(5,16)+"  ";
+    const heard=document.createElement("b"); heard.textContent=e.heard?("“"+e.heard+"”"):"(nothing heard)";
+    const reply=document.createElement("div"); reply.style.opacity=".8"; reply.textContent="→ "+(e.reply||"");
+    row.append(when,heard,reply); box.append(row);
+  }
+}
+function setupVoiceHistory(){
+  const go=$("#vh-go"); if(!go||go._wired) return; go._wired=true;
+  const run=async()=>{ const t=$("#vh-try").value.trim(); if(!t) return; $("#vh-out").textContent="…";
+    try{ const r=await post("/api/ai/command",{text:t}).then(r=>r.json()); $("#vh-out").textContent="→ "+(r.say||(r.briefing?"(the wall reads the briefing)":"done")); $("#vh-try").value=""; }
+    catch(e){ $("#vh-out").textContent="Couldn't reach FamilyHub."; }
+    loadVoiceHistory(); };
+  go.onclick=run; $("#vh-try").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+  $("#vh-refresh").onclick=loadVoiceHistory;
+  $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
+  const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open) loadVoiceHistory(); });
+}
 function loadSettingsUI(){
+  setupVoiceHistory();
   const s=FH.get();
   // theme pill
   document.querySelectorAll("#set-theme button").forEach(b=>{

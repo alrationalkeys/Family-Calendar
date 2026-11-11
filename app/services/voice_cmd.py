@@ -18,7 +18,7 @@ import os
 import re
 import datetime
 
-from . import ha_svc
+from . import ha_svc, voice_more
 from ..db import get_db
 
 FHSTATE = {"open": "open", "closed": "closed", "opening": "opening", "closing": "closing", "locked": "locked",
@@ -49,26 +49,36 @@ _STOP = {"a", "an", "the", "to", "for", "of", "on", "in", "at", "and", "or", "my
 _GENERIC = {"light", "lights", "lamp", "lamps", "switch", "plug", "outlet", "tv", "fan", "door", "smart"}
 
 
+def _sing(x: str) -> str:
+    """doors -> door, lights -> light (both sides of a match), but not 'glass' or 'christmas'."""
+    return x[:-1] if len(x) > 3 and x.endswith("s") and not x.endswith(("ss", "mas")) else x
+
+
 def _match(words, tiles, domains):
     """Best device whose name words overlap the phrase (meaningful words only). Scenes/scripts need at least
     half of their name's words; FamilyHub's own helper scripts (script.fh_*) are never voice targets."""
-    best, score = None, 0
-    want = words - _STOP
+    best, score, generic_hits = None, 0, 0
+    want = {_sing(x) for x in words} - _STOP
     for t in tiles:
         if t["domain"] not in domains:
             continue
         if t["domain"] == "script" and t["entity_id"].startswith("script.fh_"):
             continue
-        nw = set(re.findall(r"[a-z0-9]+", t["name"].lower())) - _STOP
+        nw = {_sing(x) for x in re.findall(r"[a-z0-9]+", t["name"].lower())} - _STOP
         hit = nw & want
         # "porch" says more than "light": generic words count half, and a closer name wins a tie
         s = sum(0.5 if x in _GENERIC else 1 for x in hit)
         if t["domain"] in ("scene", "script") and nw and len(hit) * 2 < len(nw):
             continue
+        if s and not (hit - _GENERIC):
+            generic_hits += 1
         if s:
             s += len(hit) / (len(nw) * 10 or 1)
         if s > score:
             best, score = t, s
+    # only "light"/"tv" in common: fine if there's just one, otherwise it's a guess ("the lights" -> which?)
+    if best is not None and score < 1 and generic_hits > 1:
+        return None
     return best if score > 0 else None
 
 
@@ -290,8 +300,15 @@ def _add_to_list(text):
         said = _smart_add(text)
         if said:
             return said
+    # a date or a time ("add dentist Thursday at 3") -> the calendar, no AI key needed
+    if m and not explicit_list and voice_more.looks_like_event(body):
+        said = voice_more.add_event(text)
+        if said:
+            return said
     # strip trailing target phrase
     item = re.sub(r"\b(to|on)?\s*(my|the|our)?\s*(grocery|groceries|shopping|to[\s-]?do|todo|task[s]?|list)\b.*$", "", body).strip(" ,.")
+    if not item:     # "add groceries eggs" / "add to the shopping list: eggs"
+        item = re.sub(r"^\s*(?:to|on)?\s*(?:my|the|our)?\s*(?:grocery|groceries|shopping)\s*(?:list)?\b", "", body).strip(" ,.:")
     if not item:
         return None
     try:
@@ -504,8 +521,8 @@ def _ai_answer(text):
     a household assistant, and can search the web for live facts (news, scores,
     store hours, prices) — Anthropic's server-side web search, no extra key."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        return ("I can turn devices on or off, run scenes, arm the alarm, set timers, play music, add to "
-                "your lists, and tell you the time or weather. Add an Anthropic key for everything else.")
+        return ("Sorry, I didn't get that. Try: add milk, add dentist Friday at 3, what's on the grocery list, "
+                "turn on the porch light, or set a timer for 10 minutes.")
     try:
         from anthropic import Anthropic
         client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=40.0, max_retries=1)
@@ -551,22 +568,101 @@ def _ai_answer(text):
 
 
 def interpret(text: str) -> dict:
+    """Run one spoken command and remember it in the voice history (Settings > Advanced > Voice history)."""
+    try:
+        r = _interpret(text)
+    except Exception as e:                      # never leave the wall hanging on a bug
+        import traceback
+        traceback.print_exc()
+        r = {"ok": False, "say": "Sorry, something went wrong with that one.", "error": repr(e)}
+    log_voice(text, r.get("say") or ("(spoke the briefing)" if r.get("briefing") else ""))
+    return r
+
+
+def log_voice(heard: str, reply: str, kind: str = "command"):
+    """Last 60 things the wall heard and what it did, newest first."""
+    import json
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='voice_log'").fetchone()
+            log = json.loads(row["value"]) if row else []
+            log.insert(0, {"at": datetime.datetime.now().isoformat(timespec="seconds"), "heard": (heard or "")[:300],
+                           "reply": (reply or "")[:400], "kind": kind})
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('voice_log', ?)", (json.dumps(log[:60]),))
+    except Exception:
+        pass
+
+
+def voice_log() -> list:
+    import json
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='voice_log'").fetchone()
+            return json.loads(row["value"]) if row else []
+    except Exception:
+        return []
+
+
+def stt_prompt() -> str:
+    """Words Whisper should expect on this wall: the family's names, the devices, the list words.
+    (Whisper's initial_prompt nudges spelling toward these, e.g. 'Rachell' not 'Rachel', 'chore' not 'shore'.)"""
+    names = []
+    try:
+        with get_db() as conn:
+            names = [r["name"].split(" ")[0] for r in conn.execute("SELECT name FROM people") if r["name"]]
+    except Exception:
+        pass
+    devs = []
+    try:
+        devs = [x["name"] for x in _tiles() if x["domain"] in ("light", "switch", "cover", "lock", "scene", "climate")
+                and not x["entity_id"].startswith("script.fh_")][:25]
+    except Exception:
+        pass
+    return (f"{_assistant_name()}. " + (", ".join(names) + ". " if names else "")
+            + "Add milk to the grocery list. Add a chore for " + (names[0] if names else "Alex")
+            + " to take out the trash every Thursday. Add to the to-do list. Add dentist on Friday at 3 PM. "
+            + "What's on the calendar today? Set a timer for 10 minutes. Set the thermostat to 70. Good night. "
+            + ("Turn on the " + ", ".join(devs) + "." if devs else ""))[:800]
+
+
+def _interpret(text: str) -> dict:
     t = (text or "").strip()
     name = _assistant_name().lower()
-    t = re.sub(r"^(?:hey|ok|okay|hi|yo)?\s*(?:" + re.escape(name) + r"|wall|screen)\s*[,!.]?\s*", "", t, flags=re.I).strip() or t
+    t = re.sub(r"^(?:hey|ok|okay|hi|yo)?\s*(?:" + re.escape(name) + r"|family\s*hub|hub|wall|screen)\s*[,!.]?\s*", "", t, flags=re.I).strip() or t
     if not t:
         return {"ok": False, "say": "I didn't catch that."}
     w = _words(t)
     tiles = _tiles()
 
     # "add …" / "remind …" / "create a chore …" are always about the lists, never a device or scene
-    if re.match(r"^(?:please\s+)?(?:can you\s+)?(?:add|remind|create|put|make a (?:chore|to[\s-]?do))\b", t, flags=re.I):
-        said = _add_to_list(re.sub(r"^(?:please\s+)?(?:can you\s+)?(?:create|make|put)\b", "add", t, flags=re.I))
+    t = re.sub(r"^new\s+(chore|to[\s-]?do|task|reminder|event|appointment)\b[,:]?\s*", r"add a \1 ", t, flags=re.I)
+    if re.match(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:add|remind|create|put|schedule|book|make an? (?:chore|to[\s-]?do|event|appointment))\b", t, flags=re.I):
+        said = _add_to_list(re.sub(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:create|make|put|schedule|book)\b", "add", t, flags=re.I))
         if said:
             return {"ok": True, "say": said, "refresh": True}
 
+    # "I need to call the plumber" / "we have to renew the tags" -> to-do (buy/get/pick up -> groceries, below)
+    mn = re.match(r"^(?:we|i)\s+(?:really\s+)?(?:need|have|gotta|got)\s+to\s+(?!buy\b|get\b|grab\b|pick up\b)(\w+(?:\s+\S+)+)$", t.strip(" .!"), flags=re.I)
+    if mn:
+        said = _add_todo("add to the to-do list " + mn.group(1))
+        if said:
+            return {"ok": True, "say": said, "refresh": True}
+    # "we need paper towels", "we're out of coffee"
+    said = voice_more.grocery_phrase(t)
+    if said:
+        return {"ok": True, "say": said, "refresh": True}
+    # "check off milk", "mark take out the trash as done", "remove eggs from the grocery list"
+    said = voice_more.complete(t)
+    if said:
+        return {"ok": True, "say": said, "refresh": True}
+    # "what's on the grocery list", "what chores does Alex have"
+    said = voice_more.list_query(t)
+    if said:
+        return {"ok": True, "say": said}
+
     # weather
-    if "weather" in w or "raining" in w or ("outside" in w and ("temperature" in w or "degrees" in w)):
+    if (w & {"weather", "forecast", "raining", "umbrella", "jacket", "sunny"} or ("rain" in w and not w & {"gutter", "gutters"})
+            or ("outside" in w and w & {"temperature", "degrees", "hot", "cold", "warm", "chilly"})):
         try:
             from . import weather_svc
             wx = weather_svc.get_weather()
@@ -627,7 +723,7 @@ def interpret(text: str) -> dict:
     # "the power is going out" must not lock up the house).
     tl = t.lower().strip(" .!")
     q = bool(re.match(r"^(?:is|are|did|does|do|was|were|has|have|can|could|will|would|should|what|whats|what's|when|where|who|how|why)\b", tl)) or t.strip().endswith("?")
-    lead = r"^(?:ok(?:ay)?\s+|hey\s+|alright\s+|so\s+)?"
+    lead = r"^(?:ok(?:ay)?\s+|hey\s+|alright\s+|so\s+)?(?:run\s+|start\s+|do\s+)?"
     if not q and re.search(lead + r"(?:good ?night|night night|(?:it'?s\s+)?bed ?time|(?:we'?re|i'?m|we are|i am)\s+going to bed|lights out for the night)\b", tl):
         from . import house_modes
         r = house_modes.run("goodnight", close_garage=(True if ("close" in w and "garage" in w) else None))
@@ -657,8 +753,12 @@ def interpret(text: str) -> dict:
 
     # scene by name ("movie time", "run good night")
     scene = _match(w, tiles, {"scene", "script"})
-    wants_scene = scene and (("run" in w or "activate" in w or "start" in w or "scene" in w)
-                             or not (w & ON_WORDS or w & OFF_WORDS))
+    explicit_run = bool(re.match(r"^(?:please\s+)?(?:run|activate|start|do|set)\b", tl)) or "scene" in w
+    if scene and not explicit_run:          # "date night Friday" must not run "Good Night"
+        nw = {_sing(x) for x in re.findall(r"[a-z0-9]+", scene["name"].lower())} - _STOP
+        if not nw <= {_sing(x) for x in w} or len(w - _STOP) > len(nw) + 2:
+            scene = None
+    wants_scene = scene and (explicit_run or not (w & ON_WORDS or w & OFF_WORDS))
     if scene and wants_scene and not q:
         ha_svc.toggle(scene["entity_id"])
         return {"ok": True, "say": f"Running {scene['name']}.", "refresh": True}
@@ -669,9 +769,34 @@ def interpret(text: str) -> dict:
         if dev:
             return {"ok": True, "say": f"The {dev['name']} is {FHSTATE.get(dev['state'], dev['state'])}."}
 
+    # thermostats: "set the thermostat to 70", "turn the heat up", "turn off the AC"
+    said = voice_more.climate(t, tiles)
+    if said:
+        return {"ok": True, "say": said, "refresh": True}
+
     # on/off device control. Safety: voice can close the garage and lock doors, never open or unlock.
+    # Only when it's said like a command ("turn on…", "…lights off", "close the garage") — an "on" inside
+    # "vacuum the living room on Saturday" is not a request to switch the living room on.
+    control = bool(re.match(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:turn|switch|shut|power|flip|kill|open|close|lock|unlock|start|stop|dim|brighten)\b", tl)
+                   or re.search(r"\b(?:on|off)$", tl)
+                   or re.search(r"\b(?:lights?|lamps?|fans?|tv|plugs?)\s+(?:on|off)\b", tl))
     on, off = bool(w & ON_WORDS), bool(w & OFF_WORDS)
-    if (on or off) and not q:
+    if control and not q and re.match(r"^(?:please\s+)?lock\b", tl) and (w & {"doors", "up", "everything", "house"}):
+        locks = [x for x in tiles if x["domain"] == "lock"]
+        for x in locks:
+            ha_svc.call_service("lock", "lock", x["entity_id"])
+        return {"ok": True, "say": "Locking all the doors." if locks else "I don't see any locks.", "refresh": True}
+    if control and not q and w & {"christmas", "xmas", "holiday"} and not any(
+            re.search(r"christmas|xmas|holiday", x["name"], re.I) for x in tiles if x["domain"] in ("light", "switch")):
+        ids = []
+        for helper in ("input_text.fh_outdoor_window_lights", "input_text.fh_outdoor_holiday_lights"):
+            ids += [x.strip() for x in (ha_svc._current_state(helper) or "").split(",") if re.match(r"^(light|switch)\.", x.strip())]
+        if ids:
+            for eid in ids:
+                ha_svc.call_service(eid.split(".")[0], "turn_off" if off else "turn_on", eid)
+            return {"ok": True, "say": f"Turning {'off' if off else 'on'} the Christmas lights.", "refresh": True}
+        return {"ok": False, "say": "I don't know which plugs are the Christmas lights yet. Pick them in Settings, Automations."}
+    if control and (on or off) and not q:
         dev = _match(w, tiles, {"light", "switch", "fan", "cover", "lock", "media_player"})
         if dev:
             dom = dev["domain"]

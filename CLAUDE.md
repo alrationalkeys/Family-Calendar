@@ -114,6 +114,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   `SPOTIFY_CLIENT_ID/SECRET`, redirect `http://127.0.0.1:8000/api/spotify/callback`;
   tokens in settings key `spotify_auth`. Third-party Connect clients (spotifyd,
   go-librespot) are blocked by Spotify on this account — keep as fallbacks only.
+- Voice commands: `services/voice_cmd.py` (`interpret`, devices/modes/timers/lists) + `services/voice_more.py`
+  (no-AI-key events with date/time parsing, "we need X", list read-back, check-off, thermostats w/ peak guard).
+  Every command + empty transcription is logged: `GET/DELETE /api/ai/voice/log` (phone Settings > Advanced > Voice,
+  which also has a "Try a command" box). Whisper gets an `initial_prompt` of names/devices (`voice_cmd.stt_prompt`),
+  beam 5 (`FAMILYHUB_STT_BEAM`). Device on/off only fires on command phrasing; scenes need their whole name.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

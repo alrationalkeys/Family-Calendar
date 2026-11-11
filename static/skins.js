@@ -40,6 +40,14 @@ const Skins = (() => {
     target: null, corners: "birthday", manual: true,         // manual: picked from the menu or auto on a family birthday
     art: { src: "/skins/birthday-frame.png", zoom: 1.0, pad: { t: 170, r: 235, b: 150, l: 235 }, hpad: 40 }
   };
+  DEFS.newyear = {
+    name: "New Year's Eve", effect: "fireworks", emoji: "🎆",
+    vars: { "--bg": "#070b1a", "--panel": "#141a33", "--panel2": "#0e1328", "--line": "#d4b25a", "--ink": "#f7f3e8", "--ink-dim": "#c9c2ad", "--now": "#f2cc6b" },
+    bg: "radial-gradient(120% 90% at 50% 15%, #1d2650 0%, #0b1030 45%, #04060f 100%)",
+    wood: ["#d4b25a", "#8a7432"], gold: "#e8c66a", snowcaps: false,
+    banner: { kicker: "Countdown to", title: "", font: "'Cinzel', Georgia, serif" },
+    target: y => new Date(y + 1, 0, 1), corners: "newyear"
+  };
   function thanksgiving(y){ const dow = new Date(y, 10, 1).getDay(); return new Date(y, 10, 1 + ((4 - dow + 7) % 7) + 21); }
   function birthdayPeople(now){
     now = now || new Date(); const mmdd = String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
@@ -51,7 +59,8 @@ const Skins = (() => {
     if (birthdayPeople(now).length) return "birthday";
     const tg = thanksgiving(y), today = new Date(y, m, d);
     if (m === 10 && today <= tg) return "thanksgiving";
-    if ((m === 10 && today > tg) || m === 11 || (m === 0 && d === 1)) return "christmas";
+    if ((m === 11 && d === 31) || (m === 0 && d === 1)) return "newyear";
+    if ((m === 10 && today > tg) || m === 11) return "christmas";
     return null;
   }
   function pick(settings){
@@ -174,6 +183,10 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
 #skin-banner .dg::after{content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(0,0,0,.55)}
 #skin-banner .sub{font-family:'Cinzel', Georgia, serif; font-size:12px; letter-spacing:.12em; color:var(--ink-dim); margin-top:6px; text-transform:uppercase}
 #skin-banner .sub b{color:var(--ink)}
+#skin-banner .dg-sep{font:800 34px/58px 'Cinzel', Georgia, serif; color:var(--now); margin:0 -2px}
+html[data-skin="newyear"] #skin-banner .t{font-size:40px; letter-spacing:.08em}
+.twinkle{animation:twinkle 2.4s ease-in-out infinite alternate; transform-box:fill-box; transform-origin:center}
+@keyframes twinkle{from{opacity:.45}to{opacity:1}}
 /* painted hanging sign (Christmas, art mode): the card IS the sign; it hangs up into the garland */
 html[data-skin="christmas"][data-skin-art="on"] #skin-banner{background:url("/skins/christmas-sign.png") center/100% 100% no-repeat; border:0; border-radius:0; box-shadow:none;
   min-width:340px; width:340px; height:207px; padding:64px 44px 26px; margin:-54px 0 -14px; gap:0; justify-content:flex-start}
@@ -230,9 +243,19 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
   const BALLOON = (x, y, s, c, d) => `<g class="balloon" style="animation-delay:${d||0}s" transform="translate(${x},${y}) scale(${s})"><path d="M0 44 q-2 10 4 22" stroke="#555" stroke-width="1.2" fill="none"/><ellipse rx="16" ry="20" fill="${c}"/><ellipse cx="-6" cy="-7" rx="4" ry="6" fill="#fff" opacity=".4"/><path d="M-3 19 l3 6 3-6z" fill="${c}"/></g>`;
   const CAKE = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><rect x="-26" y="0" width="52" height="22" rx="4" fill="#f7a8c4"/><rect x="-26" y="0" width="52" height="7" rx="3" fill="#fff"/><rect x="-20" y="-16" width="40" height="18" rx="4" fill="#ffd6e7"/><rect x="-20" y="-16" width="40" height="6" rx="3" fill="#fff"/>${[-12,0,12].map(cx=>`<rect x="${cx-1.5}" y="-30" width="3" height="14" fill="#5bc0eb"/><ellipse cx="${cx}" cy="-33" rx="2.5" ry="4" fill="#ffb347"/><ellipse cx="${cx}" cy="-34" rx="1.2" ry="2" fill="#fff2c0"/>`).join("")}</g>`;
   const STREAMER = (x, y, s, c, r) => `<g transform="translate(${x},${y}) rotate(${r}) scale(${s})"><path d="M0 0 q8 10 0 20 t0 20 t0 20" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/></g>`;
+  const STAR = (x, y, s, c, d) => `<g class="twinkle" style="animation-delay:${d||0}s" transform="translate(${x},${y}) scale(${s})"><path d="M0-12 3-4 12-4 5 2 8 11 0 6-8 11-5 2-12-4-3-4z" fill="${c}"/></g>`;
+  const FLUTE = (x, y, s, r) => `<g transform="translate(${x},${y}) rotate(${r||0}) scale(${s})"><path d="M-7-30 h14 l-2 26 q-5 5-10 0z" fill="#f7e39a" opacity=".9"/><path d="M-7-30 h14 l-1 8 h-12z" fill="#fff" opacity=".55"/><rect x="-1" y="-4" width="2" height="22" fill="#e8e8f0"/><ellipse cx="0" cy="19" rx="9" ry="2.5" fill="#e8e8f0"/>${[0,1,2].map(i=>`<circle cx="${-3+i*3}" cy="${-12-i*5}" r="1" fill="#fff"/>`).join("")}</g>`;
+  const BOTTLE = (x, y, s, r) => `<g transform="translate(${x},${y}) rotate(${r||0}) scale(${s})"><rect x="-4" y="-46" width="8" height="16" rx="2" fill="#d4b25a"/><path d="M-4-30 q-8 6-8 16 v38 h24 v-38 q0-10-8-16z" fill="#173b2a"/><rect x="-12" y="-2" width="24" height="14" fill="#f7f3e8"/><rect x="-12" y="-2" width="24" height="3" fill="#d4b25a"/></g>`;
+  const CLOCK = (x, y, s) => `<g transform="translate(${x},${y}) scale(${s})"><circle r="22" fill="#f7f3e8" stroke="#d4b25a" stroke-width="4"/>${Array.from({length:12},(_,i)=>`<rect x="-1" y="-19" width="2" height="${i%3?3:6}" fill="#141a33" transform="rotate(${i*30})"/>`).join("")}<rect x="-1.5" y="-15" width="3" height="16" fill="#141a33"/><rect x="-1" y="-18" width="2" height="19" fill="#c8102e" transform="rotate(-6)"/><circle r="2.5" fill="#d4b25a"/></g>`;
   function corner(kind, where){
     const svg = svgEl("corner " + where, "0 0 150 150");
     let inner = "";
+    if (kind === "newyear"){
+      const gold = "#f2cc6b", silver = "#dfe6f2";
+      if (where === "tl" || where === "tr") inner = STAR(30, 30, 1.3, gold, 0) + STAR(70, 18, .8, silver, .6) + STAR(104, 40, 1, gold, 1.2) + STAR(40, 76, .7, silver, .3) + CLOCK(96, 92, 1.05) + STREAMER(16, 96, .9, gold, -10);
+      else inner = BOTTLE(42, 104, 1.05, -12) + FLUTE(88, 110, 1.15, 8) + FLUTE(116, 104, 1.05, -6) + STAR(120, 40, .9, gold, .4) + STAR(70, 52, .7, silver, 1);
+      svg.innerHTML = inner; return svg;
+    }
     if (kind === "birthday"){
       const cols = ["#ff6fae", "#5bc0eb", "#f2c14e", "#7cf37c", "#b388ff"];
       if (where === "tl" || where === "tr") inner = [0,1,2].map(i => BALLOON(30 + i * 36, 40 + (i % 2) * 18, .9 + (i % 2) * .15, cols[i], i * .7)).join("") + STREAMER(120, 10, 1, cols[3], 20) + STREAMER(10, 90, .9, cols[4], -15);
@@ -248,9 +271,9 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     }
     svg.innerHTML = inner; return svg;
   }
-  function bunting(width){
+  function bunting(width, palette){
     const svg = svgEl("leaves", `0 0 ${width} 60`); svg.setAttribute("preserveAspectRatio", "none");
-    const cols = ["#ff6fae", "#5bc0eb", "#f2c14e", "#7cf37c", "#b388ff"]; let s = `<path d="M0 14 Q ${width/2} 40 ${width} 14" stroke="#fff" stroke-width="3" fill="none"/>`;
+    const cols = palette || ["#ff6fae", "#5bc0eb", "#f2c14e", "#7cf37c", "#b388ff"]; let s = `<path d="M0 14 Q ${width/2} 40 ${width} 14" stroke="#fff" stroke-width="3" fill="none"/>`;
     const n = Math.floor(width / 48);
     for (let i = 0; i < n; i++){ const x0 = i * (width / n), x1 = (i + 1) * (width / n), t = (x0 + x1) / 2 / width, y = 14 + Math.sin(Math.PI * t) * 26 * 0.5 + 0; s += `<path d="M${x0} ${14 + Math.sin(Math.PI * x0 / width) * 13} L${(x0 + x1) / 2} ${y + 26} L${x1} ${14 + Math.sin(Math.PI * x1 / width) * 13}z" fill="${cols[i % cols.length]}"/>`; }
     svg.innerHTML = s; return svg;
@@ -276,7 +299,32 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const SANTA_IMG = "/skins/santa.png";
   const TURKEY_IMG = "/skins/turkey.png";   // painted sprite (green-screen keyed); emoji fallback     // painted sprite (green-screen keyed); vector SLEIGH is the fallback
+  let bellCtx = null;
+  function sleighBells(){
+    try {
+      if (typeof FH !== "undefined" && FH.get().speakAlerts === false) return;
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      bellCtx = bellCtx || new AC(); const ctx = bellCtx; if (ctx.state === "suspended") ctx.resume();
+      const out = ctx.createGain(); out.gain.value = 0.12; out.connect(ctx.destination);
+      const t0 = ctx.currentTime + 0.05;
+      // a jingle pattern: shakes of 3-4 tiny bells, 9 shakes over ~3 s, fading in then out as Santa passes
+      for (let k = 0; k < 9; k++){
+        const tk = t0 + k * 0.34 + (k % 2) * 0.05, env = Math.sin(Math.PI * (k + 0.5) / 9);
+        for (let b = 0; b < 4; b++){
+          const tb = tk + Math.random() * 0.05, f = 2300 + Math.random() * 1700;
+          [1, 2.76, 5.4].forEach((m, i) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = "sine"; o.frequency.value = f * m;
+            g.gain.setValueAtTime(0, tb); g.gain.linearRampToValueAtTime(env * (i ? 0.25 / i : 0.5), tb + 0.004);
+            g.gain.exponentialRampToValueAtTime(0.0001, tb + 0.35 - i * 0.08);
+            o.connect(g); g.connect(out); o.start(tb); o.stop(tb + 0.4);
+          });
+        }
+      }
+    } catch (e) {}
+  }
   function santaFly(){
+    sleighBells();
     if (!flyEl){ flyEl = document.createElement("div"); flyEl.id = "skin-fly"; document.body.appendChild(flyEl); }
     flyEl.innerHTML = `<div class="bob"><img src="${SANTA_IMG}" alt="" style="width:460px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))" onerror="this.parentNode.innerHTML=${JSON.stringify(SLEIGH).replace(/"/g, "&quot;")}"></div>`;
     flyEl.classList.remove("go"); void flyEl.offsetWidth;
@@ -331,10 +379,36 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     if (kind === "christmas"){ frameEl.appendChild(snowTop(w)); frameEl.appendChild(lightsString(w - 52, false)); frameEl.appendChild(lightsString(w - 52, true)); }
     else if (kind === "thanksgiving") { frameEl.appendChild(leafGarland(w)); }
     else if (kind === "birthday") { frameEl.appendChild(bunting(w)); }
+    else if (kind === "newyear") { frameEl.appendChild(bunting(w, ["#f2cc6b", "#dfe6f2", "#141a33", "#d4b25a", "#9fb4d9"])); }
     ["tl","tr","bl","br"].forEach(c => frameEl.appendChild(corner(kind, c)));
   }
+  let fastTick = null, cheered = "";
   function renderBanner(kind){
     const def = DEFS[kind], y = new Date().getFullYear();
+    if (kind === "newyear"){
+      const now = new Date(), mid = new Date(now.getFullYear() + (now.getMonth() === 11 ? 1 : 0), 0, 1), ms = mid - now;
+      const ny = mid.getFullYear();
+      if (ms > 0){
+        const h = Math.floor(ms / 3600000), mn = Math.floor(ms % 3600000 / 60000), sc = Math.floor(ms % 60000 / 1000);
+        const show = h > 0 ? [String(Math.min(h, 99)).padStart(2, "0"), String(mn).padStart(2, "0")] : ms < 120000 ? [String(mn).padStart(2, "0"), String(sc).padStart(2, "0")] : ["00", String(mn).padStart(2, "0")];
+        const unit = h > 0 ? "hours · minutes" : ms < 120000 ? "minutes · seconds" : "hours · minutes";
+        bannerEl.innerHTML = `<div class="k">${def.banner.kicker}</div><div class="t">${ny}</div><div class="digits">${show.join("").split("").map((d, i) => `<div class="dg">${d}</div>${i === 1 ? '<div class="dg-sep">:</div>' : ""}`).join("")}</div><div class="sub">${unit}</div>`;
+        if (ms < 125000 && !fastTick) fastTick = setInterval(() => renderBanner(kind), 1000);
+      } else {
+        bannerEl.innerHTML = `<div class="k">Happy New Year</div><div class="t">${ny}!</div><div class="sub"><b>🥂 Cheers!</b></div>`;
+        if (fastTick){ clearInterval(fastTick); fastTick = null; }
+        if (cheered !== String(ny) && ms > -60000){ cheered = String(ny); try { window.dispatchEvent(new CustomEvent("skin:newyear", { detail: { year: ny } })); } catch (e) {} }
+      }
+      return;
+    }
+    if (kind === "christmas"){
+      const nowd = new Date();
+      if (nowd.getMonth() === 11 && nowd.getDate() > 25){
+        const n2 = daysUntil(new Date(y + 1, 0, 1)), digits2 = String(Math.max(0, n2)).padStart(2, "0").split("").map(d => `<div class="dg">${d}</div>`).join("");
+        bannerEl.innerHTML = `<div class="k">Days until</div><div class="t">New Year's</div><div class="digits">${digits2}</div><div class="sub"><b>Fireworks on the 31st</b></div>`;
+        return;
+      }
+    }
     if (kind === "birthday"){
       const who = birthdayPeople().map(p => p.name.split(" ")[0]);
       const title = who.length ? who.join(" & ") + "!" : "🎉";
@@ -380,6 +454,7 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     root.setAttribute("data-skin-art", (def.art && artOn) ? "on" : "off");
     root.setAttribute("data-skin-lite", window.innerWidth < 900 ? "on" : "off");   // a phone looking at the wall page: colors only
     if (current !== kind){ buildFrame(kind); current = kind; startSurprises(kind); }
+    if (fastTick && kind !== "newyear"){ clearInterval(fastTick); fastTick = null; }
     renderBanner(kind);
     clearInterval(tick); tick = setInterval(() => renderBanner(kind), 60 * 1000);
     return kind;

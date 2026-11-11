@@ -39,14 +39,32 @@ def _tiles():
     return [tile for g in home.get("groups", []) for tile in g["tiles"]]
 
 
+# little words never count as a match ("add a chore…" once ran "Outdoor lights - turn a list on or off")
+_STOP = {"a", "an", "the", "to", "for", "of", "on", "in", "at", "and", "or", "my", "our", "is", "it", "be", "with",
+         "please", "can", "you", "i", "me", "we", "us", "this", "that", "turn", "set", "every", "each", "s"}
+
+
+_GENERIC = {"light", "lights", "lamp", "lamps", "switch", "plug", "outlet", "tv", "fan", "door", "smart"}
+
+
 def _match(words, tiles, domains):
-    """Best device whose name words overlap the phrase."""
+    """Best device whose name words overlap the phrase (meaningful words only). Scenes/scripts need at least
+    half of their name's words; FamilyHub's own helper scripts (script.fh_*) are never voice targets."""
     best, score = None, 0
+    want = words - _STOP
     for t in tiles:
         if t["domain"] not in domains:
             continue
-        nw = set(re.findall(r"[a-z0-9]+", t["name"].lower()))
-        s = len(nw & words)
+        if t["domain"] == "script" and t["entity_id"].startswith("script.fh_"):
+            continue
+        nw = set(re.findall(r"[a-z0-9]+", t["name"].lower())) - _STOP
+        hit = nw & want
+        # "porch" says more than "light": generic words count half, and a closer name wins a tie
+        s = sum(0.5 if x in _GENERIC else 1 for x in hit)
+        if t["domain"] in ("scene", "script") and nw and len(hit) * 2 < len(nw):
+            continue
+        if s:
+            s += len(hit) / (len(nw) * 10 or 1)
         if s > score:
             best, score = t, s
     return best if score > 0 else None
@@ -113,6 +131,74 @@ def _smart_add(text: str):
     return f"Planned {joined}."
 
 
+_WDAYS = {"monday": "MO", "tuesday": "TU", "wednesday": "WE", "thursday": "TH", "friday": "FR", "saturday": "SA", "sunday": "SU"}
+_WDNUM = {"MO": 0, "TU": 1, "WE": 2, "TH": 3, "FR": 4, "SA": 5, "SU": 6}
+
+
+def _add_chore(text: str):
+    """'add a chore for Alex to bring in the garbage cans every Thursday' -> a chore for Alex, weekly on
+    Thursdays, first due this Thursday. Understands every day / weekdays / weekends / every <day(s)> /
+    every week / every month / on <day> / today / tomorrow, and 'for 3 stars'. Returns what to say."""
+    from .people import extract_person
+    low = text.lower()
+    today = datetime.date.today()
+    days = [code for word, code in _WDAYS.items() if re.search(rf"\b{word}s?\b", low)]
+    rec, due, when = None, today, ""
+    if re.search(r"\b(every ?day|daily|each day|every night|nightly)\b", low):
+        rec, when = "daily", "every day"
+    elif re.search(r"\bweekdays?\b", low) and not days:
+        days, rec = ["MO", "TU", "WE", "TH", "FR"], "weekly:MO,TU,WE,TH,FR"
+    elif re.search(r"\bweekends?\b", low) and not days:
+        days, rec = ["SA", "SU"], "weekly:SA,SU"
+    elif days and re.search(r"\b(every|each|on)\s+(other\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b|\b(mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\b|\b(repeat|repeating|recurring|weekly)\b", low) \
+            and re.search(r"\b(every|each|repeat|repeating|recurring|weekly|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays)\b", low):
+        rec = "weekly" if len(days) == 1 else "weekly:" + ",".join(days)
+    elif re.search(r"\b(every week|weekly|each week)\b", low):
+        rec, when = "weekly", "every week"
+    elif re.search(r"\b(every month|monthly|each month)\b", low):
+        rec, when = "monthly", "every month"
+    if days:                                                   # first due date: the next of those days (today counts)
+        due = min(today + datetime.timedelta(days=(_WDNUM[d] - today.weekday()) % 7) for d in days)
+        names = [w.capitalize() for w, c in _WDAYS.items() if c in days]
+        when = ("every " + (" and ".join(names) if len(names) < 3 else ", ".join(names[:-1]) + " and " + names[-1])) if rec else "on " + names[0]
+        if rec == "weekly:MO,TU,WE,TH,FR":
+            when = "every weekday"
+        elif rec == "weekly:SA,SU":
+            when = "every weekend day"
+    elif re.search(r"\btomorrow\b", low):
+        due = today + datetime.timedelta(days=1)
+        when = when or "tomorrow"
+    m = re.search(r"\b(?:for|worth)\s+(\d|one|two|three|four|five)\s+stars?\b", low)
+    stars = 0
+    if m:
+        stars = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}.get(m.group(1), None) or int(m.group(1))
+    # the title: what's left once the command words, schedule and stars are taken out
+    title = re.sub(r"^.*?\badd\b", "", text, flags=re.I)
+    title = re.sub(r"\b(?:a|an|new)?\s*chores?\b\s*(?:list)?", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:to|on)\s+(?:the|my|our)\s+chores?\s*(?:list)?\b", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:for|worth)\s+(?:\d|one|two|three|four|five)\s+stars?\b", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:every|each|on)\s+(?:other\s+)?(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?:\s*(?:,|and)\s*)?)+", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b", " ", title, flags=re.I)
+    title = re.sub(r"\b(?:every ?day|daily|each day|every night|nightly|every week|weekly|each week|every month|monthly|each month|"
+                   r"on weekdays|weekdays|on weekends|weekends|today|tomorrow|repeating|recurring|repeat(?:s|ing)?(?: weekly)?)\b", " ", title, flags=re.I)
+    try:
+        with get_db() as conn:
+            pid, pname, title = extract_person(conn, title)
+            title = re.sub(r"\s{2,}", " ", title).strip(" ,.:;-")
+            title = re.sub(r"^(?:to|that|which)\s+", "", title, flags=re.I).strip()
+            if not title:
+                return None
+            title = title[0].upper() + title[1:120]
+            conn.execute("INSERT INTO chores (title, person_id, due_date, recurrence, stars) VALUES (?,?,?,?,?)",
+                         (title, pid, due.isoformat(), rec, stars))
+    except Exception:
+        return None
+    first = "today" if due == today else ("tomorrow" if due == today + datetime.timedelta(days=1) else due.strftime("%A %B %-d"))
+    s = f"Added the chore {title}" + (f" for {pname}" if pname else "")
+    s += f", {when}, starting {first}" if rec else (f", {first}" if due != today else "")
+    return s + (f", worth {stars} star" + ("s" if stars != 1 else "") if stars else "") + "."
+
+
 def _add_to_list(text):
     """'add milk to the groceries' / 'add call mom to my to-do' /
     'remind Rachell to book the dentist' / 'Ella needs to pack her bag' /
@@ -125,6 +211,10 @@ def _add_to_list(text):
     if not m and not assign_only:
         return None
     body = m.group(1) if m else low
+    if re.search(r"\bchores?\b", body):
+        said = _add_chore(text)
+        if said:
+            return said
     todo = bool(re.search(r"to[\s-]?do|task|reminder|list of things|remind|needs? to|has to|have to", body)) or bool(assign_only and not m)
     explicit_list = todo or bool(re.search(r"grocer|shopping|list", body))
     # No list named ("add nanner landing the Sunday before Thanksgiving"): let the same
@@ -401,6 +491,12 @@ def interpret(text: str) -> dict:
         return {"ok": False, "say": "I didn't catch that."}
     w = _words(t)
     tiles = _tiles()
+
+    # "add …" / "remind …" / "create a chore …" are always about the lists, never a device or scene
+    if re.match(r"^(?:please\s+)?(?:can you\s+)?(?:add|remind|create|put|make a (?:chore|to[\s-]?do))\b", t, flags=re.I):
+        said = _add_to_list(re.sub(r"^(?:please\s+)?(?:can you\s+)?(?:create|make|put)\b", "add", t, flags=re.I))
+        if said:
+            return {"ok": True, "say": said, "refresh": True}
 
     # weather
     if "weather" in w or "raining" in w or ("outside" in w and ("temperature" in w or "degrees" in w)):

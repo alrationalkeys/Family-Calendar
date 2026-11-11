@@ -3260,13 +3260,24 @@ async function setupSpotifyPlayer(){
   if(!window.Spotify){ spLog("sdk_error","window.Spotify missing after load"); return; }
   spLog("sdk","loaded");
   const name=FH.get().spotifyDeviceName||"FamilyHub";
-  spPlayer=new Spotify.Player({name, volume:1.0,
+  // Start quiet, not full blast: settings.spotifyStartVolume is perceived loudness (like the wall's volume
+  // buttons, which step on a squared curve), so 45% -> gain 0.45^2.
+  const startGain=()=>{ const v=Number(FH.get().spotifyStartVolume); return Math.pow(Math.max(5,Math.min(100,isFinite(v)?v:45))/100,2); };
+  spPlayer=new Spotify.Player({name, volume:startGain(),
     getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); else spLog("token_error", JSON.stringify(j)); }).catch(e=>spLog("token_error", e&&e.message))});
   spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; spLog("ready", device_id); post("/api/spotify/device",{device_id,name}).catch(()=>{}); });
   spPlayer.addListener("not_ready", ()=>{ spDeviceId=null; spLog("not_ready",""); });
   ["initialization_error","authentication_error","account_error","playback_error"].forEach(ev=>
     spPlayer.addListener(ev, e=>{ console.warn("spotify player", ev, e&&e.message); spLog(ev, e&&e.message); }));
-  spPlayer.addListener("player_state_changed", ()=>{ if(curPage==="home") setTimeout(loadHome, 800); });
+  // Each time music starts again after a break (5+ min of nothing playing), drop back to the start
+  // volume — Spotify otherwise restores whatever it was last (often 100% when the phone hands it over).
+  let spPlaying=false, spLastPlay=0;
+  spPlayer.addListener("player_state_changed", st=>{
+    const playing=!!(st&&!st.paused), now=Date.now();
+    if(playing&&!spPlaying&&now-spLastPlay>5*60*1000){ spPlayer.setVolume(startGain()).catch(()=>{}); spLog("volume","start at "+FH.get().spotifyStartVolume+"%"); }
+    if(playing||spPlaying) spLastPlay=now;
+    spPlaying=playing;
+    if(curPage==="home") setTimeout(loadHome, 800); });
   try{ await spPlayer.connect(); }catch(e){}
   // the SDK drops the device after long idle periods; reconnect on a slow heartbeat
   setInterval(async()=>{ if(!spDeviceId&&spPlayer){ try{ await spPlayer.connect(); }catch(e){} } }, 120000);

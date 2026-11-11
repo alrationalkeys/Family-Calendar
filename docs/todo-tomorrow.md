@@ -1,5 +1,19 @@
 # To do — Wednesday, Nov 11
 
+## TODAY (Nov 11) — finish the light routines
+- [x] Downloaded the new `peak_thermostat.yaml` + `outdoor_lights.yaml` into HA and restarted.
+- [ ] Phone → Settings → Schedules & routines → **Outdoor & holiday lights** → tap **Change** on each red list and tick the real lights:
+  - [ ] **Front lights · every night** — porch, driveway, side-door lights.
+  - [ ] **Holiday lights outside** — the outdoor holiday plug.
+  - [ ] **Christmas lights inside** — the window plugs (all of them, incl. the 4th).
+- [ ] Turn **off** "Turn them on tonight anyway" (Christmas season already covers it; left on, the lights keep coming on after Jan 6).
+- [ ] Christmas season is set to start **Nov 11 (today)** → lights come on at sunset tonight. Clear the date if you'd rather start after Thanksgiving.
+- [ ] Alarm.com: turn OFF the thermostat schedule + the light schedules (incl. "Christmas Lights Upstairs").
+- [ ] Spotify on the wall now starts at 45% — after updating the wall, play something and check the level (change it: Settings → Advanced → Spotify).
+- [ ] Voice test at the wall: "add dentist Friday at 3 for Rachell", "we need paper towels", "what's on the grocery list",
+      "check off paper towels", "what's the temperature inside". Phone → Settings → Advanced → Voice → screenshot the history if anything's off.
+- [ ] Zigbee stick delivered — set up when there's time (section below).
+
 ## First thing
 - [x] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.
 - [x] **Family PIN:** phone → Settings → Family PIN → 4–8 digits → Turn on. Enter it once on the wall.

@@ -709,6 +709,8 @@
     <div id="mail-box"></div>
     </details>
     <details class="more sub"><summary>Spotify</summary>
+    <div class="srow"><span>Start the music at</span><span><input type="range" id="set-spvol" min="10" max="100" step="5" style="width:120px; vertical-align:middle"> <b id="set-spvol-v"></b></span></div>
+    <div class="hint" style="margin-top:0">Each time Spotify starts on the wall after a break, it begins at this volume.</div>
     <div id="spw-status" class="hint">Checking Spotify link…</div>
     <div id="spw-connect" hidden>
       <button class="go" id="spw-login" style="background:#1db954">Connect Spotify to the wall</button>
@@ -1696,6 +1698,8 @@ function loadSettingsUI(){
   $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
+  { const r=$("#set-spvol"), v=$("#set-spvol-v"); if(r){ r.value=s.spotifyStartVolume??45; v.textContent=r.value+"%";
+    r.oninput=()=>{ v.textContent=r.value+"%"; }; r.onchange=()=>{ FH.save({spotifyStartVolume:Number(r.value)}); toast("Spotify will start at "+r.value+"%"); }; } }
   $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };
   // holidays
   document.querySelectorAll("#view-settings input[data-hol]").forEach(c=>{

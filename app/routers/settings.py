@@ -28,6 +28,7 @@ DEFAULTS = {
     "panelSizes": [1.1, 1.1, 0.9],   # relative heights of the side panels
     "textSize": "normal",            # normal | large
     "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
+    "spotifyStartVolume": 45,        # % the wall's Spotify player starts at (perceived loudness, like the wall's volume buttons)
     "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card
     "icloudAlbumUrl": "",            # iCloud Shared Album public link -> slideshow photos
     "assistantName": "Hub",          # what the family calls the voice assistant (she picks)

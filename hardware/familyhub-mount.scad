@@ -67,6 +67,8 @@ corner = 7;
 vent   = true;
 brk    = 12;         // corner bracket leg length
 brk_h  = 10;         // corner bracket height
+slot_w = 118;        // cable-slot width in the top/bottom walls (C3 ports span ~105 mm)
+slot_z = 6;          // slot floor above the front plate (C3 sits on 2 mm pads; plug bodies start ~8 mm up)
 $fn    = 48;
 case_w = pc_w + 2*(pc_clear + brk + wall);   // ~158
 case_h = pc_l + 2*(pc_clear + wall);         // ~136
@@ -135,8 +137,9 @@ module back_case(){
     // cable slots — bottom wall (C3's LAN/HDMI/USB/DC face points down into it, the
     // screen's cables come up through it) AND top wall (the C3's other port face:
     // 2x USB-A, USB-C, power button — keep it reachable for a keyboard).
-    translate([-55, -case_h/2-wall-2, fp+6]) cube([110, wall+4, case_d]);
-    translate([-55,  case_h/2-2,      fp+6]) cube([110, wall+4, case_d]);
+    // (the wall sits between case_h/2-wall and case_h/2; the cut straddles it with 2 mm spare each side)
+    translate([-slot_w/2, -case_h/2-2,      fp+slot_z]) cube([slot_w, wall+4, case_d]);
+    translate([-slot_w/2,  case_h/2-wall-2, fp+slot_z]) cube([slot_w, wall+4, case_d]);
     // speaker-pocket bolt holes in the side wall (M3 through, nut inside)
     for(y=[-spk_l/2+15, spk_l/2-15]) translate([spk_side*(case_w/2+1), y, fp+pc_h/2]) rotate([0,90,0]) cylinder(h=wall*2+2, d=3.4, center=true);
     // vents: slots in the top wall + both side walls (C3 fan intakes are on its sides)

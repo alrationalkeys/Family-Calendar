@@ -37,7 +37,8 @@ const Skins = (() => {
     bg: "radial-gradient(120% 90% at 50% 20%, #4a2a7a 0%, #2a1650 45%, #150b2a 100%)",
     wood: ["#ff6fae", "#7a3cc9"], gold: "#f2c14e", snowcaps: false,
     banner: { kicker: "Happy Birthday", title: "", font: "'Mountains of Christmas', 'Brush Script MT', cursive" },
-    target: null, corners: "birthday", manual: true          // manual: picked from the menu or auto on a family birthday
+    target: null, corners: "birthday", manual: true,         // manual: picked from the menu or auto on a family birthday
+    art: { src: "/skins/birthday-frame.png", zoom: 1.0, pad: { t: 170, r: 235, b: 150, l: 235 }, hpad: 40 }
   };
   function thanksgiving(y){ const dow = new Date(y, 10, 1).getDay(); return new Date(y, 10, 1 + ((4 - dow + 7) % 7) + 21); }
   function birthdayPeople(now){

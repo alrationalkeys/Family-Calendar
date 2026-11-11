@@ -1,4 +1,4 @@
-# To do — Thursday, Nov 12
+# To do — Wednesday, Nov 11
 
 ## First thing
 - [ ] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.
@@ -43,6 +43,12 @@
 ## Flaky door sensor (PowerG, always the same door)
 - [ ] New battery (PG9303 = CR2032, PG9945 = CR123A), fix the magnet gap (≤ ½ in, marks lined up, off metal),
       test 5× at the panel's sensor screen and compare its signal to a good door. Still bad → Surety support for a swap.
+
+## Install the Home Assistant routines (first thing — see the chat for step-by-step)
+- [ ] File editor add-on → add `homeassistant:` / `packages: !include_dir_named packages` to configuration.yaml → make a `packages` folder.
+- [ ] Add `peak-thermostat.yaml` and `outdoor-lights.yaml` (kitchen-lights.yaml after the Zigbee move). Check entity names.
+- [ ] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
+- [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
 
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.

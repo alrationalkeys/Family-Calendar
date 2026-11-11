@@ -99,7 +99,13 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - `/api/ha/events` (SSE) + `/api/ha/version` — live HA state changes via `services/ha_live.py` (WebSocket mirror; demo toggles bump too)
 - `GET /api/sources/targets` — writable destinations (FamilyHub / Google / each iCloud calendar); `POST /api/calendar/events` takes `destination`; last choice remembered in `settings.defaultCalendar`
 - iCloud **Reminders ↔ To-Do** two-way: `services/reminders_sync.py` (VTODO over the same CalDAV source, every 5 min + `POST /api/todos/sync`; ticking a synced to-do completes it upstream; `todos.ext_uid/ext_source/ext_list`)
-- Automations page: `GET /api/ha/automations` (+ `/toggle`, `/setting`) — HA routines grouped (peak, outdoor/holiday, kitchen, other) with plain-English text (`services/automations.py` DESCRIBE, keyed by the `fh_` yaml ids in `docs/ha/*.yaml`), on/off, last run, editable helpers. Only automation/input_number/input_datetime/input_boolean are writable. UI: `static/automations.js` in phone Settings (wall gets it via Settings > Everything).
+- Automations page: `GET /api/ha/automations` (+ `/toggle`, `/setting`, `/routine` GET/POST/DELETE). Built-in packages
+  `docs/ha/{peak_thermostat,outdoor_lights,kitchen_lights}.yaml` (underscores — HA rejects dashes) keep every time/temp/
+  light list in HA helpers (no `initial:`; a `fh_*_defaults` automation seeds them once, so edits survive restarts).
+  Light lists are `input_text` (comma ids) edited with a checklist. Descriptions fill in helper values ({input_x.y}).
+  "Your routines" = builder (`automations.build(spec)`) -> HA `/api/config/automation/config/fhu_*` (needs an admin
+  token); spec JSON lives in the automation description so it can be re-edited. Builder never unlocks/disarms.
+  "Say on the wall" = HA event `familyhub` {kind:say} that `ha_live` turns into an announcement. UI: `static/automations.js`.
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
   (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The

@@ -68,6 +68,23 @@ async def wait_for_change(since: int, timeout: float = 25.0) -> int:
     return _version
 
 
+def _on_familyhub(data: dict):
+    """A FamilyHub routine asked the wall to say something: queue it like a phone announcement."""
+    if data.get("kind") != "say":
+        return
+    text = str(data.get("message") or "").strip()[:300]
+    if not text:
+        return
+    try:
+        from datetime import datetime
+        from ..db import get_db
+        with get_db() as conn:
+            conn.execute("INSERT INTO notifications (title, body, kind, at) VALUES (?,?,?,?)",
+                         ("\U0001F3E0 Home", text, "announce", datetime.now().isoformat()))
+    except Exception:
+        pass
+
+
 async def _run_once(ws_url: str, token: str):
     global _connected, _updated, _version
     import websockets
@@ -82,6 +99,8 @@ async def _run_once(ws_url: str, token: str):
             return
         await ws.send(json.dumps({"id": 1, "type": "get_states"}))
         await ws.send(json.dumps({"id": 2, "type": "subscribe_events", "event_type": "state_changed"}))
+        # routines made in FamilyHub fire a "familyhub" event to make the wall speak
+        await ws.send(json.dumps({"id": 3, "type": "subscribe_events", "event_type": "familyhub"}))
         while True:
             msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=90))
             if msg.get("id") == 1 and msg.get("type") == "result":
@@ -94,6 +113,8 @@ async def _run_once(ws_url: str, token: str):
                 if _cond:
                     async with _cond:
                         _cond.notify_all()
+            elif msg.get("type") == "event" and (msg.get("event") or {}).get("event_type") == "familyhub":
+                _on_familyhub((msg.get("event") or {}).get("data") or {})
             elif msg.get("type") == "event":
                 data = (msg.get("event") or {}).get("data") or {}
                 new = data.get("new_state")

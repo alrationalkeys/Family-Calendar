@@ -13,7 +13,9 @@
 #      (winter 9 AM: heat 60 / cool 70; summer 6 PM: heat 67 / cool 70). The Alarm.com schedule carries on.
 #   SAFETY ONLY: if the house ever reaches 50° (pipes) or 88° during peak, that thermostat comes back on at that
 #   number until peak ends. Set either limit in Helpers. It should never happen in a normal South Carolina day.
-#   Change any time or temperature in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
+#   Change any time or temperature in FamilyHub (phone > Settings > Automations), or in Home Assistant by
+#   tapping the "Peak …" entity. Changes are kept across restarts: the starting values below are filled in
+#   once (fh_peak_defaults) and never again.
 #
 # ALARM.COM SCHEDULE TO SET ONCE (both thermostats, weekday + weekend the same), then leave it alone:
 #       Heat: 67° from 6 PM to 9 AM, 60° from 9 AM to 6 PM        (delete the 50° 3–6 PM block)
@@ -23,28 +25,29 @@
 # /config/packages/, restart, then simplify the Alarm.com schedule as above.
 
 input_datetime:
-  peak_summer_start: { name: Peak summer start, has_date: false, has_time: true, initial: "15:00" }
-  peak_summer_end:   { name: Peak summer end,   has_date: false, has_time: true, initial: "18:00" }
-  peak_winter_start: { name: Peak winter start, has_date: false, has_time: true, initial: "06:00" }
-  peak_winter_end:   { name: Peak winter end,   has_date: false, has_time: true, initial: "09:00" }
+  peak_summer_start: { name: Peak summer start, has_date: false, has_time: true }
+  peak_summer_end:   { name: Peak summer end,   has_date: false, has_time: true }
+  peak_winter_start: { name: Peak winter start, has_date: false, has_time: true }
+  peak_winter_end:   { name: Peak winter end,   has_date: false, has_time: true }
 
 input_number:
-  peak_preheat:   { name: Pre-heat before winter peak, min: 60, max: 76, step: 1, initial: 70, unit_of_measurement: "°F" }
-  peak_precool:   { name: Pre-cool before summer peak, min: 64, max: 78, step: 1, initial: 68, unit_of_measurement: "°F" }
+  peak_preheat:   { name: Pre-heat before winter peak, min: 60, max: 76, step: 1, unit_of_measurement: "°F" }
+  peak_precool:   { name: Pre-cool before summer peak, min: 64, max: 78, step: 1, unit_of_measurement: "°F" }
   # what the thermostats go back to when peak ends (= your Alarm.com schedule at that time of day)
-  peak_after_winter_heat: { name: After winter peak heat (9 AM), min: 50, max: 75, step: 1, initial: 60, unit_of_measurement: "°F" }
-  peak_after_winter_cool: { name: After winter peak cool (9 AM), min: 65, max: 90, step: 1, initial: 70, unit_of_measurement: "°F" }
-  peak_after_summer_heat: { name: After summer peak heat (6 PM), min: 50, max: 75, step: 1, initial: 67, unit_of_measurement: "°F" }
-  peak_after_summer_cool: { name: After summer peak cool (6 PM), min: 65, max: 90, step: 1, initial: 70, unit_of_measurement: "°F" }
-  peak_safe_low:  { name: Peak safety floor (heat comes back on), min: 40, max: 60, step: 1, initial: 50, unit_of_measurement: "°F" }
-  peak_safe_high: { name: Peak safety ceiling (AC comes back on), min: 80, max: 95, step: 1, initial: 88, unit_of_measurement: "°F" }
+  peak_after_winter_heat: { name: After winter peak heat (9 AM), min: 50, max: 75, step: 1, unit_of_measurement: "°F" }
+  peak_after_winter_cool: { name: After winter peak cool (9 AM), min: 65, max: 90, step: 1, unit_of_measurement: "°F" }
+  peak_after_summer_heat: { name: After summer peak heat (6 PM), min: 50, max: 75, step: 1, unit_of_measurement: "°F" }
+  peak_after_summer_cool: { name: After summer peak cool (6 PM), min: 65, max: 90, step: 1, unit_of_measurement: "°F" }
+  peak_safe_low:  { name: Peak safety floor (heat comes back on), min: 40, max: 60, step: 1, unit_of_measurement: "°F" }
+  peak_safe_high: { name: Peak safety ceiling (AC comes back on), min: 80, max: 95, step: 1, unit_of_measurement: "°F" }
 
 input_text:
   peak_saved: { name: Saved thermostat settings (automatic), max: 255 }
 
 input_boolean:
-  peak_enabled: { name: Peak hours - HVAC off, icon: mdi:transmission-tower, initial: true }
+  peak_enabled: { name: Peak hours - HVAC off, icon: mdi:transmission-tower }
   peak_active:  { name: Peak in progress (automatic) }
+  peak_ready:   { name: Peak starting values filled in (automatic) }
 
 template:
   - binary_sensor:
@@ -60,6 +63,45 @@ template:
           {{ a <= now().strftime('%H:%M') < b }}
 
 automation:
+  # First start only: fill in the starting values. After that your changes are kept.
+  - id: fh_peak_defaults
+    alias: "Peak: fill in starting values (first install only)"
+    triggers:
+      - trigger: homeassistant
+        event: start
+    conditions:
+      - condition: not
+        conditions: [{ condition: state, entity_id: input_boolean.peak_ready, state: "on" }]
+    actions:
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.peak_summer_start }
+        data: { time: "15:00:00" }
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.peak_summer_end }
+        data: { time: "18:00:00" }
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.peak_winter_start }
+        data: { time: "06:00:00" }
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.peak_winter_end }
+        data: { time: "09:00:00" }
+      - repeat:
+          for_each:
+            - { e: input_number.peak_preheat, v: 70 }
+            - { e: input_number.peak_precool, v: 68 }
+            - { e: input_number.peak_after_winter_heat, v: 60 }
+            - { e: input_number.peak_after_winter_cool, v: 70 }
+            - { e: input_number.peak_after_summer_heat, v: 67 }
+            - { e: input_number.peak_after_summer_cool, v: 70 }
+            - { e: input_number.peak_safe_low, v: 50 }
+            - { e: input_number.peak_safe_high, v: 88 }
+          sequence:
+            - action: input_number.set_value
+              target: { entity_id: "{{ repeat.item.e }}" }
+              data: { value: "{{ repeat.item.v }}" }
+      - action: input_boolean.turn_on
+        target: { entity_id: [input_boolean.peak_enabled, input_boolean.peak_ready] }
+
   - id: fh_peak_precondition
     alias: "Peak: pre-heat / pre-cool an hour before"
     triggers:

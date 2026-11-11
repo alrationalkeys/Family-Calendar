@@ -213,6 +213,25 @@ def automations_toggle(payload: dict):
     return automations.set_automation(str((payload or {}).get("entity_id", "")), bool((payload or {}).get("on")))
 
 
+@router.get("/automations/routine/{rid}")
+def routine_get(rid: str):
+    from ..services import automations
+    return automations.get_routine(rid)
+
+
+@router.post("/automations/routine")
+def routine_save(payload: dict):
+    from ..services import automations
+    p = payload or {}
+    return automations.save_routine(p.get("spec") or {}, p.get("id"))
+
+
+@router.delete("/automations/routine/{rid}")
+def routine_delete(rid: str):
+    from ..services import automations
+    return automations.delete_routine(rid)
+
+
 @router.post("/automations/setting")
 def automations_setting(payload: dict):
     from ..services import automations

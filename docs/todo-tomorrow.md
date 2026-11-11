@@ -54,6 +54,11 @@
 - [ ] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
 - [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
 
+## Update the routine files (editable from FamilyHub now)
+- [ ] Terminal: `cd /homeassistant/packages && rm -f *.yaml && wget <the two links in the chat>` → `ha core check` → `ha core restart`.
+- [ ] FamilyHub → Settings → Automations: check Nightly lights / Holiday lights / Christmas window lights lists; add the 4th window plug.
+- [ ] Try ＋ New routine.
+
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.
 - [ ] Install `docs/ha/peak_thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.

@@ -45,7 +45,7 @@
       test 5× at the panel's sensor screen and compare its signal to a good door. Still bad → Surety support for a swap.
 
 ## Thermostat peak hours
-- [ ] Tell Claude your power company + its peak hours (summer and winter, weekdays only?) and how many degrees you usually change.
+- [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Check your rate plan for whether weekends count.
 - [ ] Install `docs/ha/peak-thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
 
 ## Quick settings (Home Assistant)

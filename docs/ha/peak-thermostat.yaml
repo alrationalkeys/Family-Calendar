@@ -8,15 +8,15 @@
 #   - AFTER PEAK: puts each thermostat back exactly where it was.
 # Your Alarm.com/Resideo "Basic Schedule" keeps running the rest of the day; this only overrides it around peak.
 #
-# PEAK HOURS ARE PLACEHOLDERS until you confirm your utility's: summer (Apr–Oct) 3–7 PM, winter (Nov–Mar)
-# 6–9 AM. Change them any time in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
+# Santee Cooper peak hours: summer (Apr 1 – Oct 31) 3–6 PM, winter (Nov 1 – Mar 31) 6–9 AM, weekdays.
+# Change them any time in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
 #
 # INSTALL: check the two climate entity IDs below (Settings > Entities, search "thermostat"),
 # put this file in /config/packages/, restart. Nothing to change in Alarm.com.
 
 input_datetime:
   peak_summer_start: { name: Peak summer start, has_date: false, has_time: true, initial: "15:00" }
-  peak_summer_end:   { name: Peak summer end,   has_date: false, has_time: true, initial: "19:00" }
+  peak_summer_end:   { name: Peak summer end,   has_date: false, has_time: true, initial: "18:00" }
   peak_winter_start: { name: Peak winter start, has_date: false, has_time: true, initial: "06:00" }
   peak_winter_end:   { name: Peak winter end,   has_date: false, has_time: true, initial: "09:00" }
 

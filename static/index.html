@@ -329,7 +329,7 @@
   .card .body{overflow-y:auto}
   .list-row{display:flex; align-items:center; gap:11px; padding:7px 0; border-top:1px solid var(--line); cursor:pointer}
   .list-row .who{font-size:.82em; font-weight:600; opacity:.85}
-  .list-row .more{margin-left:auto; flex:none; border:0; background:none; color:var(--ink-dim); font-size:20px; line-height:1; width:36px; height:30px; border-radius:8px; cursor:pointer; opacity:.55}
+  .list-row .more{margin-left:auto; flex:none; border:0; background:var(--panel2); color:var(--ink); font-size:22px; line-height:1; width:44px; height:36px; border-radius:10px; cursor:pointer; opacity:.8}
   .list-row .more:active{background:var(--panel2); opacity:1}
   .list-row .qty + .more{margin-left:4px}
   /* item menu (press and hold a chore / to-do / grocery, or tap ⋯) */
@@ -607,7 +607,7 @@
   .adev.task.done, .mev.task.done, .agenda-ev.task.done .agenda-title{text-decoration:line-through; opacity:.55}
   .adev.task.done::before, .mev.task.done::before{content:"\2611"}
   .agenda-ev.task .agenda-time{font-size:18px; line-height:1}
-  .adev{font-size:11px; font-weight:600; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
+  .adev{flex:none; font-size:11px; font-weight:600; background:color-mix(in srgb, var(--accent,#4f86c6) 20%, var(--panel)); border-left:3px solid var(--accent,#4f86c6); border-radius:5px; padding:2px 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis}
   .tg-body{flex:1; overflow-y:auto; position:relative; min-height:0; scrollbar-gutter:stable}
   .tg-cols{display:grid; grid-template-columns:var(--tlab,54px) repeat(var(--cols,7),minmax(0,1fr)); position:relative}
   .tg-gut .gh{height:var(--hpx,46px); font-size:11px; color:var(--ink-dim); text-align:right; padding-right:7px; transform:translateY(-7px)}
@@ -1491,7 +1491,10 @@ function itemMenu(kind, item, opts){
   resetSleep();
   let ov=$("#im-ov");
   if(!ov){ ov=document.createElement("div"); ov.id="im-ov"; ov.innerHTML='<div id="im-box" role="dialog" aria-modal="true"></div>'; document.body.appendChild(ov);
-    ov.addEventListener("click", e=>{ if(e.target===ov) ov.classList.remove("on"); }); }
+    let downOnBackdrop=false;
+    ov.addEventListener("pointerdown", e=>{ downOnBackdrop = e.target===ov && Date.now()-(+ov.dataset.opened||0) > 400; });
+    ov.addEventListener("click", e=>{ if(e.target===ov && downOnBackdrop) ov.classList.remove("on"); downOnBackdrop=false; }); }
+  ov.dataset.opened=String(Date.now());
   const box=$("#im-box"), title=item.title||item.item||"", rec=item.recurrence;
   const api={chore:"chores", todo:"todos", grocery:"groceries"}[kind];
   const recTxt=rec?({daily:"every day", weekly:"every week", monthly:"every month"}[String(rec).split(";")[0]]||"on a schedule"):"";
@@ -1510,9 +1513,11 @@ function itemMenu(kind, item, opts){
     if(a==="edit") return itemEdit(kind, item);
     if(a==="del"){
       if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent="Tap again to delete"; return; }
-      await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>{}); banner("\u{1F5D1} Deleted", title); return done();
+      const r=await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>null);
+      banner(r&&r.ok?"\u{1F5D1} Deleted":"Couldn't delete it", r&&r.ok?title:"Try again in a moment"); return done();
     }
-    if(a==="skip"){ await fetch(`/api/${api}/${item.id}/toggle`,{method:"POST"}).catch(()=>{}); banner("\u23ED Skipped", title); return done(); }
+    if(a==="skip"){ const r=await fetch(`/api/${api}/${item.id}/toggle`,{method:"POST"}).catch(()=>null);
+      banner(r&&r.ok?"\u23ED Skipped":"Couldn't skip it", r&&r.ok?title:"Try again in a moment"); return done(); }
     if(a==="stop"){
       let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
       if(!raw){ banner("Couldn't change it", "Try again in a moment"); return; }
@@ -1719,7 +1724,11 @@ let sleepTimer, slideTimer, photos=[], pIdx=0, asleep=false;
 const sleepAfterMs=()=>{ const m=parseFloat(FH.get().slideshowAfter); return isNaN(m)?5*60000:m*60000; };
 const slideMs=()=>Math.max(3, parseFloat(FH.get().slideSeconds)||8)*1000;
 async function loadPhotos(){ try{ const r=await fetch("/api/photos/").then(r=>r.json()); photos=r.photos||[]; if(curPage==="photos") renderPhotosPage(); }catch(e){} }
-function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); document.body.classList.add("slideshow"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
+function goToSleep(){ if(!photos.length||sleepMode)return;
+  try{ if($("#add-box").classList.contains("on")) closeAdd(); }catch(e){}
+  try{ const im=$("#im-ov"); if(im) im.classList.remove("on"); }catch(e){}
+  try{ oskHide(); }catch(e){}
+  asleep=true; $("#sleep").classList.add("on"); document.body.classList.add("slideshow"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
 function showSlide(){
   const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
   const fit=(FH.get().photoFit||"fit")==="fit"; layer.classList.toggle("fit", fit);
@@ -2692,7 +2701,7 @@ function openCamera(eid, name, opts){
   if(window.ADCStream){
     _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st,why)=>{ if(_camEid!==eid) return;
       if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; }
-      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · showing a fresh picture every 3 s · <a href="#" id="cam-retry" style="color:inherit;font-weight:700">Try live again</a>'; const rb=$("#cam-retry"); if(rb) rb.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); _camStream._retries=0; _camStream.start(); }; }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · showing a fresh picture every 3 s · <a href="#" id="cam-retry" style="color:#fff;font-weight:700;display:inline-block;margin-left:8px;padding:8px 16px;border-radius:18px;background:rgba(255,255,255,.18);text-decoration:none">Try live again</a>'; const rb=$("#cam-retry"); if(rb) rb.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); _camStream._retries=0; _camStream.start(); }; }
       else if(st==="connecting"){ ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }});
     _camStream.start();
   }
@@ -2953,7 +2962,10 @@ function oskDelete(){
 function oskPress(k){
   if(k==="⌫") oskDelete();
   else if(k==="space") oskInsert(" ");
-  else if(k==="return"){ if(oskTarget) oskTarget.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true})); }
+  else if(k==="return"){ const t=oskTarget; if(!t) return;
+    if(t.tagName==="TEXTAREA"){ oskInsert("\n"); return; }
+    const ev=new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true}); t.dispatchEvent(ev);
+    if(!ev.defaultPrevented){ const scope=t.closest(".form,.magic,form,#ev-modal,#im-box"); const go=scope&&scope.querySelector("button.go,button.ev-save,button[data-a=save]"); if(go){ go.click(); oskHide(); } } }
   else if(k==="⇧"){ oskShift=!oskShift; oskRender(); }
   else if(k==="123"){ oskMode="num"; oskRender(); }
   else if(k==="ABC"){ oskMode="abc"; oskRender(); }
@@ -2972,6 +2984,7 @@ document.addEventListener("pointerdown", e=>{ if(!oskEl||!oskEl.classList.contai
   if(e.target.closest&&(e.target.closest("#osk")||(e.target.matches&&e.target.matches(OSK_SEL)))) return; oskHide(); }, true);
 setInterval(()=>{ if(oskEl&&oskEl.classList.contains("on")&&(!oskTarget||!oskTarget.isConnected||!oskTarget.offsetParent)) oskHide(); }, 700);
 function oskHookFrame(fr){ const hook=()=>{ try{ const doc=fr.contentDocument; if(!doc||doc.__osk) return; doc.__osk=true;
+    ["pointerdown","keydown","input"].forEach(ev=>doc.addEventListener(ev, ()=>{ try{ resetSleep(); }catch(e){} }, {passive:true}));
     doc.addEventListener("focusin", e=>{ if(FH.get().onscreenKbd&&e.target.matches&&e.target.matches(OSK_SEL)) oskShow(e.target); });
     doc.addEventListener("pointerdown", e=>{ if(oskEl&&oskEl.classList.contains("on")&&!(e.target.matches&&e.target.matches(OSK_SEL))) oskHide(); }, true);
   }catch(e){} }; fr.addEventListener("load", hook); hook(); }

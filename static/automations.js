@@ -283,7 +283,10 @@
       const value = el.type === "checkbox" ? el.checked : el.value;
       const r = await post("/api/ha/automations/setting", {entity_id: el.dataset.helper, value});
       say(r.ok ? "Saved" : (r.reason || "Couldn’t save"));
-      if (r.ok) setTimeout(() => load(box, toast), 800);        // descriptions show the new value
+      if (r.ok) setTimeout(() => {                                // descriptions show the new value…
+        const busy = box.querySelector(".au-list") || (document.activeElement && box.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName));
+        if (!busy) load(box, toast);                              // …unless you're in the middle of something
+      }, 800);
     });
     // light lists: Change -> checklist of lights + plugs, Done saves
     box.querySelectorAll("[data-pick]").forEach(p => {

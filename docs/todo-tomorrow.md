@@ -63,6 +63,9 @@
 - [x] Two-factor login — done Nov 11.
 
 ## Around the house
+- [ ] **Rachell shows "away":** HA → Settings → People → Rachell → Track device = her phone. On her phone:
+      iPhone Settings → Home Assistant → Location = Always + Precise on, Background App Refresh on;
+      HA app → Settings → Companion app → Location → all toggles on. Pull to refresh.
 - [ ] 4× AA (lithium) in the **side-door Kwikset** (Alarm.com critical battery).
 - [ ] Return the **Z-Wave stick**.
 - [ ] Try the **frame test corners** on the screen — tell Claude: tight / loose / any black showing, which edge.

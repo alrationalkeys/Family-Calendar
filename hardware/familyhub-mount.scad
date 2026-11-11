@@ -103,10 +103,10 @@ spk_clear = 1;
 panel_w   = screen_w; // measured 14 7/16 in
 panel_h   = screen_h; // measured 9 3/16 in
 lit_w     = 344.2;   // 15.6in FHD active area (standard)
-lit_h     = 193.6;
-lit_top   = 13;      // black border above the picture (tape: ~1/2 in; bottom then works out to ~27)
+lit_top   = (screen_w - lit_w)/2;   // top border = side border (~11.25) — fit-tested Nov 2026: top should match the sides
 lit_left  = (panel_w - lit_w)/2;              // ~10 each side
-lit_bot   = panel_h - lit_top - lit_h;        // ~24
+lit_bot   = 26.8;    // fit-tested Nov 2026: bottom is right, keep it fixed (opening grows upward instead)
+lit_h     = panel_h - lit_top - lit_bot;      // opening height between the tested top and bottom borders (~195.4)
 f_clear   = -1;      // negative = the frame laps 1 mm onto the picture, so no black line shows even if a border is off by a hair
 f_face    = 34;      // visible frame face, opening to outer edge, same all round (must exceed the 28 mm bottom bezel)
 f_front   = 2;       // thickness of the face plate over the glass

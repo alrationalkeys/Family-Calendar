@@ -36,6 +36,8 @@
       phone room pop-ups, thermostat pop-up, Front/Back Porch cards; doorbell live view (or "Try live again").
 - [ ] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
       or wall Settings → Display → uncheck the on-screen keyboard (keeps Ubuntu's).
+- [ ] **I'm home** (phone + wall): keypad → disarms → opens the garage → lights after dark. Wrong code = garage stays shut.
+- [ ] **Slideshow timing:** phone → Settings → Photos → "Start the photo slideshow after".
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 
 ## Set up the two unused Surety outdoor AI cameras
@@ -51,7 +53,7 @@
 ## Install the Home Assistant routines (first thing — see the chat for step-by-step)
 - [x] File editor add-on → add `homeassistant:` / `packages: !include_dir_named packages` to configuration.yaml → make a `packages` folder.
 - [x] Add `peak_thermostat.yaml` and `outdoor_lights.yaml` (file names need underscores, not dashes; HA's folder is /homeassistant in the Terminal) (kitchen_lights.yaml after the Zigbee move). Check entity names.
-- [ ] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
+- [x] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
 - [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
 
 ## Update the routine files (editable from FamilyHub now)
@@ -61,7 +63,7 @@
 
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.
-- [ ] Install `docs/ha/peak_thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
+- [x] Install `docs/ha/peak_thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
 - [ ] Then simplify the Alarm.com schedule on BOTH thermostats, once: Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM; Cool 70° all day.
 
 ## Live traffic for leave-by (optional, 5 min)

@@ -361,6 +361,12 @@
   body.embed{padding:0 4px 24px; max-width:none}
   body.embed>h1, body.embed .topnav, body.embed #view-settings>.sub, body.embed #startfresh{display:none}
   body.embed #view-settings .form.sect{margin:0 0 14px}
+  /* embed=add: the wall's Add pop-up — the type picker + form first, quick-add box below, nothing else */
+  body.embed-add{padding:0 16px 30px; background:transparent}
+  body.embed-add #view-add{display:flex; flex-direction:column}
+  body.embed-add #view-add>.sub, body.embed-add #view-add>.magic~.magic{display:none}
+  body.embed-add #view-add>.seg{order:-2; flex-wrap:wrap} body.embed-add #form{order:-1; margin-bottom:16px}
+  body.embed-add #toast{bottom:20px}
 </style>
 </head>
 <body>
@@ -1447,6 +1453,26 @@ function renderHM(h, force){
 // come back to the tab you were on last time
 const EMBED = new URLSearchParams(location.search).get("embed");
 if(EMBED==="settings"){ document.body.classList.add("embed"); setTimeout(()=>switchView("settings"),0); }
+if(EMBED==="add"){
+  const q=new URLSearchParams(location.search), kind=q.get("kind")||"event", d=q.get("date"), tm=q.get("time");
+  document.body.classList.add("embed","embed-add");
+  // match the wall's light/dark look
+  const syncTheme=()=>{ try{ const t=parent.document.documentElement.getAttribute("data-theme"); if(t) document.documentElement.setAttribute("data-theme",t); }catch(e){} };
+  syncTheme(); setTimeout(syncTheme,300); setTimeout(syncTheme,1500);
+  setTimeout(()=>{ switchView("add");
+    const b=document.querySelector(`.seg button[data-f="${kind}"]`); if(b) b.click();
+    // fill the date into whichever form is showing, now and whenever the type changes
+    const fill=()=>{ if(d) ["e_date","t_due","c_due","m_date","cd_date"].forEach(id=>{ const el=$("#"+id); if(el) el.value=d; });
+      if(tm&&$("#e_time")) $("#e_time").value=tm;
+      const first=$("#form input:not([type=date]):not([type=time]):not([type=checkbox])"); if(first) first.focus(); };
+    // the form redraws when people/calendars finish loading, so refill after every draw
+    const _rf=renderForm; renderForm=function(){ const keep=$("#form input:focus"), v=keep&&keep.id?[keep.id,keep.value]:null; _rf.apply(this,arguments); fill();
+      if(v&&$("#"+v[0])){ $("#"+v[0]).value=v[1]; } };
+    fill();
+  },0);
+  // saved -> tell the wall (it refreshes and closes the pop-up)
+  const _t=toast; toast=function(m){ _t(m); if(/\badded\b/i.test(String(m))&&!/couldn/i.test(String(m))) try{ parent.postMessage({fh:"added", msg:String(m)}, location.origin); }catch(e){} };
+}
 else try{ const v=localStorage.getItem("fh_view"); if(v&&v!=="add"&&$("#view-"+v)) setTimeout(()=>switchView(v),0); }catch(e){}
 
 /* ---- TV remote (same /api/ha/media backend as the wall's remote) ---- */

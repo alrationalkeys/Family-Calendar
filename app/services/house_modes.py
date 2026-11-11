@@ -126,7 +126,8 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
                 if warnings and mode == "away":
                     warnings.append("I didn't arm the alarm")
                     break
-                svc = "alarm_arm_home" if mode == "goodnight" else "alarm_arm_away"   # = the Surety Sleep scene (Stay); leaving arms Away
+                # Stay for both, like the Surety Sleep and Away scenes (dogs set off motion sensors). settings.awayArm="away" opts in.
+                svc = "alarm_arm_away" if (mode == "away" and s.get("awayArm") == "away") else "alarm_arm_home"
                 r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
                 done.append("armed the alarm" + (" for the night" if mode == "goodnight" else "") if r.get("ok") else "couldn't arm the alarm")
         # thermostat

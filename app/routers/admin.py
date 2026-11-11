@@ -176,6 +176,7 @@ def _desktop_env() -> dict:
     env = dict(os.environ)
     env.setdefault("DISPLAY", ":0")
     env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{os.getuid()}/bus"
+    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     xa = os.path.expanduser("~/.Xauthority")
     if os.path.exists(xa):
         env.setdefault("XAUTHORITY", xa)
@@ -184,15 +185,26 @@ def _desktop_env() -> dict:
 
 @router.post("/screen-keyboard")
 def screen_keyboard(payload: dict | None = None):
-    """Turn Ubuntu's own on-screen keyboard on/off ({on: false}). FamilyHub has its own (themed) one."""
+    """Ubuntu's own on-screen keyboard on/off ({on: false}). GNOME ignores its setting on touchscreens, so
+    "off" installs a tiny GNOME Shell extension (setup/disable-ubuntu-osk.sh); needs one restart of the wall."""
     import subprocess
     on = bool((payload or {}).get("on"))
+    script = os.path.join(ROOT, "setup", "disable-ubuntu-osk.sh")
     try:
-        r = subprocess.run(["gsettings", "set", "org.gnome.desktop.a11y.applications", "screen-keyboard-enabled",
-                            "true" if on else "false"], env=_desktop_env(), capture_output=True, text=True, timeout=8)
+        r = subprocess.run(["bash", script] + (["--undo"] if on else []), env=_desktop_env(),
+                           capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
-        return {"ok": False, "reason": f"couldn't run gsettings: {e}"}
-    return {"ok": r.returncode == 0, "reason": (r.stderr or "").strip()[:200] or None}
+        return {"ok": False, "reason": f"couldn't run the installer: {e}"}
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    return {"ok": r.returncode == 0, "restart": True, "reason": out[-300:] or None}
+
+
+def _kiosk_running() -> bool:
+    import subprocess
+    try:
+        return subprocess.run(["pgrep", "-f", "kiosk.sh"], capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 @router.post("/desktop")
@@ -200,7 +212,8 @@ def to_desktop():
     """Close the full-screen wall browser so Ubuntu's desktop shows (Back to FamilyHub reopens it)."""
     import subprocess
     try:
-        subprocess.run(["pkill", "-f", "familyhub-kiosk-profile"], timeout=5)
+        subprocess.run(["pkill", "-f", "kiosk.sh"], timeout=5)                 # the loop that relaunches the browser
+        subprocess.run(["pkill", "-f", "familyhub-kiosk-profile"], timeout=5)  # the browser itself
     except (OSError, subprocess.SubprocessError) as e:
         return {"ok": False, "reason": str(e)}
     return {"ok": True}
@@ -213,12 +226,38 @@ def to_kiosk():
     script = os.path.join(ROOT, "kiosk.sh")
     if not os.path.exists(script):
         return {"ok": False, "reason": "kiosk.sh not found"}
+    if _kiosk_running():
+        return {"ok": True, "already": True}
+    env = _desktop_env()
     try:
-        subprocess.Popen(["bash", script], env=_desktop_env(), start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except OSError as e:
-        return {"ok": False, "reason": str(e)}
+        # run it in the desktop's own session manager so a FamilyHub restart doesn't take the browser down with it
+        setenv = [f"--setenv={k}={env[k]}" for k in ("DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME", "PATH")
+                  if env.get(k)]
+        r = subprocess.run(["systemd-run", "--user", "--collect", "--unit", f"familyhub-kiosk-{int(time.time())}", *setenv,
+                            "bash", script], env=env, capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            raise OSError(r.stderr.strip() or "systemd-run failed")
+    except (OSError, subprocess.SubprocessError):
+        try:
+            subprocess.Popen(["bash", script], env=env, start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            return {"ok": False, "reason": str(e)}
     return {"ok": True}
+
+
+@router.post("/reboot")
+def reboot():
+    """Restart the wall computer (to finish the keyboard change, or when something's stuck)."""
+    import subprocess
+    for cmd in (["systemctl", "reboot"], ["sudo", "-n", "reboot"]):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if r.returncode == 0:
+                return {"ok": True}
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return {"ok": False, "reason": "Ubuntu wouldn't let FamilyHub restart it. Press the mini PC's power button once, wait for it to turn off, then press it again."}
 
 
 @router.post("/clear-demo")

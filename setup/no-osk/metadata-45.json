@@ -1,0 +1,6 @@
+{
+  "uuid": "familyhub-no-osk@familyhub",
+  "name": "FamilyHub: no Ubuntu screen keyboard",
+  "description": "Stops GNOME popping up its on-screen keyboard on the touch wall (FamilyHub has its own).",
+  "shell-version": ["45", "46", "47", "48", "49", "50"]
+}

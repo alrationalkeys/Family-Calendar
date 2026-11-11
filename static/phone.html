@@ -512,7 +512,10 @@
       <button class="go" id="wall-desktop" style="background:var(--panel2); color:var(--ink)">&#128421; Show Ubuntu desktop</button>
       <button class="go" id="wall-kiosk" style="background:var(--panel2); color:var(--ink)">&#8617; Back to FamilyHub</button>
     </div>
-    <button class="go" id="wall-osk-off" style="background:var(--panel2); color:var(--ink)">&#9000; Turn off Ubuntu's screen keyboard</button>
+    <div class="two">
+      <button class="go" id="wall-osk-off" style="background:var(--panel2); color:var(--ink)">&#9000; Turn off Ubuntu's keyboard</button>
+      <button class="go" id="wall-reboot" style="background:var(--panel2); color:var(--ink)">&#9211; Restart the wall computer</button>
+    </div>
     <div class="hint">Use these when you need Ubuntu's own settings on the wall. The desktop works by touch; tap Back to FamilyHub when you're done.</div>
     <div class="hint"><b>Update</b> pulls the newest FamilyHub code and restarts, from anywhere (Tailscale). <b>Restart</b> re-reads .env. <b>Reload</b> refreshes the screen. <b>Wake</b> turns it on during the night window.</div>
   </div>
@@ -1994,7 +1997,9 @@ $("#wall-update").onclick=async()=>{
 };
 $("#wall-desktop").onclick=async()=>{ const r=await fetch("/api/admin/desktop",{method:"POST"}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"The wall is showing Ubuntu's desktop":"Couldn't do that: "+(r.reason||"wall not reachable")); };
 $("#wall-kiosk").onclick=async()=>{ const r=await fetch("/api/admin/kiosk",{method:"POST"}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"FamilyHub is coming back on the wall":"Couldn't do that: "+(r.reason||"wall not reachable")); };
-$("#wall-osk-off").onclick=async()=>{ const r=await fetch("/api/admin/screen-keyboard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:false})}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"Ubuntu's keyboard is off":"Couldn't turn it off: "+(r.reason||"wall not reachable")); };
+$("#wall-osk-off").onclick=async()=>{ const r=await fetch("/api/admin/screen-keyboard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:false})}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"Done. Tap Restart the wall computer to finish":"Couldn't turn it off: "+(r.reason||"wall not reachable")); };
+$("#wall-reboot").onclick=async()=>{ if(!confirm("Restart the wall computer? The screen is back in about a minute.")) return;
+  const r=await fetch("/api/admin/reboot",{method:"POST"}).then(x=>x.json()).catch(()=>({ok:true})); toast(r.ok?"Restarting the wall computer…":r.reason); };
 $("#wall-restart").onclick=async()=>{ const r=await fetch("/api/admin/restart",{method:"POST"}); toast(r.ok?"Restarting FamilyHub (back in ~5 s)":"Couldn't reach the wall"); setTimeout(()=>loadWallVersion(false),8000); };
 $("#wall-reload").onclick=async()=>{ const r=await fetch("/api/display/reload",{method:"POST"}); toast(r.ok?"Wall will reload in a few seconds":"Couldn't reach the wall"); };
 $("#wall-wake").onclick=async()=>{ const r=await fetch("/api/display/wake",{method:"POST"}); toast(r.ok?"Screen waking":"Couldn't reach the wall"); };

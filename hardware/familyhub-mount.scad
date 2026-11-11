@@ -311,26 +311,26 @@ module frame_whole(){
     intersection(){ translate([x_r, 0, 0]) rotate([0,0,-90]) f_bar(2*H+40, lit_left, f_ext_side); f_trap([[W,-H],[W,H],[ow,oh],[ow,-oh]]); }
   }
 }
-// Seams are stepped lap joints: the 2 mm face plate splits on the centre line, the thick part behind it
-// splits f_lap further over, so the halves overlap. One hairline on the front, no light through the joint,
-// lots of glue area. Dowel holes for 1.75 mm filament sit across the back split.
-f_lap = 5;
+// Seams are SLOPED (scarf) joints: the cut leans f_slope mm sideways per mm of depth, so both mating
+// quarters print face-down with no ledge over thin air (Nov 2026: the old 5 mm stepped lap left one
+// half with an unsupported overhang that printed as spaghetti). ~27 deg from vertical, no supports.
+// One hairline on the front, the halves overlap through the thickness (no light), big glue face.
+// Dowel holes for 1.75 mm filament cross the joint at mid-depth.
+f_slope = 0.5;
 f_pin_d = 1.95; f_pin_l = 14;
+f_lap = 0;   // kept for older notes; the seam position on the front face is set by f_slope
 module f_pins(){
   zc = f_depth/2 - f_front;
   y_t = panel_h/2 - f_oy;  x_r = panel_w/2;
   uc_top  = (f_gap + f_wall + f_ext_top)/2;   uc_side = (f_gap + f_wall + f_ext_side)/2;
-  translate([f_lap, y_t + uc_top, zc]) rotate([0,90,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);     // top seam
-  for(sx=[-1,1]) translate([sx*(x_r + uc_side), f_lap, zc]) rotate([90,0,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);   // side seams
+  translate([f_slope*zc, y_t + uc_top, zc]) rotate([0,90,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);     // top seam
+  for(sx=[-1,1]) translate([sx*(x_r + uc_side), f_slope*zc, zc]) rotate([90,0,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);   // side seams
   // bottom seam: the moulding there is only ~3.5 mm wide, so it is glue-only (the panel holds the frame square)
 }
-// the region one quarter owns: front layer split at 0, back layer split at f_lap
+// the region one quarter owns: x (and y) measured from a cut plane that leans f_slope per mm of depth
 module f_region(sx, sy){
-  for(layer=[0,1]){
-    d = layer == 0 ? 0 : f_lap;
-    z0 = layer == 0 ? -50 : -0.01;
-    translate([sx > 0 ? d : -400, sy > 0 ? d : -400, z0]) cube([sx > 0 ? 400 - d : 400 + d, sy > 0 ? 400 - d : 400 + d, 50.01]);
-  }
+  multmatrix([[1, 0, f_slope, 0], [0, 1, f_slope, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+    translate([sx > 0 ? 0 : -400, sy > 0 ? 0 : -400, -50]) cube([400, 400, 100]);
 }
 // one quarter, face down for printing (sx, sy = +1/-1: which corner)
 module frame_quarter(sx, sy){

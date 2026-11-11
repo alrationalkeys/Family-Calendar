@@ -121,8 +121,10 @@ Slicer / Cura / PrusaSlicer).
    forcing, and the opening edge should sit just on the picture with no black showing on either side.
    Then print `frame_tl.stl`, `frame_tr.stl`,
    `frame_bl.stl`, `frame_br.stl` — one quarter each, **face down**, no supports. Seams fall at the
-   centre of each edge as stepped lap joints. Join: cut 12 mm lengths of 1.75 mm filament as dowels
-   for the top and side seams (the bottom is glue-only), CA glue on the lap faces, clamp flat on glass.
+   centre of each edge as **sloped joints** (Nov 2026: replaced the stepped laps, whose overhang printed as
+   spaghetti). Join: cut 12 mm lengths of 1.75 mm filament as dowels for the top and side seams (the bottom is
+   glue-only), CA glue on the sloped faces, clamp flat on glass.
+   Stringing (hairs inside the channel): 205–215 °C, retraction on, wipe + avoid crossing walls; dry the spool if it persists.
    For an invisible joint: sand flush (240 then 400), wipe filler into the hairline, sand, matte spray paint.
    Sized for the measured screen, 14 7/16 × 9 3/16 in; change `screen_w` / `screen_h` and re-export if yours differs.
 

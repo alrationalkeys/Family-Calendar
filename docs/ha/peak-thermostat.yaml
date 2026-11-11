@@ -1,18 +1,23 @@
-# FamilyHub — automatic peak-hour thermostat changes (Nov 2026)
+# FamilyHub — Santee Cooper peak hours on both thermostats, automatically, all year (Nov 2026)
 #
-# What it does, every day (Santee Cooper's peak includes weekends; turn the weekends helper off if your plan changes):
-#   - PRE-COOL / PRE-HEAT: an hour before peak, nudges both thermostats 2° the "comfortable" way so the
-#     house banks some cool (summer) or warmth (winter) while power is cheap.
-#   - PEAK: at peak start, remembers each thermostat's setting and moves it N° the energy-saving way
-#     (warmer in summer cooling, cooler in winter heating).
-#   - AFTER PEAK: puts each thermostat back exactly where it was.
-# Your Alarm.com/Resideo "Basic Schedule" keeps running the rest of the day; this only overrides it around peak.
+# Santee Cooper peak, every day:  winter (Nov 1 – Mar 31) 6–9 AM,  summer (Apr 1 – Oct 31) 3–6 PM.
 #
-# Santee Cooper peak hours: summer (Apr 1 – Oct 31) 3–6 PM, winter (Nov 1 – Mar 31) 6–9 AM, every day including weekends.
-# Change them any time in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
+# HOW IT WORKS
+#   Alarm.com keeps ONE comfort schedule year-round with no peak blocks in it (see below).
+#   At peak start Home Assistant remembers each thermostat's settings and switches to the peak settings:
+#       winter peak: heat 60°, cool 85°        summer peak: heat 50°, cool 78°
+#   (the winter numbers + the summer heat number are the ones already in your Alarm.com schedule)
+#   Summer only: an hour before peak it pre-cools 2° so the house rides through 3–6 PM.
+#   At peak end it puts both thermostats back exactly where they were; the Alarm.com schedule carries on.
+#   Works whether a thermostat is in Heat, Cool or Auto (heat + cool setpoints).
+#   Change any number or time in Home Assistant: Settings > Devices & services > Helpers > "Peak …".
 #
-# INSTALL: check the two climate entity IDs below (Settings > Entities, search "thermostat"),
-# put this file in /config/packages/, restart. Nothing to change in Alarm.com.
+# ALARM.COM SCHEDULE TO SET ONCE (both thermostats, weekday + weekend the same), then never touch it again:
+#       Heat: 67° from 6 PM to 9 AM, 60° from 9 AM to 6 PM        (just delete the 50° 3–6 PM block)
+#       Cool: 70° all day                                          (just delete the 85° 6–9 AM block)
+#
+# INSTALL: check the two thermostat entity IDs (Settings > Entities, search "thermostat"), put this file in
+# /config/packages/, restart, then simplify the Alarm.com schedule as above.
 
 input_datetime:
   peak_summer_start: { name: Peak summer start, has_date: false, has_time: true, initial: "15:00" }
@@ -21,66 +26,82 @@ input_datetime:
   peak_winter_end:   { name: Peak winter end,   has_date: false, has_time: true, initial: "09:00" }
 
 input_number:
-  peak_offset:  { name: Peak setback (degrees), min: 1, max: 8, step: 1, initial: 4, icon: mdi:thermometer-chevron-up }
-  peak_precond: { name: Pre-cool/pre-heat (degrees, 0 = off), min: 0, max: 4, step: 1, initial: 2 }
+  peak_winter_heat: { name: Peak winter heat, min: 45, max: 75, step: 1, initial: 60, unit_of_measurement: "°F" }
+  peak_winter_cool: { name: Peak winter cool, min: 70, max: 90, step: 1, initial: 85, unit_of_measurement: "°F" }
+  peak_summer_heat: { name: Peak summer heat, min: 45, max: 75, step: 1, initial: 50, unit_of_measurement: "°F" }
+  peak_summer_cool: { name: Peak summer cool, min: 70, max: 90, step: 1, initial: 78, unit_of_measurement: "°F" }
+  peak_precool:     { name: Summer pre-cool an hour before (degrees, 0 = off), min: 0, max: 4, step: 1, initial: 2 }
   # remembered settings (filled in automatically)
-  peak_saved_up:   { name: Saved upstairs setpoint,   min: 40, max: 95, step: 0.5, mode: box }
-  peak_saved_down: { name: Saved downstairs setpoint, min: 40, max: 95, step: 0.5, mode: box }
+  peak_saved_up_heat:   { name: Saved upstairs heat,   min: 40, max: 95, step: 0.5, mode: box }
+  peak_saved_up_cool:   { name: Saved upstairs cool,   min: 40, max: 95, step: 0.5, mode: box }
+  peak_saved_down_heat: { name: Saved downstairs heat, min: 40, max: 95, step: 0.5, mode: box }
+  peak_saved_down_cool: { name: Saved downstairs cool, min: 40, max: 95, step: 0.5, mode: box }
 
 input_boolean:
-  peak_enabled:  { name: Peak-hour thermostat changes, icon: mdi:transmission-tower, initial: true }
-  peak_weekends: { name: Peak hours on weekends too, initial: true }   # Santee Cooper: peak every day
-  peak_active:   { name: Peak in progress (automatic) }
+  peak_enabled: { name: Peak-hour thermostat changes, icon: mdi:transmission-tower, initial: true }
+  peak_active:  { name: Peak in progress (automatic) }
 
 template:
   - binary_sensor:
       - name: Peak summer season
         unique_id: fh_peak_summer_season
         state: "{{ 4 <= now().month <= 10 }}"
-      - name: Peak today
-        unique_id: fh_peak_today
-        state: "{{ is_state('input_boolean.peak_enabled','on') and (now().weekday() < 5 or is_state('input_boolean.peak_weekends','on')) }}"
 
 script:
-  # nudge both thermostats: direction +1 = warmer, -1 = cooler
-  fh_thermo_nudge:
-    alias: Nudge both thermostats
+  # Set one thermostat to (heat, cool), whatever mode it's in.
+  fh_thermo_set:
+    alias: Set a thermostat's heat/cool targets
     fields:
-      degrees: { description: "+ warmer / - cooler" }
+      entity: {}
+      heat: {}
+      cool: {}
     sequence:
+      - choose:
+          - conditions: "{{ states(entity) in ['heat_cool', 'auto'] }}"
+            sequence:
+              - action: climate.set_temperature
+                target: { entity_id: "{{ entity }}" }
+                data: { target_temp_low: "{{ heat }}", target_temp_high: "{{ cool }}" }
+          - conditions: "{{ states(entity) == 'heat' }}"
+            sequence:
+              - action: climate.set_temperature
+                target: { entity_id: "{{ entity }}" }
+                data: { temperature: "{{ heat }}" }
+          - conditions: "{{ states(entity) == 'cool' }}"
+            sequence:
+              - action: climate.set_temperature
+                target: { entity_id: "{{ entity }}" }
+                data: { temperature: "{{ cool }}" }
+
+automation:
+  - id: fh_peak_precool
+    alias: "Peak: summer pre-cool an hour before"
+    triggers:
+      - trigger: template
+        value_template: >
+          {{ now().strftime('%H:%M') == (today_at(states('input_datetime.peak_summer_start')) - timedelta(hours=1)).strftime('%H:%M') }}
+    conditions:
+      - condition: state
+        entity_id: [input_boolean.peak_enabled, binary_sensor.peak_summer_season]
+        state: "on"
+      - condition: numeric_state
+        entity_id: input_number.peak_precool
+        above: 0
+    actions:
       - repeat:
           for_each: [climate.upstairs_thermostat, climate.downstairs_thermostat]
           sequence:
             - variables:
-                t: "{{ state_attr(repeat.item, 'temperature') }}"
+                d: "{{ states('input_number.peak_precool') | float }}"
+                lo: "{{ state_attr(repeat.item, 'target_temp_low') or state_attr(repeat.item, 'temperature') }}"
+                hi: "{{ state_attr(repeat.item, 'target_temp_high') or state_attr(repeat.item, 'temperature') }}"
             - condition: template
-              value_template: "{{ t is number and states(repeat.item) in ['cool','heat'] }}"
-            - action: climate.set_temperature
-              target: { entity_id: "{{ repeat.item }}" }
-              data: { temperature: "{{ t + degrees }}" }
-
-automation:
-  - id: fh_peak_precondition
-    alias: "Peak: pre-cool / pre-heat an hour before"
-    triggers:
-      - trigger: template
-        value_template: >
-          {% set st = states('input_datetime.peak_summer_start' if is_state('binary_sensor.peak_summer_season','on') else 'input_datetime.peak_winter_start') %}
-          {{ now().strftime('%H:%M') == (today_at(st) - timedelta(hours=1)).strftime('%H:%M') }}
-    conditions:
-      - condition: state
-        entity_id: binary_sensor.peak_today
-        state: "on"
-      - condition: numeric_state
-        entity_id: input_number.peak_precond
-        above: 0
-    actions:
-      - action: script.fh_thermo_nudge
-        data:
-          degrees: "{{ -(states('input_number.peak_precond')|float) if is_state('binary_sensor.peak_summer_season','on') else (states('input_number.peak_precond')|float) }}"
+              value_template: "{{ hi is number and states(repeat.item) in ['cool', 'heat_cool', 'auto'] }}"
+            - action: script.fh_thermo_set
+              data: { entity: "{{ repeat.item }}", heat: "{{ lo }}", cool: "{{ hi - d }}" }
 
   - id: fh_peak_start
-    alias: "Peak: set back at peak start"
+    alias: "Peak: switch to peak settings"
     triggers:
       - trigger: template
         value_template: >
@@ -88,27 +109,33 @@ automation:
           {{ now().strftime('%H:%M') == st[:5] }}
     conditions:
       - condition: state
-        entity_id: binary_sensor.peak_today
+        entity_id: input_boolean.peak_enabled
         state: "on"
+    variables:
+      summer: "{{ is_state('binary_sensor.peak_summer_season', 'on') }}"
+      pre: "{{ (states('input_number.peak_precool') | float) if summer else 0 }}"
+      ph: "{{ states('input_number.peak_summer_heat' if summer else 'input_number.peak_winter_heat') | float }}"
+      pc: "{{ states('input_number.peak_summer_cool' if summer else 'input_number.peak_winter_cool') | float }}"
     actions:
-      # remember the normal (pre-conditioning removed) settings so after-peak restores them exactly
-      - variables:
-          pre: "{{ states('input_number.peak_precond')|float }}"
-          sign: "{{ 1 if is_state('binary_sensor.peak_summer_season','on') else -1 }}"
-      - action: input_number.set_value
-        target: { entity_id: input_number.peak_saved_up }
-        data: { value: "{{ (state_attr('climate.upstairs_thermostat','temperature')|float(72)) + sign*pre }}" }
-      - action: input_number.set_value
-        target: { entity_id: input_number.peak_saved_down }
-        data: { value: "{{ (state_attr('climate.downstairs_thermostat','temperature')|float(72)) + sign*pre }}" }
+      # remember the normal settings (undo the pre-cool so after-peak goes back to the real schedule value)
+      - repeat:
+          for_each:
+            - { e: climate.upstairs_thermostat,   h: input_number.peak_saved_up_heat,   c: input_number.peak_saved_up_cool }
+            - { e: climate.downstairs_thermostat, h: input_number.peak_saved_down_heat, c: input_number.peak_saved_down_cool }
+          sequence:
+            - action: input_number.set_value
+              target: { entity_id: "{{ repeat.item.h }}" }
+              data: { value: "{{ state_attr(repeat.item.e, 'target_temp_low') or state_attr(repeat.item.e, 'temperature') or 67 }}" }
+            - action: input_number.set_value
+              target: { entity_id: "{{ repeat.item.c }}" }
+              data: { value: "{{ (state_attr(repeat.item.e, 'target_temp_high') or state_attr(repeat.item.e, 'temperature') or 70) + pre }}" }
+            - action: script.fh_thermo_set
+              data: { entity: "{{ repeat.item.e }}", heat: "{{ ph }}", cool: "{{ pc }}" }
       - action: input_boolean.turn_on
         target: { entity_id: input_boolean.peak_active }
-      - action: script.fh_thermo_nudge
-        data:
-          degrees: "{{ sign * (pre + states('input_number.peak_offset')|float) }}"
 
   - id: fh_peak_end
-    alias: "Peak: back to normal after peak"
+    alias: "Peak: back to normal"
     triggers:
       - trigger: template
         value_template: >
@@ -119,11 +146,9 @@ automation:
         entity_id: input_boolean.peak_active
         state: "on"
     actions:
-      - action: climate.set_temperature
-        target: { entity_id: climate.upstairs_thermostat }
-        data: { temperature: "{{ states('input_number.peak_saved_up')|float }}" }
-      - action: climate.set_temperature
-        target: { entity_id: climate.downstairs_thermostat }
-        data: { temperature: "{{ states('input_number.peak_saved_down')|float }}" }
+      - action: script.fh_thermo_set
+        data: { entity: climate.upstairs_thermostat, heat: "{{ states('input_number.peak_saved_up_heat') }}", cool: "{{ states('input_number.peak_saved_up_cool') }}" }
+      - action: script.fh_thermo_set
+        data: { entity: climate.downstairs_thermostat, heat: "{{ states('input_number.peak_saved_down_heat') }}", cool: "{{ states('input_number.peak_saved_down_cool') }}" }
       - action: input_boolean.turn_off
         target: { entity_id: input_boolean.peak_active }

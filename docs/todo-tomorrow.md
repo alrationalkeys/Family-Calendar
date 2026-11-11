@@ -47,6 +47,7 @@
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.
 - [ ] Install `docs/ha/peak-thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
+- [ ] Then simplify the Alarm.com schedule on BOTH thermostats, once: Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM; Cool 70° all day.
 
 ## Quick settings (Home Assistant)
 - [ ] Add **Waze Travel Time** (any start/end) so leave-by uses live traffic.

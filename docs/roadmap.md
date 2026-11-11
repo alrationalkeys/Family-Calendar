@@ -154,6 +154,22 @@ it here.
 - Baby-step deploy/test notes on the Pi after each phase.
 - Simple, commented code; easy DB backups; no clever tricks.
 
+## Next ideas after the Nov 11 audit (pick any)
+Build now, no new hardware:
+- Peak banner on the wall ("⚡ Peak until 9 AM: skip the dryer/oven") + spoken "peak starts in 15 min".
+- Garage left open after dark (or >15 min) → wall + phone alert with a one-tap Close.
+- Trash night: "bins out tonight" reminder the evening before pickup (and "bins in" the next day).
+- Dog log: one-tap Fed / Walked / Meds with who and when, shown on the wall.
+- Arrive-home: porch light on after dark when a phone gets home (once Rachell's phone reports location).
+- Morning briefing adds peak hours + "the garage was left open overnight" style checks.
+Cheap hardware:
+- Laundry done (Third Reality plug on the washer, Aqara vibration on the dryer) + "not during peak" nudge.
+- Zigbee water-leak sensors: water heater, washer, under sinks → loud wall + phone alert.
+- Stair motion lights.
+Bigger:
+- Energy page (HA Energy / Santee Cooper usage), flush in-wall mount, Tailscale off-network access,
+  nightly off-box backup.
+
 ## Idea backlog (brainstorm, Nov 2026)
 Unordered. Effort: S = an evening, M = a weekend, L = a project. (No kids in the house yet — the kid-specific ideas are parked at the bottom for later.)
 

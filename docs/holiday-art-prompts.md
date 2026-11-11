@@ -15,6 +15,8 @@ Rules that make install painless (same as the Christmas, Thanksgiving and Birthd
 
 When the art comes in, Claude keys it, fits it, and adds the holiday to the automatic schedule.
 
+**Status (Nov 2026): all six installed** — frames, countdown signs and flyers/runners are live in `static/skins/`.
+
 | Holiday | Wall shows it | Flying/walking extra |
 |---|---|---|
 | New Year's Eve | Dec 31 – Jan 1 | Champagne cork popping across |

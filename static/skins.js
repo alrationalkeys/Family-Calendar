@@ -17,7 +17,8 @@ const Skins = (() => {
       corners: "christmas",
       // painted frame (Midjourney, keyed to transparent). zoom crops the thick posts partly off-screen;
       // pad = how far the live content stays from each screen edge; hpad = extra header side padding (lanterns)
-      art: { src: "/skins/christmas-frame.png", zoom: 1.0, pad: { t: 180, r: 228, b: 158, l: 232 }, hpad: 60 }
+      art: { src: "/skins/christmas-frame.png", zoom: 1.0, pad: { t: 180, r: 228, b: 158, l: 232 }, hpad: 60 },
+      sign: { src: "/skins/christmas-sign.png", w: 340, h: 207, pad: "64px 44px 26px", margin: "-54px 0 -14px", k: "#e6c99e" }
     },
     thanksgiving: {
       name: "Thanksgiving", effect: "leaves",
@@ -46,8 +47,74 @@ const Skins = (() => {
     bg: "radial-gradient(120% 90% at 50% 15%, #1d2650 0%, #0b1030 45%, #04060f 100%)",
     wood: ["#d4b25a", "#8a7432"], gold: "#e8c66a", snowcaps: false,
     banner: { kicker: "Countdown to", title: "", font: "'Cinzel', Georgia, serif" },
-    target: y => new Date(y + 1, 0, 1), corners: "newyear"
+    target: y => new Date(y + 1, 0, 1), corners: "newyear",
+    art: { src: "/skins/newyear-frame.webp", zoom: 1.0, pad: { t: 150, r: 150, b: 110, l: 150 }, hpad: 60, slim: 1.05 },
+    sign: { src: "/skins/newyear-sign.png", w: 360, h: 191, pad: "54px 26px 20px", margin: "-40px 0 -12px", k: "#e8c66a" },
+    sprite: { src: "/skins/cork.png", mode: "fly", w: 300 }
   };
+  /* ---- more holidays (painted art from docs/holiday-art-prompts.md) ---- */
+  const LIGHT_SIGN = { k: "#7a4a2a", title: "#8a2232", sub: "#5a3a26", subb: "#2c1a10" };   // dark ink for cream/wood signs
+  DEFS.valentine = {
+    name: "Valentine's Day", effect: "petals", emoji: "💘",
+    vars: { "--bg": "#2a0d16", "--panel": "#3a1420", "--panel2": "#2e0f19", "--line": "#e8a0ae", "--ink": "#fff1f2", "--ink-dim": "#f0c4cc", "--now": "#ff6f8e" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #5a1a2a 0%, #3a0f1c 45%, #1e070e 100%)",
+    wood: ["#e8a0ae", "#8a2a3e"], gold: "#f2c4cf", snowcaps: false,
+    banner: { kicker: "Days until", title: "Valentine's", font: "'Playfair Display', Georgia, serif", hello: "Happy Valentine's Day!" },
+    target: y => new Date(y, 1, 14), corners: "birthday",
+    art: { src: "/skins/valentine-frame.webp", zoom: 1.0, pad: { t: 160, r: 150, b: 150, l: 150 }, hpad: 60, slim: 1.05 },
+    sign: { src: "/skins/valentine-sign.png", w: 240, h: 231, pad: "66px 30px 46px", margin: "-60px 0 -16px", t: "28px", ...LIGHT_SIGN },
+    sprite: { src: "/skins/cupid.png", mode: "fly", w: 220 }
+  };
+  DEFS.stpatrick = {
+    name: "St. Patrick's Day", effect: "confetti", emoji: "☘️",
+    vars: { "--bg": "#0c1f14", "--panel": "#14301f", "--panel2": "#0f2618", "--line": "#d4b25a", "--ink": "#f3f7ee", "--ink-dim": "#c4d6bc", "--now": "#f2cc6b" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #1f4a2c 0%, #12301c 45%, #07150c 100%)",
+    wood: ["#2e7d32", "#164a1a"], gold: "#e8c66a", snowcaps: false,
+    banner: { kicker: "Days until", title: "St. Patrick's", font: "'Playfair Display', Georgia, serif", hello: "Happy St. Patrick's Day!" },
+    target: y => new Date(y, 2, 17), corners: "thanksgiving",
+    art: { src: "/skins/stpatrick-frame.webp", zoom: 1.0, pad: { t: 250, r: 220, b: 110, l: 220 }, hpad: 40, slim: 1.04 },
+    sign: { src: "/skins/stpatrick-sign.png", w: 360, h: 235, pad: "90px 28px 22px", margin: "-80px 0 -12px", t: "30px", k: "#f2d98a" },
+    sprite: { src: "/skins/leprechaun.png", mode: "run", h: 150 }
+  };
+  DEFS.easter = {
+    name: "Easter", effect: "petals", emoji: "🐣",
+    vars: { "--bg": "#1c2430", "--panel": "#26303f", "--panel2": "#1f2835", "--line": "#c9b8e6", "--ink": "#f7f5fb", "--ink-dim": "#d4cde4", "--now": "#f5c26b" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #3a4a5e 0%, #26303f 45%, #121822 100%)",
+    wood: ["#c9b8e6", "#7a6aa0"], gold: "#f5d58a", snowcaps: false,
+    banner: { kicker: "Days until", title: "Easter", font: "'Playfair Display', Georgia, serif", hello: "Happy Easter!" },
+    target: y => easter(y), corners: "birthday",
+    art: { src: "/skins/easter-frame.webp", zoom: 1.0, pad: { t: 150, r: 150, b: 150, l: 150 }, hpad: 40, slim: 1.04 },
+    sign: { src: "/skins/easter-sign.png", w: 360, h: 230, pad: "64px 38px 18px", margin: "-56px 0 -12px", ...LIGHT_SIGN, title: "#6a4a9a" },
+    sprite: { src: "/skins/bunny.png", mode: "run", h: 130 }
+  };
+  DEFS.july4 = {
+    name: "4th of July", effect: "fireworks", emoji: "🎇",
+    vars: { "--bg": "#0b1630", "--panel": "#152447", "--panel2": "#101d3a", "--line": "#d9dde8", "--ink": "#f6f7fb", "--ink-dim": "#c6cbe0", "--now": "#e8424f" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #22386a 0%, #142446 45%, #070d1e 100%)",
+    wood: ["#b22234", "#3c3b6e"], gold: "#e8e8f0", snowcaps: false,
+    banner: { kicker: "Days until", title: "the 4th", font: "'Playfair Display', Georgia, serif", hello: "Happy 4th of July!" },
+    target: y => new Date(y, 6, 4), corners: "birthday",
+    art: { src: "/skins/july4-frame.webp", zoom: 1.0, pad: { t: 250, r: 180, b: 120, l: 180 }, hpad: 40, slim: 1.04 },
+    sign: { src: "/skins/july4-sign.png", w: 380, h: 252, pad: "98px 34px 46px", margin: "-100px 0 -16px", ...LIGHT_SIGN, k: "#3c3b6e", title: "#b22234", t: "30px" },
+    sprite: { src: "/skins/eagle.png", mode: "fly", w: 260 }
+  };
+  DEFS.halloween = {
+    name: "Halloween", effect: "halloween", emoji: "🎃",
+    vars: { "--bg": "#16101e", "--panel": "#231a30", "--panel2": "#1c1527", "--line": "#e8862a", "--ink": "#f7efe6", "--ink-dim": "#d6c4b4", "--now": "#ff8a1e" },
+    bg: "radial-gradient(120% 90% at 50% 20%, #3a2650 0%, #221832 45%, #0c0812 100%)",
+    wood: ["#4a3a5e", "#221832"], gold: "#ff9a3a", snowcaps: false,
+    banner: { kicker: "Days until", title: "Halloween", font: "'Mountains of Christmas', 'Brush Script MT', cursive", hello: "Happy Halloween!" },
+    target: y => new Date(y, 9, 31), corners: "thanksgiving",
+    art: { src: "/skins/halloween-frame.webp", zoom: 1.0, pad: { t: 130, r: 300, b: 110, l: 300 }, hpad: 40, slim: 1.03 },
+    sign: { src: "/skins/halloween-sign.png", w: 360, h: 268, pad: "82px 30px 52px", margin: "-110px 0 -14px", ...LIGHT_SIGN, title: "#5a1a6a" },
+    sprite: { src: "/skins/witch.png", mode: "fly", w: 300 }
+  };
+  function easter(y){   // anonymous Gregorian algorithm
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1, day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, month, day);
+  }
   function thanksgiving(y){ const dow = new Date(y, 10, 1).getDay(); return new Date(y, 10, 1 + ((4 - dow + 7) % 7) + 21); }
   function birthdayPeople(now){
     now = now || new Date(); const mmdd = String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
@@ -60,6 +127,11 @@ const Skins = (() => {
     const tg = thanksgiving(y), today = new Date(y, m, d);
     if (m === 10 && today <= tg) return "thanksgiving";
     if ((m === 11 && d === 31) || (m === 0 && d === 1)) return "newyear";
+    if (m === 1 && d <= 14) return "valentine";
+    if (m === 2 && d >= 10 && d <= 17) return "stpatrick";
+    const es = easter(y); if (today <= es && (es - today) / 86400000 <= 14) return "easter";
+    if ((m === 5 && d >= 28) || (m === 6 && d <= 4)) return "july4";
+    if (m === 9) return "halloween";
     if ((m === 10 && today > tg) || m === 11) return "christmas";
     return null;
   }
@@ -187,14 +259,22 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
 html[data-skin="newyear"] #skin-banner .t{font-size:40px; letter-spacing:.08em}
 .twinkle{animation:twinkle 2.4s ease-in-out infinite alternate; transform-box:fill-box; transform-origin:center}
 @keyframes twinkle{from{opacity:.45}to{opacity:1}}
-/* painted hanging sign (Christmas, art mode): the card IS the sign; it hangs up into the garland */
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner{background:url("/skins/christmas-sign.png") center/100% 100% no-repeat; border:0; border-radius:0; box-shadow:none;
-  min-width:340px; width:340px; height:207px; padding:64px 44px 26px; margin:-54px 0 -14px; gap:0; justify-content:flex-start}
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner::before{display:none}
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner .k{margin-top:0; font-size:11px; color:#e6c99e}
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner .t{font-size:36px; margin:0 0 4px}
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner .dg{width:36px; height:46px; font:800 30px/42px 'Cinzel', Georgia, serif; border-width:1.5px}
-html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5px; margin-top:4px}
+/* painted hanging sign (any skin with art.sign): the countdown card IS the sign, hung into the frame */
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner{background:var(--sign-src) center/100% 100% no-repeat; border:0; border-radius:0; box-shadow:none;
+  min-width:var(--sign-w); width:var(--sign-w); height:var(--sign-h); padding:var(--sign-pad); margin:var(--sign-margin); gap:0; justify-content:flex-start}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner::before, html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .side{display:none}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .k{margin-top:0; font-size:11px; color:var(--sign-k, var(--ink-dim))}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .t{font-size:var(--sign-t, 36px); margin:0 0 4px; color:var(--sign-title, var(--now)); text-shadow:none; white-space:nowrap}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .dg{width:36px; height:46px; font:800 30px/42px 'Cinzel', Georgia, serif; border-width:1.5px}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .dg-sep{line-height:46px; font-size:28px}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .sub{font-size:10.5px; margin-top:4px; color:var(--sign-sub, var(--ink-dim))}
+html[data-skin][data-skin-art="on"][data-skin-sign="on"] #skin-banner .sub b{color:var(--sign-subb, var(--ink))}
+#skin-run{position:fixed; left:0; bottom:22px; z-index:47; pointer-events:none; display:none; filter:drop-shadow(0 4px 4px rgba(0,0,0,.45))}
+#skin-run.go{display:block; animation:runacross var(--run-s,14s) linear forwards}
+@keyframes runacross{from{transform:translateX(-260px)}to{transform:translateX(105vw)}}
+#skin-run span{display:inline-block; animation:hop .32s ease-in-out infinite alternate}
+@keyframes hop{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-10px) rotate(3deg)}}
+html[data-skin][data-skin-lite="on"] #skin-run{display:none!important}
 #skin-banner .side{position:absolute; top:-6px; width:34px; height:60px}
 #skin-banner .side.l{left:-18px} #skin-banner .side.r{right:-18px}
 @media(max-width:760px){ html[data-skin] header{flex-wrap:wrap; padding:0 56px} html[data-skin] .bottomnav{margin:0 40px} html[data-skin] #skin-banner{order:3; width:100%; min-width:0} #skin-frame .corner{width:90px; height:90px} #skin-frame .lights-b{display:none} }
@@ -331,6 +411,23 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     flyEl.style.setProperty("--fly-y", (40 + Math.random() * 80) + "px"); flyEl.style.setProperty("--fly-s", (14 + Math.random() * 6) + "s");
     flyEl.classList.add("go"); setTimeout(() => flyEl && flyEl.classList.remove("go"), 22000);
   }
+  let runEl = null;
+  function spriteGo(kind){
+    const sp = DEFS[kind] && DEFS[kind].sprite; if (!sp) return;
+    if (sp.mode === "run"){
+      if (!runEl){ runEl = document.createElement("div"); runEl.id = "skin-run"; document.body.appendChild(runEl); }
+      runEl.innerHTML = `<span><img src="${sp.src}" alt="" style="height:${sp.h || 140}px;width:auto;display:block"></span>`;
+      runEl.classList.remove("go"); void runEl.offsetWidth;
+      runEl.style.setProperty("--run-s", (12 + Math.random() * 5) + "s"); runEl.classList.add("go"); setTimeout(() => runEl && runEl.classList.remove("go"), 20000);
+    } else {
+      if (!flyEl){ flyEl = document.createElement("div"); flyEl.id = "skin-fly"; document.body.appendChild(flyEl); }
+      flyEl.innerHTML = `<div class="bob"><img src="${sp.src}" alt="" style="width:${sp.w || 280}px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))"></div>`;
+      flyEl.classList.remove("go"); void flyEl.offsetWidth;
+      flyEl.style.setProperty("--fly-y", (40 + Math.random() * 120) + "px"); flyEl.style.setProperty("--fly-s", (13 + Math.random() * 5) + "s");
+      flyEl.classList.add("go"); setTimeout(() => flyEl && flyEl.classList.remove("go"), 22000);
+    }
+  }
+  function surpriseFor(kind){ if (kind === "christmas") santaFly(); else if (kind === "thanksgiving") turkeyWalk(); else spriteGo(kind); }
   function turkeyWalk(){
     if (!walkEl){ walkEl = document.createElement("div"); walkEl.id = "skin-walk"; document.body.appendChild(walkEl); }
     walkEl.innerHTML = `<span><img src="${TURKEY_IMG}" alt="" style="height:120px;width:auto;display:block" onerror="this.parentNode.textContent='🦃'"></span>`; walkEl.classList.remove("go"); void walkEl.offsetWidth;
@@ -344,12 +441,12 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     stopSurprises(); if (reduced) return;
     const painted = !!(DEFS[kind].art && artOn);     // painted frame has its own (static) lights: no bulb flicker
     const nextFly = () => { const m = new Date().getMonth(), d = new Date().getDate(); const base = (kind === "christmas" && m === 11 && d >= 24) ? 2 : 6;   // Christmas Eve/Day: every ~2 min
-      flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else if (kind === "thanksgiving") turkeyWalk(); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
-    flyTimer = setTimeout(() => { if (kind === "christmas") santaFly(); else if (kind === "thanksgiving") turkeyWalk(); nextFly(); }, 20000);   // first one soon after it comes on
+      flyTimer = setTimeout(() => { surpriseFor(kind); nextFly(); }, (base + Math.random() * base) * 60 * 1000); };
+    flyTimer = setTimeout(() => { surpriseFor(kind); nextFly(); }, 20000);   // first one soon after it comes on
     if (kind === "christmas" && !painted) flickTimer = setInterval(flickerBulb, 7000);
   }
-  function stopSurprises(){ clearTimeout(flyTimer); clearInterval(flickTimer); flyTimer = flickTimer = null; if (flyEl) flyEl.classList.remove("go"); if (walkEl) walkEl.classList.remove("go"); }
-  function surprise(){ if (current === "christmas") santaFly(); else if (current === "thanksgiving") turkeyWalk(); }
+  function stopSurprises(){ clearTimeout(flyTimer); clearInterval(flickTimer); flyTimer = flickTimer = null; if (flyEl) flyEl.classList.remove("go"); if (walkEl) walkEl.classList.remove("go"); if (runEl) runEl.classList.remove("go"); }
+  function surprise(){ if (current) surpriseFor(current); }
 
   /* ---------- apply ---------- */
   let current = null, styleEl = null, frameEl = null, bannerEl = null, tick = null, artOn = true, artEl = null, slim = true;
@@ -360,19 +457,29 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
     if (!frameEl){ frameEl = document.createElement("div"); frameEl.id = "skin-frame"; document.body.appendChild(frameEl); }
     if (!bannerEl){ bannerEl = document.createElement("div"); bannerEl.id = "skin-banner"; const h = document.querySelector("header"); const d = h && h.querySelector(".date"); if (d && d.nextSibling) h.insertBefore(bannerEl, d.nextSibling); else if (h) h.appendChild(bannerEl); }
   }
+  function applySign(sg){
+    const root = document.documentElement;
+    if (!sg){ root.removeAttribute("data-skin-sign"); return; }
+    root.setAttribute("data-skin-sign", "on");
+    const v = { "--sign-src": `url("${sg.src}")`, "--sign-w": sg.w + "px", "--sign-h": sg.h + "px", "--sign-pad": sg.pad, "--sign-margin": sg.margin,
+                "--sign-k": sg.k || "", "--sign-t": sg.t || "", "--sign-title": sg.title || "", "--sign-sub": sg.sub || "", "--sign-subb": sg.subb || "" };
+    Object.entries(v).forEach(([k, val]) => val ? root.style.setProperty(k, val) : root.style.removeProperty(k));
+  }
   function buildFrame(kind){
     frameEl.innerHTML = ""; const w = window.innerWidth;
+    applySign(null);
     const def = DEFS[kind], root = document.documentElement;
     artEl.style.backgroundImage = "";
     if (def.art && artOn){
       // slim: zoom the painting so its border is cropped partly off-screen -> thinner frame, more room for the panels
-      const z = def.art.zoom * (slim ? SLIM_ZOOM : 1);
+      const z = def.art.zoom * (slim ? (def.art.slim || SLIM_ZOOM) : 1);
       const inset = (p, full) => Math.max(40, Math.round(p * z - (z - 1) * full / 2));
       artEl.style.backgroundImage = `url("${def.art.src}")`;
       root.style.setProperty("--skin-art-size", `${Math.round(z * 100)}% ${Math.round(z * 100)}%`);
       root.style.setProperty("--skin-pad-t", inset(def.art.pad.t, 1080) + "px"); root.style.setProperty("--skin-pad-b", inset(def.art.pad.b, 1080) + "px");
       root.style.setProperty("--skin-pad-l", inset(def.art.pad.l, 1920) + "px"); root.style.setProperty("--skin-pad-r", inset(def.art.pad.r, 1920) + "px");
       root.style.setProperty("--skin-hpad", Math.round((def.art.hpad || 0) * z) + "px");
+      applySign(def.sign);
       return;
     }
     ["t","b","l","r"].forEach(k => { const b = document.createElement("div"); b.className = "bar " + k; frameEl.appendChild(b); });
@@ -415,7 +522,7 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
       bannerEl.innerHTML = `<div class="k">${def.banner.kicker}</div><div class="t">${title.replace(/</g, "&lt;")}</div><div class="sub"><b>${who.length ? "🎂 Make a wish" : "Party mode"}</b></div>`;
       return;
     }
-    let target = def.target(y); if (daysUntil(target) < 0 && kind === "christmas") target = def.target(y + 1);
+    let target = def.target(y); if (daysUntil(target) < 0) target = def.target(y + 1);      // previewing out of season: count to next year's
     const n = daysUntil(target), nn = Math.max(0, Math.min(99, n));
     const digits = String(nn).padStart(2, "0").split("").map(d => `<div class="dg">${d}</div>`).join("");
     let sub = "";
@@ -426,7 +533,7 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
       else if (m === 11) sub = `Advent · <b>Day ${d}</b> of 24`;
       else sub = `<b>${target.toLocaleDateString([], {weekday: "long", month: "long", day: "numeric"})}</b>`;
     } else {
-      sub = n === 0 ? "<b>Happy Thanksgiving!</b>" : `<b>${target.toLocaleDateString([], {weekday: "long", month: "long", day: "numeric"})}</b>`;
+      sub = n === 0 ? `<b>${def.banner.hello || "Happy Thanksgiving!"}</b>` : `<b>${target.toLocaleDateString([], {weekday: "long", month: "long", day: "numeric"})}</b>`;
     }
     const sideL = kind === "christmas" ? `<svg class="side l" viewBox="0 0 34 60">${LANTERN(17, 2, .9)}</svg>` : `<svg class="side l" viewBox="0 0 34 60">${LEAF(17, 22, .8, "#e67e22", -30)}${ACORN(17, 46, .8)}</svg>`;
     const sideR = kind === "christmas" ? `<svg class="side r" viewBox="0 0 34 60">${LANTERN(17, 2, .9)}</svg>` : `<svg class="side r" viewBox="0 0 34 60">${LEAF(17, 22, .8, "#c0392b", 30)}${ACORN(17, 46, .8)}</svg>`;
@@ -464,6 +571,6 @@ html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5
   if (WALL) setInterval(() => { if (typeof FH !== "undefined") { const k = pick(FH.get()); if (k !== current) apply(FH.get()); } }, 10 * 60 * 1000);
 
   const list = () => Object.keys(DEFS).map(k => ({ key: k, name: DEFS[k].name, emoji: DEFS[k].emoji || (k === "christmas" ? "🎄" : k === "thanksgiving" ? "🦃" : "✨") }));
-  return { apply, pick, auto, thanksgiving, DEFS, list, birthdayPeople, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };
+  return { apply, pick, auto, thanksgiving, easter, DEFS, list, birthdayPeople, effect: () => current ? DEFS[current].effect : null, current: () => current, surprise };
 })();
 window.Skins = Skins;

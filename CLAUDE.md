@@ -55,7 +55,9 @@ static/
                        mirror image. Furnishing hints per room: bed/tv/counter/tub side, shower corner.
   home3d.js            three.js dollhouse: walls/doorways/furniture from the layout, per-room point
                        lights + TV glow driven by HA, tappable device pins. FHHome.render3D(el,h,opts)
-  skins.js             holiday skins (Thanksgiving Nov 1→TG, Christmas day-after-TG→Dec 30, New Year's Eve Dec 31–Jan 1 w/ fireworks + live countdown): painted frame, lights,
+  skins.js             holiday skins, auto by date: Valentine's Feb 1–14, St. Patrick's Mar 10–17, Easter −14 d, 4th Jun 28–Jul 4, Halloween Oct,
+                       Thanksgiving Nov 1→TG, Christmas →Dec 30, New Year's Eve Dec 31–Jan 1 (+ Birthday). Each DEFS entry: art (frame, per-skin
+                       `slim` crop), sign (countdown card art + text insets), sprite (fly/run across). Art in static/skins/ (frames .webp): painted frame, lights,
                        lanterns, gifts, snow caps, countdown banner; settings.skin auto|off|christmas|thanksgiving,
                        ?skin= URL override for phone previews. Pins Seasonal.force(snow|leaves). A skin may carry
                        painted `art` (static/skins/<name>-frame.png, 1920x1080 PNG, centre keyed to transparent) drawn

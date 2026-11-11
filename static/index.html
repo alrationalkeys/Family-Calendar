@@ -2538,7 +2538,7 @@ function openCamera(eid, name, opts){
   if(window.ADCStream){
     _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st,why)=>{ if(_camEid!==eid) return;
       if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; }
-      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").textContent="No live feed right now · showing the latest snapshot"; }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · showing a fresh picture every 3 s · <a href="#" id="cam-retry" style="color:inherit;font-weight:700">Try live again</a>'; const rb=$("#cam-retry"); if(rb) rb.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); _camStream._retries=0; _camStream.start(); }; }
       else if(st==="connecting"){ ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }});
     _camStream.start();
   }

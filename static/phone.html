@@ -264,6 +264,22 @@
   .rm-dim input{flex:1; -webkit-appearance:none; appearance:none; height:8px; border-radius:4px; background:linear-gradient(90deg, color-mix(in srgb,var(--now) 35%, var(--panel2)), var(--now)); margin:0}
   .rm-dim input::-webkit-slider-thumb{-webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.4)}
   .rm-dim input::-moz-range-thumb{width:26px; height:26px; border:0; border-radius:50%; background:#fff} .rm-dim small{width:38px; text-align:right; color:var(--ink-dim); font-size:12px}
+  .hm-clim-row{cursor:pointer} .hm-clim-row .rv::after{content:" ›"; color:var(--ink-dim); font-weight:400}
+  .th-now{display:flex; align-items:flex-end; justify-content:space-between; margin:4px 0 12px}
+  .th-now .big{font-size:56px; font-weight:300; line-height:1}
+  .th-now .act{font-size:14px; font-weight:700; text-align:right; color:var(--ink-dim)}
+  .th-now .act.heat{color:#e8743b} .th-now .act.cool{color:#3b9be8}
+  .th-lab{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); font-weight:700; margin:14px 0 6px}
+  .th-chips{display:flex; gap:6px; flex-wrap:wrap}
+  .th-chips button{flex:1; min-width:64px; border:0; height:42px; border-radius:12px; background:var(--panel2); color:var(--ink); font:inherit; font-size:14px; font-weight:600}
+  .th-chips button.on{background:var(--now); color:#fff}
+  .th-chips button.on.heat{background:#e8743b} .th-chips button.on.cool{background:#3b9be8}
+  .th-set{display:flex; align-items:center; gap:10px; background:var(--panel2); border-radius:14px; padding:8px 10px; margin-bottom:8px}
+  .th-set .l{flex:1; font-size:14px; font-weight:600} .th-set .l small{display:block; font-weight:400; color:var(--ink-dim); font-size:12px}
+  .th-set button{width:48px; height:48px; border-radius:50%; border:0; background:var(--panel); color:var(--ink); font-size:24px; font-weight:600}
+  .th-set .v{min-width:64px; text-align:center; font-size:30px; font-weight:700}
+  .th-set.heat .v{color:#e8743b} .th-set.cool .v{color:#3b9be8}
+  .th-warn{background:color-mix(in srgb,#e0a44a 18%, var(--panel2)); color:var(--ink); border-radius:12px; padding:10px 12px; font-size:13px; line-height:1.4; margin:4px 0 6px}
   .rm-eid{font-size:10.5px; color:var(--ink-dim); opacity:.6; margin:4px 0 0 42px; word-break:break-all}
   /* everything grid */
   .tile-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
@@ -1051,8 +1067,8 @@ function openCam(eid,name){ _camEid=eid; const ov=$("#camov"); $("#cam-title").t
   if(_camStream) _camStream.stop();
   if(window.ADCStream){ _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st)=>{ if(_camEid!==eid) return;
       if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live · tap ✕ to close'; }
-      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").textContent="No live feed right now · latest snapshot · tap ✕ to close"; }
-      else { ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }}); _camStream.start(); } }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · new picture every 3 s<br><button id="cam-retry" style="margin-top:10px;border:0;border-radius:18px;padding:8px 16px;background:rgba(255,255,255,.18);color:#fff;font:inherit;font-weight:700">Try live again</button>'; const rb=$("#cam-retry"); if(rb) rb.onclick=()=>{ if(_camStream){ _camStream._retries=0; _camStream.start(); } }; }
+      else { ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed… (doorbells can take a few seconds to wake)"; } }}); _camStream.start(); } }
 function closeCam(){ $("#camov").classList.remove("on","live"); clearInterval(_camT); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
 $("#cam-close").onclick=closeCam;
 FHHome.camera = (eid,name)=>openCam(eid,name);
@@ -1172,6 +1188,7 @@ function rmRow(t, strip){
   else if(d==="media_player") ctl=`<div class="rm-btns"><button data-tg="${id}">${t.on?"Turn off":"Turn on"}</button><button class="pri" data-remote="${id}" data-n="${nm}">Remote</button></div>`;
   else if(d==="cover") ctl=`<div class="rm-btns"><button data-svc="cover/open_cover" data-e="${id}">Open</button><button data-svc="cover/close_cover" data-e="${id}">Close</button></div>`;
   else if(d==="lock") ctl=`<div class="rm-btns">${t.state==="locked"?`<button data-svc="lock/unlock" data-e="${id}">Unlock</button>`:`<button class="pri" data-svc="lock/lock" data-e="${id}">Lock</button>`}</div>`;
+  else if(d==="climate") ctl=`<div class="rm-btns"><button class="pri" data-th="${id}">Control</button></div>`;
   else if(d==="camera") ctl=`<div class="rm-btns"><button class="pri" data-cam="${id}" data-n="${nm}">View</button></div>`;
   let extra="";
   if(d==="light"&&t.dimmable) extra=`<div class="rm-dim"><span>🔅</span><input type="range" min="1" max="100" value="${t.on?(t.brightness||100):0}" data-dim="${id}" aria-label="${nm} brightness"><small>${t.on?(t.brightness||100)+"%":"off"}</small></div>`;
@@ -1179,6 +1196,7 @@ function rmRow(t, strip){
 }
 function renderRoom(){
   if(!_rmKey||_rmBusy>Date.now()) return;
+  if(_rmKey.climate) return renderThermostat();
   const {room, title, devs}=roomDevices(_rmKey), E=FHHome.esc;
   const order={light:0,switch:1,fan:2,cover:3,lock:4,media_player:5,climate:6,camera:7,binary_sensor:8,sensor:9};
   devs.sort((a,b)=>((order[a.domain]??10)-(order[b.domain]??10))||a.name.localeCompare(b.name));
@@ -1195,12 +1213,56 @@ function renderRoom(){
     if(navigator.vibrate) navigator.vibrate(10); el.textContent="…";
     try{ await post("/api/ha/service",{domain:dm, service:sv, entity_id:el.dataset.e}); }catch(err){ toast("Couldn't reach the wall"); } done(1500); });
   list.querySelectorAll("[data-remote]").forEach(el=>el.onclick=()=>{ closeRoom(); FHHome.remote(el.dataset.remote, el.dataset.n); });
+  list.querySelectorAll("[data-th]").forEach(el=>el.onclick=()=>openRoom({climate:el.dataset.th}));
   list.querySelectorAll("[data-cam]").forEach(el=>el.onclick=()=>{ closeRoom(); openCam(el.dataset.cam, el.dataset.n); });
   list.querySelectorAll("[data-dim]").forEach(el=>{ const lab=el.nextElementSibling;
     el.oninput=()=>{ _rmBusy=Date.now()+4000; lab.textContent=el.value+"%"; };
     el.onchange=async()=>{ _rmBusy=Date.now()+1500; if(navigator.vibrate) navigator.vibrate(6);
       try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:el.dataset.dim, data:{brightness_pct:+el.value}}); }catch(err){ toast("Couldn't reach the wall"); }
       setTimeout(()=>{ _rmBusy=0; loadHM(); }, 1600); }; });
+}
+/* ---- thermostat pop-up: mode, setpoint(s), fan; taps are batched and sent after a short pause ---- */
+let _thPend=null, _thTimer=null;
+const TH_MODE={off:"Off", heat:"Heat", cool:"Cool", heat_cool:"Auto", auto:"Auto", dry:"Dry", fan_only:"Fan"};
+function renderThermostat(){
+  const E=FHHome.esc, tiles=FHHome.tilesOf(hmLast||{}), t=tiles.find(x=>x.entity_id===_rmKey.climate);
+  $("#rm-3d").hidden=true;
+  if(!t){ $("#rm-title").textContent="🌡 Thermostat"; $("#rm-sum").textContent="This thermostat isn't reporting right now."; $("#rm-list").innerHTML=""; return; }
+  const mode=t.state, act=t.hvac_action||"", step=t.target_temp_step||1, mn=t.min_temp??45, mx=t.max_temp??95;
+  const p=(_thPend&&_thPend.eid===t.entity_id)?_thPend:{};
+  const low=p.low??t.target_temp_low, high=p.high??t.target_temp_high, one=p.temp??t.target_temperature;
+  $("#rm-title").textContent="🌡 "+t.name;
+  $("#rm-sum").textContent=t.current_humidity!=null?`Humidity ${Math.round(t.current_humidity)}%`:"";
+  const peak=tiles.find(x=>x.entity_id==="binary_sensor.santee_cooper_peak_now");
+  const actTxt={heating:"Heating",cooling:"Cooling",idle:"Idle",off:"Off",fan:"Fan only",drying:"Drying"}[act]||(mode==="off"?"Off":"");
+  let h=`<div class="th-now"><div class="big">${t.current_temperature!=null?E(Math.round(t.current_temperature))+"°":"—"}</div><div class="act ${act==="heating"?"heat":act==="cooling"?"cool":""}">${E(actTxt)}<br><span style="font-weight:400;font-size:12px">inside now</span></div></div>`;
+  if(peak&&peak.on) h+=`<div class="th-warn">⚡ <b>Santee Cooper peak hours right now.</b> Heat and AC are kept off to avoid the demand charge — turning it on now can cost more than the rest of the month.</div>`;
+  const modes=(t.hvac_modes||["off","heat","cool","heat_cool"]).filter(m=>TH_MODE[m]);
+  h+=`<div class="th-lab">Mode</div><div class="th-chips">${modes.map(m=>`<button data-mode="${m}" class="${m===mode?"on":""} ${m==="heat"?"heat":m==="cool"?"cool":""}">${TH_MODE[m]}</button>`).join("")}</div>`;
+  const row=(cls,label,sub,key,val)=>`<div class="th-set ${cls}"><div class="l">${label}<small>${sub}</small></div><button data-adj="${key}" data-d="-1" aria-label="${label} down">−</button><div class="v">${val!=null?E(val)+"°":"—"}</div><button data-adj="${key}" data-d="1" aria-label="${label} up">+</button></div>`;
+  if(mode==="heat_cool"||mode==="auto"){
+    h+=`<div class="th-lab">Keep it between</div>`+row("heat","Heat to","heat comes on below","low",low)+row("cool","Cool to","AC comes on above","high",high);
+  } else if(mode==="heat"||mode==="cool"){
+    h+=`<div class="th-lab">Set to</div>`+row(mode,mode==="heat"?"Heat to":"Cool to",mode==="heat"?"heat runs below this":"AC runs above this","temp",one);
+  } else h+=`<div class="hint" style="margin-top:10px">The system is off. Pick Heat, Cool or Auto to turn it on.</div>`;
+  if(t.fan_modes&&t.fan_modes.length) h+=`<div class="th-lab">Fan</div><div class="th-chips">${t.fan_modes.map(f=>`<button data-fan="${E(f)}" class="${f===t.fan_mode?"on":""}">${E(f.charAt(0).toUpperCase()+f.slice(1).replace(/_/g," "))}</button>`).join("")}</div>`;
+  h+=`<div class="hint" style="margin-top:12px">Your Alarm.com schedule can change this later; the peak-hours routine still turns the system off during peak.</div><div class="rm-eid" style="margin-left:0">${E(t.entity_id)}</div>`;
+  const list=$("#rm-list"); if(list.dataset.sig===h) return; list.dataset.sig=h; list.innerHTML=h;
+  const svc=async(service,data)=>{ if(navigator.vibrate) navigator.vibrate(10);
+    try{ const r=await post("/api/ha/service",{domain:"climate", service, entity_id:t.entity_id, data}); if(r&&r.ok===false) toast(r.reason||"Thermostat didn't take it"); }catch(e){ toast("Couldn't reach the wall"); }
+    _rmBusy=Date.now()+2500; setTimeout(()=>{ _rmBusy=0; _thPend=null; loadHM(); }, 2600); };
+  list.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{ if(b.dataset.mode===mode) return; list.querySelectorAll("[data-mode]").forEach(x=>x.classList.toggle("on",x===b)); toast(`${t.name}: ${TH_MODE[b.dataset.mode]}`); svc("set_hvac_mode",{hvac_mode:b.dataset.mode}); });
+  list.querySelectorAll("[data-fan]").forEach(b=>b.onclick=()=>{ list.querySelectorAll("[data-fan]").forEach(x=>x.classList.toggle("on",x===b)); svc("set_fan_mode",{fan_mode:b.dataset.fan}); });
+  list.querySelectorAll("[data-adj]").forEach(b=>b.onclick=()=>{ if(navigator.vibrate) navigator.vibrate(6);
+    const k=b.dataset.adj; _thPend=_thPend&&_thPend.eid===t.entity_id?_thPend:{eid:t.entity_id};
+    const base={low,high,temp:one}[k]; let v=(_thPend[k]??base??(k==="high"?74:68))+step*(+b.dataset.d);
+    v=Math.max(mn,Math.min(mx,Math.round(v/step)*step));
+    if(k==="low"&&(_thPend.high??high)!=null&&v>(_thPend.high??high)-2) return toast("Heat has to stay at least 2° below cool");
+    if(k==="high"&&(_thPend.low??low)!=null&&v<(_thPend.low??low)+2) return toast("Cool has to stay at least 2° above heat");
+    _thPend[k]=v; b.parentElement.querySelector(".v").textContent=v+"°"; _rmBusy=Date.now()+3000;
+    clearTimeout(_thTimer); _thTimer=setTimeout(()=>{ const pd=_thPend; if(!pd) return;
+      const data=(mode==="heat_cool"||mode==="auto")?{target_temp_low:pd.low??low, target_temp_high:pd.high??high}:{temperature:pd.temp??one};
+      toast(`${t.name}: `+(data.temperature!=null?data.temperature+"°":`${data.target_temp_low}°–${data.target_temp_high}°`)); svc("set_temperature",data); }, 1200); });
 }
 function openRoom(key){ _rmKey=key; if(navigator.vibrate) navigator.vibrate(6); $("#rm-list").dataset.sig=""; renderRoom(); $("#rmov").classList.add("on"); }
 function closeRoom(){ _rmKey=null; $("#rmov").classList.remove("on"); }
@@ -1340,7 +1402,7 @@ function renderHM(h, force){
           <div class="hm-clim-big">${oT}°</div>
           <div class="hm-clim-grid">${wx&&wx.high!=null?`<div><span>High</span><b>${wx.high}°</b></div><div><span>Low</span><b>${wx.low}°</b></div>`:''}${oh?`<div><span>Humidity</span><b>${E(oh.state)}%</b></div>`:''}${wx&&wx.sunrise?`<div><span>Sunrise</span><b>${E(new Date(wx.sunrise).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}))}</b></div>`:''}</div></div>`;
       }
-      climates.forEach(c=>{ html+=`<div class="hm-row"><div class="ric">🌡</div><div class="rt"><b>${E(c.name)}</b><span>${E(FHHome.haStateLabel(c))}</span></div><div class="rv">${c.current_temperature!=null?E(c.current_temperature)+'°':''}</div></div>`; });
+      climates.forEach(c=>{ html+=`<div class="hm-row hm-clim-row" data-clim="${E(c.entity_id)}" title="Tap to control"><div class="ric">🌡</div><div class="rt"><b>${E(c.name)}</b><span>${E(FHHome.haStateLabel(c))}</span></div><div class="rv">${c.current_temperature!=null?E(c.current_temperature)+'°':''}</div></div>`; });
       const num=t=>t&&!isNaN(parseFloat(t.state));
       temps.filter(t=>t!==outdoorT).forEach(t=>{ const hh=partner(t);
         const sub=num(hh)?'humidity '+E(hh.state)+'%':(num(t)?'temperature':'offline — check its battery / Bluetooth range');
@@ -1371,6 +1433,7 @@ function renderHM(h, force){
   // tap a room card (not one of its device buttons) -> pop-up with every device in it
   body.querySelectorAll(".hm-room[data-rn]").forEach(c=>{ c.onclick=(e)=>{ if(e.target.closest("button")) return;
     openRoom({room:c.dataset.rn, floor:c.dataset.rf}); }; });
+  body.querySelectorAll("[data-clim]").forEach(c=>{ c.onclick=()=>openRoom({climate:c.dataset.clim}); });
   body.querySelectorAll(".hm-room[data-area]").forEach(c=>{ c.onclick=(e)=>{ if(e.target.closest("button")) return;
     openRoom({area:c.dataset.area}); }; });
   const lo=$("#hm-lights-off"); if(lo) lo.onclick=async()=>{ lo.textContent="…"; for(const t of lights.filter(t=>t.on)){ try{ await post("/api/ha/toggle",{entity_id:t.entity_id}); }catch(e){} } setTimeout(loadHM,500); };

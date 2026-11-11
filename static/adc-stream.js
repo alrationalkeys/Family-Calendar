@@ -38,19 +38,36 @@
     }
     stop(){ this._stopped=true; this._gen++; this._teardown(); this._status("stopped"); }
     _valid(c){ if(c.streamType==="janus"||c.janusGatewayUrl) return !!(c.janusGatewayUrl&&c.janusToken); return !!(c.signallingServerUrl&&c.signallingServerToken&&c.cameraAuthToken); }
-    _teardown(){ clearInterval(this._keep); this._keep=null; clearTimeout(this._retry); this._retry=null;
+    _teardown(){ clearInterval(this._keep); this._keep=null; clearTimeout(this._retry); this._retry=null; clearInterval(this._watch); this._watch=null;
       try{ if(this.ws) this.ws.close(); }catch(e){} this.ws=null;
       try{ if(this.pc) this.pc.close(); }catch(e){} this.pc=null;
       if(this.video&&this.video.srcObject){ try{ this.video.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){} this.video.srcObject=null; }
       this._connected=false; }
-    _fail(gen, why){ if(gen!==this._gen||this._stopped) return; this._teardown();
+    _fail(gen, why){ if(gen!==this._gen||this._stopped) return; this._gen++; this._teardown();
       if(this._retries++<this._max){ this._status("connecting", why); this._retry=setTimeout(()=>{ if(!this._stopped) this.start(); }, 3000); }
       else this._status("failed", why); }
     _live(){ this._connected=true; this._retries=0; this._status("live"); }
+    /* A track can arrive with no pictures (battery doorbells are slow to wake, or Alarm.com's relay stalls).
+       Only call it "live" once frames are actually playing; no frames in firstFrameMs, or a picture frozen
+       for freezeMs, counts as a failure and reconnects (the snapshot stays up meanwhile). */
+    _watchFrames(gen){
+      const v=this.video, t0=Date.now(), first=this.opts.firstFrameMs??15000, freeze=this.opts.freezeMs??8000;
+      let lastT=-1, lastMove=Date.now();
+      clearInterval(this._watch);
+      this._watch=setInterval(()=>{ if(gen!==this._gen){ clearInterval(this._watch); return; }
+        const moving=v.videoWidth>0&&v.readyState>=2&&v.currentTime>0;
+        if(v.currentTime!==lastT){ lastT=v.currentTime; lastMove=Date.now(); }
+        if(!this._connected){
+          if(moving) this._live();
+          else if(Date.now()-t0>first){ clearInterval(this._watch); this._fail(gen,"no video"); }
+          else this._play();
+        } else if(Date.now()-lastMove>freeze){ clearInterval(this._watch); this._connected=false; this._fail(gen,"frozen"); }
+      }, 500);
+    }
     _play(){ const v=this.video; if(v&&(v.paused||v.ended)){ v.muted=true; v.playsInline=true; v.play().catch(()=>{}); } }
     _pc(cfg, gen){
       const pc=new RTCPeerConnection({iceServers:cfg.iceServers||[]}); this.pc=pc;
-      pc.ontrack=(e)=>{ if(gen!==this._gen) return; if(!this.video.srcObject){ this.video.srcObject=e.streams[0]; this._live(); } this._play(); };
+      pc.ontrack=(e)=>{ if(gen!==this._gen) return; if(!this.video.srcObject){ this.video.srcObject=e.streams[0]; this._watchFrames(gen); } this._play(); };
       pc.oniceconnectionstatechange=()=>{ if(gen!==this._gen) return; const s=pc.iceConnectionState; if(s==="disconnected"||s==="failed"||s==="closed") this._fail(gen,"ice "+s); };
       return pc;
     }

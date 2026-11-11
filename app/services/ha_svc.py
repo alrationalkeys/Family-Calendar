@@ -93,7 +93,9 @@ def _demo_seed():
         "lock.front_door": {"state": "locked", "attributes": {"friendly_name": "Front Door"}},
         "climate.thermostat": {"state": "heat",
             "attributes": {"friendly_name": "Thermostat", "current_temperature": 71,
-                           "temperature": 72}},
+                           "temperature": 72, "hvac_modes": ["off", "heat", "cool", "heat_cool"],
+                           "hvac_action": "idle", "min_temp": 45, "max_temp": 95, "target_temp_step": 1,
+                           "fan_modes": ["auto", "on", "circulate"], "fan_mode": "auto", "current_humidity": 52}},
         "media_player.living_room_tv": {"state": "off",
             "attributes": {"friendly_name": "Living Room Roku"}},
         "media_player.bedroom_tv": {"state": "off",
@@ -234,6 +236,10 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
     if domain == "climate":
         tile["current_temperature"] = attrs.get("current_temperature")
         tile["target_temperature"] = attrs.get("temperature")
+        for k in ("hvac_modes", "hvac_action", "target_temp_low", "target_temp_high", "min_temp", "max_temp",
+                  "target_temp_step", "fan_modes", "fan_mode", "current_humidity", "preset_modes", "preset_mode"):
+            if attrs.get(k) is not None:
+                tile[k] = attrs.get(k)
     if domain == "light":
         modes = attrs.get("supported_color_modes") or []
         tile["dimmable"] = bool(modes) and any(m != "onoff" for m in modes) or attrs.get("brightness") is not None
@@ -732,6 +738,16 @@ def call_service(domain: str, service: str, entity_id: str = "", extra: dict = N
     if demo_mode():
         if entity_id:
             _demo_toggle(entity_id, service)
+            if domain == "climate" and entity_id in _DEMO:
+                cur, x = _DEMO[entity_id], dict(extra or {})
+                if service == "set_hvac_mode":
+                    cur["state"] = x.get("hvac_mode", cur["state"])
+                elif service == "set_fan_mode":
+                    cur["attributes"]["fan_mode"] = x.get("fan_mode")
+                elif service == "set_temperature":
+                    for k in ("temperature", "target_temp_low", "target_temp_high"):
+                        if k in x:
+                            cur["attributes"][k] = x[k]
             if (extra or {}).get("brightness_pct") is not None and entity_id in _DEMO:
                 _DEMO[entity_id].setdefault("attributes", {})["brightness"] = round(float(extra["brightness_pct"]) * 2.55)
         try:

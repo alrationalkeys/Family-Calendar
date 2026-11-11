@@ -26,7 +26,8 @@ const Skins = (() => {
       wood: ["#6b4523", "#3f2611"], gold: "#e0a040", snowcaps: false,
       banner: { kicker: "Days until", title: "Thanksgiving", font: "'Playfair Display', Georgia, serif" },
       target: y => thanksgiving(y),
-      corners: "thanksgiving"
+      corners: "thanksgiving",
+      art: { src: "/skins/thanksgiving-frame.png", zoom: 1.0, pad: { t: 195, r: 250, b: 172, l: 245 }, hpad: 80 }
     }
   };
 

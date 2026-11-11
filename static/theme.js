@@ -29,6 +29,8 @@ const FH = (() => {
     assistantName: "Hub",    // what the family calls the voice assistant
     defaultCalendar: "",     // where new events go by default (a /api/sources/targets id)
     speakAlerts: true,       // wall speaks reminders / announcements / timers
+    slideshowAfter: 5,       // minutes with no touch before the photo slideshow (0 = never)
+    slideSeconds: 8,         // seconds each photo stays up
     photoFit: "fit",         // slideshow: "fit" = whole photo over blurred backdrop, "fill" = crop to screen
     announceAdds: true,      // wall says "Rachell added …" when a phone adds something
     announceQuietStart: null, // "HH:MM"; null = follow the screen-off night window; "" = never quiet

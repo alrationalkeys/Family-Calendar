@@ -33,6 +33,8 @@ DEFAULTS = {
     "assistantName": "Hub",          # what the family calls the voice assistant (she picks)
     "defaultCalendar": "",           # where new events go by default (a /api/sources/targets id)
     "speakAlerts": True,             # wall speaks reminders / announcements / timers
+    "slideshowAfter": 5,             # minutes idle before the photo slideshow (0 = never)
+    "slideSeconds": 8,               # seconds per photo
     "photoFit": "fit",               # slideshow: "fit" = whole photo over a blurred backdrop, "fill" = crop to screen
     "announceAdds": True,            # wall says "Rachell added …" when a phone adds something
     "announceQuietStart": None,      # "HH:MM"; None = follow the screen-off night window; "" = never quiet

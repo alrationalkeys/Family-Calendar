@@ -518,6 +518,10 @@
     <hr>
     <label class="chk"><input type="checkbox" id="set-caltasks"> Show to-dos &amp; chores on the calendar (wall + this phone)</label>
     <label class="chk"><input type="checkbox" id="set-kbd"> On-screen keyboard on the wall</label>
+    <div class="two" style="align-items:center; margin:6px 0"><span style="flex:1">Start the photo slideshow after</span>
+      <select id="set-slideafter" style="flex:0 0 auto; margin:0"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="0">Never</option></select></div>
+    <div class="two" style="align-items:center; margin:6px 0"><span style="flex:1">Each photo stays up for</span>
+      <select id="set-slidesecs" style="flex:0 0 auto; margin:0"><option value="5">5 seconds</option><option value="8">8 seconds</option><option value="10">10 seconds</option><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option></select></div>
     <label class="chk"><input type="checkbox" id="set-photofit"> Slideshow shows the whole photo (blurred edges) instead of cropping to fill the screen</label>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <div class="hint">What you call it when you talk to the wall. Hands-free "Hey &lt;name&gt;" needs a matching wake-word model in Home Assistant — see docs/home-assistant-setup.md "Pick the name".</div>
@@ -1571,6 +1575,8 @@ function loadSettingsUI(){
     c.onchange=()=>saveNested("panels",c.dataset.panel,c.checked);
   });
   $("#set-kbd").checked=!!s.onscreenKbd; $("#set-kbd").onchange=e=>FH.save({onscreenKbd:e.target.checked});
+  $("#set-slideafter").value=String(s.slideshowAfter??5); $("#set-slideafter").onchange=e=>{ FH.save({slideshowAfter:+e.target.value}); toast(+e.target.value?"Slideshow after "+e.target.selectedOptions[0].text:"Slideshow off"); };
+  $("#set-slidesecs").value=String(s.slideSeconds??8); $("#set-slidesecs").onchange=e=>{ FH.save({slideSeconds:+e.target.value}); toast("Saved"); };
   $("#set-photofit").checked=(s.photoFit||"fit")==="fit"; $("#set-photofit").onchange=e=>FH.save({photoFit:e.target.checked?"fit":"fill"});
   $("#set-speak").checked=s.speakAlerts!==false; $("#set-speak").onchange=e=>FH.save({speakAlerts:e.target.checked});
   $("#set-who").value=whoAmI(); $("#set-who").onchange=e=>{ try{ localStorage.setItem("fh_who", e.target.value.trim()); }catch(_){} toast("Saved on this phone"); };

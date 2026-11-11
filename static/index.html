@@ -1601,9 +1601,11 @@ async function load(){
 }
 
 let sleepTimer, slideTimer, photos=[], pIdx=0, asleep=false;
-const SLEEP_AFTER = 5*60*1000;
+// minutes idle before the slideshow and seconds per photo come from settings (phone > Settings > Photos)
+const sleepAfterMs=()=>{ const m=parseFloat(FH.get().slideshowAfter); return isNaN(m)?5*60000:m*60000; };
+const slideMs=()=>Math.max(3, parseFloat(FH.get().slideSeconds)||8)*1000;
 async function loadPhotos(){ try{ const r=await fetch("/api/photos/").then(r=>r.json()); photos=r.photos||[]; if(curPage==="photos") renderPhotosPage(); }catch(e){} }
-function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); showSlide(); slideTimer=setInterval(showSlide,8000); }
+function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
 function showSlide(){
   const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
   const fit=(FH.get().photoFit||"fit")==="fit"; layer.classList.toggle("fit", fit);
@@ -1614,7 +1616,7 @@ function showSlide(){
   layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
 }
 function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on");clearInterval(slideTimer); tgScroll=null; render();} }   // fresh look: grid back to the day-start window
-function resetSleep(){ wake(); clearTimeout(sleepTimer); sleepTimer=setTimeout(goToSleep,SLEEP_AFTER); maybeBriefing(); }
+function resetSleep(){ wake(); clearTimeout(sleepTimer); const ms=sleepAfterMs(); if(ms>0) sleepTimer=setTimeout(goToSleep,ms); maybeBriefing(); }
 ["click","touchstart","mousemove","keydown"].forEach(ev=>window.addEventListener(ev,resetSleep,{passive:true}));
 
 /* ---- settings drawer ---- */

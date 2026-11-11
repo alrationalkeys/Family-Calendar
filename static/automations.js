@@ -33,6 +33,26 @@
     background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px}
   .au-sub{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); margin:10px 0 2px; font-weight:700}
   .au-missing{font-size:13px; color:var(--ink-dim); background:var(--panel2); border-radius:10px; padding:8px 10px; margin:4px 0 8px}
+  .au-card{background:var(--panel2); border-radius:14px; padding:12px 12px 10px; margin:0 0 10px}
+  .au-ch{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px}
+  .au-ch b{font-size:15.5px}
+  .au-line{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:14px; padding:5px 0; line-height:1.5}
+  .au-line.row{justify-content:space-between}
+  .au-line.note{font-size:12.5px; color:var(--ink-dim); padding-top:2px}
+  .au-line.sub{padding-left:22px}
+  .au-line.hd{padding-top:9px; padding-bottom:0}
+  .au-line.hd .lbl{color:var(--ink); font-weight:600; min-width:0}
+  .au-line .dim{color:var(--ink-dim); font-size:12.5px}
+  .au-line .lbl{min-width:92px; color:var(--ink-dim); font-size:13.5px}
+  .au-line.row .lbl{color:var(--ink); font-size:14px}
+  .au-line .in{margin:0; padding:5px 7px; font:inherit; font-size:14px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; width:auto}
+  .au-line input[type=number].in{width:58px; text-align:center}
+  .au-line input.date{min-width:150px; min-height:34px}
+  .au-line .num{display:inline-flex; align-items:center; gap:2px}
+  .pill{font-size:12px; padding:2px 9px; border-radius:999px; background:var(--panel); color:var(--ink-dim)}
+  .pill.on{background:color-mix(in srgb, var(--now) 25%, var(--panel)); color:var(--ink); font-weight:600}
+  .au-pick .miss{color:#c0392b}
+  .au-card .au-pick{padding:2px 0 6px}
   details.au-more summary{font-size:13px; color:var(--ink-dim); cursor:pointer; padding:4px 0}
   .au-pick{padding:6px 0}
   .au-pick > .top{display:flex; align-items:center; justify-content:space-between; gap:10px}
@@ -100,6 +120,85 @@
   const picked = el => [...el.querySelectorAll(".au-list input:checked")].map(i => i.value);
   const nameOf = (id) => { const c = (last && last.choices) || {}; for (const k in c) { const f = c[k].find(x => x.id === id); if (f) return f.name; } return id; };
 
+  /* ---------- Alarm.com-style cards: one card per schedule, plain words, inline controls ---------- */
+  const helperMap = g => Object.fromEntries((g.settings || []).map(s => [s.entity_id, s]));
+  function ctl(H, eid, opts){                       // one inline control for a setting (or "" if it isn't there)
+    const s = H[eid]; if (!s) return "";
+    const id = "au-" + eid.replace(/\W/g, "_"), o = opts || {};
+    if (s.kind === "time") return `<input type="time" class="in" id="${id}" data-helper="${esc(eid)}" value="${esc(s.value)}">`;
+    if (s.kind === "date") return `<input type="date" class="in date" id="${id}" data-helper="${esc(eid)}" value="${esc(s.value)}">`;
+    if (s.kind === "number") return `<span class="num"><input type="number" class="in" id="${id}" data-helper="${esc(eid)}" value="${esc(parseFloat(s.value))}" min="${esc(s.min)}" max="${esc(s.max)}" step="${esc(s.step || 1)}">${o.unit ?? (s.unit === "°F" ? "°" : esc(s.unit))}</span>`;
+    if (s.kind === "toggle") return sw(`id="${id}" data-helper="${esc(eid)}"`, s.value === "on");
+    return "";
+  }
+  function pick(H, eid, label){                     // which lights: names, Change -> checklist
+    const s = H[eid]; if (!s) return "";
+    const ids = s.value || [], names = s.labels || [];
+    const shown = ids.length ? ids.map((x, i) => names[i] && names[i] !== x ? esc(names[i]) : `<span class="miss">⚠ ${esc(x)} (not found, pick again)</span>`).join(", ") : `<span class="miss">None picked yet: tap Change</span>`;
+    return `<div class="au-pick" data-pick="${esc(eid)}"><div class="top"><label>${esc(label)}</label><button class="chg">Change</button></div><div class="names">${shown}</div></div>`;
+  }
+  const card = (title, right, body) => `<div class="au-card"><div class="au-ch"><b>${title}</b>${right || ""}</div>${body}</div>`;
+  const line = (inner, cls) => `<div class="au-line ${cls || ""}">${inner}</div>`;
+  const LAYOUT = {
+    peak(H, g){
+      const st = g.status || [], peakNow = st.find(x => /peak now/i.test(x.name)), summer = st.find(x => /summer/i.test(x.name));
+      return card("📅 Daily schedule", ctl(H, "input_boolean.sched_enabled"),
+          line(`<span class="lbl">☀️ Day from</span> ${ctl(H, "input_datetime.sched_day_start")}`) +
+          line(`<span class="lbl"></span>heat ${ctl(H, "input_number.sched_day_heat")} &nbsp; cool ${ctl(H, "input_number.sched_day_cool")}`, "sub") +
+          line(`<span class="lbl">🌙 Night from</span> ${ctl(H, "input_datetime.sched_night_start")}`) +
+          line(`<span class="lbl"></span>heat ${ctl(H, "input_number.sched_night_heat")} &nbsp; cool ${ctl(H, "input_number.sched_night_cool")}`, "sub") +
+          line(`Switch the Alarm.com thermostat schedule off once; this runs it now.`, "note"))
+        + card("⚡ Peak hours (Santee Cooper)", ctl(H, "input_boolean.peak_enabled"),
+          line(`Heat and AC are <b>off</b> during peak${peakNow ? ` · <span class="pill ${peakNow.on ? "on" : ""}">${peakNow.on ? "Peak right now" : "Not peak now"}</span>` : ""}`) +
+          line(`<span class="lbl">❄️ Winter peak</span><span class="dim">Nov–Mar</span>`, "hd") +
+          line(`${ctl(H, "input_datetime.peak_winter_start")} to ${ctl(H, "input_datetime.peak_winter_end")}`, "sub") +
+          line(`warm up to ${ctl(H, "input_number.peak_preheat")} an hour before`, "sub") +
+          line(`<span class="lbl">🌞 Summer peak</span><span class="dim">Apr–Oct</span>`, "hd") +
+          line(`${ctl(H, "input_datetime.peak_summer_start")} to ${ctl(H, "input_datetime.peak_summer_end")}`, "sub") +
+          line(`cool down to ${ctl(H, "input_number.peak_precool")} an hour before`, "sub") +
+          line(`<span class="lbl">🛟 Safety</span>`, "hd") +
+          line(`back on if the house drops below ${ctl(H, "input_number.peak_safe_low")}`, "sub") +
+          line(`or goes above ${ctl(H, "input_number.peak_safe_high")}`, "sub"));
+    },
+    outdoor(H, g){
+      const st = g.status || [], xmas = st.find(x => /christmas/i.test(x.name)), hall = st.find(x => /halloween/i.test(x.name));
+      const sw11 = H["input_datetime.fh_outdoor_switchover"];
+      return card("🏡 Front lights · every night", "",
+          pick(H, "input_text.fh_outdoor_night_lights", "Lights") +
+          line(`On at <b>sunset</b> · off at <b>sunrise</b>`) +
+          line(`In holiday season they come on at ${esc(sw11 ? fmtT(sw11.value) : "11:50 PM")} instead, after the holiday lights.`, "note"))
+        + card("🎃🎄 Holiday lights outside", "",
+          pick(H, "input_text.fh_outdoor_holiday_lights", "Plug") +
+          line(`On at <b>sunset</b> · off at ${ctl(H, "input_datetime.fh_outdoor_switchover")}`) +
+          line(`<span class="lbl">Halloween (all of October)</span>${ctl(H, "input_boolean.fh_outdoor_halloween")}`, "row") +
+          line(`<span class="lbl">Christmas season (below)</span>${ctl(H, "input_boolean.fh_outdoor_christmas")}`, "row") +
+          line(`<span class="lbl">Turn them on tonight anyway</span>${ctl(H, "input_boolean.holiday_lights_force")}`, "row"))
+        + card("🎄 Christmas lights inside", "",
+          pick(H, "input_text.fh_outdoor_window_lights", "Plugs") +
+          line(`On at <b>sunset</b> · off at ${ctl(H, "input_datetime.fh_outdoor_windows_off")}`) +
+          line(`Only during Christmas season.`, "note"))
+        + card("🗓 Christmas season", xmas ? `<span class="pill ${xmas.on ? "on" : ""}">${xmas.on ? "On now" : "Not yet"}</span>` : "",
+          line(`<span class="lbl">Starts</span>${ctl(H, "input_datetime.fh_outdoor_xmas_start")}`) +
+          line(`Leave the date empty to start the day after Thanksgiving.`, "note") +
+          line(`<span class="lbl">Ends</span>January ${ctl(H, "input_number.fh_outdoor_xmas_last_day", {unit: ""})}`));
+    },
+    kitchen(H){
+      return card("💡 Which lights", "",
+          pick(H, "input_text.fh_kitchen_upper_lights", "Upper lights") + pick(H, "input_text.fh_kitchen_lower_lights", "Lower lights") +
+          pick(H, "input_text.fh_kitchen_patio_lights", "Back patio"))
+        + card("🌆 Evening", "",
+          line(`Uppers + patio on at ${ctl(H, "input_datetime.fh_kitchen_evening_on")}, uppers at ${ctl(H, "input_number.fh_kitchen_evening_bright")}`) +
+          line(`Patio off at ${ctl(H, "input_datetime.fh_kitchen_patio_off")}`) +
+          line(`Uppers off at ${ctl(H, "input_datetime.fh_kitchen_uppers_off")}`))
+        + card("🌙 Night-light on motion", "",
+          line(`Lowers from ${ctl(H, "input_datetime.fh_kitchen_lower_motion_from")}, uppers from ${ctl(H, "input_datetime.fh_kitchen_upper_motion_from")}`) +
+          line(`until ${ctl(H, "input_datetime.fh_kitchen_motion_until")}, at ${ctl(H, "input_number.fh_kitchen_motion_bright")}`) +
+          line(`Off after ${ctl(H, "input_number.fh_kitchen_quiet_minutes", {unit: " min"})} with no motion`))
+        + card("🌅 Morning", "", line(`Everything off at ${ctl(H, "input_datetime.fh_kitchen_morning_off")}`));
+    },
+  };
+  function fmtT(v){ const m = String(v || "").match(/^(\d{1,2}):(\d{2})/); if (!m) return v || ""; const h = +m[1]; return `${(h % 12) || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`; }
+
   function render(box, data, toast){
     if (!styled){ const s = document.createElement("style"); s.textContent = css; document.head.appendChild(s); styled = true; }
     last = data; lastBox = box; lastToast = toast;
@@ -120,8 +219,10 @@
       html += `<div class="au-group"><div class="au-h"><b>${esc(g.title)}</b>${g.automations.length ? sw(`data-group="${g.key}" aria-label="All of ${esc(g.title)}"`, allOn) : ""}</div>`;
       html += `<div class="au-blurb">${esc(g.blurb)}</div>`;
       if (!g.installed && g.key !== "other") html += `<div class="au-missing">Not installed in Home Assistant yet: add <code>docs/ha/${esc(g.file || g.key)}.yaml</code> to the packages folder.</div>`;
-      if (g.status.length) html += `<div class="au-chips">${g.status.map(s => `<span class="au-chip ${s.on ? "on" : ""}">${esc(s.name)}: ${s.on ? "yes" : "no"}</span>`).join("")}</div>`;
-      if (g.settings.length){
+      if (g.status.length && !LAYOUT[g.key]) html += `<div class="au-chips">${g.status.map(s => `<span class="au-chip ${s.on ? "on" : ""}">${esc(s.name)}: ${s.on ? "yes" : "no"}</span>`).join("")}</div>`;
+      if (g.settings.length && LAYOUT[g.key]){
+        html += LAYOUT[g.key](helperMap(g), g);
+      } else if (g.settings.length){
         html += `<div class="au-sub">Settings</div>`;
         g.settings.forEach(s => {
           const id = "au-" + s.entity_id.replace(/\W/g, "_");
@@ -139,7 +240,7 @@
         });
       }
       if (g.automations.length){
-        html += `<details class="au-more"><summary>${g.automations.length} step${g.automations.length === 1 ? "" : "s"} — what each one does</summary>`;
+        html += `<details class="au-more"><summary>Behind the scenes (${g.automations.length} step${g.automations.length === 1 ? "" : "s"})</summary>`;
         g.automations.forEach(a => {
           html += `<div class="au-row"><div class="t"><div class="n">${esc(a.name)}</div>${a.about ? `<div class="d">${esc(a.about)}</div>` : ""}<div class="l">${esc(ago(a.last))}</div></div>${sw(`data-auto="${esc(a.entity_id)}" aria-label="${esc(a.name)}"`, a.on)}</div>`;
         });

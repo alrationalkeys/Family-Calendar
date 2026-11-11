@@ -25,7 +25,8 @@ DESCRIBE = {
     # peak_thermostat.yaml
     "fh_peak_precondition": "An hour before peak, pre-heat to {input_number.peak_preheat} (winter) or pre-cool to {input_number.peak_precool} (summer).",
     "fh_peak_start": "When peak starts, turn both thermostats off.",
-    "fh_peak_end": "When peak ends, turn them back on: winter heat {input_number.peak_after_winter_heat} / cool {input_number.peak_after_winter_cool}, summer heat {input_number.peak_after_summer_heat} / cool {input_number.peak_after_summer_cool}.",
+    "fh_peak_end": "When peak ends, turn them back on in the mode they were in, at the schedule's temperatures.",
+    "fh_sched_apply": "At {input_datetime.sched_day_start} (day) and {input_datetime.sched_night_start} (night): set both thermostats to the schedule.",
     "fh_peak_safety": "Safety only: if a room drops to {input_number.peak_safe_low} or reaches {input_number.peak_safe_high} during peak, that thermostat comes back on.",
     # outdoor_lights.yaml
     "fh_outdoor_sunset": "Sunset: holiday lights on in holiday season, otherwise the nightly lights on.",
@@ -48,15 +49,10 @@ DESCRIBE = {
 
 # settings shown per group, in this order (anything else matching `helpers` follows, by name)
 GROUPS = [
-    {"key": "peak", "title": "Peak hours (Santee Cooper)", "file": "peak_thermostat",
-     "blurb": "Heat and AC are off during peak so nothing sets a demand charge. Winter 6–9 AM, summer 3–6 PM, every day.",
-     "auto": r"^fh_peak_", "helpers": r"^(input_number|input_datetime|input_boolean)\.peak_",
-     "order": ["input_boolean.peak_enabled", "input_datetime.peak_winter_start", "input_datetime.peak_winter_end",
-               "input_datetime.peak_summer_start", "input_datetime.peak_summer_end", "input_number.peak_preheat",
-               "input_number.peak_precool", "input_number.peak_after_winter_heat", "input_number.peak_after_winter_cool",
-               "input_number.peak_after_summer_heat", "input_number.peak_after_summer_cool", "input_number.peak_safe_low",
-               "input_number.peak_safe_high"],
-     "status": ["binary_sensor.santee_cooper_peak_now", "binary_sensor.peak_summer_season"]},
+    {"key": "peak", "title": "Thermostats", "file": "peak_thermostat",
+     "blurb": "The daily heat and AC schedule, plus Santee Cooper peak hours (heat and AC off so nothing sets a demand charge).",
+     "auto": r"^fh_(peak|sched)_", "helpers": r"^(input_number|input_datetime|input_boolean)\.(peak_|sched_)",
+     "order": [], "status": ["binary_sensor.santee_cooper_peak_now", "binary_sensor.peak_summer_season"]},
     {"key": "outdoor", "title": "Outdoor & holiday lights", "file": "outdoor_lights",
      "blurb": "Nightly lights from sunset to sunrise; holiday lights switch on by date (October, and Thanksgiving into January).",
      "auto": r"^fh_(outdoor|christmas)_", "helpers": r"^(input_boolean|input_datetime|input_number|input_text)\.(holiday_|fh_outdoor_)",
@@ -522,6 +518,22 @@ def _demo_seed() -> dict:
     helper("input_number.peak_safe_high", "Peak safety ceiling", "88", min=80, max=95, step=1, unit_of_measurement="°F")
     helper("input_boolean.peak_enabled", "Peak hours - HVAC off", "on")
     helper("input_boolean.peak_ready", "Peak starting values filled in (automatic)", "on")
+    helper("input_boolean.sched_enabled", "FamilyHub runs the daily schedule", "on")
+    helper("input_datetime.sched_day_start", "Day starts at", "09:00:00")
+    helper("input_datetime.sched_night_start", "Night starts at", "18:00:00")
+    for k, v in (("day_heat", "60"), ("day_cool", "70"), ("night_heat", "67"), ("night_cool", "70")):
+        helper(f"input_number.sched_{k}", k.replace("_", " ").title(), v, min=50, max=90, step=1, unit_of_measurement="°F")
+    auto("fh_sched_apply", "Schedule: day / night temperatures")
+    for e, n, v in (("fh_kitchen_upper_lights", "Kitchen upper lights", "light.kitchen"), ("fh_kitchen_lower_lights", "Kitchen lower lights", ""),
+                    ("fh_kitchen_patio_lights", "Back patio lights", "")):
+        helper(f"input_text.{e}", n, v)
+    for e, n, v in (("evening_on", "Uppers + patio on at", "20:00:00"), ("patio_off", "Patio off at", "21:45:00"), ("uppers_off", "Uppers off at", "00:00:00"),
+                    ("morning_off", "Everything off in the morning at", "08:10:00"), ("upper_motion_from", "Uppers come on with motion from", "00:00:00"),
+                    ("lower_motion_from", "Lowers come on with motion from", "20:00:00"), ("motion_until", "Motion night-light until", "08:00:00")):
+        helper(f"input_datetime.fh_kitchen_{e}", n, v)
+    helper("input_number.fh_kitchen_evening_bright", "Evening uppers brightness", "10", min=1, max=100, step=1, unit_of_measurement="%")
+    helper("input_number.fh_kitchen_motion_bright", "Night-light brightness", "20", min=1, max=100, step=1, unit_of_measurement="%")
+    helper("input_number.fh_kitchen_quiet_minutes", "Off after this many quiet minutes", "10", min=1, max=60, step=1, unit_of_measurement="min")
     helper("input_text.fh_outdoor_night_lights", "Nightly lights", "light.porch,light.driveway")
     helper("input_text.fh_outdoor_holiday_lights", "Holiday lights", "")
     helper("input_text.fh_outdoor_window_lights", "Christmas window lights", "")

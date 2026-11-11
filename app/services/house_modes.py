@@ -192,8 +192,11 @@ def presence() -> list:
             eid = st.get("entity_id", "")
             if not eid.startswith("person."):
                 continue
+            if st.get("state") in ("unknown", "unavailable", None):
+                continue                               # no phone linked / no fix yet: don't call them "away"
             a = st.get("attributes") or {}
-            out.append({"name": a.get("friendly_name") or eid.split(".", 1)[1].title(), "home": st.get("state") == "home",
+            name = (a.get("friendly_name") or eid.split(".", 1)[1].replace("_", " ").title()).split()[0]   # first name
+            out.append({"name": name, "home": st.get("state") == "home",
                         "state": st.get("state"), "since": st.get("last_changed")})
         return out
     except Exception:

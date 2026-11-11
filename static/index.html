@@ -1277,7 +1277,13 @@ async function toggleTask(ev, el){
   if(ev.task.kind==="chore" && el && !el.classList.contains("done")===false) try{ celebrate(el); }catch(e){}
   setTimeout(load, 400);
 }
-function openItem(ev, el){ if(ev.task) toggleTask(ev, el); else openEditor(ev); }
+function openItem(ev, el){
+  if(!ev.task) return openEditor(ev);
+  // a chore / to-do on the calendar opens its menu (Mark done, Edit, Skip, Delete…) instead of ticking it straight away
+  const list=ev.task.kind==="todo"?(cache.dash&&cache.dash.todos):(cache.dash&&cache.dash.chores);
+  const item=(list||[]).find(x=>x.id===ev.task.id);
+  if(item) itemMenu(ev.task.kind, item, {markDone:()=>toggleTask(ev, el), done:!!ev.done}); else toggleTask(ev, el);
+}
 function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;}); }
 function hourLabel(h){ const hh=h%24; return (hh%12||12)+(hh<12?'am':'pm'); }
 
@@ -1477,7 +1483,8 @@ function applyPanelSizes(sz){
 /* ---- item menu: delete / stop repeating / skip, for chores, to-dos and groceries ----
    Opened by pressing and holding a row (or its ⋯). Edits start from the item as stored (GET), so the
    colour chain (item -> category -> person) isn't overwritten with the dashboard's resolved colour. */
-function itemMenu(kind, item){
+function itemMenu(kind, item, opts){
+  opts=opts||{};
   resetSleep();
   let ov=$("#im-ov");
   if(!ov){ ov=document.createElement("div"); ov.id="im-ov"; ov.innerHTML='<div id="im-box" role="dialog" aria-modal="true"></div>'; document.body.appendChild(ov);
@@ -1486,6 +1493,8 @@ function itemMenu(kind, item){
   const api={chore:"chores", todo:"todos", grocery:"groceries"}[kind];
   const recTxt=rec?({daily:"every day", weekly:"every week", monthly:"every month"}[String(rec).split(";")[0]]||"on a schedule"):"";
   box.innerHTML=`<h3>${esc(title)}</h3><div class="sub">${kind==="grocery"?"Grocery":kind==="chore"?"Chore":"To-do"}${recTxt?" · repeats "+recTxt:""}${item.due_date?" · due "+esc(item.due_date.slice(5)):""}</div>
+    ${opts.markDone?`<button data-a="markdone" style="background:var(--now); color:#fff">${opts.done?"\u21A9 Mark not done":"\u2713 Mark done"}</button>`:""}
+    ${kind!=="grocery"?`<button data-a="edit">\u270F\uFE0F Edit</button>`:""}
     ${rec?`<button data-a="skip">Skip this one (move to the next date)</button><button data-a="stop">Stop repeating (keep this one)</button>`:""}
     <button data-a="del" class="danger">${rec?"Delete it (all future ones too)":"Delete"}</button>
     <button data-a="x" class="plain">Cancel</button>`;
@@ -1494,6 +1503,8 @@ function itemMenu(kind, item){
   box.querySelectorAll("button").forEach(b=>b.onclick=async()=>{
     const a=b.dataset.a;
     if(a==="x") return ov.classList.remove("on");
+    if(a==="markdone"){ ov.classList.remove("on"); return opts.markDone(); }
+    if(a==="edit") return itemEdit(kind, item);
     if(a==="del"){
       if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent="Tap again to delete"; return; }
       await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>{}); banner("\u{1F5D1} Deleted", title); return done();
@@ -1509,6 +1520,34 @@ function itemMenu(kind, item){
     }
   });
 }
+/* Edit a chore / to-do in place: title, who, due date, repeat (+ stars for chores). Starts from the stored item. */
+async function itemEdit(kind, item){
+  const api=kind==="chore"?"chores":"todos", box=$("#im-box");
+  let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
+  if(!raw){ banner("Couldn't open it", "Try again in a moment"); return; }
+  const rec=String(raw.recurrence||"").split(";")[0];
+  const sel=(v,o)=>o.map(([k,t])=>`<option value="${k}" ${String(v??"")===String(k)?"selected":""}>${t}</option>`).join("");
+  const fld="width:100%; box-sizing:border-box; margin-top:8px; padding:12px; font:inherit; font-size:17px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--ink)";
+  box.innerHTML=`<h3>Edit ${kind==="chore"?"chore":"to-do"}</h3>
+    <input id="ie-title" style="${fld}" value="${esc(raw.title||"")}" placeholder="Title">
+    <select id="ie-who" style="${fld}">${sel(raw.person_id, [["","Unassigned"], ...(people||[]).map(p=>[p.id, p.name])])}</select>
+    <input id="ie-due" type="date" style="${fld}" value="${esc(raw.due_date||"")}">
+    <select id="ie-rec" style="${fld}">${sel(rec, [["","Doesn't repeat"],["daily","Every day"],["weekly","Every week"],["monthly","Every month"]])}</select>
+    ${kind==="chore"?`<select id="ie-stars" style="${fld}">${sel(raw.stars||0, [[0,"No stars"],[1,"\u2B50"],[2,"\u2B50\u2B50"],[3,"\u2B50\u2B50\u2B50"],[4,"\u2B50\u2B50\u2B50\u2B50"],[5,"\u2B50\u2B50\u2B50\u2B50\u2B50"]])}</select>`:""}
+    <button data-a="save" style="background:var(--now); color:#fff">Save</button>
+    <button data-a="x" class="plain">Cancel</button>`;
+  box.querySelector('[data-a="x"]').onclick=()=>$("#im-ov").classList.remove("on");
+  box.querySelector('[data-a="save"]').onclick=async()=>{
+    const title=$("#ie-title").value.trim(); if(!title){ $("#ie-title").focus(); return; }
+    const newRec=$("#ie-rec").value, keep=String(raw.recurrence||"").split(";").slice(1).join(";");   // keep "interval=2" etc. if the kind didn't change
+    const body={title, person_id:$("#ie-who").value?+$("#ie-who").value:null, category_id:raw.category_id, color:raw.color,
+      due_date:$("#ie-due").value||null, recurrence:newRec?(newRec===rec&&keep?newRec+";"+keep:newRec):null};
+    if(kind==="chore") body.stars=+$("#ie-stars").value||0;
+    const r=await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>null);
+    $("#im-ov").classList.remove("on");
+    if(r&&r.ok){ banner("\u270F\uFE0F Saved", title); load(); } else banner("Couldn't save", "Try again");
+  };
+}
 /* press-and-hold a list row -> itemMenu; a quick tap still checks it off. Adds a ⋯ button too. */
 function holdable(row, open){
   let t=null, held=false;
@@ -1521,12 +1560,13 @@ function holdable(row, open){
   m.onclick=(e)=>{ e.stopPropagation(); open(); }; m.addEventListener("pointerdown", e=>e.stopPropagation());
   row.appendChild(m);
 }
+let showLaterTodos=false;
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
   // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
   const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
   const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done).length;
-  todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done));
+  if(!showLaterTodos) todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done));
   if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
   todos.forEach(t=>{
     const row=document.createElement("div"); row.className="list-row"+(t.done?" done":"");
@@ -1536,7 +1576,9 @@ function renderTodos(todos, box){
     holdable(row, ()=>itemMenu("todo", t));
     box.appendChild(row);
   });
-  if(later){ const n=document.createElement("div"); n.className="empty"; n.style.fontSize="12px"; n.textContent=`+ ${later} later (next week or after)`; box.appendChild(n); }
+  if(later){ const n=document.createElement("div"); n.className="empty"; n.style.cssText="font-size:13px; cursor:pointer; padding:8px 0";
+    n.textContent=showLaterTodos?"Hide later ones":`+ ${later} later (next week or after) · tap to show`;
+    n.onclick=()=>{ showLaterTodos=!showLaterTodos; resetSleep(); load(); }; box.appendChild(n); }
 }
 function renderGroceries(items, box){
   box=box||$("#groceries"); if(!box) return; box.innerHTML="";

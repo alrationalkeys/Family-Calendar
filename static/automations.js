@@ -79,7 +79,7 @@
       }
       html += `</div>`;
     });
-    if ((data.groups || []).some(g => !g.installed && g.key !== "other"))
+    if (!(data.fh_ids || []).length && (data.groups || []).some(g => !g.installed && g.key !== "other"))
       html += `<div class="au-note">Home Assistant reports <b>${data.ha_total ?? 0}</b> automation${data.ha_total === 1 ? "" : "s"} and <b>${data.helpers_found ?? 0}</b> FamilyHub setting${data.helpers_found === 1 ? "" : "s"}${(data.fh_ids || []).length ? ` (FamilyHub ones: ${esc(data.fh_ids.join(", "))})` : ""}. 0 settings means Home Assistant hasn't loaded the packages folder.</div>`;
         html += `<div class="au-note">Changes take effect right away in Home Assistant. Turning a routine off pauses it until you turn it back on.</div>`;
     box.innerHTML = html;

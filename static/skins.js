@@ -168,6 +168,14 @@ html[data-skin="christmas"] #skin-banner::before{content:""; position:absolute; 
 #skin-banner .dg::after{content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(0,0,0,.55)}
 #skin-banner .sub{font-family:'Cinzel', Georgia, serif; font-size:12px; letter-spacing:.12em; color:var(--ink-dim); margin-top:6px; text-transform:uppercase}
 #skin-banner .sub b{color:var(--ink)}
+/* painted hanging sign (Christmas, art mode): the card IS the sign; it hangs up into the garland */
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner{background:url("/skins/christmas-sign.png") center/100% 100% no-repeat; border:0; border-radius:0; box-shadow:none;
+  min-width:340px; width:340px; height:207px; padding:64px 44px 26px; margin:-54px 0 -14px; gap:0; justify-content:flex-start}
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner::before{display:none}
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner .k{margin-top:0; font-size:11px; color:#e6c99e}
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner .t{font-size:36px; margin:0 0 4px}
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner .dg{width:36px; height:46px; font:800 30px/42px 'Cinzel', Georgia, serif; border-width:1.5px}
+html[data-skin="christmas"][data-skin-art="on"] #skin-banner .sub{font-size:10.5px; margin-top:4px}
 #skin-banner .side{position:absolute; top:-6px; width:34px; height:60px}
 #skin-banner .side.l{left:-18px} #skin-banner .side.r{right:-18px}
 @media(max-width:760px){ html[data-skin] header{flex-wrap:wrap; padding:0 56px} html[data-skin] .bottomnav{margin:0 40px} html[data-skin] #skin-banner{order:3; width:100%; min-width:0} #skin-frame .corner{width:90px; height:90px} #skin-frame .lights-b{display:none} }

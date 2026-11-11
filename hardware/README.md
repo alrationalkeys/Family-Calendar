@@ -115,7 +115,11 @@ Slicer / Cura / PrusaSlicer).
 3. `foot_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast. Print the cleats bevel-up as exported (no supports).
 4. `stand.stl` — optional counter easel (199 mm wide, 166 mm tall, base on the bed, no supports).
 5. `spk_pocket.stl` — optional, only if you want the speaker bar hidden in the case.
-6. **Picture frame** (optional, hides the whole black bezel): `frame_tl.stl`, `frame_tr.stl`,
+6. **Picture frame** (optional, hides the whole black bezel). **Fit-test first:** `frame_test_tl.stl` and
+   `frame_test_br.stl` are the outer 60 × 60 mm of two real corners (draft speed, 2 walls, 10% infill,
+   ~20 min each). Push each onto its corner of the screen: it should hook behind the panel without
+   forcing, and the opening edge should sit just on the picture with no black showing on either side.
+   Then print `frame_tl.stl`, `frame_tr.stl`,
    `frame_bl.stl`, `frame_br.stl` — one quarter each, **face down**, no supports. Seams fall at the
    centre of each edge as stepped lap joints. Join: cut 12 mm lengths of 1.75 mm filament as dowels
    for the top and side seams (the bottom is glue-only), CA glue on the lap faces, clamp flat on glass.

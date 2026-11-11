@@ -41,7 +41,7 @@
 // ============================================================================
 
 /* [What to render] */
-part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_tl, frame_tr, frame_bl, frame_br, test_vesa, test_pc, preview, exploded]
+part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_test_tl, frame_test_br, frame_tl, frame_tr, frame_bl, frame_br, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
 screen_w = 366.7;    // measured 14 7/16 in
@@ -341,6 +341,14 @@ module frame_quarter(sx, sy){
 }
 // the whole frame in display coordinates (glass front at z = -hump_d - screen_t, +z toward the wall)
 module frame_assembled(){ translate([0, f_oy - vesa_dy, -hump_d - screen_t]) frame_whole(); }
+// quick fit coupons: the outer 60 x 60 mm of a real frame corner (face, edge wrap, back hook and the
+// corner of the opening). Top-left checks the top + left borders, bottom-right checks bottom + right.
+f_test = 60;
+module frame_test(sx, sy){
+  translate([0, 0, f_front]) intersection(){ frame_whole(); translate([sx > 0 ? f_W - f_test : -f_W - 1, sy > 0 ? f_H - f_test : -f_H - 1, -50]) cube([f_test + 1, f_test + 1, 100]); }
+}
+module frame_test_tl(){ frame_test(-1,  1); }
+module frame_test_br(){ frame_test( 1, -1); }
 module frame_tl(){ frame_quarter(-1,  1); }
 module frame_tr(){ frame_quarter( 1,  1); }
 module frame_bl(){ frame_quarter(-1, -1); }
@@ -402,6 +410,8 @@ else if(part=="cleat_case") cleat_case();
 else if(part=="cleat_wall") cleat_wall();
 else if(part=="stand")      stand();
 else if(part=="spk_pocket") spk_pocket();
+else if(part=="frame_test_tl") frame_test_tl();
+else if(part=="frame_test_br") frame_test_br();
 else if(part=="frame_tl") frame_tl();
 else if(part=="frame_tr") frame_tr();
 else if(part=="frame_bl") frame_bl();

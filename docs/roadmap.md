@@ -149,7 +149,7 @@ it here.
 Unordered. Effort: S = an evening, M = a weekend, L = a project. (No kids in the house yet — the kid-specific ideas are parked at the bottom for later.)
 
 **Wall / family**
-- Leave-the-house countdown: next event with a location → live drive time → "Leave for the dentist in 14 min" bar, spoken at T-5 (M) ★
+- ~~Leave-the-house countdown~~ — **done Nov 2026** (status bar + spoken at leave time; Waze via HA for traffic)
 - Who's-home strip: avatars from HA phone presence; "Rachell home since 5:12" (S) ★
 - Morning dashboard mode 6–8 AM: big type — weather, each person's day, dinner plan, commute (M)
 - Meal plan → pre-filled Walmart / Instacart cart (M)
@@ -173,6 +173,22 @@ Unordered. Effort: S = an evening, M = a weekend, L = a project. (No kids in the
 - Doorbell on the wall: the existing doorbell camera is tied to the IQ Panel (Alarm.com?). If it's Alarm.com, the
   HACS `alarmdotcom` integration gives ring + motion events (no video); ring → wall chime + snapshot if the
   camera exposes RTSP. Otherwise a Reolink/UniFi doorbell later gives full video on the wall + Roku PiP (M–L)
+
+**Stair lights** (requested Nov 2026) — a warm LED strip hidden under the lip of each tread, lit by
+motion at the top or bottom of the stairs (M–L):
+- *Light:* one addressable strip (WS2814 RGBW or warm-white WS2811, 24 V) in aluminium channels with
+  frosted diffusers, tucked under each tread's nosing so you see the glow on the riser below, not the LEDs.
+  Wire runs up the open side of the stair along the stringer (or behind the skirt board).
+- *Brains:* a small ESP32 running **WLED** (free, local, shows up in Home Assistant on its own). WLED
+  can do the classic *cascade*: steps light one after another in the direction you're walking, then fade
+  out the same way. (A plain GLEDOPTO controller works too, but every step lights at once.)
+- *Sensors:* two motion sensors, one aimed at the bottom step, one at the top landing. Zigbee (Aqara P1,
+  ~$20 each) on the stick arriving now; or wired PIR sensors straight into the ESP32 for zero lag.
+- *Rules in HA:* bottom sensor → cascade up, top sensor → cascade down; full brightness after dark,
+  10 % between 11 PM and 6 AM (ties into the night path above), off 20 s after the last motion;
+  never on in daylight unless the hallway is dark (lux reading from the Aqara sensor).
+- *Before buying:* count the steps and measure one tread's width, so the strip length and power supply
+  can be sized. Rough budget: $90–150 for ~13 steps.
 
 **Bigger builds**
 - Energy dashboard: Emporia Vue per-circuit power → today's cost, dryer running, water heater load (L)

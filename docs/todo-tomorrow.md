@@ -1,7 +1,7 @@
 # To do — Wednesday, Nov 11
 
 ## First thing
-- [ ] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.
+- [x] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.
 - [x] **Family PIN:** phone → Settings → Family PIN → 4–8 digits → Turn on. Enter it once on the wall.
 
 ## Zigbee stick arrives — move the kitchen off Alexa + Aqara (in this order)
@@ -25,18 +25,18 @@
 
 ## Test on the real gear
 - [ ] Status bar says **"Door to garage open"** (not "Garage Door") when the house→garage door is open.
-- [ ] **Doorbell:** press it — wall pops the camera + chimes + speaks; a Roku that's on flashes the picture;
+- [x] **Doorbell:** press it — wall pops the camera + chimes + speaks; a Roku that's on flashes the picture;
       phones get a notification with the picture.
-- [ ] **Live camera:** open a camera on the wall and on the phone — does it play live or stay a still?
-- [ ] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
+- [x] **Live camera:** open a camera on the wall and on the phone — does it play live or stay a still?
+- [x] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
 - [x] **Sleep mode** works (tested Nov 11 with the panel's Sleep scene). ~~arm the IQ Panel for the night — the wall should go dark right away and stay dark
       (a tap shows it for a minute). Disarm in the morning — it comes back. If it doesn't go dark, tell Claude
       what the panel's arming mode is called (Night / Sleep / Stay).
-- [ ] **New today:** wall to-do **+** and calendar taps open the Add pop-up; festive keyboard types by touch;
+- [x] **New today:** wall to-do **+** and calendar taps open the Add pop-up; festive keyboard types by touch;
       phone room pop-ups, thermostat pop-up, Front/Back Porch cards; doorbell live view (or "Try live again").
-- [ ] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
+- [x] **One keyboard:** Ubuntu Settings → Accessibility → Typing → Screen Keyboard off (keeps the festive one),
       or wall Settings → Display → uncheck the on-screen keyboard (keeps Ubuntu's).
-- [ ] **I'm home** (phone + wall): keypad → disarms → opens the garage → lights after dark. Wrong code = garage stays shut.
+- [x] **I'm home** (phone + wall): keypad → disarms → opens the garage → lights after dark. Wrong code = garage stays shut.
 - [ ] **Slideshow timing:** phone → Settings → Photos → "Start the photo slideshow after".
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 
@@ -57,7 +57,7 @@
 - [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
 
 ## Update the routine files (editable from FamilyHub now)
-- [ ] Terminal: `cd /homeassistant/packages && rm -f *.yaml && wget <the two links in the chat>` → `ha core check` → `ha core restart`.
+- [x] Terminal: `cd /homeassistant/packages && rm -f *.yaml && wget <the two links in the chat>` → `ha core check` → `ha core restart`.
 - [ ] FamilyHub → Settings → Automations: check Nightly lights / Holiday lights / Christmas window lights lists; add the 4th window plug.
 - [ ] Try ＋ New routine.
 

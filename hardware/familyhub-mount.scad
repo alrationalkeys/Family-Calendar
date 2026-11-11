@@ -44,8 +44,8 @@
 part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
-screen_w = 356;      // measured 14.0 in
-screen_h = 229;      // measured 9.0 in
+screen_w = 366.7;    // measured 14 7/16 in
+screen_h = 233.4;    // measured 9 3/16 in
 screen_t = 13;       // panel thickness (1.5 in total minus the 1 in housing)
 vesa     = 75;       // VESA square (75x75)
 vesa_dy  = 0;        // VERIFY: VESA centre offset from panel centre (+ = up)
@@ -100,15 +100,15 @@ spk_clear = 1;
 /* [Picture frame — hides the whole black bezel, shows only the lit picture] */
 // VERIFY panel_w / panel_h with a tape: outer edge to outer edge of the screen. The frame wraps
 // the panel's edge and clips behind it, so these two numbers set whether it fits.
-panel_w   = 364;     // VERIFY (listing says 365; borders in the photos say ~364)
-panel_h   = 229.5;   // VERIFY
+panel_w   = screen_w; // measured 14 7/16 in
+panel_h   = screen_h; // measured 9 3/16 in
 lit_w     = 344.2;   // 15.6in FHD active area (standard)
 lit_h     = 193.6;
-lit_top   = 12;      // black border above the picture (measured ~12)
+lit_top   = 13;      // black border above the picture (tape: ~1/2 in; bottom then works out to ~27)
 lit_left  = (panel_w - lit_w)/2;              // ~10 each side
 lit_bot   = panel_h - lit_top - lit_h;        // ~24
-f_clear   = 0.5;     // opening clearance beyond the lit picture, each side
-f_face    = 28;      // visible frame face, opening to outer edge, same all round
+f_clear   = -1;      // negative = the frame laps 1 mm onto the picture, so no black line shows even if a border is off by a hair
+f_face    = 34;      // visible frame face, opening to outer edge, same all round (must exceed the 28 mm bottom bezel)
 f_front   = 2;       // thickness of the face plate over the glass
 f_depth   = 10;      // how deep the outer moulding looks from the front
 f_wall    = 2.4;     // return wall / sleeve wall

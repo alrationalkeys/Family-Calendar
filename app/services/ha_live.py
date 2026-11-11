@@ -108,6 +108,12 @@ async def _run_once(ws_url: str, token: str):
                         doorbell.on_state(eid, data.get("old_state"), new, _states)
                     except Exception:
                         pass
+                    if eid.startswith("alarm_control_panel."):
+                        try:
+                            from . import display_svc
+                            display_svc.on_alarm((new or {}).get("state"), ((data.get("old_state") or {}).get("state")))
+                        except Exception:
+                            pass
                 _updated = time.time()
                 _version += 1
                 if _cond:

@@ -47,6 +47,8 @@ DEFAULTS = {
     "skinArt": True,                 # painted frame artwork when the skin has one (off = vector frame)
     "skinSlim": True,                # crop the painted frame so it's thinner and the panels get more room
     "calendarTasks": True,
+    "sleepOnNightArm": True,         # alarm armed for the night -> wall dark (no screensaver) until morning
+    "sleepArmStates": ["armed_night"],
     "homeAddress": "",               # where drive times start from (blank = Home Assistant's home location)
     "leaveBuffer": 5,                # minutes added to the drive for parking/walking in
     "leaveAlerts": True,             # show "Leave in N min" on the wall for events with a place           # due-dated to-dos + chores show as all-day chips on the calendar

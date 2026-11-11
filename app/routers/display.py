@@ -100,6 +100,18 @@ def wake():
     return display_svc.wake()
 
 
+@router.post("/morning")
+def morning():
+    """End sleep mode (the morning routine). HA can call this from any automation."""
+    return display_svc.exit_sleep("manual")
+
+
+@router.post("/bedtime")
+def bedtime():
+    """Start sleep mode by hand (same as arming the panel for the night)."""
+    return display_svc.enter_sleep("manual")
+
+
 @router.post("/sleep")
 def sleep():
     return display_svc.sleep_now()

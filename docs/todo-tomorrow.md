@@ -29,6 +29,9 @@
       phones get a notification with the picture.
 - [ ] **Live camera:** open a camera on the wall and on the phone — does it play live or stay a still?
 - [ ] **Good Night** and **Leaving** buttons on the wall (lights, locks, alarm, thermostat).
+- [ ] **Sleep mode:** arm the IQ Panel for the night — the wall should go dark right away and stay dark
+      (a tap shows it for a minute). Disarm in the morning — it comes back. If it doesn't go dark, tell Claude
+      what the panel's arming mode is called (Night / Sleep / Stay).
 - [ ] **Leave-by:** add an event with a "Where" ~45 min out and watch the wall's status bar.
 
 ## Quick settings (Home Assistant)

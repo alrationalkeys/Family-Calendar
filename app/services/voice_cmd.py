@@ -465,6 +465,10 @@ def interpret(text: str) -> dict:
         from . import house_modes
         r = house_modes.run("goodnight", close_garage=("close" in w and "garage" in w))
         return {"ok": True, "say": r.get("say", "Good night."), "refresh": True}
+    if re.search(r"\b(good ?morning|morning everyone|rise and shine|wake up)\b", tl):
+        from . import display_svc
+        display_svc.exit_sleep("voice")
+        return {"ok": True, "say": "Good morning!", "refresh": True, "briefing": True}
     if re.search(r"\b(we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|going out|heading out|away mode|bye bye|see you later)\b", tl):
         from . import house_modes
         r = house_modes.run("away", close_garage=("close" in w and "garage" in w))

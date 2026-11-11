@@ -5,7 +5,7 @@ Rokus, thermostat). No HA automations to write; FamilyHub figures out the
 device list live.
 
   goodnight  interior lights + fans off, TVs off, lock every lock, arm the alarm
-             (home/stay), report a garage left open (close only if asked),
+             (night, falling back to stay), darken the wall, report a garage left open (close only if asked),
              optional thermostat setback (settings.nightTemp)
   away       everything in goodnight but arm AWAY, outdoor lights off too,
              thermostat eco (settings.awayTemp)
@@ -123,8 +123,10 @@ def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool
                 if warnings and mode == "away":
                     warnings.append("I didn't arm the alarm")
                     break
-                svc = "alarm_arm_home" if mode == "goodnight" else "alarm_arm_away"
+                svc = "alarm_arm_night" if mode == "goodnight" else "alarm_arm_away"
                 r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
+                if mode == "goodnight" and not r.get("ok"):          # panel without a Night mode: fall back to Stay
+                    r = ha_svc.call_service("alarm_control_panel", "alarm_arm_home", t["entity_id"])
                 done.append("armed the alarm" + (" for the night" if mode == "goodnight" else "") if r.get("ok") else "couldn't arm the alarm")
         # thermostat
         temp = s.get("nightTemp") if mode == "goodnight" else s.get("awayTemp")
@@ -134,6 +136,13 @@ def run(mode: str, who: str | None = None, close_garage: bool = False, arm: bool
             if by("climate"):
                 done.append(f"set the thermostat to {int(float(temp))}")
         lead = "Good night." if mode == "goodnight" else "Bye for now."
+        if mode == "goodnight":
+            try:
+                from . import display_svc
+                if display_svc._sleep_settings()[0]:
+                    display_svc.enter_sleep("goodnight")       # wall goes dark now, even if the panel reports Stay
+            except Exception:
+                pass
     elif mode == "welcome":
         if _after_dark():
             entry = [t for t in by("light") if not t["on"] and _ENTRY.search(t["name"] + " " + str(t.get("area") or ""))]

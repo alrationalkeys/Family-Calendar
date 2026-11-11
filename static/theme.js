@@ -43,6 +43,8 @@ const FH = (() => {
     skinArt: true,           // painted frame artwork when the skin has one (off = vector frame)
     skinSlim: true,          // thinner painted frame (cropped), more room for the panels
     calendarTasks: true,
+    sleepOnNightArm: true,
+    sleepArmStates: ["armed_night"],
     homeAddress: "",
     leaveBuffer: 5,
     leaveAlerts: true,     // due-dated to-dos + chores show as all-day chips on the calendar

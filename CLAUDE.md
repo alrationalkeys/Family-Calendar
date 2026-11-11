@@ -132,6 +132,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   `toggle` (lights/switches/covers/locks/scenes), `service` (escape hatch), `alarm`
   (arm/disarm w/ PIN). Runs in **demo mode** (sample devices) unless `HA_URL`+`HA_TOKEN`
   are set; force demo with `HA_DEMO=1`. HA talks to the gear; token stays server-side.
+- Sleep mode: alarm armed Night (or FamilyHub "Good night") -> wall dark, no photo screensaver, a tap peeks 60 s; ends on disarm, "good morning", or `POST /api/display/morning` (`/bedtime` starts it). `display_svc.on_alarm` (live via ha_live + 30 s poll); settings `sleepOnNightArm`, `sleepArmStates`.
 - `/api/display/*` — scheduled screen-off: `state` (wall polls), `wake` (PIR/HA webhook), `sleep`,
   `config` (GET/PUT the night window). On a Pi it cuts the backlight via `vcgencmd display_power`;
   override with `FAMILYHUB_SCREEN_ON_CMD` / `FAMILYHUB_SCREEN_OFF_CMD` for Wayland/non-Pi.

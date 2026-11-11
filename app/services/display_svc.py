@@ -40,7 +40,74 @@ ON_CMD = os.getenv("FAMILYHUB_SCREEN_ON_CMD", "vcgencmd display_power 1")
 OFF_CMD = os.getenv("FAMILYHUB_SCREEN_OFF_CMD", "vcgencmd display_power 0")
 
 # in-memory runtime state
-_state = {"on": True, "last_wake": 0.0, "force_off": False, "applied": None}
+_state = {"on": True, "last_wake": 0.0, "force_off": False, "applied": None,
+          "sleep_mode": False, "sleep_since": None, "alarm": None, "alarm_checked": 0.0}
+
+# ---- sleep mode: the alarm decides ------------------------------------------
+# When the IQ Panel is armed for the night (Alarm.com "Night" -> armed_night) the wall goes dark
+# straight away: backlight off, no photo screensaver. A tap shows the wall for SLEEP_PEEK seconds,
+# then it goes dark again. Sleep ends with the morning routine: disarming the alarm, saying
+# "good morning", or POST /api/display/morning (an HA automation can call it). FamilyHub's own
+# "Good night" also starts it (and arms Night, falling back to Stay on panels without Night).
+SLEEP_PEEK = 60
+
+
+def _sleep_settings():
+    try:
+        from ..routers.settings import get_settings
+        s = get_settings() or {}
+    except Exception:
+        s = {}
+    states = s.get("sleepArmStates") or ["armed_night"]
+    return s.get("sleepOnNightArm", True) is not False, set(states)
+
+
+def enter_sleep(reason="alarm"):
+    if not _state["sleep_mode"]:
+        _state["sleep_mode"] = True
+        _state["sleep_since"] = time.time()
+        _state["last_wake"] = 0.0
+    return tick()
+
+
+def exit_sleep(reason="morning"):
+    was = _state["sleep_mode"]
+    _state["sleep_mode"] = False
+    _state["sleep_since"] = None
+    _state["force_off"] = False
+    if was:
+        _state["last_wake"] = time.time()      # light up now; the normal schedule takes over after the grace
+    return tick()
+
+
+def on_alarm(new_state: str | None, old_state: str | None = None):
+    """Called on every alarm panel change (live from ha_live, or by the fallback poll)."""
+    on, arm_states = _sleep_settings()
+    if not on or not new_state or new_state == _state["alarm"]:
+        _state["alarm"] = new_state or _state["alarm"]
+        return
+    prev = _state["alarm"] if old_state is None else old_state
+    _state["alarm"] = new_state
+    if new_state in arm_states:
+        enter_sleep()
+    elif _state["sleep_mode"] and new_state == "disarmed":
+        exit_sleep()          # only disarming ends the night: a Stay fallback or leaving (Away) keeps it dark
+
+
+def _poll_alarm():
+    """Fallback when the live link isn't running: read the panel at most every 30 s."""
+    if time.time() - _state["alarm_checked"] < 30:
+        return
+    _state["alarm_checked"] = time.time()
+    try:
+        from . import ha_svc
+        for g in ha_svc.get_home().get("groups", []):
+            for t in g.get("tiles", []):
+                if t.get("domain") == "alarm_control_panel":
+                    on_alarm(t.get("state"))
+                    return
+    except Exception:
+        pass
 
 
 def get_config():
@@ -89,6 +156,8 @@ def _in_night_window(now, cfg):
 def desired_on(now=None):
     cfg = get_config()
     now = now or datetime.now()
+    if _state["sleep_mode"]:
+        return (time.time() - _state["last_wake"]) < SLEEP_PEEK, cfg
     if not cfg.get("enabled"):
         return True, cfg
     night = _in_night_window(now, cfg)
@@ -115,6 +184,7 @@ def _run(cmd):
 
 def tick():
     """Recompute desired power and apply it if it changed. Safe to call often."""
+    _poll_alarm()
     on, cfg = desired_on()
     _state["on"] = on
     if _state["applied"] != on:
@@ -143,5 +213,6 @@ def state(cfg=None):
         "on": _state["on"],
         "night": _in_night_window(now, cfg) if cfg.get("enabled") else False,
         "dim_only": bool(cfg.get("dim_only")),
+        "sleep_mode": _state["sleep_mode"],
         "config": cfg,
     }

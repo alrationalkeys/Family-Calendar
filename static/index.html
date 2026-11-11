@@ -1588,7 +1588,7 @@ async function load(){
 let sleepTimer, slideTimer, photos=[], pIdx=0, asleep=false;
 const SLEEP_AFTER = 5*60*1000;
 async function loadPhotos(){ try{ const r=await fetch("/api/photos/").then(r=>r.json()); photos=r.photos||[]; if(curPage==="photos") renderPhotosPage(); }catch(e){} }
-function goToSleep(){ if(!photos.length)return; asleep=true; $("#sleep").classList.add("on"); showSlide(); slideTimer=setInterval(showSlide,8000); }
+function goToSleep(){ if(!photos.length||sleepMode)return; asleep=true; $("#sleep").classList.add("on"); showSlide(); slideTimer=setInterval(showSlide,8000); }
 function showSlide(){
   const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
   const fit=(FH.get().photoFit||"fit")==="fit"; layer.classList.toggle("fit", fit);
@@ -2153,11 +2153,13 @@ function updateHeroPhase(){
 }
 
 /* ---- scheduled screen-off + wake ---- */
-let _reloadToken=null;
+let _reloadToken=null, sleepMode=false;
 async function loadDisplayState(){
   try{
     const st=await fetch("/api/display/state").then(r=>r.json());
     $("#screenoff").classList.toggle("on", !st.on);
+    if(st.sleep_mode && !sleepMode){ sleepMode=true; if(asleep) wake(); }        // night: dark, not the photo slideshow
+    else if(!st.sleep_mode && sleepMode){ sleepMode=false; resetSleep(); }   // morning: wall back + the usual first-wake briefing
     // phone pressed "Reload the wall" (or the server restarted after a git pull)
     if(st.reload_token!==undefined){
       if(_reloadToken===null) _reloadToken=st.reload_token;

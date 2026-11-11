@@ -1,0 +1,286 @@
+# =====================================================================
+#  North Pole Village - Home Assistant package
+#
+#  Drop this file in <config>/packages/ and make sure configuration.yaml has:
+#     homeassistant:
+#       packages: !include_dir_named packages
+#  Then restart Home Assistant.
+#
+#  No firmware changes are needed. Everything here calls the web endpoints
+#  the boards already serve (the same ones the phone pages use).
+#
+#  IP addresses: reserve these in the router (DHCP reservation) first,
+#  then change them below if yours differ.
+#     Board A  village-fx     192.168.1.200   effects, sound, shows, hub
+#     Board B  village-train  192.168.1.121   train, station, crossing
+#     WLED     village-lights 192.168.1.133   lights (use the native WLED integration, not this file)
+#  The .local names work too, but mDNS often does not resolve inside the
+#  Home Assistant container, so IPs are safer.
+# =====================================================================
+
+rest_command:
+  # Any Board A command. cmd examples: wake, sleep, tree, rachell, carol, train,
+  # sleigh, rinkon, rinkoff, lampson, lampsoff, lampsauto, manual, override,
+  # station, play:7 (main speaker file 7), light:4 (WLED preset 4), snd2_3 (carolers file 3)
+  village_fx:
+    url: "http://192.168.1.200/cmd?do={{ cmd }}"
+    method: get
+    timeout: 5
+
+  # Board B direct (skips Board A's whistle wait)
+  village_train_go:
+    url: "http://192.168.1.121/go?laps={{ laps | int(1) }}"
+    method: get
+    timeout: 5
+  village_train_stop:
+    url: "http://192.168.1.121/stop"
+    method: get
+    timeout: 5
+  village_train_crossing:
+    url: "http://192.168.1.121/xing"
+    method: get
+    timeout: 5
+
+input_number:
+  village_sound:
+    name: Village sound number
+    min: 1
+    max: 255
+    step: 1
+    mode: box
+    icon: mdi:music-note
+  village_light_preset:
+    name: Village light preset
+    min: 1
+    max: 250
+    step: 1
+    mode: box
+    icon: mdi:palette
+
+script:
+  village_wake:
+    alias: "Village: wake up"
+    icon: mdi:weather-sunset-up
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: wake }
+  village_sleep:
+    alias: "Village: go to sleep"
+    icon: mdi:sleep
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: sleep }
+  village_tree_show:
+    alias: "Village: tree show"
+    icon: mdi:pine-tree
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: tree }
+  village_rachell_show:
+    alias: "Village: Rachell's show"
+    icon: mdi:heart
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: rachell }
+  village_carolers:
+    alias: "Village: carolers sing"
+    icon: mdi:account-music
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: carol }
+  village_train_whistle:
+    alias: "Village: train (whistle, then go)"
+    icon: mdi:train
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: train }
+  village_train_1_lap:
+    alias: "Village: train 1 lap"
+    icon: mdi:train
+    sequence:
+      - action: rest_command.village_train_go
+        data: { laps: 1 }
+  village_train_3_laps:
+    alias: "Village: train 3 laps"
+    icon: mdi:train
+    sequence:
+      - action: rest_command.village_train_go
+        data: { laps: 3 }
+  village_train_10_laps:
+    alias: "Village: train 10 laps"
+    icon: mdi:train
+    sequence:
+      - action: rest_command.village_train_go
+        data: { laps: 10 }
+  village_train_stop:
+    alias: "Village: STOP train"
+    icon: mdi:stop-circle
+    sequence:
+      - action: rest_command.village_train_stop
+  village_crossing_test:
+    alias: "Village: test crossing"
+    icon: mdi:railroad-light
+    sequence:
+      - action: rest_command.village_train_crossing
+  village_rink_on:
+    alias: "Village: rink on"
+    icon: mdi:skate
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: rinkon }
+  village_rink_off:
+    alias: "Village: rink off"
+    icon: mdi:skate-off
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: rinkoff }
+  village_lamps_on:
+    alias: "Village: street lamps on"
+    icon: mdi:post-lamp
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: lampson }
+  village_lamps_off:
+    alias: "Village: street lamps off"
+    icon: mdi:post-lamp
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: lampsoff }
+  village_lamps_auto:
+    alias: "Village: street lamps automatic"
+    icon: mdi:post-lamp
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: lampsauto }
+  village_toggle_manual:
+    alias: "Village: toggle manual / automatic"
+    icon: mdi:hand-back-right
+    sequence:
+      - action: rest_command.village_fx
+        data: { cmd: manual }
+  village_play_sound:
+    alias: "Village: play sound #"
+    icon: mdi:play
+    sequence:
+      - action: rest_command.village_fx
+        data:
+          cmd: "play:{{ states('input_number.village_sound') | int(1) }}"
+  village_show_light_preset:
+    alias: "Village: show light preset #"
+    icon: mdi:lightbulb-group
+    sequence:
+      - action: rest_command.village_fx
+        data:
+          cmd: "light:{{ states('input_number.village_light_preset') | int(1) }}"
+
+rest:
+  # Board A status page (plain text). Example:
+  #   AUTOMATIC: runs on its own
+  #   Mode: awake
+  #   Time: Wed 06:12 PM  |  open 16:00 to 23:00
+  #   Motion: 1
+  #   Sleigh: home (magnet seen)
+  #   Rink speed: 170/255   Street lamps: on
+  #   Main sound: ready   Carolers sound: ready
+  #   Lights: 192.168.1.133   Train: 192.168.1.121
+  #   Code version: A-2026.11.02d
+  - resource: http://192.168.1.200/status
+    scan_interval: 15
+    timeout: 5
+    sensor:
+      - name: Village mode
+        unique_id: village_mode
+        icon: mdi:home-city
+        value_template: >-
+          {% set m = value | regex_findall('Mode: ([A-Za-z ]+)') %}{{ m[0] | trim if m else 'unknown' }}
+      - name: Village firmware
+        unique_id: village_fx_firmware
+        icon: mdi:chip
+        value_template: >-
+          {% set m = value | regex_findall('Code version: (\S+)') %}{{ m[0] if m else 'unknown' }}
+      - name: Village rink speed
+        unique_id: village_rink_speed
+        icon: mdi:skate
+        value_template: >-
+          {% set m = value | regex_findall('Rink speed: (\d+)') %}{{ m[0] | int if m else 0 }}
+    binary_sensor:
+      - name: Village manual mode
+        unique_id: village_manual_mode
+        icon: mdi:hand-back-right
+        value_template: "{{ value.startswith('MANUAL') }}"
+      - name: Village motion
+        unique_id: village_motion
+        device_class: motion
+        value_template: >-
+          {% set m = value | regex_findall('Motion: ([^\n]*)') %}{{ (m[0] | trim) != '' if m else false }}
+      - name: Village street lamps
+        unique_id: village_street_lamps
+        device_class: light
+        value_template: "{{ 'Street lamps: on' in value }}"
+      - name: Village main sound ready
+        unique_id: village_main_sound_ready
+        device_class: connectivity
+        value_template: "{{ 'Main sound: ready' in value }}"
+      - name: Village carolers sound ready
+        unique_id: village_carolers_sound_ready
+        device_class: connectivity
+        value_template: "{{ 'Carolers sound: ready' in value }}"
+
+  # Board B status page (plain text). Example:
+  #   State: stopped at station   (others: running, arriving at station, waiting at platform, leaving station, connecting to the engine (Bluetooth))
+  #   Laps left: 0   laps done since power-up: 12
+  #   Sensor 1 (in): clear   Sensor 2 (out): clear
+  #   Control: Bluetooth - connected to LC-0-1-6491-E335   speed 0/31   track power ON
+  #   Crossing: clear   sensor: clear
+  #   Code version: B-2026.11.01d
+  - resource: http://192.168.1.121/status
+    scan_interval: 15
+    timeout: 5
+    sensor:
+      - name: Village train state
+        unique_id: village_train_state
+        icon: mdi:train
+        value_template: >-
+          {% set m = value | regex_findall('State: ([^\n]+)') %}{{ m[0] | trim if m else 'unknown' }}
+      - name: Village train laps left
+        unique_id: village_train_laps_left
+        icon: mdi:counter
+        value_template: >-
+          {% set m = value | regex_findall('Laps left: (\d+)') %}{{ m[0] | int if m else 0 }}
+      - name: Village train firmware
+        unique_id: village_train_firmware
+        icon: mdi:chip
+        value_template: >-
+          {% set m = value | regex_findall('Code version: (\S+)') %}{{ m[0] if m else 'unknown' }}
+    binary_sensor:
+      - name: Village train Bluetooth
+        unique_id: village_train_bluetooth
+        device_class: connectivity
+        value_template: "{{ '- connected to' in value }}"
+      - name: Village train track power
+        unique_id: village_train_track_power
+        device_class: power
+        value_template: "{{ 'track power ON' in value }}"
+      - name: Village crossing gates down
+        unique_id: village_crossing_down
+        icon: mdi:railroad-light
+        value_template: "{{ 'GATES DOWN' in value }}"
+
+# ---------------------------------------------------------------------
+# Example automations (uncomment and adjust). Note: Board A already has
+# its own open/close hours (settings page: open 16:00, close 23:00) and
+# its own motion wake-up when it is in AUTOMATIC mode. Only add these if
+# you want Home Assistant to drive it instead.
+# ---------------------------------------------------------------------
+# automation:
+#   - alias: "Village: tree show when the front door opens in the evening"
+#     triggers:
+#       - trigger: state
+#         entity_id: binary_sensor.front_door
+#         to: "on"
+#     conditions:
+#       - condition: state
+#         entity_id: sensor.village_mode
+#         state: "awake"
+#     actions:
+#       - action: script.village_tree_show

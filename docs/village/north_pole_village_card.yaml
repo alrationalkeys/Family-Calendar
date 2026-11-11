@@ -1,0 +1,72 @@
+# North Pole Village dashboard card.
+# Edit a dashboard > Add card > Manual, and paste this whole file.
+# Light entities come from the native WLED integration. Their names depend on what
+# WLED was called when it was added (for example light.village_lights and
+# select.village_lights_preset). Fix the two WLED entity ids below to match.
+type: vertical-stack
+cards:
+  - type: markdown
+    content: >-
+      ## North Pole Village
+
+      **Mode:** {{ states('sensor.village_mode') }}
+      {{ '(manual)' if is_state('binary_sensor.village_manual_mode', 'on') else '(automatic)' }}
+      &nbsp;·&nbsp; **Train:** {{ states('sensor.village_train_state') }}
+      &nbsp;·&nbsp; **Laps left:** {{ states('sensor.village_train_laps_left') }}
+
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - { type: button, entity: script.village_tree_show, name: Tree show, show_state: false }
+      - { type: button, entity: script.village_rachell_show, name: "Rachell's show", show_state: false }
+      - { type: button, entity: script.village_carolers, name: Carolers, show_state: false }
+      - { type: button, entity: script.village_wake, name: Wake, show_state: false }
+      - { type: button, entity: script.village_sleep, name: Sleep, show_state: false }
+      - { type: button, entity: script.village_toggle_manual, name: Manual / Auto, show_state: false }
+
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - { type: button, entity: script.village_train_whistle, name: Whistle + go, show_state: false }
+      - { type: button, entity: script.village_train_1_lap, name: 1 lap, show_state: false }
+      - { type: button, entity: script.village_train_3_laps, name: 3 laps, show_state: false }
+      - { type: button, entity: script.village_train_10_laps, name: 10 laps, show_state: false }
+      - { type: button, entity: script.village_train_stop, name: STOP train, show_state: false }
+      - { type: button, entity: script.village_crossing_test, name: Test crossing, show_state: false }
+
+  - type: entities
+    title: Test
+    entities:
+      - input_number.village_sound
+      - entity: script.village_play_sound
+        name: Play that sound
+      - input_number.village_light_preset
+      - entity: script.village_show_light_preset
+        name: Show that light preset
+      - entity: script.village_rink_on
+      - entity: script.village_rink_off
+      - entity: script.village_lamps_on
+      - entity: script.village_lamps_off
+      - entity: script.village_lamps_auto
+
+  - type: entities
+    title: Lights (WLED)
+    entities:
+      - light.village_lights
+      - select.village_lights_preset
+
+  - type: entities
+    title: Status
+    entities:
+      - binary_sensor.village_motion
+      - binary_sensor.village_street_lamps
+      - sensor.village_rink_speed
+      - binary_sensor.village_main_sound_ready
+      - binary_sensor.village_carolers_sound_ready
+      - binary_sensor.village_train_bluetooth
+      - binary_sensor.village_train_track_power
+      - binary_sensor.village_crossing_gates_down
+      - sensor.village_firmware
+      - sensor.village_train_firmware

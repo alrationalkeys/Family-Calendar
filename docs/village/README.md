@@ -1,5 +1,9 @@
 # North Pole Village: handoff for Home Assistant
 
+> **In this repo:** the HA package is `docs/ha/north_pole_village.yaml` (install like the other packages), the
+> dashboard card is `docs/village/north_pole_village_card.yaml`, firmware source is `docs/village/firmware/`.
+> The PDFs, CAD/STL files and test sounds stay in Alex's handoff zip (not in git).
+
 This folder is everything built for Alex and Rachell's Department 56 North Pole Christmas village: firmware, print files, docs, and a ready-made Home Assistant package. It is written for the Claude Code session that runs Alex's Home Assistant and family calendar on the local mini PCs.
 
 **Goal:** control and monitor the village from Home Assistant (and optionally the family calendar display) without changing the village firmware. The village is finished, tested, and covered with snow foam, so **do not flash firmware unless Alex asks**. Everything Home Assistant needs is already served over HTTP by the boards.

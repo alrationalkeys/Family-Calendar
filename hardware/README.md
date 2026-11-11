@@ -82,12 +82,16 @@ VESA badge is the same form factor as the Forzola.
 ![exploded view](exploded.png)
 
 1. **Screen** (grey) with its raised rear housing (red) — the VESA holes are on that housing's face.
-2. **back_case** (orange) bolts to the VESA holes with 4× M4; corner brackets inside cradle the mini PC.
-3. **C3 mini PC** drops into the brackets, LAN/HDMI/power face down toward the bottom cable slot.
-4. **strap_bar** (green) screws to the two top bosses with M3 — keeps the PC from tipping out.
-5. **cleat_case** (blue) screws to the two bottom bosses with M3 — the lower retaining bar and one half of the French cleat.
-6. **cleat_wall** (brown) screws to the wall; the whole display hangs on it and lifts straight off.
+2. **back_case** (orange) bolts to the VESA holes with 4× M4; corner brackets inside cradle the mini PC. The two
+   walls with the low opening pass the plugs; the two vented walls line up with the C3's fan faces.
+3. **C3 mini PC** drops into the brackets, HDMI/LAN/power face toward the bottom opening, USB face toward the top one.
+4. **foot_bar** (green) screws to the two **bottom** bosses with M3×16 — same thickness as the cleat so the display hangs plumb; also keeps the PC in.
+5. **cleat_case** (blue) screws to the two **top** bosses with M3×16 — the hanging half of the French cleat (bevel on its bottom edge).
+6. **cleat_wall** (brown) screws to the wall, bevel on its top edge sloping down toward the wall; the display hooks over it and lifts straight off.
+   Its centre goes 20 mm below where the case cleat's centre will hang.
 7. **spk_pocket** (purple, optional) bolts to the case side wall with 2× M3 and holds the speaker/mic bar, grille facing out.
+
+Spin the whole thing around in the browser: open `hardware/mount-viewer.html` (self-contained; needs internet for three.js). Rebuild it from the `part="asm:<name>"` exports if you change the model.
 
 Assembled (from the back, before it goes on the wall):
 
@@ -108,9 +112,8 @@ Slicer / Cura / PrusaSlicer).
    and re-export (see below) — don't print the case until these fit.
 2. `back_case.stl` — the big one (~7 h). Print **cavity up** (as exported), 0.2 mm, 3 walls,
    20% infill, no supports.
-3. `strap_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast.
-4. `stand.stl` — optional counter stand (248 mm long: fits the Kobra S1 bed on the diagonal if
-   your slicer complains).
+3. `foot_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast. Print the cleats bevel-up as exported (no supports).
+4. `stand.stl` — optional counter easel (199 mm wide, 166 mm tall, base on the bed, no supports).
 5. `spk_pocket.stl` — optional, only if you want the speaker bar hidden in the case.
 6. `frame_seg.stl` ×4 — optional cosmetic front frame.
 
@@ -129,10 +132,10 @@ front. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 | Part | Qty | What it is |
 |---|---|---|
 | `back_case` | 1 | ~158×136×52 mm box that bolts to the VESA holes on the screen's back housing. Four corner brackets cradle the **C3** (HDMI/LAN/DC face down into the bottom slot; the other port face reachable through a top slot); open at the back for airflow; side vents at the C3's fan intakes. |
-| `strap_bar` | 1 | Bar across the top of the open back — keeps the C3 from tipping out. M3 into the corner bosses. |
-| `cleat_case` | 1 | French-cleat half; bolts to the two bottom bosses and doubles as the lower retaining bar. |
-| `cleat_wall` | 1 | French-cleat half that screws to the wall (the display hangs on it). |
-| `stand` | 1 | Counter easel; its tongue mates `cleat_case`, so the display drops from wall → stand in seconds. Lip is tall enough to clear the port hump. |
+| `foot_bar` | 1 | 166×30×12 bar on the two **bottom** bosses (M3×16). Same thickness as the cleat so the display hangs plumb; also keeps the C3 from tipping out. (Replaces the old 4 mm `strap_bar`.) |
+| `cleat_case` | 1 | 166×30×12 French-cleat half on the two **top** bosses (M3×16); 45° bevel on its bottom edge, wedge tip against the wall. |
+| `cleat_wall` | 1 | 166×30×12 French-cleat half that screws to the wall; bevel on its top edge sloping down toward the wall. |
+| `stand` | 1 | Counter easel: 12° leaning plate with a `cleat_wall` tongue at the matching height and a front lip, so the display drops from wall → stand in seconds. |
 | `spk_pocket` | 0–1 | **Optional** pocket for the USB speaker/mic bar, bolted to the case's side wall (M3 + nuts). The bar stands vertically, grille + mic facing out the screen's side edge — hidden from the front. |
 | `frame_seg` | 2–4 | **Optional** cosmetic front frame. 365mm > the Kobra's 250mm bed, so it prints as **joinable segments** (2 long + 2 short) you pin/glue at the corners. |
 | `test_vesa` / `test_pc` | 1 ea | Small coupons — **print these first**. |

@@ -17,7 +17,8 @@
 //   back_case   : box that bolts to the screen's VESA holes, cradles the C3
 //                 (open at the back for airflow), routes cables out the bottom.
 //   strap_bar   : bar across the open back (top edge) that keeps the C3 in.
-//   cleat_case  : French-cleat half that bolts to the back_case (bottom edge).
+//   cleat_case  : French-cleat half that bolts to the back_case TOP bosses.
+//   foot_bar    : plain bar on the bottom bosses, same thickness, keeps it plumb (was strap_bar).
 //                 Doubles as the lower retaining bar for the C3.
 //   cleat_wall  : French-cleat half that screws to the wall. (case hangs on it)
 //   stand       : counter easel — its cleat tongue mates cleat_case, so the same
@@ -40,7 +41,7 @@
 // ============================================================================
 
 /* [What to render] */
-part = "back_case"; // [back_case, strap_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview, exploded]
+part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_seg, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
 screen_w = 356;      // measured 14.0 in
@@ -75,14 +76,19 @@ case_h = pc_l + 2*(pc_clear + wall);         // ~136
 case_d = fp + pc_h + pc_clear + 4;           // ~51.5 — strap/cleat bars sit in the last 4mm
 
 /* [French cleat] */
+// Standard French cleat, at the TOP of the case: both halves are cleat_thick deep (standoff from
+// the case back / the wall) and cleat_h tall. The wall half's top edge is bevelled 45deg sloping
+// DOWN toward the wall; the case half's bottom edge has the matching bevel, so the display's
+// weight pulls it into the wall. A plain foot_bar of the same thickness at the bottom of the
+// case keeps the display plumb. Both bars also span the open back and retain the C3.
 cleat_len   = 166;   // spans the case back; holes land on the corner bosses
-cleat_h     = 26;
-cleat_thick = 12;
+cleat_h     = 30;    // along the wall (vertical)
+cleat_thick = 12;    // standoff: the 45deg bevel runs through this full thickness
 cleat_gap   = 2;     // hanging clearance
 
 /* [Counter stand] */
 stand_lean  = 12;    // degrees back from vertical
-stand_base  = 130;   // base depth (front-to-back footprint)
+stand_base  = 96;    // base depth (front-to-back footprint); the lip lands just in front of the panel's bottom edge
 
 /* [Speaker pocket — HONKYOB bar, VERIFY dims] */
 spk_l    = 127;      // measured 5 in — long axis (mounted vertically, along the screen edge)
@@ -150,37 +156,67 @@ module back_case(){
   }
 }
 
-// bar across the top edge of the open back: keeps the C3 from tipping out
-module strap_bar(){
+// foot bar: plain bar across the BOTTOM edge of the open back, as thick as the cleat so the
+// display hangs plumb. Also keeps the C3 from tipping out. M3x16 into the bottom bosses.
+// (The old 4 mm strap_bar is kept as an alias for anyone who already printed one.)
+module foot_bar(){
   difference(){
-    hull() for(x=boss_xs) translate([x, 0, 0]) cylinder(h=4, d=14);
-    for(x=boss_xs) translate([x, 0, -1]){ cylinder(h=6, d=3.4); translate([0,0,2.4]) cylinder(h=3, d1=3.4, d2=6.5); }
+    translate([-cleat_len/2, -cleat_h/2, 0]) cube([cleat_len, cleat_h, cleat_thick]);
+    for(x=boss_xs) translate([x, 0, -1]){ cylinder(h=cleat_thick+2, d=3.4); translate([0,0,cleat_thick-2]) cylinder(h=3, d1=3.4, d2=7); }
   }
 }
+module strap_bar(){ foot_bar(); }
 
 // ---------- French cleat pair ----------
-// 45deg mating faces. Wall half bevels up-and-in; case half bevels down-and-in.
-module cleat_bar(flip=false){
+// Profiles in the y-z plane (y up the wall, z = standoff, z=0 against the case back or the wall).
+//   cleat_case: screws to the case's TOP bosses. Bottom edge bevelled: lowest point against the wall.
+//   cleat_wall: screws to the wall. Top edge bevelled 45deg sloping down toward the wall -> pocket.
+// Holes at y=0 (the boss / wall-screw line), countersunk from the open side.
+T = cleat_thick; H = cleat_h;
+module cleat_case(){
+  // y=0 at the boss line. z=0 against the case back, z=T toward the wall. Bevel on the bottom edge:
+  // on the wall side it reaches down to -H/2, on the case side it stops T higher (the wedge tip hugs the wall).
   difference(){
-    cube([cleat_len, cleat_thick, cleat_h]);
-    translate([-1, flip ? -1 : cleat_thick, flip ? cleat_h : 0])
-      rotate([flip ? -45 : 45, 0, 0]) cube([cleat_len+2, cleat_h*2, cleat_h*2]);
-    for(x=[cleat_len/2+boss_xs[0], cleat_len/2+boss_xs[1]])   // screw holes line up with the case bosses
-      translate([x, cleat_thick/2, -1]){ cylinder(h=cleat_h+2, d=3.4); translate([0,0,cleat_h-3]) cylinder(h=4, d1=3.4, d2=7); }
+    translate([-cleat_len/2, 0, 0]) rotate([90,0,90])
+      linear_extrude(cleat_len) polygon([[-H/2 + T, 0], [-H/2, T], [H/2, T], [H/2, 0]]);   // [y, z]: z=0 case back, z=T wall side
+    for(x=boss_xs) translate([x, 0, -1]){ cylinder(h=T+2, d=3.4); translate([0,0,T-2]) cylinder(h=3, d1=3.4, d2=7); }
   }
 }
-module cleat_wall(){ cleat_bar(flip=false); }   // screws to the wall (use M4/wood screws through the same holes)
-module cleat_case(){ cleat_bar(flip=true);  }   // bolts to the back_case bottom bosses (M3)
+module cleat_wall(){
+  // y=0 at the wall-screw line. Bevel on the TOP edge: at z=0 (wall) the top is at H/2 - T, at z=T it is H/2.
+  difference(){
+    translate([-cleat_len/2, 0, 0]) rotate([90,0,90])
+      linear_extrude(cleat_len) polygon([[-H/2, 0], [-H/2, T], [H/2, T], [H/2 - T, 0]]);      // [y, z]: z=0 wall, z=T toward the display
+    for(x=boss_xs) translate([x, 0, -1]){ cylinder(h=T+2, d=4.5); translate([0,0,T-2]) cylinder(h=3, d1=4.5, d2=9); }   // wood screws / anchors
+  }
+}
+// where the wall half sits relative to the case half when hung: its bevel face coincides with the
+// case half's bevel, so its centre is (H - T) below the case half's centre (plus the hanging gap).
+cleat_wall_dy = -(H - T) - cleat_gap;
 
 // ---------- counter stand ----------
-module stand(){
-  h = 150;
-  linear_extrude(cleat_len+30, center=true) polygon([[0,0],[stand_base,0],[0,h]]);
-  translate([6,0,h*0.62])
-    rotate([0,stand_lean,0]) translate([0,-cleat_len/2-15, -cleat_h/2])
-      rotate([90,0,90]) cleat_wall();
-  // lip at the base front so the screen's bottom edge can rest (port hump stays clear above it)
-  translate([stand_base-8,-(cleat_len+30)/2,0]) cube([8, cleat_len+30, screen_t+hump_d+6]);   // lip clears panel + housing
+// An easel: a back plate leaning stand_lean deg carries a cleat_wall tongue, so the display hangs
+// on the stand exactly as it hangs on the wall (lift off the wall, drop onto the stand). The foot
+// bar rests on the plate below. A lip at the front of the base stops the screen's bottom edge.
+stand_plate_t = 8;
+stand_h       = 170;                       // plate height along the lean
+stand_w       = cleat_len + 30;            // 196 — fits a 250 mm bed
+stand_tongue  = 147;                       // tongue (cleat_wall centre) up the plate: the panel's bottom edge hangs ~12 mm above the base
+module stand(){ difference(){ stand_body(); translate([-500,-500,-60]) cube([1000,1000,60]); } }   // trim the leaning plate flush with the bed
+module stand_body(){
+  base_t = 6; lip_h = 22; lip_t = 8;
+  // base plate
+  translate([0, -stand_w/2, 0]) cube([stand_base, stand_w, base_t]);
+  // leaning back plate + tongue (plate face at x = plate_t when upright; leans back toward -x)
+  translate([stand_plate_t, 0, 0]) rotate([0, -stand_lean, 0]) {
+    translate([-stand_plate_t, -stand_w/2, 0]) cube([stand_plate_t, stand_w, stand_h]);
+    translate([0, 0, stand_tongue]) rotate([0, 0, 90]) rotate([90, 0, 0]) cleat_wall();   // local z(standoff) -> +x, local y(up) -> +z
+  }
+  // side gussets
+  for(sy=[-1,1]) translate([0, sy*(stand_w/2 - 3) - 3, 0]) rotate([90,0,0]) translate([0,0,-3])
+    linear_extrude(6) polygon([[0,0],[stand_base*0.55,0],[stand_plate_t - stand_h*sin(stand_lean)*0.45, stand_h*0.45]]);
+  // front lip
+  translate([stand_base - lip_t, -stand_w/2, 0]) cube([lip_t, stand_w, base_t + lip_h]);
 }
 
 // ---------- speaker pocket (optional) ----------
@@ -230,8 +266,9 @@ module screen_ghost(){
 module preview(){
   screen_ghost();
   back_case();
-  color("tan") translate([0, boss_y_top, case_d]) strap_bar();
-  color("tan") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d]) cleat_bar(flip=true);
+  color("tan") translate([0, boss_y_top, case_d]) cleat_case();
+  color("tan") translate([0, boss_y_bot, case_d]) foot_bar();
+  color("tan") translate([0, boss_y_top + cleat_wall_dy, case_d + cleat_thick]) mirror([0,0,1]) cleat_wall();
   color("silver", 0.5) translate([-pc_w/2, -pc_l/2, fp+2]) cube([pc_w, pc_l, pc_h]);                 // the C3
   color("tan") translate([spk_side*(case_w/2 + (spk_t+2*spk_clear+2*wall)/2), 0, 0]) spk_pocket();
   // the case plate overhangs the housing top/bottom; plugs hang in the hump_d gap beneath
@@ -244,21 +281,22 @@ module preview(){
 //   openscad -o exploded.png -D 'part="exploded"' --camera=0,0,60,65,0,35,900 --imgsize=1800,1300 familyhub-mount.scad
 module num(n, pos, size=22){ color("#1d2430") translate(pos) rotate([90,0,0]) linear_extrude(2) text(n, size=size, halign="center", valign="center", font="Liberation Sans:style=Bold"); }
 // Legend (see hardware/README.md): 1 screen, 2 back_case (4x M4 into VESA), 3 C3 mini PC,
-// 4 strap_bar (2x M3 top bosses), 5 cleat_case (2x M3 bottom bosses), 6 cleat_wall (to the wall), 7 spk_pocket (optional)
+// 4 foot_bar (2x M3x16 bottom bosses), 5 cleat_case (2x M3x16 top bosses), 6 cleat_wall (to the wall), 7 spk_pocket (optional)
 module exploded(gap=55){
   lx = -case_w/2 - 40;                              // numbers stand in a column left of the stack
   screen_ghost();                                    num("1", [-screen_w/2 + 30, -screen_h/2 - 30, -hump_d]);
   color("#e9a23b") back_case();                      num("2", [lx, 0, fp + 14]);
   color("silver", 0.8) translate([-pc_w/2, -pc_l/2, fp + 2 + gap]) cube([pc_w, pc_l, pc_h]);   num("3", [lx, 0, fp + gap + pc_h/2]);
-  color("#5cb88a") translate([0, boss_y_top, case_d + 2*gap]) strap_bar();                    num("4", [lx, boss_y_top, case_d + 2*gap + 4]);
-  color("#4a90d9") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d + 2*gap]) cleat_bar(flip=true);   num("5", [lx, boss_y_bot, case_d + 2*gap + 12]);
-  color("#8c6a4a") translate([-cleat_len/2, boss_y_bot - cleat_thick/2, case_d + 3*gap + 10]) cleat_bar(flip=false); num("6", [lx, boss_y_bot, case_d + 3*gap + 22]);
+  color("#5cb88a") translate([0, boss_y_bot, case_d + 2*gap]) foot_bar();                     num("4", [lx, boss_y_bot, case_d + 2*gap + 6]);
+  color("#4a90d9") translate([0, boss_y_top, case_d + 2*gap]) cleat_case();                   num("5", [lx, boss_y_top, case_d + 2*gap + 6]);
+  color("#8c6a4a") translate([0, boss_y_top + cleat_wall_dy, case_d + 3*gap + 10 + cleat_thick]) mirror([0,0,1]) cleat_wall(); num("6", [lx, boss_y_top + cleat_wall_dy, case_d + 3*gap + 16]);
   color("#b06ad9", 0.9) translate([spk_side*(case_w/2 + (spk_t+2*spk_clear+2*wall)/2 + gap), 0, 0]) spk_pocket();
   num("7", [spk_side*(case_w/2 + 60), -case_h/2 - 30, 20]);
 }
 
 // ---------- dispatch ----------
 if(part=="back_case")       back_case();
+else if(part=="foot_bar")   foot_bar();
 else if(part=="strap_bar")  strap_bar();
 else if(part=="cleat_case") cleat_case();
 else if(part=="cleat_wall") cleat_wall();
@@ -269,3 +307,13 @@ else if(part=="test_vesa")  test_vesa();
 else if(part=="test_pc")    test_pc();
 else if(part=="preview")    preview();
 else if(part=="exploded")   exploded();
+// assembled positions (for the interactive viewer): part="asm:<name>"
+else if(part=="asm:screen")     translate([-screen_w/2, -screen_h/2 - vesa_dy, -hump_d - screen_t]) cube([screen_w, screen_h, screen_t]);
+else if(part=="asm:housing")    translate([-hump_w/2, -hump_hh/2, -hump_d]) cube([hump_w, hump_hh, hump_d]);
+else if(part=="asm:back_case")  back_case();
+else if(part=="asm:c3")         translate([-pc_w/2, -pc_l/2, fp+2]) cube([pc_w, pc_l, pc_h]);
+else if(part=="asm:foot_bar")   translate([0, boss_y_bot, case_d]) foot_bar();
+else if(part=="asm:cleat_case") translate([0, boss_y_top, case_d]) cleat_case();
+else if(part=="asm:cleat_wall") translate([0, boss_y_top + cleat_wall_dy, case_d + cleat_thick]) mirror([0,0,1]) cleat_wall();
+else if(part=="asm:wall")       translate([-screen_w/2 - 40, -screen_h/2 - 40, case_d + cleat_thick]) cube([screen_w + 80, screen_h + 80, 6]);
+else if(part=="asm:spk_pocket") translate([spk_side*(case_w/2 + (spk_t+2*spk_clear+2*wall)/2), 0, 0]) spk_pocket();

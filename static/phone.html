@@ -577,6 +577,17 @@
     <div class="hint"><b>Update</b> pulls the newest FamilyHub code and restarts, from anywhere (Tailscale). <b>Restart</b> re-reads .env. <b>Reload</b> refreshes the screen. <b>Wake</b> turns it on during the night window.</div>
   </div>
 
+  <div class="form sect">
+    <h2>Family PIN</h2>
+    <div class="hint" id="pin-state">Checking…</div>
+    <input id="pin-new" type="password" inputmode="numeric" autocomplete="new-password" placeholder="New PIN, 4 to 8 digits">
+    <div class="two">
+      <button class="go" id="pin-save">Turn on / change PIN</button>
+      <button class="go" id="pin-off" style="background:var(--panel2); color:#d33">Turn PIN off</button>
+    </div>
+    <div class="hint">With a PIN on, anything that <b>changes</b> FamilyHub (adding, ticking, settings, lights, the alarm pad) asks for it once on each phone and once on the wall, then remembers it. Looking stays open. Five wrong guesses locks that device out for a minute.</div>
+  </div>
+
   <!-- only shown while the sample family is still loaded; hidden for good once cleared -->
   <div class="form sect" id="startfresh" hidden>
     <h2>Start fresh</h2>
@@ -964,7 +975,7 @@ function switchView(v){
   ["add","home","cal","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
   if(v==="cal"){ loadAgenda(); }
   document.body.classList.toggle("home-dark", v==="home");
-  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); }
+  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); }
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
   if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 8000); }
@@ -1654,11 +1665,19 @@ async function loadWallVersion(check){
   const el=$("#wall-ver"); let v=null;
   try{ v=await fetch("/api/admin/version"+(check?"?check=1":"")).then(r=>r.json()); }catch(e){ el.textContent="Couldn't reach the wall."; return null; }
   if(!v.git){ el.textContent="Not a git checkout — update by hand."; return v; }
-  let s=`Running ${v.commit} (${v.date}) — ${v.subject||""}`;
+  let s=(v.address?`Wall address: ${v.address}\n`:"")+`Running ${v.commit} (${v.date}) — ${v.subject||""}`;
   if(check){ s+= v.behind>0 ? `\n${v.behind} update${v.behind>1?"s":""} available → ${v.latest.commit}: ${v.latest.subject}` : "\nUp to date."; }
   if(v.update&&v.update.error) s+="\nLast update failed: "+v.update.error;
   el.textContent=s; el.style.whiteSpace="pre-line"; return v;
 }
+async function loadPinState(){ try{ const r=await fetch("/api/admin/pin").then(r=>r.json()); $("#pin-state").textContent=r.on?"PIN is ON. Changes need the PIN.":"PIN is OFF. Anyone on your Wi-Fi can change things."; $("#pin-off").hidden=!r.on; }catch(e){ $("#pin-state").textContent="Couldn't reach the wall."; } }
+$("#pin-save").onclick=async()=>{
+  const pin=$("#pin-new").value.trim(); if(!/^\d{4,8}$/.test(pin)){ toast("Use 4 to 8 digits"); return; }
+  const r=await post("/api/admin/pin",{pin});
+  if(r.ok){ if(window.FHAuth) FHAuth.setPin(pin); $("#pin-new").value=""; toast("PIN is on. The wall asks for it once."); loadPinState(); }
+  else if(r.status!==401) toast((await r.json().catch(()=>({}))).detail||"Couldn't set the PIN");
+};
+$("#pin-off").onclick=async()=>{ const r=await post("/api/admin/pin",{pin:""}); if(r.ok){ if(window.FHAuth) FHAuth.setPin(""); toast("PIN is off"); loadPinState(); } };
 $("#wall-update").onclick=async()=>{
   const before=await loadWallVersion(true); if(!before||!before.git) return;
   if(before.behind===0){ toast("Already up to date"); return; }

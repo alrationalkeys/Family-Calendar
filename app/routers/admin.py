@@ -58,6 +58,11 @@ def _git(*args, timeout=30):
 def version(check: bool = False):
     """What code is the wall running, and (check=1) is there something newer upstream?"""
     out = {"root": ROOT, "git": os.path.isdir(os.path.join(ROOT, ".git"))}
+    try:
+        from ..services.doorbell import base_url
+        out["address"] = base_url()                 # the LAN address phones/TVs use
+    except Exception:
+        pass
     if not out["git"]:
         return out
     try:
@@ -114,6 +119,49 @@ def update():
     _upd.update({"running": True, "started": time.time(), "finished": None, "changed": None, "error": None, "log": ""})
     threading.Thread(target=_do_update, daemon=True).start()
     return {"started": True}
+
+
+def _write_env(key: str, value: str | None):
+    """Set (or remove, value=None) KEY=value in ROOT/.env, keeping every other line as is."""
+    path = os.path.join(ROOT, ".env")
+    lines = []
+    if os.path.exists(path):
+        with open(path) as f:
+            lines = [l for l in f.read().splitlines() if not l.strip().startswith(key + "=")]
+    if value is not None:
+        lines.append(f"{key}={value}")
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+@router.get("/pin")
+def pin_status():
+    from .. import auth
+    return {"on": bool(auth.PIN)}
+
+
+@router.post("/pin")
+def set_pin(payload: dict):
+    """Turn the family PIN on/change it ({pin: "1234"}) or off ({pin: ""}). Takes effect at once and is
+    saved to .env for restarts. When a PIN is already on, this request itself needs it (pin_guard)."""
+    import re as _re
+    from .. import auth
+    pin = str((payload or {}).get("pin", "")).strip()
+    if pin and not _re.fullmatch(r"\d{4,8}", pin):
+        raise HTTPException(400, "Use 4 to 8 digits")
+    try:
+        _write_env("FAMILYHUB_PIN", pin or None)
+    except OSError as e:
+        raise HTTPException(500, f"Couldn't save .env: {e}")
+    auth.PIN = pin or None
+    if pin:
+        os.environ["FAMILYHUB_PIN"] = pin
+    else:
+        os.environ.pop("FAMILYHUB_PIN", None)
+    return {"on": bool(pin)}
 
 
 @router.post("/restart")

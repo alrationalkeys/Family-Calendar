@@ -224,9 +224,15 @@
   .hm-room.on .hm-room-s{color:var(--now)}
   .hm-room-t{position:absolute; right:12px; top:12px; font-size:13px; font-weight:700; color:var(--ink-dim)}
   .hm-room-devs{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px}
-  .hm-dev{border:0; border-radius:12px; width:42px; height:42px; background:var(--panel2); font-size:19px; display:flex; align-items:center; justify-content:center; position:relative}
-  .hm-dev.on{background:color-mix(in srgb,var(--now) 24%, var(--panel2)); box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--now) 60%, transparent)}
+  .hm-dev{border:0; border-radius:12px; min-width:54px; height:52px; padding:0 6px; background:var(--panel2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; position:relative; color:var(--ink-dim); transition:background .15s, box-shadow .15s, transform .1s}
+  .hm-dev .ic{font-size:19px; line-height:1; filter:grayscale(1); opacity:.55; transition:filter .15s, opacity .15s}
+  .hm-dev .st{font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; line-height:1}
+  .hm-dev.on{background:color-mix(in srgb,var(--now) 24%, var(--panel2)); box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--now) 60%, transparent); color:var(--now)}
+  .hm-dev.on .ic{filter:none; opacity:1}
   .hm-dev.on::after{content:""; position:absolute; right:5px; top:5px; width:6px; height:6px; border-radius:50%; background:var(--now); box-shadow:0 0 6px var(--now)}
+  .hm-dev.warn{color:#e0a44a} .hm-dev.warn.on{box-shadow:inset 0 0 0 1.5px #e0a44a; background:color-mix(in srgb,#e0a44a 22%, var(--panel2))} .hm-dev.warn.on::after{background:#e0a44a; box-shadow:0 0 6px #e0a44a}
+  .hm-dev:active{transform:scale(.92)}
+  .hm-dev.busy{opacity:.6}
   /* everything grid */
   .tile-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
   .tile{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px; min-height:92px; display:flex; flex-direction:column; gap:4px}
@@ -983,10 +989,34 @@ function renderHero(h, tiles){
     hero.innerHTML=`<div class="hm-hero-plain">${txt}</div>`;
   }
 }
+/* short state word under each device icon, so a glance tells you open/closed, on/off, locked */
+function hmDevState(t){
+  if(t.domain==="cover") return t.state==="opening"?"Opening":t.state==="closing"?"Closing":t.state==="open"?"Open":"Closed";
+  if(t.domain==="lock") return t.state==="locked"?"Locked":t.state==="unlocked"?"Unlocked":t.state;
+  if(t.domain==="media_player") return t.on?(t.state==="playing"?"Playing":"On"):"Off";
+  if(t.domain==="scene"||t.domain==="script") return "Run";
+  if(t.domain==="camera") return "View";
+  if(t.domain==="fan") return t.on?"On":"Off";
+  return t.on?"On":"Off";
+}
 function hmDevButton(t){
   const E=FHHome.esc;
-  const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (t.toggleable||t.activatable) ? `onclick="FHHome.toggle('${E(t.entity_id)}')"` : "";
-  return `<button class="hm-dev${t.on?' on':''}" title="${E(t.name)} · ${E(FHHome.haStateLabel(t))}" ${tap}>${FHHome.haIcon(t)}</button>`;
+  const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : t.domain==="camera" ? `onclick="FHHome.camera('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (t.toggleable||t.activatable) ? `onclick="hmTap(this,'${E(t.entity_id)}','${E(t.domain)}','${E(t.name).replace(/'/g,"")}')"` : "";
+  // "on" = lit / open / unlocked: covers and locks use amber because open/unlocked is the state to notice
+  const warn = (t.domain==="cover"||t.domain==="lock");
+  const lit = t.domain==="lock" ? t.state!=="locked" : t.on;
+  return `<button class="hm-dev${lit?' on':''}${warn?' warn':''}" data-eid="${E(t.entity_id)}" title="${E(t.name)} · ${E(FHHome.haStateLabel(t))}" ${tap}><span class="ic">${FHHome.haIcon(t)}</span><span class="st">${hmDevState(t)}</span></button>`;
+}
+/* tap feedback: flip the button right away, buzz, say what's happening; the next poll confirms the real state */
+async function hmTap(btn, eid, domain, name){
+  if(navigator.vibrate) navigator.vibrate(12);
+  const wasOn=btn.classList.contains("on"), st=btn.querySelector(".st");
+  const verb = domain==="cover" ? (wasOn?"Closing":"Opening") : domain==="lock" ? (wasOn?"Locking":"Unlocking") : domain==="scene"||domain==="script" ? "Running" : (wasOn?"Turning off":"Turning on");
+  if(!(domain==="scene"||domain==="script")){ btn.classList.toggle("on"); if(st) st.textContent=verb+"…"; }
+  btn.classList.add("busy");
+  toast(`${verb} ${name}`);
+  try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){ toast("Couldn't reach the wall"); btn.classList.toggle("on", wasOn); }
+  setTimeout(()=>{ btn.classList.remove("busy"); loadHM(); }, domain==="cover"||domain==="lock" ? 1500 : 400);
 }
 function renderHM(h, force){
   hmLast=h; const E=FHHome.esc, body=$("#hm-body");

@@ -27,6 +27,8 @@ DESCRIBE = {
     "fh_peak_start": "When peak starts, turn both thermostats off.",
     "fh_peak_end": "When peak ends, turn them back on in the mode they were in, at the schedule's temperatures.",
     "fh_sched_apply": "At {input_datetime.sched_day_start} (day) and {input_datetime.sched_night_start} (night): set both thermostats to the schedule.",
+    "fh_peak_enforce": "During peak, if a thermostat gets turned back on, turn it off again (unless the safety limit is why).",
+    "fh_outdoor_holiday_now": "If holiday season starts after dark (or 'tonight anyway' is switched on), the holiday lights come on right away.",
     "fh_peak_safety": "Safety only: if a room drops to {input_number.peak_safe_low} or reaches {input_number.peak_safe_high} during peak, that thermostat comes back on.",
     # outdoor_lights.yaml
     "fh_outdoor_sunset": "Sunset: holiday lights on in holiday season, otherwise the nightly lights on.",

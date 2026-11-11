@@ -140,15 +140,31 @@ automation:
     triggers:
       - trigger: time
         at: input_datetime.fh_outdoor_switchover
-    conditions:
-      - condition: state
-        entity_id: binary_sensor.holiday_lights_season
-        state: "on"
+    conditions:            # any holiday light on (still true after midnight on the season's last night)
+      - condition: template
+        value_template: "{{ states('input_text.fh_outdoor_holiday_lights').split(',') | map('trim') | select('is_state', 'on') | list | count > 0 }}"
     actions:
       - action: script.fh_outdoor_set
         data: { list: input_text.fh_outdoor_holiday_lights, turn_on: false }
       - action: script.fh_outdoor_set
         data: { list: input_text.fh_outdoor_night_lights, turn_on: true }
+
+  # Holiday season starts after dark (e.g. "Turn them on tonight anyway"): switch over right away
+  - id: fh_outdoor_holiday_now
+    alias: "Outdoor: holiday lights on now (season started after sunset)"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.holiday_lights_season
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: sun.sun
+        state: below_horizon
+      - condition: template
+        value_template: "{{ now().strftime('%H:%M') < states('input_datetime.fh_outdoor_switchover')[:5] }}"
+    actions:
+      - action: script.fh_outdoor_set
+        data: { list: input_text.fh_outdoor_holiday_lights, turn_on: true }
 
   - id: fh_outdoor_sunrise
     alias: "Outdoor: everything off at sunrise"
@@ -179,6 +195,10 @@ automation:
     triggers:
       - trigger: time
         at: input_datetime.fh_outdoor_windows_off
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.christmas_season
+        state: "on"
     actions:
       - action: script.fh_outdoor_set
         data: { list: input_text.fh_outdoor_window_lights, turn_on: false }

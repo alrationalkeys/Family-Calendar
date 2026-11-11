@@ -212,13 +212,25 @@ automation:
                       target: { entity_id: "{{ repeat.item }}" }
                       data: { temperature: "{{ states('input_number.peak_precool') }}" }
 
+  # Fires at peak start, and also catches up if Home Assistant was restarting at that moment
+  # (start event + a check every 5 min). peak_active makes sure it only runs once per peak.
   - id: fh_peak_start
     alias: "Peak: HVAC off"
     triggers:
       - trigger: state
         entity_id: binary_sensor.santee_cooper_peak_now
         to: "on"
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/5"
     conditions:
+      - condition: state
+        entity_id: binary_sensor.santee_cooper_peak_now
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.peak_active
+        state: "off"
       - condition: state
         entity_id: input_boolean.peak_enabled
         state: "on"
@@ -245,7 +257,14 @@ automation:
       - trigger: state
         entity_id: binary_sensor.santee_cooper_peak_now
         to: "off"
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/5"
     conditions:
+      - condition: state
+        entity_id: binary_sensor.santee_cooper_peak_now
+        state: "off"
       - condition: state
         entity_id: input_boolean.peak_active
         state: "on"
@@ -256,34 +275,67 @@ automation:
             - { e: climate.downstairs_thermostat, k: down }
           sequence:
             - variables:
-                s: "{{ (states('input_text.peak_saved') | from_json)[repeat.item.k] }}"
+                s: "{{ (states('input_text.peak_saved') | from_json({})).get(repeat.item.k, ['heat_cool', none, none, none]) }}"
             - variables:
-                mode: "{{ s[0] if s[0] not in ['off','unavailable','unknown'] else 'heat_cool' }}"
-            - action: climate.set_hvac_mode
-              target: { entity_id: "{{ repeat.item.e }}" }
-              data: { hvac_mode: "{{ mode }}" }
-            - delay: { seconds: 5 }
-            - if:
-                - condition: state
-                  entity_id: input_boolean.sched_enabled
-                  state: "on"
-              then:   # back to the schedule's temperatures for this time of day
-                - action: script.fh_thermostat_schedule
-                  data: { entities: ["{{ repeat.item.e }}"] }
-              else:   # no schedule: back to exactly what it was before peak
-                - choose:
-                    - conditions: "{{ mode in ['heat_cool','auto'] and s[2] and s[3] }}"
-                      sequence:
-                        - action: climate.set_temperature
-                          target: { entity_id: "{{ repeat.item.e }}" }
-                          data: { target_temp_low: "{{ s[2] }}", target_temp_high: "{{ s[3] }}" }
-                    - conditions: "{{ mode in ['heat','cool'] and s[1] }}"
-                      sequence:
-                        - action: climate.set_temperature
-                          target: { entity_id: "{{ repeat.item.e }}" }
-                          data: { temperature: "{{ s[1] }}" }
+                mode: "{{ s[0] if s[0] not in ['unavailable','unknown', none] else 'heat_cool' }}"
+            - if: "{{ mode != 'off' }}"          # it was off before peak: leave it off
+              then:
+                - action: climate.set_hvac_mode
+                  target: { entity_id: "{{ repeat.item.e }}" }
+                  data: { hvac_mode: "{{ mode }}" }
+                - wait_template: "{{ is_state(repeat.item.e, mode) }}"   # Alarm.com can take a while to report the new mode
+                  timeout: 60
+                  continue_on_timeout: true
+                - if:
+                    - condition: state
+                      entity_id: input_boolean.sched_enabled
+                      state: "on"
+                  then:   # back to the schedule's temperatures for this time of day
+                    - action: script.fh_thermostat_schedule
+                      data: { entities: ["{{ repeat.item.e }}"] }
+                  else:   # no schedule: back to exactly what it was before peak
+                    - choose:
+                        - conditions: "{{ mode in ['heat_cool','auto'] and s[2] and s[3] }}"
+                          sequence:
+                            - action: climate.set_temperature
+                              target: { entity_id: "{{ repeat.item.e }}" }
+                              data: { target_temp_low: "{{ s[2] }}", target_temp_high: "{{ s[3] }}" }
+                        - conditions: "{{ mode in ['heat','cool'] and s[1] }}"
+                          sequence:
+                            - action: climate.set_temperature
+                              target: { entity_id: "{{ repeat.item.e }}" }
+                              data: { temperature: "{{ s[1] }}" }
       - action: input_boolean.turn_off
         target: { entity_id: input_boolean.peak_active }
+
+  # During peak, if a thermostat comes back on (someone at the wall, the Alarm.com app, a cloud blip at 6:00),
+  # turn it off again — unless the safety limit below is what turned it on.
+  - id: fh_peak_enforce
+    alias: "Peak: keep heat and AC off"
+    triggers:
+      - trigger: state
+        entity_id: [climate.upstairs_thermostat, climate.downstairs_thermostat]
+        not_to: ["off", "unavailable", "unknown"]
+        for: { seconds: 30 }
+      - trigger: time_pattern
+        minutes: "/10"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.peak_active
+        state: "on"
+    actions:
+      - repeat:
+          for_each: [climate.upstairs_thermostat, climate.downstairs_thermostat]
+          sequence:
+            - variables:
+                t: "{{ state_attr(repeat.item, 'current_temperature') | float(70) }}"
+            - if:
+                - "{{ states(repeat.item) not in ['off', 'unavailable', 'unknown'] }}"
+                - "{{ (states('input_number.peak_safe_low') | float(50)) < t < (states('input_number.peak_safe_high') | float(88)) }}"
+              then:
+                - action: climate.set_hvac_mode
+                  target: { entity_id: "{{ repeat.item }}" }
+                  data: { hvac_mode: "off" }
 
   # Safety only — pipes / extreme heat. Should never fire on a normal day.
   - id: fh_peak_safety

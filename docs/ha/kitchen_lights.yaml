@@ -157,6 +157,8 @@ automation:
       - condition: time
         after: input_datetime.fh_kitchen_upper_motion_from
         before: input_datetime.fh_kitchen_motion_until
+      - condition: template      # already on (someone turned them on): leave the brightness alone
+        value_template: "{{ states('input_text.fh_kitchen_upper_lights').split(',') | map('trim') | select('is_state', 'on') | list | count == 0 }}"
     actions:
       - action: script.fh_kitchen_set
         data: { lists: input_text.fh_kitchen_upper_lights, turn_on: true, kelvin: 2700,
@@ -187,6 +189,8 @@ automation:
       - condition: time
         after: input_datetime.fh_kitchen_lower_motion_from
         before: input_datetime.fh_kitchen_motion_until
+      - condition: template      # already on (someone turned them on): leave the brightness alone
+        value_template: "{{ states('input_text.fh_kitchen_lower_lights').split(',') | map('trim') | select('is_state', 'on') | list | count == 0 }}"
     actions:
       - action: script.fh_kitchen_set
         data: { lists: input_text.fh_kitchen_lower_lights, turn_on: true, kelvin: 2700,

@@ -60,7 +60,7 @@ def _migrate(conn):
                       ("person_id", "INTEGER")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT"), ("got_at", "TEXT")],   # got_at: when ticked; purged 30 min later
         "people":    [("birthday", "TEXT")],        # "MM-DD" or "YYYY-MM-DD"; drives the Birthday skin + countdown
-        "local_events": [("description", "TEXT"), ("skip_dates", "TEXT")],   # skip_dates: JSON list of "YYYY-MM-DD" occurrences to leave out
+        "local_events": [("description", "TEXT"), ("skip_dates", "TEXT"), ("location", "TEXT")],   # location: drives the leave-by countdown   # skip_dates: JSON list of "YYYY-MM-DD" occurrences to leave out
     }
     for table, cols in adds.items():
         for col, typ in cols:

@@ -62,6 +62,7 @@ def fetch_google_events(days_ahead: int = 30, days_back: int = 0, **kw) -> List[
             "source": "google",
             "all_day": "date" in item["start"],
             "description": item.get("description"),
+            "location": item.get("location"),
         }
         if item.get("recurringEventId"):
             # one occurrence of a series: deleting `id` cancels just this one,
@@ -147,7 +148,7 @@ def _rrule(recurrence: str, all_day: bool):
 
 
 def create_google_event(title: str, start_iso: str, end_iso: str,
-                        recurrence=None, color=None, description=None, **kw) -> Dict:
+                        recurrence=None, color=None, description=None, location=None, **kw) -> Dict:
     """Two-way sync: write an event back to Google. Skylight can't do this cleanly.
     Carries recurrence (as an RRULE) and color (snapped to Google's palette)."""
     svc = _service(**kw)
@@ -159,6 +160,8 @@ def create_google_event(title: str, start_iso: str, end_iso: str,
     }
     if description:
         body["description"] = description
+    if location:
+        body["location"] = location
     rr = _rrule(recurrence, all_day)
     if rr:
         body["recurrence"] = rr

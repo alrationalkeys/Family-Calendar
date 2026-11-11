@@ -42,7 +42,10 @@ const FH = (() => {
     skinBanner: true,        // the "Days until …" card in the header
     skinArt: true,           // painted frame artwork when the skin has one (off = vector frame)
     skinSlim: true,          // thinner painted frame (cropped), more room for the panels
-    calendarTasks: true,     // due-dated to-dos + chores show as all-day chips on the calendar
+    calendarTasks: true,
+    homeAddress: "",
+    leaveBuffer: 5,
+    leaveAlerts: true,     // due-dated to-dos + chores show as all-day chips on the calendar
     nightTemp: null,         // Good Night thermostat (null = leave it)
     awayTemp: null,          // Away thermostat setback     // wall says "someone's at the front door"
   };

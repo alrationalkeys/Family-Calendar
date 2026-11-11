@@ -46,6 +46,7 @@ def fetch_caldav_events(url: str, username: str, password: str,
                 "end": dtend.dt.isoformat() if dtend else None,
                 "source": "icloud",
                 "all_day": _is_all_day(dtstart.dt) if dtstart else False,
+                "location": str(comp.get("location")) if comp.get("location") else None,
             })
     return events
 
@@ -73,7 +74,7 @@ def list_event_calendars(url, username, password) -> List[str]:
 
 
 def create_caldav_event(url, username, password, title, start_iso, end_iso,
-                        calendar_name=None, all_day=False, description=None):
+                        calendar_name=None, all_day=False, description=None, location=None):
     """Create an event on a CalDAV calendar (iCloud write-back)."""
     if caldav is None:
         raise RuntimeError("pip install caldav icalendar")
@@ -100,6 +101,8 @@ def create_caldav_event(url, username, password, title, start_iso, end_iso,
         dt_end = datetime.fromisoformat(end_iso).strftime("%Y%m%dT%H%M%S")
         when = f"DTSTART:{dt_start}\nDTEND:{dt_end}\n"
     desc = ("DESCRIPTION:" + str(description).replace("\n", "\\n") + "\n") if description else ""
+    if location:
+        desc += "LOCATION:" + str(location).replace("\n", " ").replace(",", "\\,") + "\n"
     ical = (
         "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//FamilyHub//EN\n"
         f"BEGIN:VEVENT\nUID:{uid}\n{when}SUMMARY:{title}\n{desc}END:VEVENT\nEND:VCALENDAR"

@@ -1082,6 +1082,7 @@
 <div id="ev-modal">
   <h2 class="ev-title">Edit event</h2>
   <input id="ev-name" placeholder="Title">
+  <input id="ev-loc" placeholder="Where (address or place, optional) — shows when to leave">
   <label class="ev-chk"><input type="checkbox" id="ev-allday"> All day</label>
   <div class="ev-two"><input id="ev-date" type="date"><input id="ev-time" type="time"><input id="ev-end-date" type="date" title="Last day (for trips and multi-day events)" style="display:none"></div>
   <div class="ev-field" id="ev-dur-row"><label>Length</label>
@@ -1921,7 +1922,7 @@ function parseRecToUI(rec){
 function openCreate(prefDate, prefTime){
   modalMode="create"; editing=null;
   $(".ev-title").textContent="New event";
-  $("#ev-name").value="";
+  $("#ev-name").value=""; $("#ev-loc").value=""; $("#ev-loc").disabled=false; $("#ev-loc").style.display="";
   $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=false;
   $("#ev-allday").checked=false;
   const d=prefDate?new Date(prefDate):new Date();
@@ -1948,7 +1949,7 @@ function openEditor(ev){
             : (ev.source==="caldav"||ev.source==="icloud") ? "edit-icloud" : "edit-google";
   editing = editable ? ev : null;
   $(".ev-title").textContent = editable ? "Edit event" : (ev.title||"Event");
-  $("#ev-name").value=ev.title||"";
+  $("#ev-name").value=ev.title||""; $("#ev-loc").value=ev.location||"";
   const d=ev.start?evStart(ev):new Date(); const valid=d&&!isNaN(d);
   $("#ev-allday").checked=!!ev.all_day;
   $("#ev-date").value=valid?(ev.span_start||dateStr(d)):"";
@@ -1957,6 +1958,7 @@ function openEditor(ev){
   $("#ev-time").value=(ev.all_day||!valid)?"":d.toTimeString().slice(0,5);
   setDurMins(ev.all_day?60:Math.round((new Date(ev.end||ev.start)-evStart(ev))/60000)||60);
   $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=!editable;
+  $("#ev-loc").disabled=!(editable&&modalMode==="edit-local"); $("#ev-loc").style.display=(modalMode==="edit-local"||ev.location)?"":"none";
   $("#ev-desc").value=ev.description||""; $("#ev-desc").disabled=!editable;
   $("#ev-desc").style.display=(editable||ev.description)?"":"none";
   chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
@@ -2004,18 +2006,19 @@ $("#ev-save").onclick=async()=>{
   const t=eventTimes();
   const personId = $("#ev-person").value ? parseInt($("#ev-person").value) : null;
   const desc = $("#ev-desc").value.trim() || null;
+  const location = $("#ev-loc").value.trim() || null;
   try{
     if(modalMode==="create"){
       // target "auto": goes to Google (with RRULE + color) if connected, else local
       const destination=$("#ev-cal").value||"local";
       FH.save({defaultCalendar:destination});     // remember the last-used calendar
       const res=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc,
+        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location,
           recurrence:buildRecFromUI(), color:chosenEvColor, person_id:personId, target:"auto", destination})}).then(r=>r.json()).catch(()=>({}));
       if(res.warning) banner(res.warning);
     } else if(modalMode==="edit-local"){
       await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, recurrence:buildRecFromUI(),
+        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location, recurrence:buildRecFromUI(),
           person_id:personId, category_id:editing.category_id, color:chosenEvColor})});
     } else if(editing){
       const target = modalMode==="edit-icloud" ? "icloud" : "google";
@@ -2289,14 +2292,29 @@ function renderPhotosPage(){
 /* ---- Home / smart-home tab (talks to Home Assistant via /api/ha) ---- */
 /* icons / labels / floor plan live in home-shared.js (shared with the phone app) */
 const HA_ICON=FHHome.HA_ICON; const haIcon=FHHome.haIcon; const haStateLabel=FHHome.haStateLabel;
+/* leave-by countdown: /api/travel/next every 2 min; the chip re-renders with the status bar */
+let trips=[], tripsSaid={};
+async function loadTrips(){ try{ trips=(await fetch("/api/travel/next").then(r=>r.json())).trips||[]; }catch(e){} loadHomeStatus(); }
+function tripChip(){
+  const t=trips.find(x=>x.leave_at); if(!t) return "";
+  const mins=Math.round((new Date(t.leave_at)-Date.now())/60000), start=new Date(t.start);
+  if(mins>60 || Date.now()>start) return "";
+  const key=t.title+"|"+t.start;
+  if(mins<=0 && !tripsSaid[key] && FH.get().speakAlerts!==false && !asleep){ tripsSaid[key]=1; sayAloud(`Time to leave for ${t.title}. It's about ${t.minutes} minutes away${t.traffic?" with traffic":""}.`); }
+  const when=start.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const txt = mins<=0 ? `Leave now for <b>${esc(t.title)}</b>` : `Leave in <b>${mins} min</b> for ${esc(t.title)}`;
+  return `<span class="hb ${mins<=10?'warn':''}" title="${esc(t.location)}">\u{1F697} ${txt} <span style="opacity:.7">· ${t.minutes} min drive${t.traffic?"":", no traffic data"} · ${when}</span></span>`;
+}
 async function loadHomeStatus(){
   const bar=$("#home-statusbar"); if(!bar) return;
   if(curPage!=="calendar"){ bar.classList.remove("show"); return; }
   let s;
   try{ s=(await cachedFetch("/api/ha/status","hastatus")).data; }
-  catch(e){ bar.classList.remove("show"); return; }
-  if(!s || !s.connected){ bar.classList.remove("show"); return; }
+  catch(e){ s=null; }
+  const chip=tripChip();
+  if(!s || !s.connected){ if(chip){ bar.innerHTML=chip; bar.classList.add("show"); } else bar.classList.remove("show"); return; }
   const parts=[];
+  if(chip) parts.push(chip);
   const armed=(s.alarm||"").startsWith("armed");
   const alarmLabel={disarmed:"Disarmed",armed_home:"Armed home",armed_away:"Armed away",
     armed_night:"Armed night",pending:"Pending",triggered:"TRIGGERED"}[s.alarm]||s.alarm;
@@ -3082,6 +3100,7 @@ async function setupSpotifyPlayer(){
   setInterval(checkNotifications, 30000);  // reminders every 30s
   setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
   setInterval(loadHomeStatus, 30000);      // smart-home status bar every 30s
+  loadTrips(); setInterval(loadTrips, 120000);   // leave-by drive times every 2 min
   setInterval(syncSettings, 60000);        // pick up settings changed from a phone
   scheduleNightlyReload();
 })();

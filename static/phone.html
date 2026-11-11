@@ -464,6 +464,9 @@
     <label class="chk"><input type="checkbox" id="set-doorbell-speak"> Doorbell: wall pops the camera + says "someone's at the front door"</label>
     <label class="chk"><input type="checkbox" id="set-doorbell-tv"> Doorbell: flash the camera on any Roku that's on (about 20 s)</label>
     <button class="tool" id="set-doorbell-test" type="button" style="margin:6px 0 10px">🔔 Test the doorbell</button>
+    <div class="srow"><span>Home address for drive times</span><input id="set-home" placeholder="blank = Home Assistant's home" style="width:56%; margin:0"></div>
+    <div class="srow"><span>Extra minutes to park &amp; walk in</span><input id="set-leavebuf" type="number" min="0" max="30" style="width:84px; margin:0"></div>
+    <label class="chk"><input type="checkbox" id="set-leave"> Wall shows "Leave in N min" for events with a place, and says it at leave time</label>
     <div class="srow"><span>Good Night sets the thermostat to</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
     <div class="srow"><span>Leaving sets the thermostat to</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="leave" style="width:84px; margin:0"></div>
     <div class="hint">Good night / Leaving also turn off lights and TVs, lock the doors and arm the alarm; the wall tells you if a door or the garage is still open. Say "good night", "we're leaving" or "I'm home" to the wall, too.</div>
@@ -718,6 +721,7 @@ function renderForm(){
   const colorRow=`<div class="colors" id="fColors"></div>`;
   if(formKind==="event"){
     f.innerHTML=`<input id="e_title" placeholder="Event title">
+      <input id="e_loc" placeholder="Where (optional) — the wall says when to leave">
       <label class="chk"><input type="checkbox" id="e_allday" onchange="toggleAllDay()"> All day</label>
       <div class="two"><input id="e_date" type="date" value="${today}"><input id="e_time" type="time" value="09:00"><input id="e_end_date" type="date" title="Last day" style="display:none"></div>
       <div class="two"><select id="e_repeat" title="Repeats" onchange="toggleRepeat()">
@@ -801,9 +805,10 @@ async function saveEvent(){
   const destination=$("#e_cal")?$("#e_cal").value:"local";
   const person_id=num($("#e_person")?$("#e_person").value:"");
   const recurrence=eventRecurrence();
+  const loc=($("#e_loc")&&$("#e_loc").value.trim())||null;
   if(allday){
     const last=$("#e_end_date").value;                                // multi-day trip: last day inclusive
-    payload={title, start:date, end:nextDay(last&&last>date?last:date), all_day:true, destination, person_id, color:chosenColor, recurrence};
+    payload={title, start:date, end:nextDay(last&&last>date?last:date), all_day:true, destination, person_id, color:chosenColor, recurrence, location:loc};
   } else {
     const time=$("#e_time").value; if(!time){ toast("Pick a time"); return; }
     const start=`${date}T${time}:00`;
@@ -811,7 +816,7 @@ async function saveEvent(){
     const d=new Date(start); d.setMinutes(d.getMinutes()+mins);
     const p=n=>String(n).padStart(2,"0");
     const end=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
-    payload={title, start, end, destination, person_id, color:chosenColor, recurrence};
+    payload={title, start, end, destination, person_id, color:chosenColor, recurrence, location:loc};
   }
   FH.save({defaultCalendar:destination});
   try{
@@ -819,7 +824,7 @@ async function saveEvent(){
     const data=await r.json().catch(()=>({}));
     if(!r.ok){ toast(data.detail||data.error||"Couldn't add event"); return; }
     toast(data.warning || (data.target==="local" ? "Event added" : data.target==="icloud" ? `Event added to iCloud${data.calendar?" › "+data.calendar:""}` : "Event added to Google"));
-    $("#e_title").value="";
+    $("#e_title").value=""; if($("#e_loc")) $("#e_loc").value="";
   }catch(e){ toast("Couldn't reach the server"); }
 }
 async function saveChore(){
@@ -1357,6 +1362,9 @@ function loadSettingsUI(){
   $("#set-skin-art").checked=s.skinArt!==false; $("#set-skin-art").onchange=e=>FH.save({skinArt:e.target.checked});
   if(window.Skins&&!$("#set-skin-previews").children.length) Skins.list().forEach(k=>{ const a=document.createElement("a"); a.className="tool"; a.href="/?skin="+k.key; a.target=document.body.classList.contains("embed")?"_top":"_blank"; a.style.cssText="text-align:center; text-decoration:none"; a.textContent="👀 "+k.emoji+" "+k.name; $("#set-skin-previews").appendChild(a); });
   $("#set-skin-banner").checked=s.skinBanner!==false; $("#set-skin-banner").onchange=e=>FH.save({skinBanner:e.target.checked});
+  $("#set-home").value=s.homeAddress||""; $("#set-home").onchange=e=>FH.save({homeAddress:e.target.value.trim()});
+  $("#set-leavebuf").value=s.leaveBuffer??5; $("#set-leavebuf").onchange=e=>FH.save({leaveBuffer:Math.max(0,Math.min(30,parseInt(e.target.value,10)||0))});
+  $("#set-leave").checked=s.leaveAlerts!==false; $("#set-leave").onchange=e=>FH.save({leaveAlerts:e.target.checked});
   $("#set-caltasks").checked=s.calendarTasks!==false; $("#set-caltasks").onchange=e=>FH.save({calendarTasks:e.target.checked});
   if(window.Skins&&$("#set-skin").options.length<=2) Skins.list().forEach(k=>{ const o=document.createElement("option"); o.value=k.key; o.textContent=k.emoji+" "+k.name; $("#set-skin").appendChild(o); });
   $("#set-skin").value=s.skin||"auto"; $("#set-skin").onchange=e=>{ FH.save({skin:e.target.value}); toast("Wall updated"); };

@@ -83,12 +83,15 @@ def fetch_ics_events(url, days_ahead=30, days_back=1, label="feed", color=None):
                     "all_day": cur.get("all_day", False),
                     "source": "ics",
                     "color": color or "#3db5c9",
+                    "location": cur.get("location"),
                 })
             cur = None
         elif cur is not None:
             name, params, value = _split_prop(line)
             if name == "SUMMARY":
                 cur["summary"] = _unescape(value)
+            elif name == "LOCATION":
+                cur["location"] = _unescape(value)
             elif name == "DTSTART":
                 cur["start"], cur["all_day"] = _parse_dt(value, params)
             elif name == "DTEND":

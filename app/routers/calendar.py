@@ -120,6 +120,7 @@ class NewEvent(BaseModel):
     color: str | None = None
     description: str | None = None
     recurrence: str | None = None
+    location: str | None = None
     target: str = "auto"  # "auto" | "google" | "local"
     destination: str | None = None   # "local" | "google" | "caldav:<source id>:<calendar name>"
 
@@ -132,9 +133,9 @@ def _has_source(kind: str) -> bool:
 def _add_local_event(ev: "NewEvent") -> dict:
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (ev.title, ev.start, ev.end, int(ev.all_day), ev.person_id, ev.category_id, ev.color, ev.description, ev.recurrence))
+            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence,location) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (ev.title, ev.start, ev.end, int(ev.all_day), ev.person_id, ev.category_id, ev.color, ev.description, ev.recurrence, ev.location))
         return {"id": cur.lastrowid, "target": "local"}
 
 
@@ -156,7 +157,7 @@ def add_event(ev: NewEvent):
         try:
             res = caldav_sync.create_caldav_event(cfg["url"], cfg["username"], cfg["password"], ev.title,
                                                   ev.start, ev.end, calendar_name=calname or None,
-                                                  all_day=ev.all_day, description=ev.description)
+                                                  all_day=ev.all_day, description=ev.description, location=ev.location)
             return {"id": res.get("uid"), "target": "icloud", "calendar": calname}
         except Exception as e:
             local = _add_local_event(ev)
@@ -168,7 +169,7 @@ def add_event(ev: NewEvent):
         try:
             res = google_sync.create_google_event(ev.title, ev.start, ev.end,
                                                    recurrence=ev.recurrence, color=ev.color,
-                                                   description=ev.description)
+                                                   description=ev.description, location=ev.location)
             return {"id": res.get("id"), "target": "google"}
         except Exception as e:
             # don't lose the event — fall back to a local copy and report it

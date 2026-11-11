@@ -46,7 +46,10 @@ DEFAULTS = {
     "skinBanner": True,              # the "Days until …" card in the header
     "skinArt": True,                 # painted frame artwork when the skin has one (off = vector frame)
     "skinSlim": True,                # crop the painted frame so it's thinner and the panels get more room
-    "calendarTasks": True,           # due-dated to-dos + chores show as all-day chips on the calendar
+    "calendarTasks": True,
+    "homeAddress": "",               # where drive times start from (blank = Home Assistant's home location)
+    "leaveBuffer": 5,                # minutes added to the drive for parking/walking in
+    "leaveAlerts": True,             # show "Leave in N min" on the wall for events with a place           # due-dated to-dos + chores show as all-day chips on the calendar
     "nightTemp": None,               # Good Night sets the thermostat to this (None = leave it)
     "awayTemp": None,                # Away mode thermostat setback           # wall says "someone's at the front door"
 }

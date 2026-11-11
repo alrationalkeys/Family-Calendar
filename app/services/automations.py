@@ -45,8 +45,6 @@ DESCRIBE = {
     "fh_kitchen_lowers_motion_on": "{input_datetime.fh_kitchen_lower_motion_from}–{input_datetime.fh_kitchen_motion_until}: motion turns the lowers on at {input_number.fh_kitchen_motion_bright}.",
     "fh_kitchen_lowers_motion_off": "At night: lowers off after {input_number.fh_kitchen_quiet_minutes} with no motion.",
     "fh_kitchen_morning_off": "{input_datetime.fh_kitchen_morning_off}: all kitchen lights off.",
-    "fh_kitchen_button_single": "Kitchen button, single press: all kitchen lights on.",
-    "fh_kitchen_button_double": "Kitchen button, double press: all kitchen lights off.",
 }
 
 # settings shown per group, in this order (anything else matching `helpers` follows, by name)

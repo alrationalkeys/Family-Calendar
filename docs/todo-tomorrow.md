@@ -12,7 +12,8 @@
 - [ ] Spotify on the wall now starts at 45% — after updating the wall, play something and check the level (change it: Settings → Advanced → Spotify).
 - [ ] Voice test at the wall: "add dentist Friday at 3 for Rachell", "we need paper towels", "what's on the grocery list",
       "check off paper towels", "what's the temperature inside". Phone → Settings → Advanced → Voice → screenshot the history if anything's off.
-- [ ] Zigbee stick delivered — set up when there's time (section below).
+- [x] Zigbee stick set up (ZHA, Sonoff ZBDongle-E); 4 GLEDOPTO + Aqara P1 motion paired. No button.
+- [ ] Fix the duplicate "Fridge Upper LED" (one is Stove Upper), motion entity → `binary_sensor.kitchen_motion`, install kitchen_lights.yaml, pick lights in FamilyHub, Alexa routines off.
 
 ## First thing
 - [x] **Update the wall:** phone → Settings → The wall → Update the wall. Then reload.

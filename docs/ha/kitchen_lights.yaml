@@ -5,8 +5,7 @@
 #   the night windows for motion, and how many quiet minutes before the lights go off.
 # Starting values (the old Alexa routines) are filled in once on the first start; after that your changes are kept.
 #
-# INSTALL (once the four GLEDOPTO controllers, the Aqara motion sensor and the button are paired to the
-# Zigbee stick):
+# INSTALL (once the four GLEDOPTO controllers and the Aqara motion sensor are paired to the Zigbee stick):
 #   1. Rename the motion sensor's entity to  binary_sensor.kitchen_motion  (entity > gear > Entity ID).
 #      The lights can have any name: pick them in FamilyHub afterwards (starting picks: light.fridge_upper,
 #      light.stove_upper, light.fridge_lower, light.stove_lower, light.back_patio).
@@ -216,28 +215,6 @@ automation:
     triggers:
       - trigger: time
         at: input_datetime.fh_kitchen_morning_off
-    actions:
-      - action: script.fh_kitchen_set
-        data: { lists: [input_text.fh_kitchen_upper_lights, input_text.fh_kitchen_lower_lights], turn_on: false }
-
-  # Aqara button: single press = all kitchen lights on, double press = all off.
-  # Once paired, add  device_ieee: "xx:xx:..."  (from the button's Zigbee page) next to `command:` so other
-  # buttons don't trigger it — or send Claude a screenshot of the button's page.
-  - id: fh_kitchen_button_single
-    alias: "Kitchen button: single press = lights on"
-    triggers:
-      - trigger: event
-        event_type: zha_event
-        event_data: { command: single }
-    actions:
-      - action: script.fh_kitchen_set
-        data: { lists: [input_text.fh_kitchen_upper_lights, input_text.fh_kitchen_lower_lights], turn_on: true, brightness: 100, kelvin: 2700 }
-  - id: fh_kitchen_button_double
-    alias: "Kitchen button: double press = lights off"
-    triggers:
-      - trigger: event
-        event_type: zha_event
-        event_data: { command: double }
     actions:
       - action: script.fh_kitchen_set
         data: { lists: [input_text.fh_kitchen_upper_lights, input_text.fh_kitchen_lower_lights], turn_on: false }

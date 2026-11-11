@@ -66,7 +66,9 @@ def _states() -> list:
     try:
         from . import ha_live
         st = ha_live.states()
-        return st if st is not None else (ha_svc._request("/api/states") or [])
+        if st is None or not any(x["entity_id"].startswith("automation.") for x in st):
+            st = ha_svc._request("/api/states") or st or []       # mirror can be stale right after an HA restart
+        return st
     except Exception:
         return []
 
@@ -124,7 +126,9 @@ def list_all() -> dict:
     if other:
         groups.append({"key": "other", "title": "Other automations", "blurb": "Made in Home Assistant directly.",
                        "installed": True, "status": [], "automations": other, "settings": []})
-    return {"connected": True, "demo": ha_svc.demo_mode(), "groups": groups}
+    return {"connected": True, "demo": ha_svc.demo_mode(), "groups": groups, "ha_total": len(autos),
+            "fh_ids": sorted(str((x.get("attributes") or {}).get("id") or "") for x in autos if str((x.get("attributes") or {}).get("id") or "").startswith("fh_")),
+            "helpers_found": sum(1 for x in states if x["entity_id"].startswith(("input_number.peak_", "input_datetime.peak_", "input_boolean.holiday_")))}
 
 
 def set_automation(entity_id: str, on: bool) -> dict:

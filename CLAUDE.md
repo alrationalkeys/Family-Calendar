@@ -152,6 +152,14 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   override with `FAMILYHUB_SCREEN_ON_CMD` / `FAMILYHUB_SCREEN_OFF_CMD` for Wayland/non-Pi.
 - recurrence: chores/todos/events with `recurrence` roll forward / expand
 
+## North Pole Village (Christmas village, Nov 2026)
+Handoff doc: `docs/village/README.md` — three ESP32 boards on the LAN, HTTP-controlled: Board A `village-fx`
+(192.168.1.200, effects hub, `/cmd?do=wake|sleep|tree|rachell|carol|train|play:N|light:N|rinkon|lampson|manual…`,
+`/status` plain text), Board B `village-train` (192.168.1.121, `/go?laps=N`, `/stop`, `/status`), WLED `village-lights`
+(192.168.1.133?, presets 1 Off · 2 Sleepy · 3 Evening · 4 Tree show · 5 Rachell's show). Village is finished and
+snow-covered: **never flash firmware unless Alex asks**; real `secrets.h` never goes in the repo. Board A runs its own
+schedule (open 16:00–23:00) + motion wake, so HA/FamilyHub should complement it, not fight it. `manual`/`override` toggle.
+
 ## Reminders & notifications
 Local events can carry `reminder_minutes`; a notification is queued and the wall
 polls `/api/notifications/due` every 30s, showing a banner + (if permitted) a native

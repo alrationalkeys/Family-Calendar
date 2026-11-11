@@ -9,15 +9,15 @@ phone doorbell video, sleep mode.
 - [ ] **0b. Alarm.com: turn OFF the 4 outdoor light schedules** (Home Assistant runs them from tonight).
 
 ## Wall — adding things
-- [ ] **1. To-do +.** Lists page → To-Do **+** → a pop-up with Event / Chore / To-do / … opens on **To-do**.
+- [x] **1. To-do +.** Lists page → To-Do **+** → a pop-up with Event / Chore / To-do / … opens on **To-do**.
       Type a title, pick a person, Add → pop-up closes, the to-do shows in the list with that person's colour.
-- [ ] **2. Calendar tap.** Week view → tap an empty slot (say Saturday 3 PM) → pop-up on **Event** with that
+- [x] **2. Calendar tap.** Week view → tap an empty slot (say Saturday 3 PM) → pop-up on **Event** with that
       date + 3:00 filled in. Tap **Chore** → the due date is still Saturday. Back to Event, add a title, Add →
       it appears on Saturday 3 PM.
-- [ ] **3. + Event button** (calendar header) → same pop-up, today's date.
-- [ ] **4. Festive keyboard.** Tap a text box → keyboard slides up. Keys type, ⇧ makes a capital, 123 shows
+- [x] **3. + Event button** (calendar header) → same pop-up, today's date.
+- [x] **4. Festive keyboard.** Tap a text box → keyboard slides up. Keys type, ⇧ makes a capital, 123 shows
       numbers, return submits, **hide** puts it away, tapping outside the box puts it away.
-- [ ] **5. One keyboard only.** Pick one: Ubuntu Settings → Accessibility → Typing → Screen Keyboard **off**
+- [x] **5. One keyboard only.** Pick one: Ubuntu Settings → Accessibility → Typing → Screen Keyboard **off**
       (keeps the festive one), or wall Settings → Display → uncheck the on-screen keyboard (keeps Ubuntu's).
       Then tap a text box → exactly one keyboard.
 
@@ -33,7 +33,7 @@ phone doorbell video, sleep mode.
 - [ ] **10. I'm home (already disarmed).** No keypad; garage opens, lights after dark.
 
 ## Wall — cameras + doorbell
-- [ ] **11. Front door camera on the wall.** Home page → tap it → picture refreshes every few seconds, then
+- [x] **11. Front door camera on the wall.** Home page → tap it → picture refreshes every few seconds, then
       **Live** with moving video; or after ~15 s+ "Live view isn't answering" + **Try live again**. Never a
       black screen saying Live.
 - [ ] **12. Backyard camera on the wall** → goes Live.
@@ -41,7 +41,7 @@ phone doorbell video, sleep mode.
       the door; a Roku that's ON flashes the picture; both phones get a notification with the picture.
 
 ## Wall — status bar
-- [ ] **14. Door to garage.** Open the house→garage door → status bar says **"Door to garage open"**
+- [x] **14. Door to garage.** Open the house→garage door → status bar says **"Door to garage open"**
       (not "Garage Door"). Close it → clears.
 - [ ] **15. Leave-by.** Phone → Add → Event ~45 min from now with a **Where** (a real address) → within 2 min
       the wall's status bar shows a leave-by chip ("Leave in 20 min · 25 min drive"). At leave time the wall

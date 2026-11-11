@@ -329,6 +329,17 @@
   .card .body{overflow-y:auto}
   .list-row{display:flex; align-items:center; gap:11px; padding:7px 0; border-top:1px solid var(--line); cursor:pointer}
   .list-row .who{font-size:.82em; font-weight:600; opacity:.85}
+  .list-row .more{margin-left:auto; flex:none; border:0; background:none; color:var(--ink-dim); font-size:20px; line-height:1; width:36px; height:30px; border-radius:8px; cursor:pointer; opacity:.55}
+  .list-row .more:active{background:var(--panel2); opacity:1}
+  .list-row .qty + .more{margin-left:4px}
+  /* item menu (press and hold a chore / to-do / grocery, or tap ⋯) */
+  #im-ov{position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center}
+  #im-ov.on{display:flex}
+  #im-box{background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:20px; padding:18px; width:400px; max-width:92vw; box-shadow:0 20px 60px rgba(0,0,0,.5); font-family:var(--font, inherit)}
+  #im-box h3{margin:0 0 4px; font-size:20px} #im-box .sub{font-size:14px; color:var(--ink-dim); margin-bottom:12px}
+  #im-box button{display:block; width:100%; border:0; border-radius:12px; padding:15px; margin-top:8px; font:inherit; font-size:17px; font-weight:600; background:var(--panel2); color:var(--ink); cursor:pointer; touch-action:manipulation}
+  #im-box button.danger{color:#fff; background:#c0392b}
+  #im-box button.plain{background:none; color:var(--ink-dim)}
   .list-row:first-child{border-top:0}
   .box{width:20px; height:20px; border-radius:6px; border:2px solid var(--line); flex:none; transition:.15s}
   .list-row.done .box{background:var(--now); border-color:var(--now)}
@@ -1463,6 +1474,53 @@ function applyPanelSizes(sz){
   cards.forEach((c,i)=>{ c.style.flexGrow=sz[i]; c.style.flexShrink=1; c.style.flexBasis="0"; });
 }
 
+/* ---- item menu: delete / stop repeating / skip, for chores, to-dos and groceries ----
+   Opened by pressing and holding a row (or its ⋯). Edits start from the item as stored (GET), so the
+   colour chain (item -> category -> person) isn't overwritten with the dashboard's resolved colour. */
+function itemMenu(kind, item){
+  resetSleep();
+  let ov=$("#im-ov");
+  if(!ov){ ov=document.createElement("div"); ov.id="im-ov"; ov.innerHTML='<div id="im-box" role="dialog" aria-modal="true"></div>'; document.body.appendChild(ov);
+    ov.addEventListener("click", e=>{ if(e.target===ov) ov.classList.remove("on"); }); }
+  const box=$("#im-box"), title=item.title||item.item||"", rec=item.recurrence;
+  const api={chore:"chores", todo:"todos", grocery:"groceries"}[kind];
+  const recTxt=rec?({daily:"every day", weekly:"every week", monthly:"every month"}[String(rec).split(";")[0]]||"on a schedule"):"";
+  box.innerHTML=`<h3>${esc(title)}</h3><div class="sub">${kind==="grocery"?"Grocery":kind==="chore"?"Chore":"To-do"}${recTxt?" · repeats "+recTxt:""}${item.due_date?" · due "+esc(item.due_date.slice(5)):""}</div>
+    ${rec?`<button data-a="skip">Skip this one (move to the next date)</button><button data-a="stop">Stop repeating (keep this one)</button>`:""}
+    <button data-a="del" class="danger">${rec?"Delete it (all future ones too)":"Delete"}</button>
+    <button data-a="x" class="plain">Cancel</button>`;
+  ov.classList.add("on");
+  const done=()=>{ ov.classList.remove("on"); load(); };
+  box.querySelectorAll("button").forEach(b=>b.onclick=async()=>{
+    const a=b.dataset.a;
+    if(a==="x") return ov.classList.remove("on");
+    if(a==="del"){
+      if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent="Tap again to delete"; return; }
+      await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>{}); banner("\u{1F5D1} Deleted", title); return done();
+    }
+    if(a==="skip"){ await fetch(`/api/${api}/${item.id}/toggle`,{method:"POST"}).catch(()=>{}); banner("\u23ED Skipped", title); return done(); }
+    if(a==="stop"){
+      let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
+      if(!raw){ banner("Couldn't change it", "Try again in a moment"); return; }
+      const body={title:raw.title, person_id:raw.person_id, category_id:raw.category_id, color:raw.color, due_date:raw.due_date, recurrence:null};
+      if(kind==="chore") body.stars=raw.stars||0;
+      await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>{});
+      banner("\u{1F501} Stopped repeating", title); return done();
+    }
+  });
+}
+/* press-and-hold a list row -> itemMenu; a quick tap still checks it off. Adds a ⋯ button too. */
+function holdable(row, open){
+  let t=null, held=false;
+  const start=()=>{ held=false; clearTimeout(t); t=setTimeout(()=>{ held=true; if(navigator.vibrate) navigator.vibrate(20); open(); }, 550); };
+  const stop=()=>clearTimeout(t);
+  row.addEventListener("pointerdown", start); ["pointerup","pointerleave","pointercancel"].forEach(ev=>row.addEventListener(ev, stop));
+  row.addEventListener("contextmenu", e=>{ e.preventDefault(); });
+  const tap=row.onclick; row.onclick=(e)=>{ if(held){ held=false; return; } if(tap) tap(e); };
+  const m=document.createElement("button"); m.className="more"; m.textContent="⋯"; m.setAttribute("aria-label","More");
+  m.onclick=(e)=>{ e.stopPropagation(); open(); }; m.addEventListener("pointerdown", e=>e.stopPropagation());
+  row.appendChild(m);
+}
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
   // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
@@ -1475,6 +1533,7 @@ function renderTodos(todos, box){
     const who=t.person_id?((people||[]).find(p=>p.id===t.person_id)||{}).name:"";
     row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who.split(" ")[0])}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
     row.onclick=async()=>{await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"});load();resetSleep();};
+    holdable(row, ()=>itemMenu("todo", t));
     box.appendChild(row);
   });
   if(later){ const n=document.createElement("div"); n.className="empty"; n.style.fontSize="12px"; n.textContent=`+ ${later} later (next week or after)`; box.appendChild(n); }
@@ -1486,6 +1545,7 @@ function renderGroceries(items, box){
     const row=document.createElement("div"); row.className="list-row"+(g.got?" done":"");
     row.innerHTML=`<div class="box"></div><span class="dot" style="background:${g.color||'#4f86c6'}"></span><div class="label">${esc(g.item)}</div>${g.qty?`<div class="qty">${esc(g.qty)}</div>`:""}`;
     row.onclick=async()=>{await fetch(`/api/groceries/${g.id}/toggle`,{method:"POST"});load();resetSleep();};
+    holdable(row, ()=>itemMenu("grocery", g));
     box.appendChild(row);
   });
 }
@@ -1497,6 +1557,7 @@ function renderChoreList(chores, box){
     const stars=c.stars?`<div class="qty">${"★".repeat(Math.min(c.stars,5))}</div>`:"";
     row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(c.color||'#4f86c6')}"></span><div class="label">${esc(c.title)}</div>${stars}`;
     row.onclick=async()=>{ await fetch(`/api/chores/${c.id}/toggle`,{method:"POST"}).catch(()=>{}); celebrate(row); load(); resetSleep(); };
+    holdable(row, ()=>itemMenu("chore", c));
     box.appendChild(row);
   });
 }

@@ -20,7 +20,7 @@
 # INSTALL
 #   1. Check the entity IDs below match yours: Settings > Devices & services > Alarm.com > entities.
 #      Rename to these, or edit this file. (homeassistant.turn_on works for both lights and switches.)
-#   2. Put this file in /config/packages/ (same as kitchen-lights.yaml) and restart.
+#   2. Put this file in /config/packages/ (same as kitchen_lights.yaml) and restart.
 #   3. Turn the four Alarm.com schedules above OFF.
 
 input_boolean:

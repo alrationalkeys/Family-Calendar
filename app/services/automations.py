@@ -17,18 +17,18 @@ from . import ha_svc
 
 # yaml id -> plain-English description (what it does, when)
 DESCRIBE = {
-    # peak-thermostat.yaml
+    # peak_thermostat.yaml
     "fh_peak_precondition": "An hour before peak, pre-heat to the pre-heat temp (winter) or pre-cool (summer).",
     "fh_peak_start": "When peak starts, turn both thermostats off.",
     "fh_peak_end": "When peak ends, turn them back on at the schedule's temperatures.",
     "fh_peak_safety": "Safety only: if a room hits the floor/ceiling during peak, that thermostat comes back on.",
-    # outdoor-lights.yaml
+    # outdoor_lights.yaml
     "fh_outdoor_sunset": "Sunset: holiday plug on in holiday season, otherwise porch, driveway and side lights on.",
     "fh_outdoor_1150": "Holiday season, 11:50 PM: holiday plug off, porch, driveway and side lights on.",
     "fh_outdoor_sunrise": "Sunrise: everything outside off.",
     "fh_christmas_upstairs_on": "Christmas season: upstairs window lights on at sunset.",
     "fh_christmas_upstairs_off": "Upstairs window lights off at 10:30 PM.",
-    # kitchen-lights.yaml
+    # kitchen_lights.yaml
     "fh_kitchen_evening": "8 PM: kitchen uppers on warm white 10%, back patio on.",
     "fh_patio_off": "9:45 PM: back patio off.",
     "fh_kitchen_uppers_midnight": "Midnight: kitchen uppers off.",

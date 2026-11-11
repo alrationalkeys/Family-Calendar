@@ -57,7 +57,7 @@
       const allOn = g.automations.length && g.automations.every(a => a.on);
       html += `<div class="au-group"><div class="au-h"><b>${esc(g.title)}</b>${g.automations.length ? sw(`data-group="${g.key}" aria-label="All of ${esc(g.title)}"`, allOn) : ""}</div>`;
       html += `<div class="au-blurb">${esc(g.blurb)}</div>`;
-      if (!g.installed && g.key !== "other") html += `<div class="au-missing">Not installed in Home Assistant yet: add <code>docs/ha/${g.key === "peak" ? "peak-thermostat" : g.key === "outdoor" ? "outdoor-lights" : "kitchen-lights"}.yaml</code> to the packages folder.</div>`;
+      if (!g.installed && g.key !== "other") html += `<div class="au-missing">Not installed in Home Assistant yet: add <code>docs/ha/${g.key === "peak" ? "peak_thermostat" : g.key === "outdoor" ? "outdoor_lights" : "kitchen_lights"}.yaml</code> to the packages folder.</div>`;
       if (g.status.length) html += `<div class="au-chips">${g.status.map(s => `<span class="au-chip ${s.on ? "on" : ""}">${esc(s.name)}: ${s.on ? "yes" : "no"}</span>`).join("")}</div>`;
       if (g.settings.length){
         html += `<div class="au-sub">Settings</div>`;

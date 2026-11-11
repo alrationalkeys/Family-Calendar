@@ -18,7 +18,7 @@
 - [ ] **Rename the entities** to: `light.fridge_upper`, `light.stove_upper`, `light.fridge_lower`,
       `light.stove_lower`, `binary_sensor.kitchen_motion`, `sensor.kitchen_illuminance`
       (Back Patio Govee → `light.back_patio`).
-- [ ] Put `docs/ha/kitchen-lights.yaml` in Home Assistant's `/config/packages/` and restart.
+- [ ] Put `docs/ha/kitchen_lights.yaml` in Home Assistant's `/config/packages/` and restart.
 - [ ] **Alexa app:** turn the kitchen + Govee routines OFF (keep them for a day in case).
 - [ ] After a day of it working: **unplug the Echo and the Aqara Hub M2.**
 - [ ] Anything that won't pair or shows a strange name → screenshot to Claude.
@@ -49,14 +49,14 @@
       test 5× at the panel's sensor screen and compare its signal to a good door. Still bad → Surety support for a swap.
 
 ## Install the Home Assistant routines (first thing — see the chat for step-by-step)
-- [ ] File editor add-on → add `homeassistant:` / `packages: !include_dir_named packages` to configuration.yaml → make a `packages` folder.
-- [ ] Add `peak-thermostat.yaml` and `outdoor-lights.yaml` (kitchen-lights.yaml after the Zigbee move). Check entity names.
+- [x] File editor add-on → add `homeassistant:` / `packages: !include_dir_named packages` to configuration.yaml → make a `packages` folder.
+- [x] Add `peak_thermostat.yaml` and `outdoor_lights.yaml` (file names need underscores, not dashes; HA's folder is /homeassistant in the Terminal) (kitchen_lights.yaml after the Zigbee move). Check entity names.
 - [ ] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
 - [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
 
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.
-- [ ] Install `docs/ha/peak-thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
+- [ ] Install `docs/ha/peak_thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
 - [ ] Then simplify the Alarm.com schedule on BOTH thermostats, once: Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM; Cool 70° all day.
 
 ## Live traffic for leave-by (optional, 5 min)

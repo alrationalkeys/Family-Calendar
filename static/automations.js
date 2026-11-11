@@ -4,8 +4,18 @@
    Data: GET /api/ha/automations. */
 (function(){
   const css = `
-  .au-group{border-top:1px solid var(--line); padding:12px 0 4px}
-  .au-group:first-child{border-top:0; padding-top:2px}
+  .au-group{border-top:1px solid var(--line)}
+  .au-group:first-child{border-top:0}
+  .au-group>summary{display:flex; align-items:center; gap:10px; padding:12px 0; cursor:pointer; list-style:none}
+  .au-group>summary::-webkit-details-marker{display:none}
+  .au-group>summary .gi{font-size:20px; width:26px; text-align:center; flex:none}
+  .au-group>summary .gt{flex:1; min-width:0; display:flex; flex-direction:column}
+  .au-group>summary .gt b{font-size:15.5px}
+  .au-group>summary .gt small{font-size:12.5px; color:var(--ink-dim)}
+  .au-group>summary .gt small.warn{color:#c0392b}
+  .au-group>summary::after{content:"›"; font-size:22px; color:var(--ink-dim); transition:transform .15s}
+  .au-group[open]>summary::after{transform:rotate(90deg)}
+  .au-group .gb{padding:0 0 10px}
   .au-h{display:flex; align-items:center; justify-content:space-between; gap:10px}
   .au-h b{font-size:16px}
   .au-blurb{font-size:13px; color:var(--ink-dim); margin:4px 0 8px; line-height:1.4}
@@ -204,20 +214,27 @@
     last = data; lastBox = box; lastToast = toast;
     if (!data || !data.connected){ box.innerHTML = '<div class="hint">Home Assistant isn’t reachable, so the routines can’t be shown right now.</div>'; return; }
     const ch = data.choices || {};
+    const wasOpen = new Set([...box.querySelectorAll("details.au-group[open]")].map(d => d.dataset.k));   // keep open across refreshes
+    const ICON = {peak: "🌡", outdoor: "🏡", kitchen: "🍳", other: "⚙️"};
+    const head = (k, icon, title, sub, warn) => `<details class="au-group" data-k="${k}" ${wasOpen.has(k) ? "open" : ""}><summary><span class="gi">${icon}</span><span class="gt"><b>${esc(title)}</b><small class="${warn ? "warn" : ""}">${esc(sub)}</small></span></summary><div class="gb">`;
     let html = "";
     // ---- your own routines first ----
-    html += `<div class="au-group"><div class="au-h"><b>Your routines</b></div>
-      <div class="au-blurb">Make your own: pick when, then what happens. No code, saved straight into Home Assistant.</div>`;
+    const mine = data.mine || [];
+    html += head("mine", "✨", "Your routines", mine.length ? `${mine.length} made by you` : "Make your own: pick when, then what happens") +
+      `<div class="au-blurb">Pick when, then what happens. Saved straight into Home Assistant.</div>`;
     (data.mine || []).forEach(a => {
       html += `<div class="au-row"><div class="t"><div class="n">${esc(a.name)}</div><div class="d">${esc(a.about)}</div><div class="l">${esc(ago(a.last))}</div></div>
         ${a.editable !== false ? `<button class="ed" data-edit="${esc(a.id)}">Edit</button>` : ""}${sw(`data-auto="${esc(a.entity_id)}" aria-label="${esc(a.name)}"`, a.on)}</div>`;
     });
-    html += `<button class="au-new" data-new>＋ New routine</button></div>`;
+    html += `<button class="au-new" data-new>＋ New routine</button></div></details>`;
     // ---- built-in groups ----
     (data.groups || []).forEach(g => {
       const allOn = g.automations.length && g.automations.every(a => a.on);
-      html += `<div class="au-group"><div class="au-h"><b>${esc(g.title)}</b>${g.automations.length ? sw(`data-group="${g.key}" aria-label="All of ${esc(g.title)}"`, allOn) : ""}</div>`;
+      const missing = (g.settings || []).some(x => x.kind === "lights" && ((x.value || []).length === 0 || (x.labels || []).some((n, i) => n === (x.value || [])[i])));
+      const sub = !g.installed && g.key !== "other" ? "Not set up yet" : !allOn ? "Paused" : missing ? "Pick the lights (some are missing)" : ({peak: "Daily schedule + peak hours", outdoor: "Front, holiday and Christmas lights", kitchen: "Evening, night-light, morning"}[g.key] || `${g.automations.length} routines`);
+      html += head(g.key, ICON[g.key] || "⚙️", g.title, sub, missing || !allOn);
       html += `<div class="au-blurb">${esc(g.blurb)}</div>`;
+      if (g.automations.length) html += `<div class="au-line row" style="padding:0 0 8px"><span class="lbl">All of these on</span>${sw(`data-group="${g.key}" aria-label="All of ${esc(g.title)}"`, allOn)}</div>`;
       if (!g.installed && g.key !== "other") html += `<div class="au-missing">Not installed in Home Assistant yet: add <code>docs/ha/${esc(g.file || g.key)}.yaml</code> to the packages folder.</div>`;
       if (g.status.length && !LAYOUT[g.key]) html += `<div class="au-chips">${g.status.map(s => `<span class="au-chip ${s.on ? "on" : ""}">${esc(s.name)}: ${s.on ? "yes" : "no"}</span>`).join("")}</div>`;
       if (g.settings.length && LAYOUT[g.key]){
@@ -246,7 +263,7 @@
         });
         html += `</details>`;
       }
-      html += `</div>`;
+      html += `</div></details>`;
     });
     if (!(data.fh_ids || []).length && (data.groups || []).some(g => !g.installed && g.key !== "other"))
       html += `<div class="au-note">Home Assistant reports <b>${data.ha_total ?? 0}</b> automation${data.ha_total === 1 ? "" : "s"} and <b>${data.helpers_found ?? 0}</b> FamilyHub setting${data.helpers_found === 1 ? "" : "s"}. 0 settings means Home Assistant hasn't loaded the packages folder.</div>`;

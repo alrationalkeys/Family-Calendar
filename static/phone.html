@@ -366,6 +366,21 @@
   .ag-ev.task .ag-time{font-size:20px; line-height:1}
   .ag-ev.task.done .ag-title{text-decoration:line-through; opacity:.5}
   .ag-kind{font-size:11px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.06em}
+  /* settings: every section folds; one open at a time */
+  details.fold{padding:0}
+  details.fold>summary{display:flex; align-items:center; gap:12px; padding:14px 14px; cursor:pointer; list-style:none}
+  details.fold>summary::-webkit-details-marker{display:none}
+  details.fold>summary .fi{font-size:24px; width:32px; text-align:center; flex:none}
+  details.fold>summary .ft{flex:1; min-width:0; display:flex; flex-direction:column}
+  details.fold>summary .ft b{font-size:16.5px}
+  details.fold>summary .ft small{font-size:12.5px; color:var(--ink-dim); margin-top:1px}
+  details.fold>summary::after{content:"›"; font-size:24px; color:var(--ink-dim); transition:transform .15s; flex:none}
+  details.fold[open]>summary::after{transform:rotate(90deg)}
+  details.fold[open]>summary{border-bottom:1px solid var(--line); margin-bottom:10px}
+  details.fold>:not(summary){margin-left:14px; margin-right:14px}
+  details.fold[open]{padding-bottom:12px}
+  details.more.sub{border-top:1px solid var(--line); margin:0; padding:2px 0}
+  details.more.sub>summary{font-weight:600; color:var(--ink); font-size:14.5px; padding:10px 0}
   /* settings: small "More…" folds and the Advanced section */
   .chk input[type=checkbox]{flex:none; width:22px; height:22px}
   details.more{margin:8px 0 2px}
@@ -504,10 +519,10 @@
 </div>
 
 <div id="view-settings" hidden>
-  <div class="sub">Changes apply to the wall and this phone.</div>
+  <div class="sub">Tap a section to open it. Changes apply to the wall and this phone.</div>
 
-  <div class="form sect">
-    <h2>The wall</h2>
+  <details class="form sect fold" data-fold="wall">
+    <summary><span class="fi">🖥</span><span class="ft"><b>The wall</b><small>Update, refresh, restart</small></span></summary>
     <button class="go" id="wall-update" style="background:#2f9e44">&#11015; Update the wall</button>
     <div class="two">
       <button class="go" id="wall-reload" style="background:var(--panel2); color:var(--ink)">&#8635; Refresh the screen</button>
@@ -526,16 +541,27 @@
       <button class="go" id="wall-osk-off" style="background:var(--panel2); color:var(--ink)">&#9000; Turn off Ubuntu's keyboard</button>
       <div class="hint"><b>Update</b> gets the newest FamilyHub and restarts it. <b>Restart FamilyHub</b> re-reads .env. The Ubuntu buttons are for Ubuntu's own settings; tap Back to FamilyHub when done.</div>
     </details>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>Schedules &amp; routines</h2>
-    <div class="sub" style="margin:-4px 0 6px">Everything the house does on its own. Change a time or temperature and it's saved right away.</div>
+  <details class="form sect fold" data-fold="auto">
+    <summary><span class="fi">⏰</span><span class="ft"><b>Schedules &amp; routines</b><small>Thermostats, outdoor &amp; Christmas lights, kitchen, your own</small></span></summary>
     <div id="au-box"><div class="hint">Loading…</div></div>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>Family</h2>
+  <details class="form sect fold" data-fold="modes">
+    <summary><span class="fi">🏠</span><span class="ft"><b>House buttons</b><small>Good night · Leaving · I'm home</small></span></summary>
+    <div class="hint" style="margin-top:0; line-height:1.6">🌙 <b>Good night</b> locks the doors, arms the alarm (Stay) and closes the garage.<br>🚪 <b>Leaving</b> also turns off the lights and TVs.<br>🏡 <b>I'm home</b> asks for the alarm code, disarms, opens the garage and turns on lights after dark.</div>
+    <label class="chk"><input type="checkbox" id="set-gnlights"> Good night also turns off the lights and TVs</label>
+    <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage</label>
+    <label class="chk"><input type="checkbox" id="set-opengarage"> I'm home opens the garage</label>
+    <div class="hint" style="margin-bottom:0">Thermostat (leave empty to not change it):</div>
+    <div class="srow"><span>At Good night</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
+    <div class="srow"><span>When Leaving</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
+    <div class="srow"><span>At I'm home</span><input id="set-hometemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
+  </details>
+
+  <details class="form sect fold" data-fold="family">
+    <summary><span class="fi">👨‍👩‍👧</span><span class="ft"><b>Family</b><small>People, colors, birthdays</small></span></summary>
     <div id="people-list"></div>
     <hr>
     <input id="person-name" placeholder="Add someone: their name">
@@ -543,10 +569,32 @@
     <button class="go" id="person-add">Add person</button>
     <div class="srow" style="margin-top:10px"><span>Who's using this phone?</span><input id="set-who" placeholder="Your name" style="width:46%; margin:0"></div>
     <div class="hint">So the wall can say "Alex added Dentist, Thursday at 3". Set it once on each phone.</div>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>Photos</h2>
+  <details class="form sect fold" data-fold="cal">
+    <summary><span class="fi">🗓</span><span class="ft"><b>Calendar &amp; lists</b><small>Side boxes, chores on the calendar, holidays, leave-by</small></span></summary>
+    <div class="hint" style="margin-top:0">Boxes on the right side of the wall's calendar:</div>
+    <label class="chk"><input type="checkbox" data-panel="todos"> To-do list</label>
+    <label class="chk"><input type="checkbox" data-panel="groceries"> Groceries</label>
+    <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
+    <label class="chk"><input type="checkbox" data-panel="scoreboard"> Chore stars scoreboard</label>
+    <hr>
+    <label class="chk"><input type="checkbox" id="set-caltasks"> Show to-dos and chores on the calendar</label>
+    <hr>
+    <div class="hint" style="margin-top:0">Holidays on the calendar:</div>
+    <label class="chk"><input type="checkbox" data-hol="us_federal"> US holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="christian"> Christian holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="jewish"> Jewish holidays</label>
+    <label class="chk"><input type="checkbox" data-hol="observances"> Fun days (Pizza Day, etc.)</label>
+    <hr>
+    <div class="hint" style="margin-top:0"><b>Leave-by:</b> for events with an address, the wall shows when to leave.</div>
+    <label class="chk"><input type="checkbox" id="set-leave"> Show "Leave in 10 min" for events with an address, and say it when it's time</label>
+    <div class="srow"><span>Home address</span><input id="set-home" placeholder="leave blank to use Home Assistant's" style="width:60%; margin:0"></div>
+    <div class="srow"><span>Extra minutes to park</span><input id="set-leavebuf" type="number" min="0" max="30" style="width:84px; margin:0"></div>
+  </details>
+
+  <details class="form sect fold" data-fold="photos">
+    <summary><span class="fi">📷</span><span class="ft"><b>Photos &amp; slideshow</b><small>Add photos, slideshow timing</small></span></summary>
     <input type="file" id="ph-files" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
     <button class="go" id="ph-upload">&#128247; Add photos to the wall</button>
     <div class="hint" id="ph-count"></div>
@@ -560,37 +608,10 @@
       <button class="go" id="album-save">Use this shared album</button>
       <div class="hint">Photos app → album → share → turn on <b>Public Website</b> → copy the link. Anything added to the album shows on the wall.</div>
     </details>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>House buttons</h2>
-    <div class="hint" style="margin-top:0; line-height:1.6">🌙 <b>Good night</b> locks the doors, arms the alarm (Stay) and closes the garage.<br>🚪 <b>Leaving</b> also turns off the lights and TVs.<br>🏡 <b>I'm home</b> asks for the alarm code, disarms, opens the garage and turns on lights after dark.</div>
-    <label class="chk"><input type="checkbox" id="set-gnlights"> Good night also turns off the lights and TVs</label>
-    <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage</label>
-    <label class="chk"><input type="checkbox" id="set-opengarage"> I'm home opens the garage</label>
-    <div class="hint" style="margin-bottom:0">Thermostat (leave empty to not change it):</div>
-    <div class="srow"><span>At Good night</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
-    <div class="srow"><span>When Leaving</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
-    <div class="srow"><span>At I'm home</span><input id="set-hometemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
-  </div>
-
-  <div class="form sect">
-    <h2>The wall screen</h2>
-    <div class="hint" style="margin-top:0">Boxes on the right side of the calendar:</div>
-    <label class="chk"><input type="checkbox" data-panel="todos"> To-do list</label>
-    <label class="chk"><input type="checkbox" data-panel="groceries"> Groceries</label>
-    <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
-    <label class="chk"><input type="checkbox" data-panel="scoreboard"> Chore stars scoreboard</label>
-    <hr>
-    <label class="chk"><input type="checkbox" id="set-caltasks"> Show to-dos and chores on the calendar</label>
-    <label class="chk"><input type="checkbox" id="set-sleeparm"> Go dark when the alarm is set for bed (until it's disarmed in the morning)</label>
-    <label class="chk"><input type="checkbox" id="disp-enabled"> Turn the screen off at night</label>
-    <div class="srow"><span>Off at</span><input id="disp-start" type="time" style="width:auto; margin:0"></div>
-    <div class="srow"><span>Back on at</span><input id="disp-end" type="time" style="width:auto; margin:0"></div>
-  </div>
-
-  <div class="form sect">
-    <h2>Talking &amp; alerts</h2>
+  <details class="form sect fold" data-fold="sound">
+    <summary><span class="fi">🔔</span><span class="ft"><b>Sounds &amp; alerts</b><small>What the wall says, doorbell, phone notifications</small></span></summary>
     <label class="chk"><input type="checkbox" id="set-speak"> The wall says reminders, announcements and timers out loud</label>
     <label class="chk"><input type="checkbox" id="set-announce-adds"> Say it when someone adds something</label>
     <div class="srow"><span>…but stay quiet</span><select id="set-announce-quiet" style="width:56%; margin:0">
@@ -605,10 +626,18 @@
     <label class="chk"><input type="checkbox" id="set-doorbell-speak"> Doorbell: show the camera on the wall and say who's at the door</label>
     <label class="chk"><input type="checkbox" id="set-doorbell-tv"> Doorbell: show the camera on a TV that's on</label>
     <button class="tool" id="set-doorbell-test" type="button" style="margin:6px 0 4px">🔔 Test the doorbell</button>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>Look</h2>
+  <details class="form sect fold" data-fold="night">
+    <summary><span class="fi">🌙</span><span class="ft"><b>Night</b><small>Screen off at night, dark when the alarm is set</small></span></summary>
+    <label class="chk"><input type="checkbox" id="set-sleeparm"> Go dark when the alarm is set for bed (until it's disarmed in the morning)</label>
+    <label class="chk"><input type="checkbox" id="disp-enabled"> Turn the screen off at night</label>
+    <div class="srow"><span>Off at</span><input id="disp-start" type="time" style="width:auto; margin:0"></div>
+    <div class="srow"><span>Back on at</span><input id="disp-end" type="time" style="width:auto; margin:0"></div>
+  </details>
+
+  <details class="form sect fold" data-fold="look">
+    <summary><span class="fi">🎨</span><span class="ft"><b>Look</b><small>Theme, color, holiday decorations</small></span></summary>
     <div class="srow"><span>Theme</span>
       <div class="pill-toggle" id="set-theme">
         <button data-v="light">Light</button><button data-v="soft">Soft</button><button data-v="dark">Dark</button>
@@ -626,37 +655,23 @@
     <label class="chk"><input type="checkbox" id="set-effects"> Falling snow, leaves and other effects</label>
     <label class="chk"><input type="checkbox" id="set-weatherfx"> Match the real weather (rain, snow, fog)</label>
     <details class="more"><summary>Preview a holiday look</summary><div class="magic-tools" id="set-skin-previews"></div></details>
-    <hr>
-    <div class="hint" style="margin-top:0">Holidays on the calendar:</div>
-    <label class="chk"><input type="checkbox" data-hol="us_federal"> US holidays</label>
-    <label class="chk"><input type="checkbox" data-hol="christian"> Christian holidays</label>
-    <label class="chk"><input type="checkbox" data-hol="jewish"> Jewish holidays</label>
-    <label class="chk"><input type="checkbox" data-hol="observances"> Fun days (Pizza Day, etc.)</label>
-  </div>
+  </details>
 
-  <div class="form sect">
-    <h2>Leave-by reminders</h2>
-    <label class="chk"><input type="checkbox" id="set-leave"> Show "Leave in 10 min" for events with an address, and say it when it's time</label>
-    <div class="srow"><span>Home address</span><input id="set-home" placeholder="leave blank to use Home Assistant's" style="width:60%; margin:0"></div>
-    <div class="srow"><span>Extra minutes to park</span><input id="set-leavebuf" type="number" min="0" max="30" style="width:84px; margin:0"></div>
-  </div>
-
-  <details class="form sect adv">
-    <summary><h2 style="display:inline">Advanced (for Alex)</h2></summary>
-
-    <h3>Calendars</h3>
+  <details class="form sect fold" data-fold="adv">
+    <summary><span class="fi">🔧</span><span class="ft"><b>Advanced (for Alex)</b><small>Calendars, PIN, voice, Spotify, email import</small></span></summary>
+    <details class="more sub"><summary>Calendars</summary>
     <div id="src-list"></div>
     <div class="srow"><span class="hint" id="src-status" style="margin:0;white-space:pre-line">—</span><button class="go" id="src-sync" style="width:auto;margin:0;padding:8px 14px">Sync now</button></div>
     <div class="pill-toggle" id="src-kind" style="margin:8px 0 10px">
       <button data-v="caldav" class="active">iCloud</button><button data-v="ics">Outlook / ICS link</button><button data-v="google">Google</button>
     </div>
     <div id="src-form"></div>
-
-    <h3>Routines &amp; countdowns</h3>
+    </details>
+    <details class="more sub"><summary>Routines &amp; countdowns</summary>
     <div id="rc-list"></div>
     <div class="hint">Add new ones from the Add tab (Routine / Countdown).</div>
-
-    <h3>Family PIN</h3>
+    </details>
+    <details class="more sub"><summary>Family PIN</summary>
     <div class="hint" id="pin-state">Checking…</div>
     <input id="pin-new" type="password" inputmode="numeric" autocomplete="new-password" placeholder="New PIN, 4 to 8 digits">
     <div class="two">
@@ -664,12 +679,12 @@
       <button class="go" id="pin-off" style="background:var(--panel2); color:#d33">Turn PIN off</button>
     </div>
     <div class="hint">Anything that changes FamilyHub asks for the PIN once per device. Looking stays open.</div>
-
-    <h3>Voice</h3>
+    </details>
+    <details class="more sub"><summary>Voice</summary>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <label class="chk"><input type="checkbox" id="set-kbd"> FamilyHub's own on-screen keyboard on the wall</label>
-
-    <h3>Display details</h3>
+    </details>
+    <details class="more sub"><summary>Display details</summary>
     <div class="srow"><span>Font</span>
       <select id="set-font"><option value="inter">Default</option><option value="serif">Serif</option><option value="rounded">Rounded</option><option value="mono">Mono</option></select>
     </div>
@@ -682,11 +697,11 @@
     <label class="chk"><input type="checkbox" data-eff="fireworks"> Fireworks (July 4 / NYE)</label>
     <label class="chk"><input type="checkbox" data-eff="halloween"> Halloween</label>
     <label class="chk"><input type="checkbox" data-eff="petals"> Spring petals</label>
-
-    <h3>Email import</h3>
+    </details>
+    <details class="more sub"><summary>Email import</summary>
     <div id="mail-box"></div>
-
-    <h3>Spotify</h3>
+    </details>
+    <details class="more sub"><summary>Spotify</summary>
     <div id="spw-status" class="hint">Checking Spotify link…</div>
     <div id="spw-connect" hidden>
       <button class="go" id="spw-login" style="background:#1db954">Connect Spotify to the wall</button>
@@ -702,7 +717,7 @@
     <input id="spl-name" placeholder="Name you'll say (Dinner Vibes)">
     <input id="spl-uri" placeholder="Paste a Spotify share link or spotify:playlist:… URI">
     <button class="go" id="spl-add">Pin playlist</button>
-
+    </details>
     <!-- only shown while the sample family is still loaded; hidden for good once cleared -->
     <div id="startfresh" hidden>
       <h3>Start fresh</h3>
@@ -711,6 +726,7 @@
       <div class="hint" id="dbinfo" style="font-family:ui-monospace,monospace;white-space:pre-line"></div>
     </div>
   </details>
+
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1998,6 +2014,13 @@ $("#wall-update").onclick=async()=>{
   };
   setTimeout(poll,4000);
 };
+/* Settings sections: one open at a time, and the one you open scrolls to the top */
+document.querySelectorAll("details.fold").forEach(d=>d.addEventListener("toggle",()=>{
+  if(!d.open) return;
+  document.querySelectorAll("details.fold[open]").forEach(o=>{ if(o!==d) o.open=false; });
+  setTimeout(()=>d.scrollIntoView({behavior:"smooth", block:"start"}), 60);
+  if(d.dataset.fold==="auto" && window.FHAutomations) FHAutomations.load($("#au-box"), toast);
+}));
 $("#wall-desktop").onclick=async()=>{ const r=await fetch("/api/admin/desktop",{method:"POST"}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"The wall is showing Ubuntu's desktop":"Couldn't do that: "+(r.reason||"wall not reachable")); };
 $("#wall-kiosk").onclick=async()=>{ const r=await fetch("/api/admin/kiosk",{method:"POST"}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"FamilyHub is coming back on the wall":"Couldn't do that: "+(r.reason||"wall not reachable")); };
 $("#wall-osk-off").onclick=async()=>{ const r=await fetch("/api/admin/screen-keyboard",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:false})}).then(x=>x.json()).catch(()=>({})); toast(r.ok?"Done. Tap Restart the wall computer to finish":"Couldn't turn it off: "+(r.reason||"wall not reachable")); };

@@ -1,0 +1,130 @@
+# FamilyHub — outdoor + holiday light schedules, moved from Alarm.com (Nov 2026)
+#
+# Replaces these Alarm.com SCHEDULES (turn them OFF in the Alarm.com app once this works):
+#   - Halloween/Christmas Outdoor Lights        sunset -> 11:50 PM   Exterior Lights Smart Plug
+#   - Regular Outdoor Lights Halloween/Christmas 11:50 PM -> sunrise  Garage Side Door Entry, Front Porch, Driveway
+#   - Front Lights Sunset/rise (already off)    sunset -> sunrise    the same three lights
+#   - Christmas Lights Upstairs                  sunset -> 10:30 PM   Upstairs Smart Plug 1, Smart Plug 2, 3, +1 more
+#
+# What's better than the Alarm.com version: the holiday schedules switch themselves on and off by
+# date, so no more flipping them by hand each season:
+#   Halloween season  = all of October
+#   Christmas season  = the day after Thanksgiving through Jan 6
+#   (input_boolean.holiday_lights_force turns holiday mode on any other night, e.g. a party)
+# Outside the seasons the regular porch/driveway/side lights run sunset -> sunrise.
+#
+# KEEP IN ALARM.COM (don't move): Door unlocked by code -> disarm, alarm -> record all cameras,
+# doorbell call/person recording, Backyard floodlight on + record on detection, panel camera
+# image uploads, thermostat schedules (the Resideo thermostats run those themselves).
+#
+# INSTALL
+#   1. Check the entity IDs below match yours: Settings > Devices & services > Alarm.com > entities.
+#      Rename to these, or edit this file. (homeassistant.turn_on works for both lights and switches.)
+#   2. Put this file in /config/packages/ (same as kitchen-lights.yaml) and restart.
+#   3. Turn the four Alarm.com schedules above OFF.
+
+input_boolean:
+  holiday_lights_force:
+    name: Holiday lights tonight (outside the season)
+    icon: mdi:string-lights
+
+template:
+  - binary_sensor:
+      - name: Halloween season
+        unique_id: fh_halloween_season
+        state: "{{ now().month == 10 }}"
+      - name: Christmas season
+        unique_id: fh_christmas_season
+        # Thanksgiving = 4th Thursday of November
+        state: >
+          {% set n1 = now().replace(month=11, day=1) %}
+          {% set tg = 1 + ((3 - n1.weekday()) % 7) + 21 %}
+          {{ (now().month == 11 and now().day > tg) or now().month == 12 or (now().month == 1 and now().day <= 6) }}
+      - name: Holiday lights season
+        unique_id: fh_holiday_lights_season
+        state: >
+          {{ is_state('binary_sensor.halloween_season', 'on') or is_state('binary_sensor.christmas_season', 'on')
+             or is_state('input_boolean.holiday_lights_force', 'on') }}
+
+script:
+  fh_regular_outdoor_on:
+    alias: Regular outdoor lights on
+    sequence:
+      - action: homeassistant.turn_on
+        target:
+          entity_id: [light.front_porch_light, light.driveway_light, light.garage_side_door_entry_light]
+  fh_regular_outdoor_off:
+    alias: Regular outdoor lights off
+    sequence:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: [light.front_porch_light, light.driveway_light, light.garage_side_door_entry_light]
+
+automation:
+  # Sunset: holiday season -> holiday plug on (regular lights wait until 11:50). Otherwise regular lights on.
+  - id: fh_outdoor_sunset
+    alias: "Outdoor: sunset"
+    triggers:
+      - trigger: sun
+        event: sunset
+    actions:
+      - if:
+          - condition: state
+            entity_id: binary_sensor.holiday_lights_season
+            state: "on"
+        then:
+          - action: homeassistant.turn_on
+            target: { entity_id: switch.exterior_lights_smart_plug }
+        else:
+          - action: script.fh_regular_outdoor_on
+
+  # 11:50 PM: holiday plug off, regular lights on for the rest of the night
+  - id: fh_outdoor_1150
+    alias: "Outdoor: holiday lights off, regular lights on at 11:50 PM"
+    triggers:
+      - trigger: time
+        at: "23:50:00"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.holiday_lights_season
+        state: "on"
+    actions:
+      - action: homeassistant.turn_off
+        target: { entity_id: switch.exterior_lights_smart_plug }
+      - action: script.fh_regular_outdoor_on
+
+  # Sunrise: everything outside off
+  - id: fh_outdoor_sunrise
+    alias: "Outdoor: everything off at sunrise"
+    triggers:
+      - trigger: sun
+        event: sunrise
+    actions:
+      - action: script.fh_regular_outdoor_off
+      - action: homeassistant.turn_off
+        target: { entity_id: switch.exterior_lights_smart_plug }
+
+  # Christmas season only: upstairs window lights sunset -> 10:30 PM
+  # (Alarm.com listed "Upstairs Smart Plug 1, Smart Plug 2, Smart Plug 3, +1 more" — add the 4th plug below.)
+  - id: fh_christmas_upstairs_on
+    alias: "Christmas: upstairs lights on at sunset"
+    triggers:
+      - trigger: sun
+        event: sunset
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.christmas_season
+        state: "on"
+    actions:
+      - action: homeassistant.turn_on
+        target:
+          entity_id: [switch.upstairs_smart_plug_1, switch.smart_plug_2, switch.smart_plug_3]   # + the 4th plug
+  - id: fh_christmas_upstairs_off
+    alias: "Christmas: upstairs lights off at 10:30 PM"
+    triggers:
+      - trigger: time
+        at: "22:30:00"
+    actions:
+      - action: homeassistant.turn_off
+        target:
+          entity_id: [switch.upstairs_smart_plug_1, switch.smart_plug_2, switch.smart_plug_3]   # + the 4th plug

@@ -37,7 +37,7 @@
     {floor:2, name:"Bedroom 1",     key:"master",        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n", tv:"s"},
     {floor:2, name:"Bath 1",        key:"bath 1",        gx:24.8, gy:8,    gw:13.2, gd:13.8, tub:"none", shower:"ne"},   // walk-in glass shower, no tub
     {floor:2, name:"Master Closet", key:"master closet", gx:0,    gy:21.8, gw:19.3, gd:5.8},
-    {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"e", sectional:true},
+    {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"s", sectional:true, treeT:0.9},   // TV on the bedroom-3 wall, tree by the windows
     {floor:2, name:"Laundry",       key:"laundry",       gx:0,    gy:27.6, gw:9.5,  gd:7.5},
     {floor:2, name:"Hall",          key:"upstairs hall", gx:9.5,  gy:27.6, gw:9.8,  gd:12.7, stairwell:{gx:9.5, gy:27.6, gw:3.8, gd:7.5}},
     {floor:2, name:"Closet",        key:"closet 2",      gx:0,    gy:35.1, gw:5.8,  gd:5.2},

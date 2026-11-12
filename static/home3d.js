@@ -163,7 +163,7 @@
         s.add(box(4.6,1.5,2.4,COL.woodDk,-0.5,0,2.2));                                                                          // chunky coffee table
         const rm=new THREE.Mesh(new THREE.BoxGeometry(Math.min(L-2,sl+1),0.06,Math.min(D2+1,10)), mat(COL.rug2,{roughness:1})); rm.position.set(0,0.03,1); rm.receiveShadow=true; s.add(rm);
         g.add(s);
-        if(XMAS){ const t=placed(r, side, 0.1, 1.8); xtree(t,0,0,6.5); g.add(t); }
+        if(XMAS){ const t=placed(r, side, r.treeT??0.1, 1.8); xtree(t,0,0,6.5); g.add(t); }
         return;
       }
       const tv=placed(r, side, 0.5, 0.15);                                           // TV + console on its wall

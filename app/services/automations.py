@@ -27,6 +27,7 @@ DESCRIBE = {
     "fh_peak_start": "When peak starts, turn both thermostats off.",
     "fh_peak_end": "When peak ends, turn them back on in the mode they were in, at the schedule's temperatures.",
     "fh_sched_apply": "At {input_datetime.sched_day_start} (day) and {input_datetime.sched_night_start} (night): set both thermostats to the schedule.",
+    "fhs_thermostat_slots": "At each time in the schedule above: set the thermostats it's for (skipped during peak).",
     "fh_peak_enforce": "During peak, if a thermostat gets turned back on, turn it off again (unless the safety limit is why).",
     "fh_outdoor_holiday_now": "If holiday season starts after dark (or 'tonight anyway' is switched on), the holiday lights come on right away.",
     "fh_peak_safety": "Safety only: if a room drops to {input_number.peak_safe_low} or reaches {input_number.peak_safe_high} during peak, that thermostat comes back on.",
@@ -51,7 +52,7 @@ DESCRIBE = {
 GROUPS = [
     {"key": "peak", "title": "Thermostats", "file": "peak_thermostat",
      "blurb": "The daily heat and AC schedule, plus Santee Cooper peak hours (heat and AC off so nothing sets a demand charge).",
-     "auto": r"^fh_(peak|sched)_", "helpers": r"^(input_number|input_datetime|input_boolean)\.(peak_|sched_)",
+     "auto": r"^(fh_(peak|sched)_|fhs_)",           # fhs_ = the multi-time thermostat schedule (thermo_sched.py) "helpers": r"^(input_number|input_datetime|input_boolean)\.(peak_|sched_)",
      "order": [], "status": ["binary_sensor.santee_cooper_peak_now", "binary_sensor.peak_summer_season"]},
     {"key": "outdoor", "title": "Outdoor & holiday lights", "file": "outdoor_lights",
      "blurb": "Nightly lights from sunset to sunrise; holiday lights switch on by date (October, and Thanksgiving into January).",

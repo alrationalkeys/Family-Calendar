@@ -24,7 +24,7 @@
     {floor:1, name:"Kitchen",   key:"kitchen",   gx:25,   gy:21.4, gw:13,   gd:10.4, counter:"e"},
     {floor:1, name:"Bath 2",    key:"bath 2",    gx:0,    gy:21,   gw:6,    gd:10,   tub:"n"},
     {floor:1, name:"Closet",    key:"closet 4",  gx:6,    gy:21,   gw:5,    gd:5},
-    {floor:1, name:"Hall",      key:"hall",      gx:6,    gy:26,   gw:19,   gd:10.2, stairs:{gx:13.2, gy:27.1, gw:7, gd:7.4, up:"n"}},
+    {floor:1, name:"Hall",      key:"hall",      gx:6,    gy:26,   gw:19,   gd:10.2, stairs:{gx:12, gy:26.6, gw:10, gd:3.8, up:"w"}},   // runs across the hall, up toward the office side (drawn "w" = east once mirrored)
     {floor:1, name:"Mud Room",  key:"mud",       gx:0,    gy:31,   gw:6,    gd:5.2},
     {floor:1, name:"Garage",    key:"garage", areas:["garage"], workbench:"e", gym:"w",    gx:0,    gy:36.2, gw:19.3, gd:20},
     {floor:1, name:"Front Entryway", key:"foyer", areas:["front entryway"],     gx:19.3, gy:36.2, gw:5.7,  gd:16},
@@ -39,7 +39,7 @@
     {floor:2, name:"Master Closet", key:"master closet", gx:0,    gy:21.8, gw:19.3, gd:5.8},
     {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"s", sectional:true, treeT:0.9},   // TV on the bedroom-3 wall, tree by the windows
     {floor:2, name:"Laundry",       key:"laundry",       gx:0,    gy:27.6, gw:9.5,  gd:7.5},
-    {floor:2, name:"Hall",          key:"upstairs hall", gx:9.5,  gy:27.6, gw:9.8,  gd:12.7, stairwell:{gx:9.5, gy:27.6, gw:3.8, gd:7.5}},
+    {floor:2, name:"Hall",          key:"upstairs hall", gx:9.5,  gy:27.6, gw:9.8,  gd:12.7, stairwell:{gx:12, gy:26.6, gw:10, gd:3.8}},
     {floor:2, name:"Closet",        key:"closet 2",      gx:0,    gy:35.1, gw:5.8,  gd:5.2},
     {floor:2, name:"Linen",         key:"linen",         gx:5.8,  gy:35.1, gw:3.7,  gd:5.2},
     {floor:2, name:"Small Bedroom", key:"bedroom 2", areas:["small bedroom"],     gx:0,    gy:40.3, gw:13.3, gd:12,   bed:"e"},
@@ -53,13 +53,15 @@
     // first floor
     {f:1, dir:"h", x:22.2, z:52.2, w:3,   type:"front"},
     {f:1, dir:"h", x:9.65, z:56.2, w:16,  type:"garage"},
-    {f:1, dir:"v", x:19.3, z:39,   w:3,   type:"door"},      // garage -> foyer
-    {f:1, dir:"h", x:17,   z:36.2, w:3,   type:"door"},      // garage -> hall
+    {f:1, dir:"h", x:8,    z:36.2, w:3,   type:"door"},      // garage -> house (back wall, by the fridge)
+    {f:1, dir:"v", x:0,    z:38.6, w:3,   type:"door"},      // garage side door (outside)
     {f:1, dir:"v", x:25,   z:46.3, w:8,   type:"opening"},   // foyer <-> dining room
     {f:1, dir:"h", x:22.2, z:36.2, w:5.7, type:"opening"},   // foyer <-> hall
     {f:1, dir:"h", x:18,   z:26,   w:12,  type:"opening"},   // hall <-> living
     {f:1, dir:"v", x:25,   z:26,   w:9,   type:"opening"},   // kitchen open to living + hall
-    {f:1, dir:"v", x:25,   z:14.7, w:12,  type:"opening"},   // living <-> dining
+    {f:1, dir:"v", x:25,   z:14.7, w:13.4, type:"opening"},  // living <-> breakfast: one open room
+    {f:1, dir:"h", x:31.5, z:21.4, w:13,  type:"opening"},   // breakfast <-> kitchen: no wall
+    {f:1, dir:"h", x:35.4, z:40.5, w:3,   type:"opening"},   // butler's pantry <-> formal dining (walk-through from the kitchen)
     {f:1, dir:"h", x:33,   z:8,    w:6,   type:"slider"},    // breakfast -> back porch
     {f:1, dir:"h", x:35.3, z:31.8, w:3,   type:"door"},      // kitchen -> butler's
     {f:1, dir:"v", x:25,   z:36,   w:3,   type:"door"},      // pantry (from hall)
@@ -101,8 +103,8 @@
     const o={...r, gx:MIRROR?PLAN_W-r.gx-r.gw:r.gx, gy:r.gy+Y0};
     ["bed","tv","counter","tub","desk","table","train","workbench","gym"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
     if(o.shower) o.shower=o.shower.replace(/[ew]/g,c=>flipSide(c));
-    if(r.stairs) o.stairs={...r.stairs, gx:PLAN_W-r.stairs.gx-r.stairs.gw, gy:r.stairs.gy+Y0};
-    if(r.stairwell) o.stairwell={...r.stairwell, gx:PLAN_W-r.stairwell.gx-r.stairwell.gw, gy:r.stairwell.gy+Y0};
+    if(r.stairs) o.stairs={...r.stairs, gx:MIRROR?PLAN_W-r.stairs.gx-r.stairs.gw:r.stairs.gx, gy:r.stairs.gy+Y0, up:MIRROR?flipSide(r.stairs.up):r.stairs.up};
+    if(r.stairwell) o.stairwell={...r.stairwell, gx:MIRROR?PLAN_W-r.stairwell.gx-r.stairwell.gw:r.stairwell.gx, gy:r.stairwell.gy+Y0};
     return o;
   }
   const mirrorOpening=d=>({...d, x:MIRROR?PLAN_W-d.x:d.x, z:d.z+Y0});

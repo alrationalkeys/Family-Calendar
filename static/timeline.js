@@ -26,8 +26,11 @@
   .tl details{margin-top:4px} .tl summary{color:var(--ink-dim,#aaa); font-size:13px; cursor:pointer; padding:4px 0}
   .tl table{width:100%; border-collapse:collapse; font-size:13px} .tl td{padding:4px 2px; border-bottom:1px solid var(--tl-grid); vertical-align:top}
   .tl td:last-child{text-align:right; color:var(--ink-dim,#aaa); font-variant-numeric:tabular-nums}
+  .tl-seg{display:flex; background:var(--panel2,#2a2a2a); border-radius:10px; padding:3px; margin:0 0 10px}
+  .tl-seg button{flex:1; border:0; background:transparent; color:var(--ink-dim,#aaa); border-radius:8px; padding:7px; font:inherit; font-weight:600}
+  .tl-seg button.on{background:var(--panel,#111); color:var(--ink,#eee)}
   .tl-empty{color:var(--ink-dim,#aaa); padding:14px 4px}`;
-  let styled=false, day=null, cache={}, timer=null, host=null;
+  let styled=false, day=null, cache={}, timer=null, host=null, mode="day", weekData=null, weekAt=0;
   const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const clock=m=>{ m=Math.round(m); const h=Math.floor(m/60)%24, mm=m%60; return `${(h%12)||12}${mm?":"+String(mm).padStart(2,"0"):""} ${h<12?"AM":"PM"}`; };
@@ -119,14 +122,54 @@
     pw.addEventListener("pointerleave",()=>{ tip.style.display="none"; xh.setAttribute("visibility","hidden"); xd.setAttribute("visibility","hidden"); });
   }
 
+  const seg=()=>`<div class="tl-seg"><button data-mode="day" class="${mode==="day"?"on":""}">Day</button><button data-mode="week" class="${mode==="week"?"on":""}">Week</button></div>`;
+  function bindSeg(el){ el.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{ mode=b.dataset.mode; draw(el); }); }
+
+  /* week: one stacked column per day (heat under AC, 2px gap), peak minutes flagged under the day */
+  function weekChart(days, W){
+    const H=170, T=14, B=H-34, max=Math.max(60, ...days.map(d=>d.heat_min+d.cool_min))*1.12;
+    const L=30, cw=(W-L)/7, bw=Math.min(30, cw*0.5), y=v=>(B-T)*v/max;
+    let out="";
+    const step=max>600?240:max>240?120:60;
+    for(let v=step; v<max; v+=step) out+=`<line x1="${L}" x2="${W}" y1="${B-y(v)}" y2="${B-y(v)}" stroke="var(--tl-grid)"/><text x="0" y="${B-y(v)+4}">${v/60} h</text>`;
+    out+=`<line x1="${L}" x2="${W}" y1="${B}" y2="${B}" stroke="var(--tl-grid)"/>`;
+    days.forEach((d,i)=>{
+      const cx=L+cw*i+cw/2, hh=y(d.heat_min), ch=y(d.cool_min), dt=new Date(d.day+"T12:00:00");
+      const tip=`${dt.toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"})}<br>Heat ${dur(d.heat_min)} · AC ${dur(d.cool_min)}${d.hvac_peak_min?`<br>⚠ ${dur(d.hvac_peak_min)} during peak`:""}${d.estimated?"<br>(estimated)":""}`;
+      if(hh>0) out+=`<rect x="${cx-bw/2}" y="${B-hh}" width="${bw}" height="${hh}" rx="3" fill="var(--tl-heat)"/>`;
+      if(ch>0) out+=`<rect x="${cx-bw/2}" y="${B-hh-ch-(hh>0?2:0)}" width="${bw}" height="${ch}" rx="3" fill="var(--tl-cool)"/>`;
+      out+=`<text x="${cx}" y="${B+14}" text-anchor="middle">${dt.toLocaleDateString([], {weekday:"short"})}</text>`;
+      out+=`<text x="${cx}" y="${B+28}" text-anchor="middle" style="fill:${d.hvac_peak_min?"var(--tl-warn)":"var(--tl-good)"}">${d.hvac_peak_min?"⚠ peak":"✓"}</text>`;
+      out+=`<rect class="hit" x="${L+cw*i}" y="0" width="${cw}" height="${H}" fill="transparent" data-tip="${esc(tip)}"/>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" height="${H}">${out}</svg>`;
+  }
+  async function drawWeek(el, force){
+    if(force||!weekData||Date.now()-weekAt>600000){ try{ weekData=(await fetch("/api/ha/timeline/week").then(r=>r.json())).days||[]; weekAt=Date.now(); }catch(e){ weekData=[]; } }
+    if(host!==el||mode!=="week") return;
+    const W=Math.max(280, Math.round(el.clientWidth||340)-20), days=weekData;
+    const sum=k=>days.reduce((a,d)=>a+(d[k]||0),0), pk=sum("hvac_peak_min");
+    let html=`<div class="tl">${seg()}<div class="tl-stats">
+      <div class="tl-stat"><small>Heat this week</small><b>${dur(sum("heat_min"))}</b></div>
+      <div class="tl-stat"><small>AC this week</small><b>${dur(sum("cool_min"))}</b></div>
+      <div class="tl-stat" style="grid-column:1/-1"><small>Heat/AC during peak</small><b class="${pk?"bad":"ok"}">${pk?"⚠ "+dur(pk):"✓ none all week"}</b></div></div>
+      <div class="tl-card"><h4>Heat & AC by day</h4><div class="tl-legend"><span><i style="background:var(--tl-heat)"></i>Heat</span><span><i style="background:var(--tl-cool)"></i>AC</span></div>
+      ${days.length?weekChart(days,W):'<div class="tl-empty">No history yet.</div>'}
+      <details><summary>Show as a list</summary><table>${days.map(d=>`<tr><td>${new Date(d.day+"T12:00:00").toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"})}</td><td>heat ${dur(d.heat_min)} · AC ${dur(d.cool_min)}${d.hvac_peak_min?" · ⚠ "+dur(d.hvac_peak_min)+" peak":""}</td></tr>`).join("")}</table></details>
+      <div class="tl-tip"></div></div>
+      ${days.some(d=>d.estimated)?'<div class="tl-empty" style="font-size:13px">Heat/AC times are estimated from room temperature (Alarm.com thermostats don’t report when they run).</div>':""}</div>`;
+    el.innerHTML=html; bindSeg(el); el.querySelectorAll(".tl-card").forEach(bindTips);
+  }
+
   async function draw(el, force){
     host=el;
+    if(mode==="week") return drawWeek(el, force);
     const data=await load(force); if(host!==el) return;
     const today=iso(new Date()), d=day||today, dd=new Date(d+"T12:00:00");
     const label=d===today?"Today":dd.toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"});
     const W=Math.max(280, Math.round(el.clientWidth||340)-20);
-    let html=`<div class="tl"><div class="tl-nav"><button data-tl="-1" aria-label="Previous day">‹</button><b>${label}</b><button data-tl="1" aria-label="Next day" ${d>=today?"disabled":""}>›</button></div>`;
-    if(!data.ok){ html+=`<div class="tl-empty">${esc(data.reason||"Couldn’t load the day")}</div></div>`; el.innerHTML=html; bindNav(el); return; }
+    let html=`<div class="tl">${seg()}<div class="tl-nav"><button data-tl="-1" aria-label="Previous day">‹</button><b>${label}</b><button data-tl="1" aria-label="Next day" ${d>=today?"disabled":""}>›</button></div>`;
+    if(!data.ok){ html+=`<div class="tl-empty">${esc(data.reason||"Couldn’t load the day")}</div></div>`; el.innerHTML=html; bindNav(el); bindSeg(el); return; }
     html+=stats(data);
     html+=`<div class="tl-card"><h4>What ran when</h4><div class="tl-legend"><span><i style="background:var(--tl-heat)"></i>Heat</span><span><i style="background:var(--tl-cool)"></i>AC</span>
       <span><i style="background:var(--tl-light)"></i>Lights</span><span><i style="background:var(--tl-plug)"></i>Plugs</span><span><i style="background:var(--tl-tv)"></i>TVs</span>
@@ -135,7 +178,7 @@
     (data.power||[]).slice(0,3).forEach(p=>{ html+=`<div class="tl-card"><h4>Power · ${esc(p.name)}</h4>${powerChart(p,data,W)}<div class="tl-tip"></div></div>`; });
     if(!(data.power||[]).length) html+=`<div class="tl-empty" style="font-size:13px">No power meter in Home Assistant yet, so this shows when things ran, not watts. Heat/AC is the big one: every heating or cooling bar is the most power the house uses.</div>`;
     html+="</div>";
-    el.innerHTML=html; bindNav(el); el.querySelectorAll(".tl-card").forEach(bindTips);
+    el.innerHTML=html; bindNav(el); bindSeg(el); el.querySelectorAll(".tl-card").forEach(bindTips);
   }
   function bindNav(el){
     el.querySelectorAll("[data-tl]").forEach(b=>b.onclick=()=>{ const cur=new Date((day||iso(new Date()))+"T12:00:00"); cur.setDate(cur.getDate()+(+b.dataset.tl));
@@ -144,7 +187,7 @@
   function render(el){
     if(!styled){ const s=document.createElement("style"); s.textContent=css; document.head.appendChild(s); styled=true; }
     draw(el);
-    clearInterval(timer); timer=setInterval(()=>{ if(host&&document.body.contains(host)&&!document.hidden&&!day) draw(host,true); else if(!host||!document.body.contains(host)) clearInterval(timer); }, 60000);
+    clearInterval(timer); timer=setInterval(()=>{ if(host&&document.body.contains(host)&&!document.hidden&&!day&&mode==="day") draw(host,true); else if(!host||!document.body.contains(host)) clearInterval(timer); }, 60000);
   }
   window.FHTimeline={render};
 })();

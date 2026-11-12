@@ -67,6 +67,13 @@ async def lifespan(app: FastAPI):
 
     task = asyncio.create_task(_display_loop())
 
+    # house watch: battery/offline health, peak-hour heat/AC alerts, the nightly check, the Sunday summary
+    try:
+        from .services import watch as _watch
+        _watch.start()
+    except Exception:
+        pass
+
     # Christmas village: back to automatic in the morning after a Good night / Leaving pause
     try:
         from .services import village as _village

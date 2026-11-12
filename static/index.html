@@ -2540,7 +2540,8 @@ function renderHome(h){
   const views={tiles:"\u{1F3E0} Tiles", floor:"\u{1F4D0} Floor plan", iso:"\u{1F3D8}️ 3D"};
   const nav=Object.keys(views).map(v=>
     `<button class="hv-btn${homeView===v?' active':''}" data-hv="${v}">${views[v]}</button>`).join("");
-  wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-body"></div>`;
+  wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-health"></div><div id="home-body"></div>`;
+  FHHome.health().then(d=>{ const el=$("#home-health"); if(el) el.innerHTML=FHHome.healthHTML(d); });
   wrap.querySelectorAll(".hv-btn").forEach(b=>{ b.onclick=()=>{ homeView=b.dataset.hv; renderHome(lastHome); }; });
   const body=$("#home-body");
   if(homeView==="floor") return renderFloorView(body,h);

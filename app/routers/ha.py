@@ -175,6 +175,26 @@ def mode(payload: dict):
                            tapped=p.get("source") in ("wall", "phone"))   # only the wall / phone buttons; HA geofence ("ha") or no source never disarms
 
 
+@router.get("/health")
+def health():
+    """Low batteries + devices that dropped off, for the Needs-attention card."""
+    from ..services import watch
+    return watch.health()
+
+
+@router.get("/night-check")
+def night_check():
+    """What the nightly check would report right now (nothing = all buttoned up)."""
+    from ..services import watch
+    return {"issues": watch.night_report()}
+
+
+@router.get("/timeline/week")
+def timeline_week():
+    from ..services import watch
+    return {"days": watch.week()}
+
+
 @router.get("/timeline")
 def timeline(day: str | None = None):
     """What ran when on one day (HA history): heat/AC, lights, plugs, TVs + power sensors + the peak window."""

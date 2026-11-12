@@ -557,6 +557,17 @@
     <div id="hm-modes">Loading…</div>
   </details>
 
+  <details class="form sect fold" data-fold="alerts">
+    <summary><span class="fi">🔔</span><span class="ft"><b>Alerts to our phones</b><small>Night check · peak hours · weekly note</small></span></summary>
+    <div class="hint" style="margin-top:0">Pushes come through the Home Assistant app. They only tell you; nothing changes in the house.</div>
+    <label class="chk"><input type="checkbox" id="al-night"> Night check: tell us if a door is unlocked or open, or the alarm isn't set, at
+      <input type="time" id="al-night-t" style="width:auto; display:inline-block; margin-left:4px"></label>
+    <button class="tool" id="al-night-test" style="margin:4px 0 10px">Check right now</button>
+    <label class="chk"><input type="checkbox" id="al-peak"> Peak alert: tell us if heat or AC is still on 3 minutes into peak hours</label>
+    <label class="chk"><input type="checkbox" id="al-week"> Sunday 6 PM: a short note with heat/AC hours, any peak use and low batteries</label>
+    <label class="chk">Low battery means at or below <input type="number" id="al-batt" min="5" max="60" step="5" style="width:70px; display:inline-block; margin:0 4px"> %</label>
+  </details>
+
   <details class="form sect fold" data-fold="family">
     <summary><span class="fi">👨‍👩‍👧</span><span class="ft"><b>Family</b><small>People, colors, birthdays</small></span></summary>
     <div id="people-list"></div>
@@ -1131,7 +1142,7 @@ function hmLive(on){
   hmES.onerror=()=>{ try{hmES.close();}catch(e){} hmES=null; setTimeout(()=>{ if(curView==="home") hmLive(true); }, 5000); };
 }
 document.addEventListener("visibilitychange",()=>{ hmLive(curView==="home"); if(!document.hidden&&curView==="home") loadHM(); });
-let hmView="rooms", hmLast=null, hmSig="";
+let hmView="rooms", hmLast=null, hmSig="", hmHealth=null;
 FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
 let _camT=null, _camEid=null, _camStream=null;
@@ -1189,7 +1200,7 @@ let hmVillage=null;     // Christmas village status (tile hides while it doesn't
 async function loadHM(){
   let h=null;
   fetch("/api/village/status").then(r=>r.json()).then(v=>{ const was=JSON.stringify(hmVillage); hmVillage=v; if(hmLast&&JSON.stringify(v)!==was) renderHM(hmLast,true); }).catch(()=>{});
-  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{})]); }catch(e){}
+  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{}), FHHome.health().then(d=>{ hmHealth=d; })]); }catch(e){}
   if(!h){ $("#hm-hero").innerHTML=""; $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
   renderHM(h,false);
 }
@@ -1410,7 +1421,7 @@ function renderHM(h, force){
 
   // scene shortcuts: all-off first, then the HA scenes (max 4 tiles)
   const scenes=tiles.filter(t=>t.domain==="scene"&&!/night|leav|away|home/i.test(t.name)).slice(0,3);   // built-in Good night / Leaving cover those
-  let html=`<div class="hm-scenes">
+  let html=FHHome.healthHTML(hmHealth)+`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
     <button class="hm-scene" onclick="hmWelcome(this,'morning')"><span class="ic">☀️</span>Morning</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
@@ -1703,6 +1714,13 @@ function setupVoiceHistory(){
 }
 function loadSettingsUI(){
   setupVoiceHistory();
+  { const S=FH.get(), bind=(id,key,fmt)=>{ const el=$(id); if(!el||el._wired) return; el._wired=true;
+      if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??"";
+      el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
+    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary");
+    bind("#al-batt","batteryLow",v=>Math.max(5,Math.min(60,+v||25)));
+    const t=$("#al-night-test"); if(t&&!t._wired){ t._wired=true; t.onclick=async()=>{ let r={}; try{ r=await fetch("/api/ha/night-check").then(x=>x.json()); }catch(e){}
+      toast((r.issues||[]).length?"Right now: "+r.issues.join("; "):"All buttoned up ✓"); }; } }
   { const nc=$("#set-nocode"); if(nc){ nc.checked=FH.get().welcomeNoCode===true; nc.onchange=e=>{ FH.save({welcomeNoCode:e.target.checked});
       toast(e.target.checked?"I'm home will disarm with one tap":"I'm home will ask for the code"); if(window.FHAutomations&&$("#hm-modes")) FHAutomations.houseModes($("#hm-modes")); }; } }
   { const hb=$("#hm-modes"); if(hb && window.FHAutomations && !hb._wired){ hb._wired=true; const d=hb.closest("details");

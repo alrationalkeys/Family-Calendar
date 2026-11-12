@@ -304,9 +304,29 @@
     if(t.rgb) requestAnimationFrame(()=>place(t.rgb));
   }
 
+  /* "Needs attention": low batteries + devices that dropped off (GET /api/ha/health, cached 2 min). */
+  let _hl={at:0, data:null};
+  async function health(){
+    if(_hl.data&&Date.now()-_hl.at<120000) return _hl.data;
+    try{ _hl={at:Date.now(), data:await fetch("/api/ha/health").then(r=>r.json())}; }catch(e){ _hl={at:Date.now(), data:null}; }
+    return _hl.data;
+  }
+  function healthHTML(d){
+    if(!d||!d.ok) return "";
+    const low=d.low||[], off=d.offline||[]; if(!low.length&&!off.length) return "";
+    const item=(ic,t,sub)=>`<div class="fhh-it"><span class="fhh-ic">${ic}</span><span class="fhh-t">${esc(t)}</span><span class="fhh-s">${esc(sub)}</span></div>`;
+    if(!document.getElementById("fhh-css")){ const st=document.createElement("style"); st.id="fhh-css";
+      st.textContent=`.fhh{background:color-mix(in srgb,#e0a020 14%,var(--panel2,#2a2a2a)); border:1px solid color-mix(in srgb,#e0a020 40%,transparent); border-radius:14px; padding:10px 12px; margin:0 0 12px}
+      .fhh h4{margin:0 0 6px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim,#aaa)}
+      .fhh-it{display:flex; align-items:center; gap:8px; padding:4px 0; font-size:14px} .fhh-ic{width:20px; text-align:center}
+      .fhh-t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .fhh-s{color:var(--ink-dim,#aaa); font-size:13px; flex:none}`;
+      document.head.appendChild(st); }
+    return `<div class="fhh"><h4>⚠ Needs attention</h4>${low.map(x=>item("🔋", x.name, x.level!=null?x.level+"% battery":"battery low")).join("")}
+      ${off.map(x=>item("📴", x.name, "not responding")).join("")}</div>`;
+  }
   window.FHHome = {
     lightPanelHTML, bindLightPanel, SWATCHES,
-    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc,
+    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc, health, healthHTML,
     getLayout, getPlan, roomFor, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
     renderFloorView, renderIsoView,
     get floor(){ return homeFloor; }, set floor(f){ homeFloor=f; },

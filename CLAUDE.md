@@ -113,7 +113,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   (settings key `routines_converted`). Thermostats stay packaged (peak save/restore).
   'Then wait…' steps: minutes = delay in the same run (mode restart); until a time / sunrise / sunset / motion quiet =
   a separate trigger in the same automation (trigger ids part0..N + choose), because HA cancels wait_for_trigger on every
-  automation reload. Next-morning parts skip day/date checks. Saved routines are rebuilt once with the current builder (flag routines_parts_v2). Next-morning parts check yesterday's day/date; ifoff = "none of the first part's lights on"; Leaving won't arm with a cover open; /api/ha/mode only counts as a tap for source wall|phone.
+  automation reload. Next-morning parts skip day/date checks. Saved routines are rebuilt once with the current builder (flag routines_parts_v2). Next-morning parts check yesterday's day/date; ifoff = "none of the first part's lights on"; Leaving with a door/garage open waits up to 5 min for it to shut, then arms (another button cancels; phones get a push if it never could); /api/ha/mode only counts as a tap for source wall|phone.
   Thermostat schedule = any number of slots {at, days, targets (climate ids), heat, cool}: `services/thermo_sched.py`,
   `GET/POST /api/ha/thermostat-schedule`. Saved into HA as `script.fhs_thermostat_now` (per thermostat, the latest slot
   looking back over the week; auto -> low/high) + automation `fhs_thermostat_slots` (fires at each slot time, not during

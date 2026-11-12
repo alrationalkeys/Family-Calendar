@@ -272,10 +272,13 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 open_covers = [t["name"] for t in by("cover") if t["state"] in ("open", "opening") and t["entity_id"] not in closing]
                 if mode == "away" and open_covers:
                     open_now = open_now + open_covers
-                if mode == "away" and open_now:
-                    warnings.append("I didn't arm the alarm because " + ", ".join(open_now) + (" is" if len(open_now) == 1 else " are") + " open")
-                    continue
                 svc = {"away": "alarm_arm_away", "night": "alarm_arm_night"}.get(st.get("arm"), "alarm_arm_home")
+                if mode == "away" and open_now:
+                    # you press Leaving and THEN walk out through the door: wait for it to close, then arm
+                    _arm_when_closed(svc)
+                    notes.append("I'll arm the alarm once " + ", ".join(open_now) + (" is" if len(open_now) == 1 else " are")
+                                 + f" closed (I'll wait {ARM_WAIT_MIN} minutes).")
+                    continue
                 for t in by("alarm_control_panel"):
                     r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
                     done.append(("armed the alarm" + {"alarm_arm_away": " (Away)", "alarm_arm_night": " for the night"}.get(svc, "")) if r.get("ok") else "couldn't arm the alarm")
@@ -352,8 +355,68 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
         notes.append("__briefing__")
     # anything left open that no step closed
     for lbl in open_now:
-        if mode != "welcome" and f"{lbl} is open" not in " ".join(warnings):
+        if mode != "welcome" and not any(n.startswith("I'll arm the alarm once") for n in notes) and f"{lbl} is open" not in " ".join(warnings):
             warnings.append(f"the {lbl.lower()} is open" if lbl == "Door to garage" else f"{lbl} is open")
+
+
+ARM_WAIT_MIN = 5
+_RUN_GEN = [0]          # bumps on every button press; a waiting Leaving arm gives up when another button runs
+
+
+def _open_things() -> list:
+    """Open doors/windows (contacts) and garage doors that aren't fully shut (a closing one counts as open)."""
+    tiles = _tiles()
+    gcover = ha_svc.has_garage_cover([t for t in tiles if t["domain"] == "cover"])
+    out = [ha_svc.opening_label(t, gcover) for t in tiles if t["domain"] == "binary_sensor"
+           and t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"]]
+    out += [t["name"] for t in tiles if t["domain"] == "cover" and t["state"] in ("open", "opening", "closing")]
+    return [x for x in out if x]
+
+
+def _push_phones(text: str):
+    try:
+        if ha_svc.demo_mode() or not ha_svc.ha_url():
+            return
+        for dom in ha_svc._request("/api/services") or []:
+            if dom.get("domain") == "notify":
+                for name in (dom.get("services") or {}):
+                    if name.startswith("mobile_app_"):
+                        ha_svc.call_service("notify", name, "", {"title": "FamilyHub", "message": text,
+                                                                 "data": {"tag": "familyhub-leaving"}})
+    except Exception:
+        pass
+
+
+def _arm_when_closed(svc: str = "alarm_arm_away"):
+    """Leaving with a door open: check every few seconds for ARM_WAIT_MIN minutes; arm Away once everything
+    is shut. Gives up if another house button runs or the panel gets armed some other way; tells the phones
+    if it never could arm."""
+    import threading
+    import time
+    gen = _RUN_GEN[0]
+
+    def go():
+        end = time.time() + ARM_WAIT_MIN * 60
+        still = []
+        while time.time() < end:
+            time.sleep(5)
+            if _RUN_GEN[0] != gen:
+                return                                      # I'm home / Good night pressed meanwhile
+            panels = [t for t in _tiles() if t["domain"] == "alarm_control_panel"]
+            if not panels or any(t["state"] != "disarmed" for t in panels):
+                return                                      # armed already (keypad, app) or panel unknown
+            still = _open_things()
+            if not still:
+                time.sleep(3)                               # let the door latch
+                if _RUN_GEN[0] != gen or _open_things():
+                    continue
+                ok = all(ha_svc.call_service("alarm_control_panel", svc, t["entity_id"]).get("ok") for t in panels)
+                if not ok:
+                    _push_phones("Leaving: the alarm didn't arm. Check the panel or the Alarm.com app.")
+                return
+        _push_phones("Leaving: the alarm is NOT armed because " + (", ".join(still) or "a door") + " is still open.")
+
+    threading.Thread(target=go, daemon=True).start()
 
 
 def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm: bool = True, source: str = "wall",
@@ -366,6 +429,7 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
     steps, custom = steps_for(mode)
     if mode not in MODES:
         return {"ok": False, "reason": "mode must be goodnight | morning | away | welcome"}
+    _RUN_GEN[0] += 1
     if True:                     # every button runs its steps (custom, or the defaults shown in Settings)
         done, warnings, notes = [], [], []
         if not arm:

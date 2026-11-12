@@ -818,6 +818,12 @@ def toggle(entity_id: str) -> dict:
     return {"ok": False, "reason": f"{domain} isn't toggleable"}
 
 
+def peak_now() -> bool:
+    """Santee Cooper peak right now (peak_thermostat.yaml). Read directly: the sensor has no device_class, so it
+    never makes it into the Home tiles."""
+    return _current_state("binary_sensor.santee_cooper_peak_now") == "on" or _current_state("input_boolean.peak_active") == "on"
+
+
 def _current_state(entity_id: str) -> str:
     if demo_mode():
         cur = _DEMO.get(entity_id)

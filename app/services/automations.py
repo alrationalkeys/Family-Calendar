@@ -248,15 +248,18 @@ def list_all() -> dict:
         row = {"entity_id": s["entity_id"], "name": a.get("friendly_name") or s["entity_id"],
                "on": s.get("state") == "on", "last": a.get("last_triggered"), "about": "", "id": str(a.get("id") or "")}
         (mine if row["id"].startswith("fhu_") else other).append(row)
-    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_parts_v1")
+    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_parts_v2")
     for r in mine[:40]:
         spec = _MINE.get(r["id"]) if ha_svc.demo_mode() else (get_routine(r["id"]).get("spec"))
-        if upgrade and spec and any(a.get("type") == "wait" and (a.get("until") or "minutes") != "minutes" for a in spec.get("do") or []):
-            save_routine(spec, r["id"])        # one-time: rebuild "wait until …" routines as separate triggers
+        if upgrade and spec:
+            try:
+                save_routine(spec, r["id"])    # one-time: rebuild every routine with the current builder (Nov 12 fixes)
+            except Exception:
+                pass
         r["about"] = summary(spec, names) if spec else "Changed in Home Assistant; edit it there."
         r["editable"] = bool(spec)
     if upgrade:
-        _flag_set("routines_parts_v1")
+        _flag_set("routines_parts_v2")
     if other:
         groups.append({"key": "other", "title": "Made in Home Assistant", "blurb": "Routines created in the Home Assistant app.",
                        "installed": True, "status": [], "automations": other, "settings": []})
@@ -375,7 +378,8 @@ def _do_text(a: dict, names: dict) -> str:
     white = {"warm": " warm white", "daylight": " daylight", "cool": " cool white", "color": " in a color"}.get(a.get("white") or "", "")
     return {"on": f"turn on {lst}", "off": f"turn off {lst}",
             "dim": f"set {lst} to {a.get('pct', 50)}%{white}",
-            "thermostat": f"set {lst} to {('off' if a.get('mode') == 'off' else str(a.get('mode') or 'heat').replace('_', '/') + ' ' + str(a.get('temp') or '') + '°')}",
+            "thermostat": f"set {lst} to " + ("off" if a.get("mode") == "off" else str(a.get("mode") or "heat").replace("_", "/")
+                                                + (f" {a.get('temp')}°" if (a.get("mode") or "heat") in ("heat", "cool") and a.get("temp") else "")),
             "lock": f"lock {lst}", "close": f"close {lst}",
             "notify": f"send phones \"{a.get('message', '')}\"", "say": f"say on the wall \"{a.get('message', '')}\"",
             "wait": _wait_text(a, names)}.get(t, t or "")
@@ -510,12 +514,17 @@ def build(spec: dict) -> dict:
         k = a.get("type")
         if k in ("on", "off"):
             ids = _ids(a.get("entities"), "light", "switch", "fan", "media_player")     # garage doors: "close" only
+            ids = [i for i in ids if not (i.startswith("switch.") and re.search(r"garage|opener|gate", i))]   # no relay-type openers
             if ids:
                 acts.append({"action": f"homeassistant.turn_{k}", "target": {"entity_id": ids}})
         elif k == "dim":
+            plugs = [i for i in _ids(a.get("entities"), "switch") if not re.search(r"garage|opener|gate", i)]
+            if plugs:                      # plugs in a dim step just turn on (they can't dim)
+                acts.append({"action": "homeassistant.turn_on", "target": {"entity_id": plugs}})
             ids = _ids(a.get("entities"), "light")
             if ids:
-                data = {"brightness_pct": max(1, min(100, int(float(a.get("pct") or 50))))}
+                pct = a.get("pct")
+                data = {"brightness_pct": max(1, min(100, int(float(50 if pct in (None, "") else pct))))}
                 if a.get("white") in ("warm", "daylight", "cool"):
                     data["color_temp_kelvin"] = {"warm": 2700, "daylight": 4000, "cool": 5000}[a["white"]]
                 elif a.get("white") == "color":
@@ -551,7 +560,10 @@ def build(spec: dict) -> dict:
             if msg:
                 acts.append({"event": "familyhub", "event_data": {"kind": "say", "message": msg}})
         elif k == "wait":            # "turn on … then wait … then turn off": one routine instead of two
-            u, mins = a.get("until") or "minutes", max(1, min(720, int(a.get("minutes") or 5)))
+            u = a.get("until") or "minutes"
+            mins = max(1, min(720, int(a.get("minutes") or (10 if u == "quiet" else 5))))
+            if not acts:
+                raise ValueError("Start with something to do, then add \"Then wait…\" after it")
             if u == "minutes":
                 acts.append({"delay": {"minutes": mins}})
             else:
@@ -572,14 +584,24 @@ def build(spec: dict) -> dict:
                 acts.append({"__seg__": wt, "quiet": u == "quiet"})
     if not [x for x in acts if "delay" not in x and "__seg__" not in x]:
         raise ValueError("Add at least one thing for it to do")
-    if spec.get("ifoff"):           # "only if those lights are off" — the lights the routine turns on / dims
+    if acts and ("__seg__" in acts[-1] or "delay" in acts[-1]):
+        raise ValueError("Add what happens after the wait (e.g. Turn off), or remove the wait")
+    if spec.get("ifoff"):           # "only if those lights are off": the lights the FIRST part turns on / dims
         offs = []
         for a in spec.get("do") or []:
+            if a.get("type") == "wait" and (a.get("until") or "minutes") != "minutes":
+                break
             if a.get("type") in ("on", "dim"):
                 offs += _ids(a.get("entities"), "light", "switch")
-        if offs:
-            conds.append({"condition": "state", "entity_id": list(dict.fromkeys(offs)), "state": "off"})
-    name = str(spec.get("name") or "").strip()[:80] or summary(spec).split(":")[0]
+        if offs:                    # "none of them on" (an unavailable light doesn't block it)
+            conds.append({"condition": "template", "value_template":
+                          "{{ expand(" + json.dumps(list(dict.fromkeys(offs))) + ") | selectattr('state', 'eq', 'on') | list | count == 0 }}"})
+    if not str(spec.get("name") or "").strip():          # unnamed: name it in words, not entity ids
+        try:
+            names = {x["entity_id"]: (x.get("attributes") or {}).get("friendly_name") or x["entity_id"] for x in _states()}
+        except Exception:
+            names = {}
+    name = str(spec.get("name") or "").strip()[:80] or summary(spec, names).split(":")[0]
     out = {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":"))}
     if not any("__seg__" in x for x in acts):
         out.update(mode="restart" if any("delay" in x for x in acts) else "single",   # more motion = stays on longer
@@ -588,22 +610,44 @@ def build(spec: dict) -> dict:
     # "turn on at sunset ... (until 10:30 PM) turn off": one automation, one trigger per part, so every part fires on
     # its own even if Home Assistant restarted or reloaded in between. The first part keeps all the "only if"s; the
     # later parts keep the days / dates (and the time window for "until the motion is quiet").
-    keep = [c for c in conds if (c.get("condition") == "time" and "weekday" in c) or c.get("condition") == "template"]
     window = [c for c in conds if c.get("condition") == "time" and "after" in c]
-    segs, cur = [{"trigger": dict(trig, id="part0"), "conds": conds, "acts": []}], None
+
+    def day_checks(yesterday: bool) -> list:
+        """The routine's days / dates, checked against today, or against yesterday for a part that lands after
+        midnight ("on at 11:45 PM until Jan 6, off at sunrise" still turns off on the morning of Jan 7)."""
+        out_c, ref = [], "(now() - timedelta(days=1))" if yesterday else "now()"
+        days = [d for d in (spec.get("days") or []) if d in DAYS]
+        if days and len(days) < 7:
+            out_c.append({"condition": "template", "value_template":
+                          "{{ " + ref + ".strftime('%a') | lower in " + json.dumps(days) + " }}"} if yesterday
+                         else {"condition": "time", "weekday": days})
+        if spec.get("dates"):
+            a2, b2 = _md(spec["dates"].get("from")), _md(spec["dates"].get("to"))
+            expr = f"(('{a2}' <= md <= '{b2}') if '{a2}' <= '{b2}' else (md >= '{a2}' or md <= '{b2}'))"
+            out_c.append({"condition": "template", "value_template": "{% set md = " + ref + ".strftime('%m-%d') %}{{ "
+                          + ("not " if spec.get("dates_except") else "") + expr + " }}"})
+        return out_c
+
+    def clock(t):                 # rough time of day a trigger fires ("HH:MM"), or None if it could be any time
+        if t.get("trigger") == "time":
+            return str(t.get("at", ""))[:5]
+        if t.get("trigger") == "sun":
+            return "06:30" if t.get("event") == "sunrise" else "18:00"
+        return None
+
+    segs, prev, crossed = [{"trigger": dict(trig, id="part0"), "conds": conds, "acts": []}], clock(trig), False
     for x in acts:
         if "__seg__" in x:
-            wt = x["__seg__"]
-            # a part that lands the next morning (sunrise, or a clock time before noon) skips the day / date checks:
-            # "on at 11:45 PM until Jan 6, off at sunrise" must still turn off on the morning of Jan 7
-            next_day = (wt.get("trigger") == "sun" and wt.get("event") == "sunrise") or \
-                (wt.get("trigger") == "time" and str(wt.get("at", "99"))[:2] < "12")
-            cur = {"trigger": dict(wt, id=f"part{len(segs)}"), "conds": ([] if next_day else keep) + (window if x.get("quiet") else []), "acts": []}
-            segs.append(cur)
+            wt, c = x["__seg__"], clock(x["__seg__"])
+            # crossed midnight: earlier on the clock than the part before it (or sunrise after an any-time trigger)
+            if (c and prev and c < prev) or (prev is None and c == "06:30"):
+                crossed = True
+            segs.append({"trigger": dict(wt, id=f"part{len(segs)}"), "conds": day_checks(crossed) + (window if x.get("quiet") else []), "acts": []})
+            prev = c or prev
         else:
             segs[-1]["acts"].append(x)
     segs = [g for g in segs if g["acts"]]
-    out.update(mode="queued",
+    out.update(mode="restart" if any("delay" in y for g in segs for y in g["acts"]) else "queued",
                triggers=[g["trigger"] for g in segs], conditions=[],
                actions=[{"choose": [{"conditions": [{"condition": "trigger", "id": g["trigger"]["id"]}] + g["conds"], "sequence": g["acts"]}
                                     for g in segs]}])
@@ -665,36 +709,58 @@ def convert_to_routines(keys=("outdoor", "kitchen")) -> dict:
             return default
 
     every = [d for d in DAYS]
-    R = []
+    R, motion = [], "binary_sensor.kitchen_motion"
     if "outdoor" in keys:
         night = lst("input_text.fh_outdoor_night_lights", r"front porch|driveway|side door")
         plug = lst("input_text.fh_outdoor_holiday_lights", r"exterior lights")
         windows = lst("input_text.fh_outdoor_window_lights")
         xs = str(st.get("input_datetime.fh_outdoor_xmas_start") or "")
-        xmas_from = xs[5:10] if re.fullmatch(r"\d{4}-(11|12)-\d{2}.*", xs) else "11-27"
-        last = f"01-{num('input_number.fh_outdoor_xmas_last_day', 6):02d}"
-        hol_from = "10-01" if st.get("input_boolean.fh_outdoor_halloween") != "off" else xmas_from
+        if re.fullmatch(r"\d{4}-(11|12)-\d{2}.*", xs):
+            xmas_from = xs[5:10]
+        else:                                     # the day after this year's Thanksgiving (4th Thursday of November)
+            n1 = datetime.date(datetime.date.today().year, 11, 1)
+            xmas_from = (n1 + datetime.timedelta(days=(3 - n1.weekday()) % 7 + 22)).strftime("%m-%d")
+        last_d = num("input_number.fh_outdoor_xmas_last_day", 6)
+        last = f"01-{last_d:02d}"
+        hallo_on = st.get("input_boolean.fh_outdoor_halloween") != "off"
+        xmas_on = st.get("input_boolean.fh_outdoor_christmas") != "off"
         switch_at, win_off = hm("input_datetime.fh_outdoor_switchover", "23:50"), hm("input_datetime.fh_outdoor_windows_off", "22:30")
-        hol = {"from": hol_from, "to": last}
-        R += [
-            {"name": "Holiday lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0}, "dates": hol,
-             "do": [{"type": "on", "entities": plug}]},
-            {"name": "Holiday lights off, front lights on", "when": {"type": "time", "at": switch_at}, "dates": hol,
-             "do": [{"type": "off", "entities": plug}, {"type": "on", "entities": night}]},
-            {"name": "Front lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0}, "dates": hol, "dates_except": True,
-             "do": [{"type": "on", "entities": night}]},
-            {"name": "Outside lights off at sunrise", "when": {"type": "sun", "event": "sunrise", "offset": 0},
-             "do": [{"type": "off", "entities": list(dict.fromkeys(night + plug))}]},
-            {"name": "Christmas window lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0},
-             "dates": {"from": xmas_from, "to": last}, "do": [{"type": "on", "entities": windows}]},
-            {"name": "Christmas window lights off", "when": {"type": "time", "at": win_off},
-             "dates": {"from": xmas_from, "to": last}, "do": [{"type": "off", "entities": windows}]},
-        ]
+        md = lambda d: d.strftime("%m-%d")
+        day_before = lambda m_d: md(datetime.date(2001, int(m_d[:2]), int(m_d[3:])) - datetime.timedelta(days=1))
+        seasons = ([("Halloween", {"from": "10-01", "to": "10-31"})] if hallo_on else []) + \
+                  ([("Christmas", {"from": xmas_from, "to": last})] if xmas_on else [])
+        for label, rng in seasons:      # holiday plug at sunset; at the switch-over, plug off + front lights on
+            R.append({"name": f"{label} lights outside", "when": {"type": "sun", "event": "sunset", "offset": 0}, "dates": rng,
+                      "do": [{"type": "on", "entities": plug}, {"type": "wait", "until": "time", "at": switch_at},
+                             {"type": "off", "entities": plug}, {"type": "on", "entities": night}]})
+        # front lights at sunset on every other night of the year (one routine per gap between the seasons)
+        gaps = []
+        if hallo_on and xmas_on:
+            gaps = [{"from": md(datetime.date(2001, 1, last_d) + datetime.timedelta(days=1)), "to": "09-30"}]
+            if xmas_from > "11-01":
+                gaps.append({"from": "11-01", "to": day_before(xmas_from)})
+        elif xmas_on:
+            gaps = [{"from": md(datetime.date(2001, 1, last_d) + datetime.timedelta(days=1)), "to": day_before(xmas_from)}]
+        elif hallo_on:
+            gaps = [{"from": "11-01", "to": "09-30"}]
+        for i, rng in enumerate(gaps or [None]):
+            r = {"name": "Front lights on at sunset" + (f" ({_nice_md(rng['from'])} – {_nice_md(rng['to'])})" if rng and len(gaps) > 1 else ""),
+                 "when": {"type": "sun", "event": "sunset", "offset": 0}, "do": [{"type": "on", "entities": night}]}
+            if rng:
+                r["dates"] = rng
+            R.append(r)
+        R.append({"name": "Outside lights off at sunrise", "when": {"type": "sun", "event": "sunrise", "offset": 0},
+                  "do": [{"type": "off", "entities": list(dict.fromkeys(night + plug))}]})
+        if xmas_on:
+            R.append({"name": "Christmas window lights", "when": {"type": "sun", "event": "sunset", "offset": 0},
+                      "dates": {"from": xmas_from, "to": last},
+                      "do": [{"type": "on", "entities": windows}, {"type": "wait", "until": "time", "at": win_off},
+                             {"type": "off", "entities": windows}]})
     if "kitchen" in keys:
         up, low = lst("input_text.fh_kitchen_upper_lights", r"upper"), lst("input_text.fh_kitchen_lower_lights", r"lower")
         patio = lst("input_text.fh_kitchen_patio_lights", r"patio")
         motion = "binary_sensor.kitchen_motion" if "binary_sensor.kitchen_motion" in names else \
-            next((e for e in names if e.startswith("binary_sensor.") and re.search(r"motion", e) and re.search(r"kitchen|motion_sensor", e)), "binary_sensor.kitchen_motion")
+            next((e for e in names if e.startswith("binary_sensor.") and re.search(r"motion|occupancy", e) and re.search(r"kitchen|motion_sensor", e)), None)
         quiet = num("input_number.fh_kitchen_quiet_minutes", 10)
         mb = num("input_number.fh_kitchen_motion_bright", 20)
         until = hm("input_datetime.fh_kitchen_motion_until", "08:00")
@@ -720,11 +786,15 @@ def convert_to_routines(keys=("outdoor", "kitchen")) -> dict:
             {"name": "Kitchen night-light (uppers) off when quiet", "when": {"type": "device", "entity": motion, "to": "off", "for": quiet},
              "between": {"after": up_from, "before": until}, "do": [{"type": "off", "entities": up}]},
         ]
+    if "kitchen" in keys and not motion:
+        R = [r for r in R if (r.get("when") or {}).get("type") != "device"]
     made, skipped = [], []
     for i, spec in enumerate(R):
         spec.setdefault("days", every)
-        spec["do"] = [a for a in spec["do"] if a.get("entities")]
-        if not spec["do"]:
+        spec["do"] = [a for a in spec["do"] if a.get("entities") or a.get("type") == "wait"]
+        while spec["do"] and spec["do"][-1].get("type") == "wait":      # nothing left after a wait
+            spec["do"].pop()
+        if not [a for a in spec["do"] if a.get("type") != "wait"] or spec["do"][0].get("type") == "wait":
             skipped.append(spec["name"])
             continue
         rid = f"fhu_{int(time.time() * 1000):x}{i:02d}"

@@ -76,6 +76,8 @@ def _clean(slots) -> list:
     if not isinstance(slots, list) or not slots:
         raise ValueError("Add at least one time")
     for s in slots[:24]:
+        if not isinstance(s, dict):
+            raise ValueError("That schedule didn't come through right. Try again.")
         at = str(s.get("at") or "")
         if not re.fullmatch(r"\d{1,2}:\d{2}", at) or int(at.split(":")[0]) > 23 or int(at.split(":")[1]) > 59:
             raise ValueError("Each time needs a start time")
@@ -87,7 +89,7 @@ def _clean(slots) -> list:
             raise ValueError("Pick upstairs, downstairs or both")
         try:
             heat, cool = int(float(s.get("heat"))), int(float(s.get("cool")))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             raise ValueError("Heat and cool need numbers")
         if not (45 <= heat <= 85 and 55 <= cool <= 95):
             raise ValueError("Heat 45-85°, cool 55-95°")

@@ -81,10 +81,12 @@ def _plural(n: int, one: str, many: str | None = None) -> str:
 # Locked in whatever the steps say: I'm home disarms only with the typed code and opens the garage only after a
 # successful disarm; nothing else ever disarms or unlocks; Leaving won't arm with a door open.
 GROUPS = {"*lights": "all the lights", "*indoor": "the indoor lights", "*outdoor": "the outside lights", "*tvs": "the TVs",
-          "*locks": "all the locks", "*garage": "the garage door", "*entry": "the entry lights"}
+          "*locks": "all the locks", "*garage": "the garage door", "*entry": "the entry lights", "*all": "both thermostats"}
 
 
-STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "disarm", "open_garage", "thermostat", "schedule", "village", "scene", "say", "briefing"}
+STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "disarm", "open_garage", "thermostat", "schedule", "village", "say", "briefing"}
+_STEP_DOMAINS = {"off": ("light", "switch", "fan", "media_player"), "on": ("light", "switch", "fan", "media_player"),
+                 "dim": ("light", "switch"), "lock": ("lock",), "close": ("cover",), "thermostat": ("climate",)}
 MODES = ("goodnight", "away", "welcome", "morning")
 
 
@@ -102,10 +104,19 @@ def save_steps(mode: str, steps) -> dict:
             continue                                   # only I'm home opens the garage
         if st["type"] == "disarm" and mode != "morning":
             continue                                   # I'm home always disarms first; nothing else may
-        ents = [str(e) for e in (st.get("entities") or []) if re.fullmatch(r"\*[a-z]+|[a-z_]+\.[a-z0-9_]+", str(e))]
+        doms = _STEP_DOMAINS.get(st["type"], ())
+        # only the right kind of device per step (an on/off step can't run a script that unlocks something)
+        ents = [str(e) for e in (st.get("entities") or [])
+                if re.fullmatch(r"\*[a-z]+", str(e)) or (re.fullmatch(r"[a-z_]+\.[a-z0-9_]+", str(e)) and str(e).split(".")[0] in doms)]
         x = {k: v for k, v in st.items() if k in ("type", "arm", "mode", "temp", "cool", "pct", "white", "rgb", "dark", "village", "message")}
         x["entities"] = ents
-        if st["type"] in ("off", "on", "dim", "lock", "close", "scene") and not ents:
+        for k, lo, hi in (("temp", 45, 90), ("cool", 50, 95), ("pct", 1, 100)):
+            if x.get(k) not in (None, ""):
+                try:
+                    x[k] = max(lo, min(hi, float(x[k])))
+                except (TypeError, ValueError):
+                    x.pop(k)
+        if st["type"] in ("off", "on", "dim", "thermostat") and not ents:
             return {"ok": False, "reason": "Pick what each step is for"}
         clean.append(x)
     hm = _custom()          # its own settings row, so a phone saving the 'ui' settings can't wipe it
@@ -178,7 +189,7 @@ def _expand(ids, tiles) -> list:
         elif e == "*locks":
             out += [t for t in tiles if t["domain"] == "lock"]
         elif e == "*garage":
-            out += [t for t in tiles if t["domain"] == "cover"]
+            out += [t for t in tiles if t["domain"] == "cover" and re.search(r"garage", t["name"] + " " + t["entity_id"], re.I)]
         elif e == "*entry":
             out += [t for t in tiles if t["domain"] == "light" and _ENTRY.search(t["name"] + " " + str(t.get("area") or ""))]
         elif e == "*all":
@@ -194,9 +205,8 @@ def _expand(ids, tiles) -> list:
 
 def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=False):
     by = lambda dom: [t for t in tiles if t["domain"] == dom]
-    peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
-    in_peak = bool(peak and peak.get("on"))
-    still_armed = False
+    in_peak = ha_svc.peak_now()
+    still_armed, disarmed_ok = False, False
     if mode == "welcome":                              # locked in: disarm with the typed code, first
         for t in by("alarm_control_panel"):
             if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending", "triggered"):
@@ -204,7 +214,7 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
             if code or (tapped and s.get("welcomeNoCode") is True):
                 r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)} if code else None)
                 if r.get("ok"):
-                    done.append("disarmed the alarm")
+                    done.append("disarmed the alarm"); disarmed_ok = True
                 else:
                     still_armed = True
                     warnings.append("the alarm didn't disarm, check the code" if code else "the alarm wants a code to disarm, turn the no-code option off")
@@ -214,7 +224,7 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
     open_now = [ha_svc.opening_label(t, gcover) for t in by("binary_sensor")
                 if t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"]]
     open_now = [x for x in open_now if x]
-    brief = [False]
+    brief, closed_now = [False], []
     for st in steps:
         k = st.get("type")
         try:
@@ -255,8 +265,13 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 for t in [t for t in _expand(st.get("entities") or ["*garage"], tiles) if t["domain"] == "cover"]:
                     if t["state"] in ("open", "opening"):
                         ha_svc.call_service("cover", "close_cover", t["entity_id"])
+                        closed_now.append(t)
                         done.append(f"closed the {t['name']}")
             elif k == "arm":
+                closing = {t["entity_id"] for t in closed_now}
+                open_covers = [t["name"] for t in by("cover") if t["state"] in ("open", "opening") and t["entity_id"] not in closing]
+                if mode == "away" and open_covers:
+                    open_now = open_now + open_covers
                 if mode == "away" and open_now:
                     warnings.append("I didn't arm the alarm because " + ", ".join(open_now) + (" is" if len(open_now) == 1 else " are") + " open")
                     continue
@@ -277,10 +292,14 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                     else:
                         notes.append("The alarm is still armed." if not tapped else "The alarm is still armed, disarm it on the keypad.")
             elif k == "open_garage" and mode == "welcome" and open_garage:
+                # only when every panel is known to be disarmed now (a disarm that worked, or already disarmed);
+                # unknown / unavailable / disarming / an Alarm.com outage = leave it shut
+                panels = by("alarm_control_panel")
+                safe = not still_armed and all(disarmed_ok or ha_svc._current_state(t["entity_id"]) == "disarmed" for t in panels)
                 for t in by("cover"):
                     if re.search(r"garage", t["name"] + " " + t["entity_id"], re.I) and t["state"] in ("closed", "closing"):
-                        if still_armed:
-                            warnings.append("I left the garage closed because the alarm is armed"); break
+                        if not safe:
+                            warnings.append("I left the garage closed because the alarm isn't disarmed"); break
                         ha_svc.call_service("cover", "open_cover", t["entity_id"])
                         done.append(f"opened the {t['name']}")
             elif k == "thermostat":
@@ -289,6 +308,8 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 if in_peak and m != "off":
                     notes.append("It's peak hours, so I left the heat and air alone."); continue
                 for t in ts:
+                    if m == "keep" and t.get("state") == "off":
+                        continue                          # it's off: a temperature alone wouldn't do anything
                     if m in ("heat", "cool", "heat_cool", "auto", "off"):
                         ha_svc.call_service("climate", "set_hvac_mode", t["entity_id"], {"hvac_mode": m})
                     if temp and m != "off":
@@ -343,10 +364,14 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
     tiles = _tiles()
     s = _settings()
     steps, custom = steps_for(mode)
-    if custom or mode == "morning":
+    if mode not in MODES:
+        return {"ok": False, "reason": "mode must be goodnight | morning | away | welcome"}
+    if True:                     # every button runs its steps (custom, or the defaults shown in Settings)
         done, warnings, notes = [], [], []
         if not arm:
             steps = [x for x in steps if x.get("type") != "arm"]
+        if close_garage is True and mode in ("goodnight", "away") and not any(x.get("type") == "close" for x in steps):
+            steps = [{"type": "close", "entities": ["*garage"]}] + steps     # "good night and close the garage"
         _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=tapped)
         try:
             from . import display_svc
@@ -363,136 +388,6 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         r["briefing"] = briefing
         r["quiet"] = mode == "morning"        # people may still be asleep: banner, no voice
         return r
-    if close_garage is None:                       # match the Alarm.com Sleep/Away scenes: close it (setting can turn this off)
-        close_garage = s.get("closeGarageOnModes", True) is not False
-    done, warnings, notes = [], [], []
-    by = lambda dom: [t for t in tiles if t["domain"] == dom]
-
-    if mode in ("goodnight", "away"):
-        lights_too = mode == "away" or s.get("goodnightLightsOff", False) is True
-        # lights + fans + switches that are lights
-        lights = [t for t in by("light") if t["on"]] + [t for t in by("fan") if t["on"]] if lights_too else []
-        lights += [t for t in by("switch") if t["on"] and re.search(r"light|lamp|led|strip", t["name"], re.I)] if lights_too else []
-        if mode == "goodnight":
-            # outdoor lights stay on for the night schedule, except floodlights (the Sleep scene turns BackyardFL off)
-            lights = [t for t in lights if not _OUTDOOR.search(t["name"] + " " + str(t.get("area") or "")) or re.search(r"flood|\bfl\b|fl$", t["name"], re.I)]
-        for t in lights:
-            ha_svc.call_service(t["domain"], "turn_off", t["entity_id"])
-        if lights:
-            done.append(f"turned off {_plural(len(lights), 'light')}")
-        # TVs / players
-        tvs = [t for t in by("media_player") if t["state"] not in ("off", "unavailable", "standby") and not re.search(r"spotify|familyhub", t["entity_id"] + t["name"], re.I)] if lights_too else []
-        for t in tvs:
-            ha_svc.call_service("media_player", "turn_off", t["entity_id"])
-        if tvs:
-            done.append(f"turned off {_plural(len(tvs), 'TV')}")
-        # locks
-        unlocked = [t for t in by("lock") if t["state"] != "locked"]
-        for t in unlocked:
-            ha_svc.call_service("lock", "lock", t["entity_id"])
-        if unlocked:
-            done.append(f"locked the {', '.join(t['name'] for t in unlocked)}")
-        elif by("lock"):
-            notes.append("The doors are locked.")
-        # garage
-        for t in by("cover"):
-            if t["state"] in ("open", "opening"):
-                if close_garage:
-                    ha_svc.call_service("cover", "close_cover", t["entity_id"])
-                    done.append(f"closed the {t['name']}")
-                else:
-                    warnings.append("the garage door is still open" if re.search(r"garage", t["name"], re.I) else f"the {t['name']} is still open")
-        # open doors/windows the sensors see
-        gcover = ha_svc.has_garage_cover(by("cover"))
-        for t in by("binary_sensor"):
-            if t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"]:
-                lbl = ha_svc.opening_label(t, gcover)          # the house->garage door is reported, the cover's own twin isn't
-                if lbl:
-                    warnings.append(f"the {lbl.lower()} is open" if lbl == "Door to garage" else f"{lbl} is open")
-        # alarm
-        if arm:
-            for t in by("alarm_control_panel"):
-                if warnings and mode == "away":
-                    warnings.append("I didn't arm the alarm")
-                    break
-                # Stay for both, like the Surety Sleep and Away scenes (dogs set off motion sensors). settings.awayArm="away" opts in.
-                svc = "alarm_arm_away" if (mode == "away" and s.get("awayArm") == "away") else "alarm_arm_home"
-                r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
-                done.append("armed the alarm" + (" for the night" if mode == "goodnight" else "") if r.get("ok") else "couldn't arm the alarm")
-        # thermostat
-        temp = s.get("nightTemp") if mode == "goodnight" else s.get("awayTemp")
-        if temp:
-            for t in by("climate"):
-                ha_svc.call_service("climate", "set_temperature", t["entity_id"], {"temperature": float(temp)})
-            if by("climate"):
-                done.append(f"set the thermostat to {int(float(temp))}")
-        # the Christmas village: quiet for the night (FamilyHub puts it back on automatic in the morning)
-        if s.get("villageWithHouse", True) is not False:
-            try:
-                from . import village
-                if village.status().get("reachable"):
-                    v = village.pause_for_night()
-                    if v:
-                        done.append(v)
-            except Exception:
-                pass
-        lead = "Good night." if mode == "goodnight" else "Bye for now."
-        if mode == "goodnight":
-            try:
-                from . import display_svc
-                if display_svc._sleep_settings()[0]:
-                    display_svc.enter_sleep("goodnight")       # wall goes dark now, even if the panel reports Stay
-            except Exception:
-                pass
-    elif mode == "welcome":
-        try:                                   # village back on automatic if Good night / Leaving paused it
-            from . import village
-            village.resume()
-        except Exception:
-            pass
-        # 1) disarm with the code from the keypad
-        still_armed = False
-        for t in by("alarm_control_panel"):
-            if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending", "triggered"):
-                continue
-            if code or (tapped and s.get("welcomeNoCode") is True):
-                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)} if code else None)
-                if r.get("ok"):
-                    done.append("disarmed the alarm")
-                else:
-                    still_armed = True
-                    warnings.append("the alarm didn't disarm, check the code" if code else "the alarm wants a code to disarm, turn the no-code option off")
-            else:
-                still_armed = True
-                warnings.append("the alarm is still armed, disarm it on the keypad")
-        # 2) open the garage, only once the alarm is off (opening it while armed would set it off)
-        if open_garage and s.get("openGarageOnHome", True) is not False:
-            for t in by("cover"):
-                if re.search(r"garage", t["name"] + " " + t["entity_id"], re.I) and t["state"] in ("closed", "closing"):
-                    if still_armed:
-                        warnings.append("I left the garage closed because the alarm is armed")
-                        break
-                    ha_svc.call_service("cover", "open_cover", t["entity_id"])
-                    done.append(f"opened the {t['name']}")
-        if _after_dark():
-            entry = [t for t in by("light") if not t["on"] and _ENTRY.search(t["name"] + " " + str(t.get("area") or ""))]
-            for t in entry:
-                ha_svc.call_service("light", "turn_on", t["entity_id"])
-            if entry:
-                done.append(f"turned on {', '.join(t['name'] for t in entry)}")
-        temp = s.get("homeTemp")
-        if temp and by("climate"):
-            peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
-            if peak and peak.get("on"):
-                notes.append("It's peak hours, so I left the heat and air off until peak ends.")
-            else:
-                for t in by("climate"):
-                    ha_svc.call_service("climate", "set_temperature", t["entity_id"], {"temperature": float(temp)})
-                done.append(f"set the thermostat to {int(float(temp))}")
-        lead = f"Welcome home{', ' + who if who else ''}."
-    else:
-        return {"ok": False, "reason": "mode must be goodnight | away | welcome"}
-    return _finish(mode, lead, done, warnings, notes, source)
 
 
 def _finish(mode, lead, done, warnings, notes, source, quiet=False):

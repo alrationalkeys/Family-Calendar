@@ -373,7 +373,7 @@ def climate(text: str, tiles: list):
     elif w & {"heat", "heater", "heating", "furnace"} and not w & {"ac", "air"}:
         targets = [t for t in targets if t.get("state") in ("heat", "heat_cool", "auto")] or targets
     short = lambda t: re.sub(r"\s*thermostat\s*", "", t["name"], flags=re.I).strip() or t["name"]
-    peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
+    peak = {"on": ha_svc.peak_now()}
     in_peak = bool(peak and peak.get("on"))
     fmt = lambda v: str(int(round(float(v)))) if v is not None else "?"
 

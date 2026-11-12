@@ -388,13 +388,14 @@
       say("Saved — the thermostats are on it"); d.slots = r.slots; d.saved = true; thermoSched(el, d); return true;
     };
     const edit = (i) => {
+      if (el.querySelector(".ts-form")){ say("Save or cancel the time you're editing first"); return; }
       const s = i == null ? {at: "07:00", days: TS_DAYS.map(x => x[0]), targets: stats.map(x => x.id), heat: 66, cool: 72} : JSON.parse(JSON.stringify(slots[i]));
       const row = i == null ? el.querySelector("[data-ts-add]") : el.querySelector(`.ts-row[data-i="${i}"]`);
       const f = document.createElement("div"); f.className = "ts-form";
       const draw = () => { f.innerHTML = `<div class="rb-row"><input type="time" data-f="at" value="${esc(s.at)}"></div>
         <div class="rb-chips">${TS_DAYS.map(([k, t]) => `<button data-fd="${k}" class="${s.days.includes(k) ? "on" : ""}" style="width:38px; padding:8px 0">${t}</button>`).join("")}</div>
         <div class="rb-chips" style="margin-top:6px"><button data-fq="all">Every day</button><button data-fq="wk">Weekdays</button><button data-fq="we">Weekends</button></div>
-        <div class="rb-chips" style="margin-top:8px">${stats.map(t => `<button data-ft="${esc(t.id)}" class="${s.targets.includes(t.id) ? "on" : ""}">${esc(t.name)}</button>`).join("")}</div>
+        ${stats.length > 1 ? `<div class="rb-chips" style="margin-top:8px">${stats.map(t => `<button data-ft="${esc(t.id)}" class="${s.targets.includes(t.id) ? "on" : ""}">${esc(t.name)}</button>`).join("")}</div>` : ""}
         <div class="rb-row">heat <input type="number" min="45" max="85" data-f="heat" value="${s.heat}" style="width:74px">° &nbsp; cool <input type="number" min="55" max="95" data-f="cool" value="${s.cool}" style="width:74px">°</div>
         <div class="rb-btns" style="margin-top:8px">${i == null ? "" : `<button class="del" data-fx="del">Delete</button>`}<button data-fx="cancel">Cancel</button><button class="save" data-fx="save">Save</button></div>`;
         f.querySelectorAll("[data-f]").forEach(x => x.oninput = x.onchange = () => { s[x.dataset.f] = x.type === "number" ? +x.value : x.value; });
@@ -404,7 +405,10 @@
         f.querySelector('[data-fx="cancel"]').onclick = () => thermoSched(el, d);
         const del = f.querySelector('[data-fx="del"]');
         if (del) del.onclick = () => { if (slots.length < 2){ say("Keep at least one time"); return; } if (confirm("Delete this time?")) save(slots.filter((_, j) => j !== i)); };
-        f.querySelector('[data-fx="save"]').onclick = () => { const next = slots.slice(); if (i == null) next.push(s); else next[i] = s; save(next); };
+        f.querySelector('[data-fx="save"]').onclick = () => {
+          if (!s.at){ say("Pick a start time"); return; }
+          if (!(s.heat > 0) || !(s.cool > 0)){ say("Fill in both heat and cool"); return; }
+          const next = slots.slice(); if (i == null) next.push(s); else next[i] = s; save(next); };
       };
       draw(); row.replaceWith(f);
     };
@@ -426,9 +430,9 @@
   }
   function modeSummary(steps){
     return (steps || []).map(a => { const l = (a.entities || []).map(nameOf).join(", ") || "…";
-      return ({on: `turn on ${l}${a.dark ? " (after dark)" : ""}`, off: `turn off ${l}`, dim: `set ${l} to ${a.pct || 50}%`, lock: `lock ${l}`, close: `close ${l}`,
+      return ({on: `turn on ${l}${a.dark ? " (after dark)" : ""}`, off: `turn off ${l}`, dim: `set ${l} to ${a.pct || 50}%${a.white === "color" ? " in a color" : a.white ? " " + (a.white === "daylight" ? "daylight" : a.white + " white") : ""}`, lock: `lock ${l}`, close: `close ${l}`,
         arm: `arm the alarm (${({stay: "Stay", away: "Away", night: "Night"})[a.arm || "stay"]})`, disarm: "disarm the alarm", open_garage: "open the garage once disarmed",
-        thermostat: a.mode === "off" ? `turn ${l} off` : `set ${l} to ${a.temp || "?"}°`, schedule: "thermostats back to the schedule",
+        thermostat: a.mode === "off" ? `turn ${l} off` : `set ${l} to ${a.mode && a.mode !== "keep" ? a.mode.replace("_", "/") + " " : ""}${a.temp ? a.temp + "°" : ""}`.trim(), schedule: "thermostats back to the schedule",
         village: a.village === "wake" ? "wake the Christmas village" : "put the Christmas village to sleep", say: `say "${a.message || "…"}"`, briefing: "read the morning briefing"})[a.type] || a.type; }).join(" → ");
   }
   function drawMode(sh){
@@ -441,7 +445,7 @@
       <div class="rb-btns"><button class="del" data-reset>Back to normal</button><button data-x>Cancel</button><button class="save" data-save>Save</button></div>`;
     const sum = () => { sh.querySelector("#rb-sum").textContent = modeSummary(spec.do); };
     sh.querySelectorAll("[data-x]").forEach(b => b.onclick = closeBuilder);
-    sh.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { spec.do.push({type: b.dataset.add, entities: [], mode: "keep", temp: 68, pct: 50, arm: "stay", village: "sleep"}); draw(); });
+    sh.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { spec.do.push({type: b.dataset.add, entities: [], mode: "keep", temp: 68, pct: 50, arm: "stay", village: houseMode === "morning" || houseMode === "welcome" ? "wake" : "sleep"}); draw(); });
     bindSteps(sh, sum);
     sh.querySelector("[data-save]").onclick = async () => {
       const err = sh.querySelector("#rb-err"); err.textContent = "";
@@ -453,7 +457,9 @@
         if (box){ box.style.outline = "2px solid #c0392b"; box.scrollIntoView({behavior: "smooth", block: "center"}); const d = box.querySelector("details"); if (d) d.open = true; }
         return;
       }
-      const r = await post("/api/ha/modes/" + houseMode, {steps: spec.do});
+      if (!spec.do.length){ err.textContent = "Add at least one step, or tap Back to normal for the built-in steps."; return; }
+      if (spec.do.some(a => a.type === "say" && !String(a.message || "").trim())){ err.textContent = "Type what to say, or remove that step."; return; }
+      const r = await post("/api/ha/modes/" + houseMode, {steps: cleanSteps(spec.do)});
       if (!r.ok){ err.textContent = r.reason || "Couldn’t save"; return; }
       closeBuilder(); say(`${MODE_TITLE[houseMode]} saved`); if (modeBox) houseModes(modeBox);
     };
@@ -557,6 +563,7 @@
     if (a.type === "village") body += `<div class="rb-row"><select data-a="village">${[["sleep","Put it to sleep for the night"],["wake","Wake it up"]].map(([v,t]) => `<option value="${v}" ${(a.village || "sleep") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
     if (a.type === "wait"){
       const u = a.until || "minutes", motion = (ch.sensors || []).filter(x => x.kind === "motion");
+      if (u === "quiet" && motion.length && !motion.some(x => x.id === a.entity)) a.entity = motion[0].id;   // what's shown = what's saved
       body += `<div class="rb-row"><select data-a="until">${[["minutes","a number of minutes"],["time","until a time of day"],["sunrise","until sunrise"],["sunset","until sunset"],["quiet","until the motion is quiet"]].map(([v,t]) => `<option value="${v}" ${u === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
       if (u === "minutes") body += `<div class="rb-row"><input type="number" min="1" max="720" data-a="minutes" value="${esc(a.minutes || 5)}" style="width:90px"> minutes</div>`;
       if (u === "time") body += `<div class="rb-row"><input type="time" data-a="at" value="${esc(a.at || "23:00")}"></div>`;
@@ -573,14 +580,26 @@
     return `<select data-md="${k}" data-part="m">${MONTHS.map((t, i) => `<option value="${i + 1}" ${m === i + 1 ? "selected" : ""}>${t}</option>`).join("")}</select>
       <input type="number" min="1" max="31" data-md="${k}" data-part="d" value="${d}" style="width:64px">`;
   }
+  const STEP_KEYS = {on: ["entities", "dark"], off: ["entities"], dim: ["entities", "pct", "white", "rgb"], thermostat: ["entities", "mode", "temp", "cool"],
+    lock: ["entities"], close: ["entities"], arm: ["arm"], village: ["village"], say: ["message"], notify: ["message"],
+    wait: ["until", "minutes", "at", "entity"], schedule: [], open_garage: [], disarm: [], briefing: []};
+  function cleanSteps(list){
+    return list.map(a => { const k = STEP_KEYS[a.type] || Object.keys(a), o = {type: a.type};
+      k.forEach(f => { if (a[f] !== undefined && a[f] !== "") o[f] = a[f]; });
+      if (a.type === "thermostat" && !["heat", "cool", "keep", undefined].includes(a.mode)) delete o.temp;   // no hidden temperature
+      if (a.type === "dim" && a.white !== "color") delete o.rgb;
+      if (a.type === "wait"){ const u = a.until || "minutes"; if (u !== "time") delete o.at; if (u !== "quiet") delete o.entity; if (u !== "minutes" && u !== "quiet") delete o.minutes; }
+      return o; });
+  }
   function toSpec(){            // builder state -> what the server expects
     const s = JSON.parse(JSON.stringify(spec)), w = s.when;
+    s.do = cleanSteps(s.do || []);
     if (w.type === "sunset" || w.type === "sunrise"){ s.when = {type:"sun", event:w.type, offset:+(w.offset || 0)}; }
     return s;
   }
   function summaryText(){
     const w = spec.when, nm = nameOf;
-    let t = w.type === "time" ? `At ${w.at || "?"}` : (w.type === "sunset" || w.type === "sunrise") ? (+(w.offset||0) ? `${Math.abs(w.offset)} min ${w.offset < 0 ? "before" : "after"} ${w.type}` : `At ${w.type}`)
+    let t = w.type === "time" ? `At ${fmtT(w.at) || "?"}` : (w.type === "sunset" || w.type === "sunrise") ? (+(w.offset||0) ? `${Math.abs(w.offset)} min ${w.offset < 0 ? "before" : "after"} ${w.type}` : `At ${w.type}`)
       : w.type === "device" ? `When ${nm(w.entity)} ${(/motion|occupancy|presence/.test(w.entity || "") ? {on:"detects motion", off:"goes quiet"} : {on:"opens", off:"closes"})[w.to] || ({open:"opens", closed:"closes", unlocked:"is unlocked", locked:"is locked"})[w.to] || w.to}`
       : w.type === "arrive" ? (w.person ? `When ${nm(w.person)} gets home` : "When the first person gets home")
       : w.type === "leave" ? (w.person ? `When ${nm(w.person)} leaves` : "When everyone has left") : `When the alarm ${({armed_home:"is armed Stay", armed_away:"is armed Away", armed_night:"is armed Night", disarmed:"is disarmed", triggered:"goes off"})[w.to] || "changes"}`;
@@ -588,13 +607,13 @@
     if (d.length && d.length < 7) t += d.join() === "mon,tue,wed,thu,fri" ? " on weekdays" : d.join() === "sat,sun" ? " on weekends" : " on " + d.map(x => x[0].toUpperCase() + x.slice(1, 3)).join(", ");
     if (w.type === "device" && +(w.for || 0) && (w.to === "off" || w.to === "closed")) t += ` for ${w.for} min`;
     const md = v => { const m = +String(v || "").slice(0, 2), d = +String(v || "").slice(3, 5); return m ? `${MONTHS[m - 1]} ${d}` : "?"; };
-    if (spec.between) t += `, only between ${spec.between.after || "?"} and ${spec.between.before || "?"}`;
+    if (spec.between) t += `, only between ${fmtT(spec.between.after) || "?"} and ${fmtT(spec.between.before) || "?"}`;
     if (spec.dates) t += `, ${spec.dates_except ? "except" : "only"} ${md(spec.dates.from)} to ${md(spec.dates.to)}`;
     if (spec.dark) t += ", only after dark"; if (spec.home) t += ", only if someone's home"; if (spec.ifoff) t += ", only if those lights are off";
     const acts = spec.do.map(a => { const l = (a.entities || []).map(nm).join(", ") || "…";
-      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white === "color" ? (a.rgb ? " in rgb(" + a.rgb.join(",") + ")" : " in a color") : a.white === "daylight" ? " daylight" : a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
+      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white === "color" ? " in a color" : a.white === "daylight" ? " daylight" : a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
         lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`,
-        wait: (a.until || "minutes") === "minutes" ? `wait ${a.minutes || 5} min` : a.until === "time" ? `then at ${a.at || "?"}` : a.until === "quiet" ? `then once ${nm(a.entity)} has been quiet ${a.minutes || 10} min` : `then at ${a.until}`})[a.type]; });
+        wait: (a.until || "minutes") === "minutes" ? `wait ${a.minutes || 5} min` : a.until === "time" ? `then at ${fmtT(a.at) || "?"}` : a.until === "quiet" ? `then once ${nm(a.entity)} has been quiet ${a.minutes || 10} min` : `then at ${a.until}`})[a.type]; });
     return t + " → " + (acts.length ? acts.join("; ") : "add something to do");
   }
   function draw(){
@@ -640,7 +659,9 @@
       if (k === "off" && spec.do.some(a => a.type === "wait"))
         step.entities = [...new Set(spec.do.filter(a => a.type === "on" || a.type === "dim").flatMap(a => a.entities || []))];
       if (k === "wait"){ step.until = "minutes"; step.minutes = 5;
-        const m = (((last && last.choices) || {}).sensors || []).find(x => x.kind === "motion"); if (m) step.entity = spec.when.type === "device" && spec.when.entity ? spec.when.entity : m.id; }
+        const ms = (((last && last.choices) || {}).sensors || []).filter(x => x.kind === "motion");
+        const w0 = spec.when.type === "device" && ms.find(x => x.id === spec.when.entity);
+        if (ms.length) step.entity = w0 ? w0.id : ms[0].id; }
       spec.do.push(step); draw(); });
     $$("[data-rm]").forEach(b => b.onclick = () => { spec.do.splice(+b.dataset.rm, 1); draw(); });
     $$(".rb-act").forEach(box => { const a = spec.do[+box.dataset.i];

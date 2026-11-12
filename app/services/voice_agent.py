@@ -250,7 +250,7 @@ def _run_tool(name, a, tiles, out):
         return ("done: " + ", ".join(done) if done else "") + (" | " + "; ".join(refused) if refused else "")
     if name == "set_thermostat":
         known = {t["entity_id"]: t for t in tiles if t["domain"] == "climate"}
-        peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
+        peak = {"on": ha_svc.peak_now()}
         mode, temp, res = a.get("mode"), a.get("temperature"), []
         if mode in ("heat", "cool") and peak and peak.get("on"):
             return "refused: it's Santee Cooper peak hours; heat and air stay off until peak ends"

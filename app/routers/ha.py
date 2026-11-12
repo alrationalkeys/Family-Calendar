@@ -164,7 +164,8 @@ def mode(payload: dict):
     p = payload or {}
     return house_modes.run(p.get("mode", ""), who=p.get("who"), close_garage=(None if p.get("close_garage") is None else bool(p.get("close_garage"))),
                            arm=p.get("arm", True) is not False, source=p.get("source", "wall"),
-                           code=(str(p["code"]) if p.get("code") else None), open_garage=bool(p.get("open_garage")), tapped=True)
+                           code=(str(p["code"]) if p.get("code") else None), open_garage=bool(p.get("open_garage")),
+                           tapped=p.get("source") in ("wall", "phone"))   # only the wall / phone buttons; HA geofence ("ha") or no source never disarms
 
 
 @router.get("/presence")

@@ -14,10 +14,10 @@
      bed/tv/counter/desk = which wall ("n" back, "s" front, "e", "w") the piece sits on; table = which half the dining
      table takes ("c" centred); train = the half the village train table takes; fireplace (under the TV),
      sectional (an L couch instead of a sofa), screened (porch with screens + a ceiling fan). */
-  const PLAN_W=38, MIRROR=true;
+  const PLAN_W=38, MIRROR=true, Y0=2;   // Y0: the screened porch sticks 2 ft past the drawn patio, so shift everything down
   const ROOMS_DRAWN=[
     // ---- first floor ----
-    {floor:1, name:"Back Porch", key:"patio",     gx:28,   gy:0,    gw:10,   gd:8,    open:true, screened:true},
+    {floor:1, name:"Back Porch", key:"patio",     gx:26,   gy:-2,   gw:12,   gd:10,   open:true, screened:true},   // the 12x10 screened porch option
     {floor:1, name:"Office",    key:"office",    gx:0,    gy:8,    gw:11,   gd:13,   desk:"e", tv:"w"},   // bedroom 4, used as the office
     {floor:1, name:"Living",    key:"living",    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w", fireplace:true, sectional:true},
     {floor:1, name:"Breakfast", key:"breakfast", gx:25,   gy:8,    gw:13,   gd:13.4, table:"w", train:"e"},   // eat-in table + the village train
@@ -33,11 +33,11 @@
     {floor:1, name:"Dining Room", key:"dining room", gx:25, gy:40.5, gw:13,   gd:11.7, table:"c"},     // the flex room, used as the dining room
     {floor:1, name:"Front Porch", key:"porch",     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
     // ---- second floor ----
-    {floor:2, name:"Sitting",       key:"sitting",       gx:0,    gy:8,    gw:9.5,  gd:13.8},
-    {floor:2, name:"Bedroom 1",     key:"master",        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n"},
-    {floor:2, name:"Bath 1",        key:"bath 1",        gx:24.8, gy:8,    gw:13.2, gd:13.8, tub:"n", shower:"ne"},
+    {floor:2, name:"Sitting",       key:"sitting",       gx:0,    gy:8,    gw:9.5,  gd:13.8, tree:true},
+    {floor:2, name:"Bedroom 1",     key:"master",        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n", tv:"s"},
+    {floor:2, name:"Bath 1",        key:"bath 1",        gx:24.8, gy:8,    gw:13.2, gd:13.8, tub:"none", shower:"ne"},   // walk-in glass shower, no tub
     {floor:2, name:"Master Closet", key:"master closet", gx:0,    gy:21.8, gw:19.3, gd:5.8},
-    {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"n"},
+    {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"e", sectional:true},
     {floor:2, name:"Laundry",       key:"laundry",       gx:0,    gy:27.6, gw:9.5,  gd:7.5},
     {floor:2, name:"Hall",          key:"upstairs hall", gx:9.5,  gy:27.6, gw:9.8,  gd:12.7, stairwell:{gx:9.5, gy:27.6, gw:3.8, gd:7.5}},
     {floor:2, name:"Closet",        key:"closet 2",      gx:0,    gy:35.1, gw:5.8,  gd:5.2},
@@ -98,15 +98,14 @@
   ];
   const flipSide=s=>({e:"w",w:"e"}[s]||s);
   function mirrorRoom(r){
-    if(!MIRROR) return r;
-    const o={...r, gx:PLAN_W-r.gx-r.gw};
+    const o={...r, gx:MIRROR?PLAN_W-r.gx-r.gw:r.gx, gy:r.gy+Y0};
     ["bed","tv","counter","tub","desk","table","train"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
     if(o.shower) o.shower=o.shower.replace(/[ew]/g,c=>flipSide(c));
-    if(r.stairs) o.stairs={...r.stairs, gx:PLAN_W-r.stairs.gx-r.stairs.gw};
-    if(r.stairwell) o.stairwell={...r.stairwell, gx:PLAN_W-r.stairwell.gx-r.stairwell.gw};
+    if(r.stairs) o.stairs={...r.stairs, gx:PLAN_W-r.stairs.gx-r.stairs.gw, gy:r.stairs.gy+Y0};
+    if(r.stairwell) o.stairwell={...r.stairwell, gx:PLAN_W-r.stairwell.gx-r.stairwell.gw, gy:r.stairwell.gy+Y0};
     return o;
   }
-  const mirrorOpening=d=>MIRROR?{...d, x:PLAN_W-d.x}:d;
+  const mirrorOpening=d=>({...d, x:MIRROR?PLAN_W-d.x:d.x, z:d.z+Y0});
   const DEFAULT_LAYOUT=ROOMS_DRAWN.map(mirrorRoom);
   const DEFAULT_PLAN={doors:DOORS_DRAWN.map(mirrorOpening), windows:WINDOWS_DRAWN.map(mirrorOpening)};
 

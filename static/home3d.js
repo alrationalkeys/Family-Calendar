@@ -148,12 +148,13 @@
       const side=r.tv||"n", L=along(r,side), D=deep(r,side);
       if(/sitting/.test(k)||L<9||D<9){ // reading corner: two chairs + table
         const p=placed(r, side, 0.5, 1); p.add(box(2.4,1.3,2.4,COL.fabric,-1.8,0,1.2)); p.add(box(2.4,1.1,0.6,COL.fabricDk,-1.8,1.3,0.3)); p.add(box(2.4,1.3,2.4,COL.fabric,1.8,0,1.2)); p.add(box(2.4,1.1,0.6,COL.fabricDk,1.8,1.3,0.3)); p.add(cyl(0.8,1.6,COL.woodDk,0,0,1.2,16)); g.add(p);
-        plant(g, x0+0.9, z0+d-0.9, false); return; }
+        if(XMAS&&r.tree){ xtree(g, x0+1.6, z0+1.6, 5.5); g.add(box(1.4,5,0.2,0xc8a26a,x0+w-1.2,0,z0+1)); } else plant(g, x0+0.9, z0+d-0.9, false); return; }
       if(r.sectional){                                                               // fireplace wall + an L sectional facing it
         const f=placed(r, side, 0.5, 0.15);
-        f.add(box(Math.min(10,L-2),1.6,1.6,COL.white,0,0,0.8)); f.add(box(Math.min(10.4,L-1.6),0.25,1.9,COL.woodDk,0,1.6,0.95));   // shiplap hearth + wood mantel
+        if(!r.fireplace) f.add(box(Math.min(6,L-4),1.8,1.4,COL.woodDk,0,0,0.9));      // TV console
+        else { f.add(box(Math.min(10,L-2),1.6,1.6,COL.white,0,0,0.8)); f.add(box(Math.min(10.4,L-1.6),0.25,1.9,COL.woodDk,0,1.6,0.95));   // shiplap hearth + wood mantel
         const fire=new THREE.Mesh(new THREE.BoxGeometry(Math.min(6,L-5),0.7,0.1), new THREE.MeshStandardMaterial({color:0x3a1406, emissive:0xff7a2a, emissiveIntensity:.9})); fire.position.set(0,0.75,1.62); f.add(fire);
-        [-1,1].forEach(sg=>[2.6,3.9,5.2].forEach(y=>f.add(box(2.2,0.18,1,COL.woodDk,sg*(Math.min(10,L-2)/2+1.4),y,0.5))));                // floating shelves
+        [-1,1].forEach(sg=>[2.6,3.9,5.2].forEach(y=>f.add(box(2.2,0.18,1,COL.woodDk,sg*(Math.min(10,L-2)/2+1.4),y,0.5)))); }              // floating shelves
         g.add(f);
         const D2=Math.min(D-3, 13), sl=Math.min(L-2, 11), sd=Math.min(D2, 9);
         const s=placed(r, opposite(side), 0.5, deep(r,side)-D2-0.2);               // long run, back to the breakfast table
@@ -219,6 +220,14 @@
       return; }
     if(/bath/.test(k)){
       const ts=r.tub||"n", L=along(r,ts), D=deep(r,ts);
+      if(ts==="none"){                                                                 // shower-only: long vanity, toilet room, glass shower
+        const van=placed(r, "s", 0.55, 0.3), vl=Math.min(r.gw-5, 7); van.add(box(vl,2.8,1.9,COL.white,0,0,0.95)); van.add(box(vl+0.2,0.15,2,0xf4f4f4,0,2.8,0.95));
+        van.add(box(1.3,0.1,0.9,0xd6dde4,0,2.96,0.95)); van.add(box(3,2.4,0.08,0xbfd3e4,0,3.3,0.1,{metalness:.3,roughness:.1})); g.add(van);
+        const wc=placed(r, "w", 0.3, 0.3); wc.add(cyl(0.75,1.4,COL.white,0,0,1.1,14)); wc.add(box(1.3,2.3,0.7,COL.white,0,0,0.35)); g.add(wc);
+        const sx=/e/.test(r.shower||"ne")?x0+w-2.4:x0+2.4, sz=/s/.test(r.shower||"ne")?z0+d-2.2:z0+2.2;
+        g.add(box(4.6,0.3,4.2,0xcfd4d8,sx,0,sz)); const gl=new THREE.Mesh(new THREE.BoxGeometry(4.6,4.4,4.2), new THREE.MeshStandardMaterial({color:0xbfd8ea,transparent:true,opacity:.28,roughness:.05,metalness:.1})); gl.position.set(sx,2.5,sz); g.add(gl);
+        return;
+      }
       if(L>=5&&D>=4){
         const tub=placed(r, ts, Math.min(0.35, 2.9/L), 0.3); tub.add(box(5.2,1.9,2.7,COL.white,0,0,1.35)); tub.add(box(4.6,0.3,2.1,0xcfe6ee,0,1.6,1.35)); g.add(tub);  // tub
         const wcSide=r.shower?opposite(ts):(L>8?ts:cw(ts)), wcT=r.shower?(1-1.3/along(r,wcSide)):(L>8?1-1.3/L:0.75);

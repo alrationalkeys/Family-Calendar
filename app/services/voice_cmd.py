@@ -765,7 +765,8 @@ def _interpret(text: str, use_ai: bool = True) -> dict:
     if not q and re.search(lead + r"(?:good ?night|night night|(?:it'?s\s+)?bed ?time|(?:we'?re|i'?m|we are|i am)\s+going to bed|lights out for the night)\b", tl):
         from . import house_modes
         r = house_modes.run("goodnight", close_garage=(True if ("close" in w and "garage" in w) else None))
-        return {"ok": True, "say": r.get("say", "Good night."), "refresh": True}
+        warn = r.get("warnings") or []            # keep it soft: only speak up if something needs attention
+        return {"ok": True, "say": "Good night." + (" Heads up: " + ", ".join(warn) + "." if warn else ""), "refresh": True}
     if not q and re.search(lead + r"(?:good ?morning|morning everyone|rise and shine|wake up)\b", tl):
         from . import house_modes                  # the Good morning button's steps (voice never disarms)
         r = house_modes.run("morning")

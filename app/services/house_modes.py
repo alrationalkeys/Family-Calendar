@@ -384,9 +384,10 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         lead = {"goodnight": "Good night.", "away": "Bye for now.", "morning": "Good morning!"}.get(mode) or f"Welcome home{', ' + who if who else ''}."
         briefing = "__briefing__" in notes
         notes = [n for n in notes if n != "__briefing__"]
-        r = _finish(mode, lead, done, warnings, notes, source, quiet=(mode == "morning"))
+        quiet = mode in ("goodnight", "morning")          # someone may be asleep: a note on the screen, no voice
+        r = _finish(mode, lead, done, warnings, notes, source, quiet=quiet)
         r["briefing"] = briefing
-        r["quiet"] = mode == "morning"        # people may still be asleep: banner, no voice
+        r["quiet"] = quiet
         return r
 
 

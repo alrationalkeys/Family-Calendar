@@ -13,7 +13,7 @@
 #  then change them below if yours differ.
 #     Board A  village-fx     192.168.1.200   effects, sound, shows, hub
 #     Board B  village-train  192.168.1.121   train, station, crossing
-#     WLED     village-lights 192.168.1.133   lights (use the native WLED integration, not this file)
+#     WLED     village-lights 192.168.1.134   lights (use the native WLED integration, not this file)
 #  The .local names work too, but mDNS often does not resolve inside the
 #  Home Assistant container, so IPs are safer.
 # =====================================================================

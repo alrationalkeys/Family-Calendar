@@ -215,6 +215,7 @@
   .hm-dchip{border:1px solid var(--line); background:var(--panel2); color:var(--ink); border-radius:999px; padding:6px 11px; font:inherit; font-size:12px; font-weight:600}
   .hm-dchip.on{background:#1db954; color:#fff; border-color:transparent}
   /* rooms */
+  .rm-colbtn{margin:8px 0 0; border:0; background:var(--panel2); color:var(--ink); border-radius:999px; padding:7px 14px; font:inherit; font-size:13px; font-weight:600}
   .hm-sec{font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); font-weight:700; margin:16px 4px 8px}
   .hm-rooms{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
   .hm-room{position:relative; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:14px; min-height:104px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden}
@@ -1279,6 +1280,7 @@ function rmRow(t, strip){
   else if(d==="camera") ctl=`<div class="rm-btns"><button class="pri" data-cam="${id}" data-n="${nm}">View</button></div>`;
   let extra="";
   if(d==="light"&&t.dimmable) extra=`<div class="rm-dim"><span>🔅</span><input type="range" min="1" max="100" value="${t.on?(t.brightness||100):0}" data-dim="${id}" aria-label="${nm} brightness"><small>${t.on?(t.brightness||100)+"%":"off"}</small></div>`;
+  if(d==="light"&&(t.color||t.whites)) extra+=`<button class="rm-colbtn" data-col="${id}">🎨 ${t.color?"Color":"White"}</button><div class="rm-colp" data-colp="${id}" hidden></div>`;
   return `<div class="rm-row"><div class="rm-top"><div class="rm-ic">${FHHome.haIcon(t)}</div><div class="rm-t"><b>${nm}</b><span class="${cls}">${E(st)}</span></div>${ctl}</div>${extra}<div class="rm-eid">${id}</div></div>`;
 }
 function renderRoom(){
@@ -1302,6 +1304,14 @@ function renderRoom(){
   list.querySelectorAll("[data-remote]").forEach(el=>el.onclick=()=>{ closeRoom(); FHHome.remote(el.dataset.remote, el.dataset.n); });
   list.querySelectorAll("[data-th]").forEach(el=>el.onclick=()=>openRoom({climate:el.dataset.th}));
   list.querySelectorAll("[data-cam]").forEach(el=>el.onclick=()=>{ closeRoom(); openCam(el.dataset.cam, el.dataset.n); });
+  list.querySelectorAll("[data-col]").forEach(btn=>btn.onclick=()=>{
+    const eid=btn.dataset.col, panel=list.querySelector(`[data-colp="${CSS.escape(eid)}"]`), t=devs.find(x=>x.entity_id===eid);
+    if(!panel.hidden){ panel.hidden=true; panel.innerHTML=""; _rmBusy=0; return; }
+    _rmBusy=Date.now()+120000;           // keep the pop-up still while a colour is being picked
+    panel.innerHTML=FHHome.lightPanelHTML(t,{dim:false}); panel.hidden=false;
+    FHHome.bindLightPanel(panel, t, async data=>{ _rmBusy=Date.now()+120000; if(navigator.vibrate) navigator.vibrate(6);
+      try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:eid, data}); }catch(err){ toast("Couldn't reach the wall"); } });
+  });
   list.querySelectorAll("[data-dim]").forEach(el=>{ const lab=el.nextElementSibling;
     el.oninput=()=>{ _rmBusy=Date.now()+4000; lab.textContent=el.value+"%"; };
     el.onchange=async()=>{ _rmBusy=Date.now()+1500; if(navigator.vibrate) navigator.vibrate(6);
@@ -1354,7 +1364,7 @@ function renderThermostat(){
       toast(`${t.name}: `+(data.temperature!=null?data.temperature+"°":`${data.target_temp_low}°–${data.target_temp_high}°`)); svc("set_temperature",data); }, 1200); });
 }
 function openRoom(key){ _rmKey=key; _rmBusy=0; clearTimeout(_thTimer); _thPend=null; if(navigator.vibrate) navigator.vibrate(6); $("#rm-list").dataset.sig=""; renderRoom(); $("#rmov").classList.add("on"); }
-function closeRoom(){ _rmKey=null; $("#rmov").classList.remove("on"); }
+function closeRoom(){ _rmKey=null; _rmBusy=0; $("#rmov").classList.remove("on"); }
 $("#rm-close").onclick=closeRoom;
 $("#rmov").onclick=(e)=>{ if(e.target.id==="rmov") closeRoom(); };
 $("#rm-3d").onclick=()=>{ const k=_rmKey; if(!k) return; const r=FHHome.getLayout().find(x=>x.name===k.room&&String(x.floor||1)===String(k.floor)); closeRoom(); if(!r) return;

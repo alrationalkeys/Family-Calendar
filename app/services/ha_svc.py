@@ -82,7 +82,7 @@ def _demo_seed():
             "attributes": {"friendly_name": "IQ Panel", "icon": "shield"}},
         "light.living_room": {"state": "on",
             "attributes": {"friendly_name": "Living Room", "brightness": 200}},
-        "light.kitchen": {"state": "off", "attributes": {"friendly_name": "Kitchen"}},
+        "light.kitchen": {"state": "off", "attributes": {"friendly_name": "Kitchen", "supported_color_modes": ["color_temp", "rgbw"]}},
         "light.master_bed": {"state": "off", "attributes": {"friendly_name": "Master Bedroom"}},
         "light.porch": {"state": "on", "attributes": {"friendly_name": "Front Porch"}},
         "switch.coffee": {"state": "off", "attributes": {"friendly_name": "Coffee Maker"}},
@@ -242,6 +242,10 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
     if domain == "light":
         modes = attrs.get("supported_color_modes") or []
         tile["dimmable"] = bool(modes) and any(m != "onoff" for m in modes) or attrs.get("brightness") is not None
+        tile["color"] = any(m in ("hs", "rgb", "rgbw", "rgbww", "xy") for m in modes)
+        tile["whites"] = "color_temp" in modes or tile["color"]
+        if attrs.get("rgb_color"):
+            tile["rgb"] = list(attrs["rgb_color"])[:3]
         if attrs.get("brightness") is not None:
             tile["brightness"] = round(int(attrs["brightness"]) * 100 / 255)
     if domain == "fan" and attrs.get("percentage") is not None:
@@ -750,6 +754,8 @@ def call_service(domain: str, service: str, entity_id: str = "", extra: dict = N
                     for k in ("temperature", "target_temp_low", "target_temp_high"):
                         if k in x:
                             cur["attributes"][k] = x[k]
+            if (extra or {}).get("rgb_color") and entity_id in _DEMO:
+                _DEMO[entity_id].setdefault("attributes", {})["rgb_color"] = list(extra["rgb_color"])[:3]
             if (extra or {}).get("brightness_pct") is not None and entity_id in _DEMO:
                 _DEMO[entity_id].setdefault("attributes", {})["brightness"] = round(float(extra["brightness_pct"]) * 2.55)
         try:

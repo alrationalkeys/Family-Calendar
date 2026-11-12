@@ -353,7 +353,7 @@ def _when_text(w: dict, names: dict) -> str:
 def _do_text(a: dict, names: dict) -> str:
     t = a.get("type")
     lst = ", ".join(names.get(e, e) for e in (a.get("entities") or [])) or "nothing picked"
-    white = {"warm": " warm white", "cool": " cool white"}.get(a.get("white") or "", "")
+    white = {"warm": " warm white", "daylight": " daylight", "cool": " cool white", "color": " in a color"}.get(a.get("white") or "", "")
     return {"on": f"turn on {lst}", "off": f"turn off {lst}",
             "dim": f"set {lst} to {a.get('pct', 50)}%{white}",
             "thermostat": f"set {lst} to {('off' if a.get('mode') == 'off' else str(a.get('mode') or 'heat').replace('_', '/') + ' ' + str(a.get('temp') or '') + '°')}",
@@ -484,8 +484,12 @@ def build(spec: dict) -> dict:
             ids = _ids(a.get("entities"), "light")
             if ids:
                 data = {"brightness_pct": max(1, min(100, int(float(a.get("pct") or 50))))}
-                if a.get("white") in ("warm", "cool"):
-                    data["color_temp_kelvin"] = 2700 if a["white"] == "warm" else 5000
+                if a.get("white") in ("warm", "daylight", "cool"):
+                    data["color_temp_kelvin"] = {"warm": 2700, "daylight": 4000, "cool": 5000}[a["white"]]
+                elif a.get("white") == "color":
+                    rgb = a.get("rgb") or []
+                    if len(rgb) == 3 and all(isinstance(x, (int, float)) for x in rgb):
+                        data["rgb_color"] = [max(0, min(255, int(x))) for x in rgb]
                 acts.append({"action": "light.turn_on", "target": {"entity_id": ids}, "data": data})
         elif k == "thermostat":
             ids = _ids(a.get("entities"), "climate")

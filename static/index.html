@@ -195,6 +195,10 @@
   .pinpad.on{display:flex}
   .pin-card{background:var(--panel); border-radius:18px; padding:22px; width:300px; max-width:92vw; text-align:center}
   .pin-card h3{font-size:18px; margin-bottom:4px}
+  .lp-card{width:360px; text-align:left} .lp-card h3{text-align:center} .lp-card .pin-sub{text-align:center}
+  .lp-btns{display:flex; gap:10px; margin-top:12px} .lp-btns .cc-qa{flex:1; padding:12px}
+  .tile{position:relative} .t-adj{position:absolute; top:6px; right:6px; width:34px; height:34px; border-radius:50%; border:0;
+    background:var(--panel2); color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center}
   .pin-card .pin-sub{color:var(--ink-dim); font-size:13px; margin-bottom:12px}
   .pin-dots{letter-spacing:10px; font-size:26px; height:30px; margin-bottom:12px}
   .pin-keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
@@ -2611,7 +2615,8 @@ function renderTilesView(body,h){
       const scene = t.activatable;
       const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
       const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
-      html += '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+
+      const adj = t.domain==="light" && (t.dimmable||t.color||t.whites) ? '<button class="t-adj" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color">'+(t.color?'\u{1F3A8}':'\u25D0')+'</button>' : '';
+      html += '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+adj+
         '<div class="t-ico">'+haIcon(t)+'</div>'+
         '<div class="t-name">'+esc(t.name)+'</div>'+
         (scene?'':'<div class="t-state">'+esc(haStateLabel(t))+'</div>')+
@@ -2629,6 +2634,8 @@ function renderTilesView(body,h){
   bindSpotify(body);
   bindVillage(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
+  body.querySelectorAll("[data-adj]").forEach(b=>{ b.addEventListener("pointerdown",e=>e.stopPropagation());
+    b.onclick=(e)=>{ e.stopPropagation(); const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===b.dataset.adj); if(t) openLightPop(t); }; });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
   const lo=body.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;
   body.querySelectorAll(".cc-qa[data-mode]").forEach(b=>{ b.onclick=()=>runMode(b.dataset.mode, b); });
@@ -2757,7 +2764,7 @@ FHHome.camera=(eid,name)=>openCamera(eid,name);
     es.onmessage=(m)=>{ backoff=2000; let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
       if(d.ring!=null){ if(lastRing!==null && d.ring>lastRing) onRing(); lastRing=d.ring; }
       if(lastV!==null && d.version!==lastV){
-        if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome();
+        if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome();
         if(curPage==="calendar") loadHomeStatus();
         if($("#remote").classList.contains("on") && typeof refreshRemote==="function") refreshRemote();
       }
@@ -2767,7 +2774,7 @@ FHHome.camera=(eid,name)=>openCamera(eid,name);
   connect();
 })();
 /* keep now-playing fresh while the Home tab is open */
-setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on")) loadHome(); }, 15000);
+setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome(); }, 15000);
 
 /* ---- floor-plan + 3D views: renderers in home-shared.js; the wall wires its callbacks ---- */
 const DEFAULT_LAYOUT=FHHome.DEFAULT_LAYOUT;
@@ -2805,6 +2812,26 @@ async function onTileTap(el){
     setTimeout(loadHome, 400);                  // reconcile with real state
   }catch(e){ el.classList.toggle("on", wasOn); }  // revert on failure
 }
+
+/* ---- light pop-up: on/off, brightness, colour wheel (FHHome.lightPanelHTML) ---- */
+function openLightPop(t){
+  resetSleep();
+  let ov=$("#lightpop");
+  if(!ov){ ov=document.createElement("div"); ov.id="lightpop"; ov.className="pinpad";
+    ov.innerHTML='<div class="pin-card lp-card"><h3 id="lp-name"></h3><div class="pin-sub" id="lp-state"></div><div id="lp-body"></div><div class="lp-btns"><button class="cc-qa" id="lp-tg"></button><button class="cc-qa" id="lp-x">Done</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click",e=>{ if(e.target===ov) closeLightPop(); }); $("#lp-x").onclick=closeLightPop; }
+  const draw=(t)=>{
+    $("#lp-name").textContent=t.name; $("#lp-state").textContent=t.on?("On"+(t.brightness!=null?" · "+t.brightness+"%":"")):"Off";
+    $("#lp-tg").textContent=t.on?"Turn off":"Turn on";
+    const body=$("#lp-body"); body.innerHTML=FHHome.lightPanelHTML(t);
+    FHHome.bindLightPanel(body, t, async data=>{ resetSleep();
+      try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:t.entity_id, data}); t.on=true; $("#lp-state").textContent="On"; $("#lp-tg").textContent="Turn off"; }catch(e){} });
+  };
+  $("#lp-tg").onclick=async()=>{ try{ await post("/api/ha/toggle",{entity_id:t.entity_id}); }catch(e){} t.on=!t.on; draw(t); setTimeout(loadHome,500); };
+  draw(t); ov.classList.add("on");
+}
+function closeLightPop(){ const ov=$("#lightpop"); if(ov) ov.classList.remove("on"); setTimeout(loadHome,300); }
 
 /* ---- alarm PIN pad ---- */
 let pinBuf="", pinTile=null;

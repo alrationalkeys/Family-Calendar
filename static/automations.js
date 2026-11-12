@@ -397,7 +397,8 @@
         <details ${a.entities.length ? "" : "open"}><summary style="font-size:13px; cursor:pointer">Pick</summary>${checklist(lists.map(([t, it]) => [t, it || []]), a.entities)}</details>`;
     }
     if (a.type === "dim") body += `<div class="rb-row"><input type="number" min="1" max="100" data-a="pct" value="${esc(a.pct || 50)}" style="width:90px"> %
-      <select data-a="white">${[["","as they are"],["warm","warm white"],["cool","cool white"]].map(([v,t]) => `<option value="${v}" ${(a.white || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
+      <select data-a="white">${[["","as they are"],["warm","warm white"],["daylight","daylight"],["cool","cool white"],["color","a color…"]].map(([v,t]) => `<option value="${v}" ${(a.white || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
+      + (a.white === "color" && window.FHHome ? `<div class="rb-color">${FHHome.lightPanelHTML({color: true, whites: false, rgb: a.rgb}, {dim: false})}</div>` : "");
     if (a.type === "thermostat") body += `<div class="rb-row"><select data-a="mode">${[["heat","Heat"],["cool","Cool"],["heat_cool","Heat/Cool"],["auto","Auto"],["off","Off"]].map(([v,t]) => `<option value="${v}" ${a.mode === v ? "selected" : ""}>${t}</option>`).join("")}</select>
       ${a.mode === "heat" || a.mode === "cool" || !a.mode ? `<input type="number" min="45" max="95" data-a="temp" value="${esc(a.temp || 68)}" style="width:90px"> °` : ""}</div>`;
     if (a.type === "notify" || a.type === "say") body += `<div class="rb-row"><input type="text" data-a="message" maxlength="200" placeholder="${a.type === "say" ? "e.g. Time to take the dogs out" : "e.g. The garage door opened"}" value="${esc(a.message || "")}"></div>`;
@@ -428,7 +429,7 @@
     if (spec.dates) t += `, ${spec.dates_except ? "except" : "only"} ${md(spec.dates.from)} to ${md(spec.dates.to)}`;
     if (spec.dark) t += ", only after dark"; if (spec.home) t += ", only if someone's home"; if (spec.ifoff) t += ", only if those lights are off";
     const acts = spec.do.map(a => { const l = (a.entities || []).map(nm).join(", ") || "…";
-      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
+      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white === "color" ? (a.rgb ? " in rgb(" + a.rgb.join(",") + ")" : " in a color") : a.white === "daylight" ? " daylight" : a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
         lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`})[a.type]; });
     return t + " → " + (acts.length ? acts.join("; ") : "add something to do");
   }
@@ -473,7 +474,9 @@
     $$("[data-rm]").forEach(b => b.onclick = () => { spec.do.splice(+b.dataset.rm, 1); draw(); });
     $$(".rb-act").forEach(box => { const a = spec.do[+box.dataset.i];
       box.querySelectorAll(".au-list input").forEach(cb => cb.onchange = () => { a.entities = picked(box); box.querySelector(".names").textContent = a.entities.length ? a.entities.map(nameOf).join(", ") : "Tap Pick to choose"; sum(); });
-      box.querySelectorAll("[data-a]").forEach(el => el.onchange = el.oninput = () => { a[el.dataset.a] = el.type === "number" ? +el.value : el.value; if (el.dataset.a === "mode") draw(); else sum(); });
+      box.querySelectorAll("[data-a]").forEach(el => el.onchange = el.oninput = () => { a[el.dataset.a] = el.type === "number" ? +el.value : el.value; if (el.dataset.a === "mode" || el.dataset.a === "white") draw(); else sum(); });
+      const cp = box.querySelector(".rb-color");
+      if (cp && window.FHHome) FHHome.bindLightPanel(cp, {color: true, rgb: a.rgb}, d => { if (d.rgb_color){ a.rgb = d.rgb_color; sum(); } });
     });
     const nm = sh.querySelector("[data-name]"); nm.oninput = () => { spec.name = nm.value; };
     sh.querySelector("[data-save]").onclick = async () => {

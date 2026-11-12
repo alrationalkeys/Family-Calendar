@@ -243,7 +243,65 @@
     body.querySelectorAll(".iso-chip").forEach(c=>{ c.onclick=()=>FHHome.toggle(c.dataset.eid); });
   }
 
+  /* ---- light colour + brightness panel (phone room pop-up, wall light pop-up, routine builder) ----
+     A CSS colour wheel (no canvas): drag round the ring for the colour, towards the middle for paler.
+     send(data) gets light.turn_on data: {brightness_pct} | {rgb_color:[r,g,b]} | {color_temp_kelvin}. */
+  const SWATCHES=[["Warm white",[255,183,110],2700],["Daylight",[255,236,214],4000],["Cool white",[222,234,255],5500],
+    ["Red",[255,0,0]],["Orange",[255,110,0]],["Yellow",[255,215,0]],["Green",[0,210,70]],["Teal",[0,200,190]],
+    ["Blue",[0,70,255]],["Purple",[140,0,255]],["Pink",[255,50,160]]];
+  function hsvRgb(h,s){ const f=n=>{ const k=(n+h/60)%6; return Math.round(255*(1-s*Math.max(0,Math.min(k,4-k,1)))); }; return [f(5),f(3),f(1)]; }
+  function rgbHs(rgb){ const [r,g,b]=(rgb||[255,255,255]).map(x=>x/255), mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+    let h=0; if(d){ h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4; h*=60; if(h<0) h+=360; } return [h, mx?d/mx:0]; }
+  let lightCssDone=false;
+  function lightCss(){
+    if(lightCssDone) return; lightCssDone=true;
+    const st=document.createElement("style");
+    st.textContent=`.fhl{display:flex; flex-direction:column; gap:12px; padding:6px 0}
+      .fhl-dim{display:flex; align-items:center; gap:10px} .fhl-dim input{flex:1; accent-color:#f0a030; height:28px} .fhl-dim small{width:42px; text-align:right; color:var(--ink-dim)}
+      .fhl-sw{display:flex; flex-wrap:wrap; gap:8px}
+      .fhl-sw button{width:34px; height:34px; border-radius:50%; border:2px solid rgba(127,127,127,.35); cursor:pointer; padding:0}
+      .fhl-sw button.on{border-color:var(--ink); transform:scale(1.12)}
+      .fhl-wheel{position:relative; width:min(230px,70vw); aspect-ratio:1; border-radius:50%; margin:2px auto; touch-action:none; cursor:crosshair;
+        background:radial-gradient(circle closest-side,#fff,rgba(255,255,255,0)),conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
+      .fhl-dot{position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.4); pointer-events:none}`;
+    document.head.appendChild(st);
+  }
+  function lightPanelHTML(t, opts){
+    lightCss(); opts=opts||{};
+    const br=t.on?(t.brightness||100):(opts.pct||100);
+    let h="";
+    if(t.dimmable!==false && opts.dim!==false) h+=`<div class="fhl-dim"><span>🔅</span><input type="range" min="1" max="100" value="${br}" data-fhl="dim" aria-label="Brightness"><small>${br}%</small><span>🔆</span></div>`;
+    if(t.color||t.whites){
+      const sw=SWATCHES.filter(x=>t.color||x[2]);
+      h+=`<div class="fhl-sw">${sw.map((x,i)=>`<button data-fhl-sw="${SWATCHES.indexOf(x)}" title="${x[0]}" aria-label="${x[0]}" style="background:rgb(${x[1].join(",")})"></button>`).join("")}</div>`;
+    }
+    if(t.color) h+=`<div class="fhl-wheel" data-fhl="wheel"><div class="fhl-dot" style="display:none"></div></div>`;
+    return `<div class="fhl">${h}</div>`;
+  }
+  function bindLightPanel(root, t, send){
+    const dim=root.querySelector('[data-fhl="dim"]');
+    if(dim){ const lab=dim.nextElementSibling; dim.oninput=()=>{ lab.textContent=dim.value+"%"; }; dim.onchange=()=>send({brightness_pct:+dim.value}); }
+    root.querySelectorAll("[data-fhl-sw]").forEach(b=>b.onclick=()=>{ const x=SWATCHES[+b.dataset.fhlSw];
+      root.querySelectorAll("[data-fhl-sw]").forEach(o=>o.classList.toggle("on",o===b));
+      send(x[2]&&t.whites?{color_temp_kelvin:x[2]}:{rgb_color:x[1]}); place(x[1]); });
+    const wh=root.querySelector('[data-fhl="wheel"]'); if(!wh) return;
+    const dot=wh.querySelector(".fhl-dot");
+    function place(rgb){ if(!rgb) return; const [h,s]=rgbHs(rgb), a=(h-90)*Math.PI/180, r=wh.clientWidth/2;
+      dot.style.display=""; dot.style.left=(r+Math.cos(a)*s*r)+"px"; dot.style.top=(r+Math.sin(a)*s*r)+"px"; dot.style.background=`rgb(${rgb.join(",")})`; }
+    let last=0, pend=null, down=false;
+    const pick=(e)=>{ const b=wh.getBoundingClientRect(), r=b.width/2, dx=e.clientX-b.left-r, dy=e.clientY-b.top-r;
+      const s=Math.min(1,Math.hypot(dx,dy)/r); let h=Math.atan2(dx,-dy)*180/Math.PI; if(h<0) h+=360;
+      const rgb=hsvRgb(h,s); place(rgb); pend=rgb;
+      if(Date.now()-last>450){ last=Date.now(); send({rgb_color:rgb}); pend=null; } };
+    wh.addEventListener("pointerdown",e=>{ down=true; wh.setPointerCapture(e.pointerId); pick(e); });
+    wh.addEventListener("pointermove",e=>{ if(down) pick(e); });
+    const up=()=>{ if(!down) return; down=false; if(pend){ send({rgb_color:pend}); pend=null; } };
+    wh.addEventListener("pointerup",up); wh.addEventListener("pointercancel",up);
+    if(t.rgb) requestAnimationFrame(()=>place(t.rgb));
+  }
+
   window.FHHome = {
+    lightPanelHTML, bindLightPanel, SWATCHES,
     DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc,
     getLayout, getPlan, roomFor, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
     renderFloorView, renderIsoView,

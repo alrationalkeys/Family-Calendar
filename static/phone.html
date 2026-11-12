@@ -1146,7 +1146,7 @@ function hmLive(on){
   hmES.onerror=()=>{ try{hmES.close();}catch(e){} hmES=null; setTimeout(()=>{ if(curView==="home") hmLive(true); }, 5000); };
 }
 document.addEventListener("visibilitychange",()=>{ hmLive(curView==="home"); if(!document.hidden&&curView==="home") loadHM(); });
-let hmView="rooms", hmLast=null, hmSig="", hmHealth=null, hmAlerts=[];
+let hmView="rooms", hmLast=null, hmSig="", hmHealth=null, hmAlerts=[], hmLaundry=[];
 FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
 let _camT=null, _camEid=null, _camStream=null;
@@ -1204,7 +1204,7 @@ let hmVillage=null;     // Christmas village status (tile hides while it doesn't
 async function loadHM(){
   let h=null;
   fetch("/api/village/status").then(r=>r.json()).then(v=>{ const was=JSON.stringify(hmVillage); hmVillage=v; if(hmLast&&JSON.stringify(v)!==was) renderHM(hmLast,true); }).catch(()=>{});
-  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{}), FHHome.health().then(d=>{ hmHealth=d; }), FHHome.wxAlerts().then(d=>{ hmAlerts=d; })]); }catch(e){}
+  try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{}), FHHome.health().then(d=>{ hmHealth=d; }), FHHome.wxAlerts().then(d=>{ hmAlerts=d; }), FHHome.laundry().then(d=>{ hmLaundry=d; })]); }catch(e){}
   if(!h){ $("#hm-hero").innerHTML=""; $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
   renderHM(h,false);
 }
@@ -1425,7 +1425,7 @@ function renderHM(h, force){
 
   // scene shortcuts: all-off first, then the HA scenes (max 4 tiles)
   const scenes=tiles.filter(t=>t.domain==="scene"&&!/night|leav|away|home/i.test(t.name)).slice(0,3);   // built-in Good night / Leaving cover those
-  let html=FHHome.wxHTML(hmAlerts)+FHHome.healthHTML(hmHealth)+`<div class="hm-scenes">
+  let html=FHHome.wxHTML(hmAlerts)+FHHome.healthHTML(hmHealth)+FHHome.laundryHTML(hmLaundry)+`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
     <button class="hm-scene" onclick="hmWelcome(this,'morning')"><span class="ic">☀️</span>Morning</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>

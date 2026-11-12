@@ -358,9 +358,27 @@
     ov.querySelectorAll("input[data-j]").forEach(c=>c.onchange=()=>{ done[c.dataset.j]=c.checked; try{ localStorage.setItem(key, JSON.stringify(done)); }catch(e){} });
     document.body.appendChild(ov);
   }
+  /* Washer / dryer (GET /api/ha/laundry): a small card, "Running · 23 min left" or "Off". */
+  let _ld={at:0, data:[]};
+  async function laundry(){
+    if(Date.now()-_ld.at<20000) return _ld.data;
+    try{ _ld={at:Date.now(), data:(await fetch("/api/ha/laundry").then(r=>r.json())).machines||[]}; }catch(e){ _ld.at=Date.now(); }
+    return _ld.data;
+  }
+  function laundryHTML(list){
+    if(!list||!list.length) return "";
+    if(!document.getElementById("fhld-css")){ const st=document.createElement("style"); st.id="fhld-css";
+      st.textContent=`.fhld{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin:0 0 12px}
+      .fhld>div{background:var(--panel2,#2a2a2a); border-radius:14px; padding:10px 12px; display:flex; align-items:center; gap:10px}
+      .fhld .ic{font-size:22px} .fhld b{display:block; font-size:14.5px} .fhld small{color:var(--ink-dim,#aaa); font-size:13px}
+      .fhld .on{outline:2px solid color-mix(in srgb,#3987e5 60%,transparent)}`; document.head.appendChild(st); }
+    const pretty=v=>{ v=String(v||""); return /^(off|idle|standby|---|unknown|unavailable)$/i.test(v)||!v?"Off":v.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()); };
+    return `<div class="fhld">${list.map(m=>`<div class="${m.running?"on":""}"><span class="ic">${m.name==="Dryer"?"🌀":"🫧"}</span><span><b>${esc(m.name)}</b>
+      <small>${m.running?esc(pretty(m.state))+(m.remaining_min?` · ${m.remaining_min} min left`:""):esc(pretty(m.state))}</small></span></div>`).join("")}</div>`;
+  }
   window.FHHome = {
     lightPanelHTML, bindLightPanel, SWATCHES,
-    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc, health, healthHTML, wxAlerts, wxHTML, wxOpen,
+    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc, health, healthHTML, wxAlerts, wxHTML, wxOpen, laundry, laundryHTML,
     getLayout, getPlan, roomFor, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
     renderFloorView, renderIsoView,
     get floor(){ return homeFloor; }, set floor(f){ homeFloor=f; },

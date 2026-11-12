@@ -46,7 +46,7 @@ def is_state_sensor(eid: str, attrs: dict) -> bool:
     obj = eid.split(".", 1)[1]
     if re.search(r"machine_state|machine_status|run_status|cycle_status|operation_state|_state$|_status$", obj):
         return True
-    return not _SKIP.search(obj + " " + name)
+    return not (_SKIP.search(obj) or _SKIP.search(name))
 
 
 def _quiet(s: dict) -> bool:
@@ -114,7 +114,7 @@ def status() -> list:
     out = {}
     for st in states:
         eid, a = st.get("entity_id", ""), st.get("attributes") or {}
-        if not eid.startswith("sensor."):
+        if not eid.startswith("sensor.") or a.get("integration") == "x":
             continue
         mach = _machine(eid, a.get("friendly_name", "")) if _MACH.search(eid + " " + str(a.get("friendly_name", ""))) else None
         if not mach:

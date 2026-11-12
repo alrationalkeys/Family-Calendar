@@ -2541,7 +2541,7 @@ function renderHome(h){
   const nav=Object.keys(views).map(v=>
     `<button class="hv-btn${homeView===v?' active':''}" data-hv="${v}">${views[v]}</button>`).join("");
   wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-health"></div><div id="home-body"></div>`;
-  FHHome.health().then(d=>{ const el=$("#home-health"); if(el) el.innerHTML=FHHome.healthHTML(d); });
+  Promise.all([FHHome.health(), FHHome.laundry()]).then(([d,l])=>{ const el=$("#home-health"); if(el) el.innerHTML=FHHome.healthHTML(d)+FHHome.laundryHTML(l); });
   wrap.querySelectorAll(".hv-btn").forEach(b=>{ b.onclick=()=>{ homeView=b.dataset.hv; renderHome(lastHome); }; });
   const body=$("#home-body");
   if(homeView==="floor") return renderFloorView(body,h);

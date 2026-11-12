@@ -30,7 +30,8 @@ DEFAULTS = {
     "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
     "villageFx": "192.168.1.200",     # Christmas village Board A (effects hub) — docs/village/README.md
     "villageTrain": "192.168.1.121",  # Board B (train)
-    "villageWithHouse": True,         # Good night / Leaving put the village to sleep for the night
+    "villageWithHouse": True,
+    "welcomeNoCode": False,           # the I'm home BUTTON disarms without asking for the code (voice never disarms)         # Good night / Leaving put the village to sleep for the night
     "spotifyStartVolume": 45,        # % the wall's Spotify player starts at (perceived loudness, like the wall's volume buttons)
     "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card
     "icloudAlbumUrl": "",            # iCloud Shared Album public link -> slideshow photos

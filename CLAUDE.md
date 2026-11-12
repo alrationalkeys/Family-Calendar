@@ -210,6 +210,10 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
   login can render. Constant-time compare + per-IP lockout (empty PIN isn't counted as a guess).
   Use this on any public URL (e.g. Railway). For real exposure prefer Tailscale over the PIN.
 - Backups: `python backup.py --keep 14`; systemd timer files included.
+- Alarm: nothing disarms or unlocks except the I'm home BUTTON (`/api/ha/mode` passes `tapped=True`). It disarms with the
+  typed code, or with no code when Alex turned on `settings.welcomeNoCode` (his choice, Nov 2026). Voice/AI never disarm
+  (house_modes.run without tapped). Garage only opens after a successful disarm. House buttons = editable steps in
+  settings row `house_modes` (`GET/POST/DELETE /api/ha/modes/{mode}`), built-in sequence when empty.
 
 ## Known follow-ups (not yet done)
 - Jewish holiday dates are approximate (Hebrew calendar) — swap to a proper lib for precision.

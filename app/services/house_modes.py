@@ -187,7 +187,7 @@ def _expand(ids, tiles) -> list:
     return uniq
 
 
-def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes):
+def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=False):
     by = lambda dom: [t for t in tiles if t["domain"] == dom]
     peak = next((t for t in tiles if t["entity_id"] == "binary_sensor.santee_cooper_peak_now"), None)
     in_peak = bool(peak and peak.get("on"))
@@ -196,12 +196,13 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes):
         for t in by("alarm_control_panel"):
             if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending", "triggered"):
                 continue
-            if code:
-                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)})
+            if code or (tapped and s.get("welcomeNoCode") is True):
+                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)} if code else None)
                 if r.get("ok"):
                     done.append("disarmed the alarm")
                 else:
-                    still_armed = True; warnings.append("the alarm didn't disarm, check the code")
+                    still_armed = True
+                    warnings.append("the alarm didn't disarm, check the code" if code else "the alarm wants a code to disarm, turn the no-code option off")
             else:
                 still_armed = True; warnings.append("the alarm is still armed, disarm it on the keypad")
     gcover = ha_svc.has_garage_cover(by("cover"))
@@ -313,7 +314,9 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes):
 
 
 def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm: bool = True, source: str = "wall",
-        code: str | None = None, open_garage: bool = False) -> dict:
+        code: str | None = None, open_garage: bool = False, tapped: bool = False) -> dict:
+    """tapped = the I'm home BUTTON (wall or phone). Only a tap may disarm without a code (settings.welcomeNoCode);
+    voice never disarms."""
     mode = (mode or "").lower()
     tiles = _tiles()
     s = _settings()
@@ -322,7 +325,7 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         done, warnings, notes = [], [], []
         if not arm:
             steps = [x for x in steps if x.get("type") != "arm"]
-        _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes)
+        _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=tapped)
         if mode == "goodnight":
             try:
                 from . import display_svc
@@ -424,13 +427,13 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         for t in by("alarm_control_panel"):
             if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending", "triggered"):
                 continue
-            if code:
-                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)})
+            if code or (tapped and s.get("welcomeNoCode") is True):
+                r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)} if code else None)
                 if r.get("ok"):
                     done.append("disarmed the alarm")
                 else:
                     still_armed = True
-                    warnings.append("the alarm didn't disarm, check the code")
+                    warnings.append("the alarm didn't disarm, check the code" if code else "the alarm wants a code to disarm, turn the no-code option off")
             else:
                 still_armed = True
                 warnings.append("the alarm is still armed, disarm it on the keypad")

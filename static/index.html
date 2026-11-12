@@ -2646,7 +2646,7 @@ async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then
 async function runMode(mode, btn, code){
   resetSleep();
   // I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code first
-  if(mode==="welcome" && code===undefined){
+  if(mode==="welcome" && code===undefined && FH.get().welcomeNoCode!==true){
     const tiles=lastHome?FHHome.tilesOf(lastHome):[], alarm=tiles.find(t=>t.domain==="alarm_control_panel");
     if(alarm && /^armed|pending|arming/.test(alarm.state||"")){ openWelcomePad(btn); return; }
   }

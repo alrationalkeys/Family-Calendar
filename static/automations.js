@@ -433,7 +433,7 @@
   }
   function drawMode(sh){
     sh.innerHTML = `<h3>${MODE_TITLE[houseMode]}<button data-x aria-label="Close">✕</button></h3>
-      <div class="au-blurb">${houseMode === "welcome" ? "First it disarms the alarm with the code you type (always). Then, in this order:" : "When the button is tapped, in this order:"}</div>
+      <div class="au-blurb">${houseMode === "welcome" ? (window.FH && FH.get().welcomeNoCode === true ? "First it disarms the alarm (one tap, no code). Then, in this order:" : "First it disarms the alarm with the code you type. Then, in this order:") : "When the button is tapped, in this order:"}</div>
       <div class="rb-step">${spec.do.map((a, i) => actUI(a, i).replace('<button data-rm=', `<button data-mv="${i}" data-d="-1" aria-label="Move up">↑</button><button data-mv="${i}" data-d="1" aria-label="Move down">↓</button><button data-rm=`)).join("")}
         <div class="rb-chips" style="margin-top:8px">${doList().map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
       <div class="rb-sum" id="rb-sum">${esc(modeSummary(spec.do))}</div>
@@ -551,7 +551,7 @@
     if (a.type === "on" && houseMode) body += `<label class="rb-chk"><input type="checkbox" data-ab="dark" ${a.dark ? "checked" : ""}> Only after dark</label>`;
     if (a.type === "arm") body += `<div class="rb-row"><select data-a="arm">${[["stay","Stay (dogs can roam)"],["away","Away"],["night","Night"]].map(([v,t]) => `<option value="${v}" ${(a.arm || "stay") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
       + (houseMode === "away" ? `<div class="hint" style="margin:4px 0 0">Won't arm if a door or window is open; it tells you which.</div>` : "");
-    if (a.type === "open_garage") body += `<div class="hint" style="margin:0">Only after the alarm is disarmed with your code.</div>`;
+    if (a.type === "open_garage") body += `<div class="hint" style="margin:0">Only once the alarm is disarmed (if it didn't disarm, the garage stays shut).</div>`;
     if (a.type === "schedule") body += `<div class="hint" style="margin:0">Sets both thermostats to whatever the schedule says right now (skipped during peak).</div>`;
     if (a.type === "village") body += `<div class="rb-row"><select data-a="village">${[["sleep","Put it to sleep for the night"],["wake","Wake it up"]].map(([v,t]) => `<option value="${v}" ${(a.village || "sleep") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
     if (a.type === "wait"){

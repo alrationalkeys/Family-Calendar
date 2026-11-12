@@ -553,6 +553,7 @@
   <details class="form sect fold" data-fold="modes">
     <summary><span class="fi">🏠</span><span class="ft"><b>House buttons</b><small>Good night · Leaving · I'm home</small></span></summary>
     <div class="hint" style="margin-top:0">What each button does, step by step. Tap <b>Edit steps</b> to change it; <b>Back to normal</b> undoes your changes. I'm home always disarms with the code you type first, and only opens the garage if that worked.</div>
+    <label class="chk"><input type="checkbox" id="set-nocode"> I'm home disarms the alarm without asking for the code (one tap, wall or phone; voice never disarms)</label>
     <div id="hm-modes">Loading…</div>
   </details>
 
@@ -1138,7 +1139,7 @@ let hmWx=null, hmWxAt=0, hmPresence=null;
 /* I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code (sent to the alarm, never saved) */
 function hmWelcome(btn){
   const tiles=FHHome.tilesOf(hmLast||{}), alarm=tiles.find(t=>t.domain==="alarm_control_panel");
-  if(!(alarm && /^armed|pending|arming/.test(alarm.state||""))) return hmMode("welcome", btn);
+  if(!(alarm && /^armed|pending|arming/.test(alarm.state||"")) || FH.get().welcomeNoCode===true) return hmMode("welcome", btn);
   let ov=$("#wkov");
   if(!ov){ ov=document.createElement("div"); ov.id="wkov";
     ov.innerHTML=`<div class="wk-card"><h3>🏡 Welcome home</h3><div class="wk-sub">Alarm code to disarm and open the garage</div>
@@ -1683,6 +1684,8 @@ function setupVoiceHistory(){
 }
 function loadSettingsUI(){
   setupVoiceHistory();
+  { const nc=$("#set-nocode"); if(nc){ nc.checked=FH.get().welcomeNoCode===true; nc.onchange=e=>{ FH.save({welcomeNoCode:e.target.checked});
+      toast(e.target.checked?"I'm home will disarm with one tap":"I'm home will ask for the code"); if(window.FHAutomations&&$("#hm-modes")) FHAutomations.houseModes($("#hm-modes")); }; } }
   { const hb=$("#hm-modes"); if(hb && window.FHAutomations && !hb._wired){ hb._wired=true; const d=hb.closest("details");
       const go=()=>FHAutomations.houseModes(hb); if(d) d.addEventListener("toggle",()=>{ if(d.open) go(); }); go(); } }
   const s=FH.get();

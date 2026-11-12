@@ -372,7 +372,19 @@ def _do_text(a: dict, names: dict) -> str:
             "dim": f"set {lst} to {a.get('pct', 50)}%{white}",
             "thermostat": f"set {lst} to {('off' if a.get('mode') == 'off' else str(a.get('mode') or 'heat').replace('_', '/') + ' ' + str(a.get('temp') or '') + '°')}",
             "lock": f"lock {lst}", "close": f"close {lst}",
-            "notify": f"send phones \"{a.get('message', '')}\"", "say": f"say on the wall \"{a.get('message', '')}\""}.get(t, t or "")
+            "notify": f"send phones \"{a.get('message', '')}\"", "say": f"say on the wall \"{a.get('message', '')}\"",
+            "wait": _wait_text(a, names)}.get(t, t or "")
+
+
+def _wait_text(a: dict, names: dict) -> str:
+    k = a.get("until") or "minutes"
+    if k == "time":
+        return f"then wait until {_nice_time(a.get('at') or '')}"
+    if k in ("sunrise", "sunset"):
+        return f"then wait until {k}"
+    if k == "quiet":
+        return f"then wait until {names.get(a.get('entity'), a.get('entity') or 'it')} is quiet for {int(a.get('minutes') or 5)} min"
+    return f"then wait {int(a.get('minutes') or 5)} min"
 
 
 def summary(spec: dict, names: dict | None = None) -> str:
@@ -533,7 +545,24 @@ def build(spec: dict) -> dict:
             msg = str(a.get("message") or "").strip()[:200]
             if msg:
                 acts.append({"event": "familyhub", "event_data": {"kind": "say", "message": msg}})
-    if not acts:
+        elif k == "wait":            # "turn on … then wait … then turn off": one routine instead of two
+            u, mins = a.get("until") or "minutes", max(1, min(720, int(a.get("minutes") or 5)))
+            if u == "minutes":
+                acts.append({"delay": {"minutes": mins}})
+            else:
+                if u == "time":
+                    wt = {"trigger": "time", "at": _hm(a.get("at"), "wait-until")}
+                elif u in ("sunrise", "sunset"):
+                    wt = {"trigger": "sun", "event": u}
+                elif u == "quiet":
+                    e = str(a.get("entity") or "")
+                    if not _ID.match(e) or not e.startswith("binary_sensor."):
+                        raise ValueError("Pick the motion sensor to wait for")
+                    wt = {"trigger": "state", "entity_id": e, "to": "off", "for": {"minutes": mins}}
+                else:
+                    raise ValueError("Pick what to wait for")
+                acts.append({"wait_for_trigger": [wt], "timeout": {"hours": 23, "minutes": 59}, "continue_on_timeout": False})
+    if not [x for x in acts if "delay" not in x and "wait_for_trigger" not in x]:
         raise ValueError("Add at least one thing for it to do")
     if spec.get("ifoff"):           # "only if those lights are off" — the lights the routine turns on / dims
         offs = []
@@ -544,7 +573,9 @@ def build(spec: dict) -> dict:
             conds.append({"condition": "state", "entity_id": list(dict.fromkeys(offs)), "state": "off"})
     name = str(spec.get("name") or "").strip()[:80] or summary(spec).split(":")[0]
     return {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":")),
-            "mode": "single", "triggers": [trig], "conditions": conds, "actions": acts}
+            # with a wait in it, a new trigger starts over (more motion = the lights stay on longer)
+            "mode": "restart" if any(a.get("type") == "wait" for a in spec.get("do") or []) else "single",
+            "triggers": [trig], "conditions": conds, "actions": acts}
 
 
 _MINE: dict[str, dict] = {}      # demo mode store

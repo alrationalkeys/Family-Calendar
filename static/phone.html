@@ -552,15 +552,8 @@
 
   <details class="form sect fold" data-fold="modes">
     <summary><span class="fi">🏠</span><span class="ft"><b>House buttons</b><small>Good night · Leaving · I'm home</small></span></summary>
-    <div class="hint" style="margin-top:0; line-height:1.6">🌙 <b>Good night</b> locks the doors, arms the alarm (Stay) and closes the garage.<br>🚪 <b>Leaving</b> also turns off the lights and TVs.<br>🏡 <b>I'm home</b> asks for the alarm code, disarms, opens the garage and turns on lights after dark.</div>
-    <label class="chk"><input type="checkbox" id="set-gnlights"> Good night also turns off the lights and TVs</label>
-    <label class="chk"><input type="checkbox" id="set-village"> Good night and Leaving put the Christmas village to sleep (back on automatic in the morning)</label>
-    <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage</label>
-    <label class="chk"><input type="checkbox" id="set-opengarage"> I'm home opens the garage</label>
-    <div class="hint" style="margin-bottom:0">Thermostat (leave empty to not change it):</div>
-    <div class="srow"><span>At Good night</span><input id="set-nighttemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
-    <div class="srow"><span>When Leaving</span><input id="set-awaytemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
-    <div class="srow"><span>At I'm home</span><input id="set-hometemp" type="number" min="50" max="85" placeholder="—" style="width:84px; margin:0; text-align:center"></div>
+    <div class="hint" style="margin-top:0">What each button does, step by step. Tap <b>Edit steps</b> to change it; <b>Back to normal</b> undoes your changes. I'm home always disarms with the code you type first, and only opens the garage if that worked.</div>
+    <div id="hm-modes">Loading…</div>
   </details>
 
   <details class="form sect fold" data-fold="family">
@@ -1690,6 +1683,8 @@ function setupVoiceHistory(){
 }
 function loadSettingsUI(){
   setupVoiceHistory();
+  { const hb=$("#hm-modes"); if(hb && window.FHAutomations && !hb._wired){ hb._wired=true; const d=hb.closest("details");
+      const go=()=>FHAutomations.houseModes(hb); if(d) d.addEventListener("toggle",()=>{ if(d.open) go(); }); go(); } }
   const s=FH.get();
   // theme pill
   document.querySelectorAll("#set-theme button").forEach(b=>{
@@ -1717,10 +1712,6 @@ function loadSettingsUI(){
   $("#set-push-adds").checked=s.pushAdds!==false; $("#set-push-adds").onchange=e=>FH.save({pushAdds:e.target.checked});
   $("#set-doorbell-speak").checked=s.doorbellSpeak!==false; $("#set-doorbell-speak").onchange=e=>FH.save({doorbellSpeak:e.target.checked});
   $("#set-doorbell-tv").checked=s.doorbellTv!==false; $("#set-doorbell-tv").onchange=e=>FH.save({doorbellTv:e.target.checked});
-  $("#set-nighttemp").value=s.nightTemp||""; $("#set-nighttemp").onchange=e=>FH.save({nightTemp:e.target.value?+e.target.value:null});
-  $("#set-opengarage").checked=s.openGarageOnHome!==false; $("#set-opengarage").onchange=e=>FH.save({openGarageOnHome:e.target.checked});
-  $("#set-hometemp").value=s.homeTemp||""; $("#set-hometemp").onchange=e=>FH.save({homeTemp:e.target.value?+e.target.value:null});
-  $("#set-awaytemp").value=s.awayTemp||""; $("#set-awaytemp").onchange=e=>FH.save({awayTemp:e.target.value?+e.target.value:null});
   $("#set-doorbell-test").onclick=async()=>{ try{ await post("/api/ha/doorbell/test",{}); toast("Ring sent — watch the wall, phones and TVs"); }catch(e){ toast("Couldn't reach the wall"); } };
   $("#set-brief").checked=s.morningBriefing!==false; $("#set-brief").onchange=e=>FH.save({morningBriefing:e.target.checked});
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
@@ -1740,9 +1731,6 @@ function loadSettingsUI(){
   $("#set-home").value=s.homeAddress||""; $("#set-home").onchange=e=>FH.save({homeAddress:e.target.value.trim()});
   $("#set-leavebuf").value=s.leaveBuffer??5; $("#set-leavebuf").onchange=e=>FH.save({leaveBuffer:Math.max(0,Math.min(30,parseInt(e.target.value,10)||0))});
   $("#set-leave").checked=s.leaveAlerts!==false; $("#set-leave").onchange=e=>FH.save({leaveAlerts:e.target.checked});
-  $("#set-village").checked=s.villageWithHouse!==false; $("#set-village").onchange=e=>FH.save({villageWithHouse:e.target.checked});
-  $("#set-gnlights").checked=s.goodnightLightsOff===true; $("#set-gnlights").onchange=e=>FH.save({goodnightLightsOff:e.target.checked});
-  $("#set-closegarage").checked=s.closeGarageOnModes!==false; $("#set-closegarage").onchange=e=>FH.save({closeGarageOnModes:e.target.checked});
   $("#set-sleeparm").checked=s.sleepOnNightArm!==false; $("#set-sleeparm").onchange=e=>FH.save({sleepOnNightArm:e.target.checked});
   $("#set-caltasks").checked=s.calendarTasks!==false; $("#set-caltasks").onchange=e=>FH.save({calendarTasks:e.target.checked});
   if(window.Skins&&$("#set-skin").options.length<=2) Skins.list().forEach(k=>{ const o=document.createElement("option"); o.value=k.key; o.textContent=k.emoji+" "+k.name; $("#set-skin").appendChild(o); });

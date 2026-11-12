@@ -100,6 +100,7 @@
     padding:0 !important; border:0 !important; background:none !important; accent-color:var(--now); margin:0 !important; flex:none; display:inline-block !important; opacity:1 !important; position:static !important}
   .rb-act{background:var(--panel2); border-radius:14px; padding:10px 12px; margin-top:8px}
   .rb-act .hd{display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:14.5px}
+  .rb-act .hd>span{flex:1} .rb-act .hd button[data-mv]{margin-right:4px; font-size:16px}
   .rb-act .hd button{border:0; background:transparent; color:var(--ink-dim); font-size:18px; cursor:pointer}
   .rb-act .names{font-size:13px; color:var(--ink-dim); margin:4px 0}
   .rb-act .au-list{background:var(--panel)}
@@ -134,14 +135,18 @@
       if (!rooms.has(r)) rooms.set(r, []);
       rooms.get(r).push({...i, kind: t});
     }));
-    const order = [...rooms.keys()].sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b));
+    const order = [...rooms.keys()].sort((a, b) => (b === "Quick picks") - (a === "Quick picks") || (a === "Other") - (b === "Other") || a.localeCompare(b));
     const many = groups.filter(g => g[1].length).length > 1;
     return `<div class="au-list">` + order.map(r => `<div class="grp">${esc(r)}</div>` + rooms.get(r).map(i =>
       `<label><input type="checkbox" value="${esc(i.id)}" ${chosen.includes(i.id) ? "checked" : ""}>${esc(i.name)}${many && /plug|switch/i.test(i.kind) && !/plug|switch/i.test(i.name) ? ` <span class="dim">(plug)</span>` : ""}</label>`).join("")
     ).join("") + `</div>`;
   }
   const picked = el => [...el.querySelectorAll(".au-list input:checked")].map(i => i.value);
-  const nameOf = (id) => { const c = (last && last.choices) || {}; for (const k in c) { const f = c[k].find(x => x.id === id); if (f) return f.name; } return id; };
+  const GROUP_NAMES = {"*lights": "All lights", "*indoor": "All indoor lights", "*outdoor": "All outside lights", "*tvs": "All TVs",
+    "*entry": "Entry lights (porch, driveway, foyer, kitchen)", "*locks": "All locks", "*garage": "Garage door", "*all": "Both thermostats"};
+  const GROUP_FOR = {on: ["*lights", "*indoor", "*outdoor", "*entry", "*tvs"], off: ["*lights", "*indoor", "*outdoor", "*tvs"], dim: ["*indoor", "*outdoor", "*entry"],
+    lock: ["*locks"], close: ["*garage"], thermostat: ["*all"]};
+  const nameOf = (id) => { if (GROUP_NAMES[id]) return GROUP_NAMES[id]; const c = (last && last.choices) || {}; for (const k in c) { const f = c[k].find(x => x.id === id); if (f) return f.name; } return id; };
 
   /* ---------- Alarm.com-style cards: one card per schedule, plain words, inline controls ---------- */
   const helperMap = g => Object.fromEntries((g.settings || []).map(s => [s.entity_id, s]));
@@ -342,9 +347,13 @@
 
   /* ---------------- New routine builder ---------------- */
   const WHEN = [["time","🕒 A time"],["sunset","🌇 Sunset"],["sunrise","🌅 Sunrise"],["device","🚪 Door / motion"],["arrive","🏠 Someone gets home"],["leave","🚗 Everyone leaves"],["alarm","🛡 Alarm"]];
-  const DO = [["on","Turn on"],["off","Turn off"],["dim","Dim lights to…"],["thermostat","Thermostat"],["lock","Lock doors"],["close","Close garage"],["notify","Notify our phones"],["say","Say it on the wall"]];
+  const DO = [["on","Turn on"],["off","Turn off"],["dim","Dim lights to…"],["thermostat","Thermostat"],["lock","Lock doors"],["close","Close garage"],["notify","Notify our phones"],["say","Say it on the wall"],["wait","Then wait…"]];
   const DAYS = [["mon","M"],["tue","T"],["wed","W"],["thu","T"],["fri","F"],["sat","S"],["sun","S"]];
-  let spec = null, editId = null;
+  let spec = null, editId = null, houseMode = null;
+  const MODE_DO = [["off","Turn off"],["on","Turn on"],["dim","Dim / color"],["lock","Lock"],["close","Close garage"],["arm","Arm the alarm"],
+    ["open_garage","Open the garage (after disarm)"],["thermostat","Thermostat"],["schedule","Thermostats back to schedule"],["village","Christmas village"],["say","Say it on the wall"]];
+  const MODE_TITLE = {goodnight: "🌙 Good night", away: "🚪 Leaving", welcome: "🏡 I'm home"};
+  const doList = () => houseMode ? MODE_DO.filter(d => d[0] !== "open_garage" || houseMode === "welcome") : DO;
 
   function ensureSheet(){
     let ov = document.getElementById("au-ov");
@@ -403,7 +412,67 @@
     el.querySelector("[data-ts-add]").onclick = () => edit(null);
   }
 
+  function bindSteps(sh, sum){
+    const $$ = q => sh.querySelectorAll(q);
+    $$("[data-rm]").forEach(b => b.onclick = () => { spec.do.splice(+b.dataset.rm, 1); draw(); });
+    $$("[data-mv]").forEach(b => b.onclick = () => { const i = +b.dataset.mv, j = i + (+b.dataset.d); if (j < 0 || j >= spec.do.length) return; [spec.do[i], spec.do[j]] = [spec.do[j], spec.do[i]]; draw(); });
+    $$(".rb-act").forEach(box => { const a = spec.do[+box.dataset.i];
+      box.querySelectorAll(".au-list input").forEach(cb => cb.onchange = () => { a.entities = picked(box); box.querySelector(".names").textContent = a.entities.length ? a.entities.map(nameOf).join(", ") : "Tap Pick to choose"; sum(); });
+      box.querySelectorAll("[data-a]").forEach(el => el.onchange = el.oninput = () => { a[el.dataset.a] = el.type === "number" ? +el.value : el.value; if (["mode","white","until"].includes(el.dataset.a)) draw(); else sum(); });
+      box.querySelectorAll("[data-ab]").forEach(el => el.onchange = () => { a[el.dataset.ab] = el.checked; sum(); });
+      const cp = box.querySelector(".rb-color");
+      if (cp && window.FHHome) FHHome.bindLightPanel(cp, {color: true, rgb: a.rgb}, d => { if (d.rgb_color){ a.rgb = d.rgb_color; sum(); } });
+    });
+  }
+  function modeSummary(steps){
+    return (steps || []).map(a => { const l = (a.entities || []).map(nameOf).join(", ") || "…";
+      return ({on: `turn on ${l}${a.dark ? " (after dark)" : ""}`, off: `turn off ${l}`, dim: `set ${l} to ${a.pct || 50}%`, lock: `lock ${l}`, close: `close ${l}`,
+        arm: `arm the alarm (${({stay: "Stay", away: "Away", night: "Night"})[a.arm || "stay"]})`, open_garage: "open the garage once disarmed",
+        thermostat: a.mode === "off" ? `turn ${l} off` : `set ${l} to ${a.temp || "?"}°`, schedule: "thermostats back to the schedule",
+        village: a.village === "wake" ? "wake the Christmas village" : "put the Christmas village to sleep", say: `say "${a.message || "…"}"`})[a.type] || a.type; }).join(" → ");
+  }
+  function drawMode(sh){
+    sh.innerHTML = `<h3>${MODE_TITLE[houseMode]}<button data-x aria-label="Close">✕</button></h3>
+      <div class="au-blurb">${houseMode === "welcome" ? "First it disarms the alarm with the code you type (always). Then, in this order:" : "When the button is tapped, in this order:"}</div>
+      <div class="rb-step">${spec.do.map((a, i) => actUI(a, i).replace('<button data-rm=', `<button data-mv="${i}" data-d="-1" aria-label="Move up">↑</button><button data-mv="${i}" data-d="1" aria-label="Move down">↓</button><button data-rm=`)).join("")}
+        <div class="rb-chips" style="margin-top:8px">${doList().map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
+      <div class="rb-sum" id="rb-sum">${esc(modeSummary(spec.do))}</div>
+      <div class="rb-err" id="rb-err"></div>
+      <div class="rb-btns"><button class="del" data-reset>Back to normal</button><button data-x>Cancel</button><button class="save" data-save>Save</button></div>`;
+    const sum = () => { sh.querySelector("#rb-sum").textContent = modeSummary(spec.do); };
+    sh.querySelectorAll("[data-x]").forEach(b => b.onclick = closeBuilder);
+    sh.querySelectorAll("[data-add]").forEach(b => b.onclick = () => { spec.do.push({type: b.dataset.add, entities: [], mode: "keep", temp: 68, pct: 50, arm: "stay", village: "sleep"}); draw(); });
+    bindSteps(sh, sum);
+    sh.querySelector("[data-save]").onclick = async () => {
+      const err = sh.querySelector("#rb-err"); err.textContent = "";
+      if (spec.do.some(a => ["on","off","dim","lock","close","thermostat"].includes(a.type) && !(a.entities || []).length)){ err.textContent = "Pick what each step is for."; return; }
+      const r = await post("/api/ha/modes/" + houseMode, {steps: spec.do});
+      if (!r.ok){ err.textContent = r.reason || "Couldn’t save"; return; }
+      closeBuilder(); say(`${MODE_TITLE[houseMode]} saved`); if (modeBox) houseModes(modeBox);
+    };
+    sh.querySelector("[data-reset]").onclick = async () => {
+      if (!confirm("Put this button back to how it worked out of the box?")) return;
+      await post("/api/ha/modes/" + houseMode, null, "DELETE"); closeBuilder(); say("Back to normal"); if (modeBox) houseModes(modeBox);
+    };
+  }
+  let modeBox = null;
+  async function houseModes(el){
+    modeBox = el;
+    if (!last){ try { last = await fetch("/api/ha/automations").then(r => r.json()); } catch(e){} }
+    let d = {};
+    try { d = await fetch("/api/ha/modes").then(r => r.json()); } catch(e){ el.textContent = "Couldn’t load the buttons."; return; }
+    if (!styled){ const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st); styled = true; }
+    el.innerHTML = ["goodnight", "away", "welcome"].map(m => `<div class="ts-row"><div class="ts-t"><b>${MODE_TITLE[m]}</b>${d[m] && d[m].custom ? ' <span class="dim">· customized</span>' : ""}</div>
+      <div class="ts-v">${esc(modeSummary((d[m] || {}).steps))}</div><button class="chg" data-hm="${m}">Edit steps</button></div>`).join("");
+    el.querySelectorAll("[data-hm]").forEach(b => b.onclick = () => {
+      houseMode = b.dataset.hm; editId = null;
+      spec = {when: {type: "time"}, days: [], do: JSON.parse(JSON.stringify((d[houseMode] || {}).steps || []))};
+      ensureSheet().classList.add("on"); draw();
+    });
+  }
+
   function openBuilder(id, s){
+    houseMode = null;
     editId = id;
     spec = s ? JSON.parse(JSON.stringify(s)) : {name:"", when:{type:"time", at:"18:00"}, days:DAYS.map(d=>d[0]), dark:false, home:false, do:[]};
     if (spec.when.type === "sun") spec.when.type = spec.when.event === "sunset" ? "sunset" : "sunrise";
@@ -454,12 +523,13 @@
   }
   function actUI(a, i){
     const ch = (last && last.choices) || {};
-    const label = (DO.find(d => d[0] === a.type) || ["", a.type])[1];
+    const label = ([...DO, ...MODE_DO].find(d => d[0] === a.type) || ["", a.type])[1];
     const lists = {
       on: [["Lights", ch.lights], ["Plugs & switches", ch.switches], ["TVs", ch.media]],
       off: [["Lights", ch.lights], ["Plugs & switches", ch.switches], ["TVs", ch.media]],
       dim: [["Lights", ch.lights]], thermostat: [["Thermostats", ch.climates]], lock: [["Locks", ch.locks]], close: [["Garage doors", ch.covers]],
     }[a.type];
+    if (lists && houseMode && GROUP_FOR[a.type]) lists.unshift(["Quick picks", GROUP_FOR[a.type].map(id => ({id, name: GROUP_NAMES[id], area: "Quick picks"}))]);
     let body = "";
     if (lists){
       a.entities = a.entities || [];
@@ -469,8 +539,23 @@
     if (a.type === "dim") body += `<div class="rb-row"><input type="number" min="1" max="100" data-a="pct" value="${esc(a.pct || 50)}" style="width:90px"> %
       <select data-a="white">${[["","as they are"],["warm","warm white"],["daylight","daylight"],["cool","cool white"],["color","a color…"]].map(([v,t]) => `<option value="${v}" ${(a.white || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
       + (a.white === "color" && window.FHHome ? `<div class="rb-color">${FHHome.lightPanelHTML({color: true, whites: false, rgb: a.rgb}, {dim: false})}</div>` : "");
-    if (a.type === "thermostat") body += `<div class="rb-row"><select data-a="mode">${[["heat","Heat"],["cool","Cool"],["heat_cool","Heat/Cool"],["auto","Auto"],["off","Off"]].map(([v,t]) => `<option value="${v}" ${a.mode === v ? "selected" : ""}>${t}</option>`).join("")}</select>
-      ${a.mode === "heat" || a.mode === "cool" || !a.mode ? `<input type="number" min="45" max="95" data-a="temp" value="${esc(a.temp || 68)}" style="width:90px"> °` : ""}</div>`;
+    if (a.type === "thermostat") body += `<div class="rb-row"><select data-a="mode">${[...(houseMode ? [["keep","Keep its mode"]] : []), ["heat","Heat"],["cool","Cool"],["heat_cool","Heat/Cool"],["auto","Auto"],["off","Off"]].map(([v,t]) => `<option value="${v}" ${a.mode === v ? "selected" : ""}>${t}</option>`).join("")}</select>
+      ${a.mode === "heat" || a.mode === "cool" || !a.mode || a.mode === "keep" ? `<input type="number" min="45" max="95" data-a="temp" value="${esc(a.temp || 68)}" style="width:90px"> °` : ""}</div>`;
+    if (a.type === "on" && houseMode) body += `<label class="rb-chk"><input type="checkbox" data-ab="dark" ${a.dark ? "checked" : ""}> Only after dark</label>`;
+    if (a.type === "arm") body += `<div class="rb-row"><select data-a="arm">${[["stay","Stay (dogs can roam)"],["away","Away"],["night","Night"]].map(([v,t]) => `<option value="${v}" ${(a.arm || "stay") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
+      + (houseMode === "away" ? `<div class="hint" style="margin:4px 0 0">Won't arm if a door or window is open; it tells you which.</div>` : "");
+    if (a.type === "open_garage") body += `<div class="hint" style="margin:0">Only after the alarm is disarmed with your code.</div>`;
+    if (a.type === "schedule") body += `<div class="hint" style="margin:0">Sets both thermostats to whatever the schedule says right now (skipped during peak).</div>`;
+    if (a.type === "village") body += `<div class="rb-row"><select data-a="village">${[["sleep","Put it to sleep for the night"],["wake","Wake it up"]].map(([v,t]) => `<option value="${v}" ${(a.village || "sleep") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
+    if (a.type === "wait"){
+      const u = a.until || "minutes", motion = (ch.sensors || []).filter(x => x.kind === "motion");
+      body += `<div class="rb-row"><select data-a="until">${[["minutes","a number of minutes"],["time","until a time"],["sunrise","until sunrise"],["sunset","until sunset"],["quiet","until the motion is quiet"]].map(([v,t]) => `<option value="${v}" ${u === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
+      if (u === "minutes") body += `<div class="rb-row"><input type="number" min="1" max="720" data-a="minutes" value="${esc(a.minutes || 5)}" style="width:90px"> minutes</div>`;
+      if (u === "time") body += `<div class="rb-row"><input type="time" data-a="at" value="${esc(a.at || "23:00")}"></div>`;
+      if (u === "quiet") body += `<div class="rb-row"><select data-a="entity">${motion.map(x => `<option value="${esc(x.id)}" ${a.entity === x.id ? "selected" : ""}>${esc(x.name)}${x.area && !x.name.includes(x.area) ? " · " + esc(x.area) : ""}</option>`).join("")}</select></div>
+        <div class="rb-row">for <input type="number" min="1" max="240" data-a="minutes" value="${esc(a.minutes || 10)}" style="width:80px"> minutes</div>`;
+      body += `<div class="hint" style="margin:4px 0 0">Then add what happens after, e.g. Turn off.</div>`;
+    }
     if (a.type === "notify" || a.type === "say") body += `<div class="rb-row"><input type="text" data-a="message" maxlength="200" placeholder="${a.type === "say" ? "e.g. Time to take the dogs out" : "e.g. The garage door opened"}" value="${esc(a.message || "")}"></div>`;
     return `<div class="rb-act" data-i="${i}"><div class="hd"><span>${esc(label)}</span><button data-rm="${i}" aria-label="Remove">✕</button></div>${body}</div>`;
   }
@@ -500,12 +585,14 @@
     if (spec.dark) t += ", only after dark"; if (spec.home) t += ", only if someone's home"; if (spec.ifoff) t += ", only if those lights are off";
     const acts = spec.do.map(a => { const l = (a.entities || []).map(nm).join(", ") || "…";
       return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white === "color" ? (a.rgb ? " in rgb(" + a.rgb.join(",") + ")" : " in a color") : a.white === "daylight" ? " daylight" : a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
-        lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`})[a.type]; });
+        lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`,
+        wait: (a.until || "minutes") === "minutes" ? `wait ${a.minutes || 5} min` : a.until === "time" ? `wait until ${a.at || "?"}` : a.until === "quiet" ? `wait until ${nm(a.entity)} is quiet ${a.minutes || 10} min` : `wait until ${a.until}`})[a.type]; });
     return t + " → " + (acts.length ? acts.join("; ") : "add something to do");
   }
   function draw(){
     const sh = document.getElementById("au-sheet");
     const w = spec.when;
+    if (houseMode) return drawMode(sh);
     sh.innerHTML = `<h3>${editId ? "Edit routine" : "New routine"}<button data-x aria-label="Close">✕</button></h3>
       <div class="rb-step"><div class="rb-lab">1 · When</div><div class="rb-chips">${WHEN.map(([k,t]) => `<button data-when="${k}" class="${w.type === k ? "on" : ""}">${t}</button>`).join("")}</div>${whenUI()}</div>
       <div class="rb-step"><div class="rb-lab">2 · Which days</div><div class="rb-chips">${DAYS.map(([k,t]) => `<button data-day="${k}" class="${spec.days.includes(k) ? "on" : ""}" style="width:42px; padding:9px 0">${t}</button>`).join("")}</div>
@@ -519,7 +606,7 @@
         ${spec.dates ? `<div class="rb-row"><select data-dx>${[["only","Only"],["except","Except"]].map(([v,t]) => `<option value="${v}" ${(spec.dates_except ? "except" : "only") === v ? "selected" : ""}>${t}</option>`).join("")}</select>${mdUI("from")}<span>to</span>${mdUI("to")}</div>` : ""}
         <label class="rb-chk"><input type="checkbox" data-flag="ifoff" ${spec.ifoff ? "checked" : ""}> The lights it turns on are off (don't change them if someone set them)</label></div>
       <div class="rb-step"><div class="rb-lab">4 · Then do this</div>${spec.do.map(actUI).join("")}
-        <div class="rb-chips" style="margin-top:8px">${DO.map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
+        <div class="rb-chips" style="margin-top:8px">${doList().map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
       <div class="rb-step"><div class="rb-lab">Name (optional)</div><input type="text" data-name maxlength="80" placeholder="e.g. Porch light when we get home" value="${esc(spec.name || "")}"></div>
       <div class="rb-sum" id="rb-sum">${esc(summaryText())}</div>
       <div class="rb-err" id="rb-err"></div>
@@ -540,11 +627,17 @@
     $$("[data-md]").forEach(el => el.onchange = el.oninput = () => { const k = el.dataset.md, row = el.parentNode;
       const m = +row.querySelector(`[data-md="${k}"][data-part="m"]`).value, d = Math.max(1, Math.min(31, +row.querySelector(`[data-md="${k}"][data-part="d"]`).value || 1));
       spec.dates[k] = String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0"); sum(); });
-    $$("[data-add]").forEach(b => b.onclick = () => { spec.do.push({type:b.dataset.add, entities:[], mode:"heat", temp:68, pct:50}); draw(); });
+    $$("[data-add]").forEach(b => b.onclick = () => {
+      const k = b.dataset.add, step = {type:k, entities:[], mode:"heat", temp:68, pct:50};
+      if (k === "off" && spec.do.some(a => a.type === "wait"))
+        step.entities = [...new Set(spec.do.filter(a => a.type === "on" || a.type === "dim").flatMap(a => a.entities || []))];
+      if (k === "wait"){ step.until = "minutes"; step.minutes = 5;
+        const m = (((last && last.choices) || {}).sensors || []).find(x => x.kind === "motion"); if (m) step.entity = spec.when.type === "device" && spec.when.entity ? spec.when.entity : m.id; }
+      spec.do.push(step); draw(); });
     $$("[data-rm]").forEach(b => b.onclick = () => { spec.do.splice(+b.dataset.rm, 1); draw(); });
     $$(".rb-act").forEach(box => { const a = spec.do[+box.dataset.i];
       box.querySelectorAll(".au-list input").forEach(cb => cb.onchange = () => { a.entities = picked(box); box.querySelector(".names").textContent = a.entities.length ? a.entities.map(nameOf).join(", ") : "Tap Pick to choose"; sum(); });
-      box.querySelectorAll("[data-a]").forEach(el => el.onchange = el.oninput = () => { a[el.dataset.a] = el.type === "number" ? +el.value : el.value; if (el.dataset.a === "mode" || el.dataset.a === "white") draw(); else sum(); });
+      box.querySelectorAll("[data-a]").forEach(el => el.onchange = el.oninput = () => { a[el.dataset.a] = el.type === "number" ? +el.value : el.value; if (el.dataset.a === "mode" || el.dataset.a === "white" || el.dataset.a === "until") draw(); else sum(); });
       const cp = box.querySelector(".rb-color");
       if (cp && window.FHHome) FHHome.bindLightPanel(cp, {color: true, rgb: a.rgb}, d => { if (d.rgb_color){ a.rgb = d.rgb_color; sum(); } });
     });
@@ -572,5 +665,5 @@
     try { render(box, await fetch("/api/ha/automations").then(r => r.json()), toast); }
     catch(e){ box.innerHTML = '<div class="hint">Couldn’t load the routines.</div>'; }
   }
-  window.FHAutomations = { load, render, openBuilder };
+  window.FHAutomations = { load, render, openBuilder, houseModes };
 })();

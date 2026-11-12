@@ -251,6 +251,29 @@ def automations_convert(payload: dict):
     return automations.convert_to_routines(tuple(keys)) if keys else {"ok": False, "reason": "nothing to convert"}
 
 
+@router.get("/modes")
+def modes_get():
+    """The steps behind Good night / Leaving / I'm home (custom or built-in)."""
+    from ..services import house_modes
+    out = {}
+    for m in ("goodnight", "away", "welcome"):
+        steps, custom = house_modes.steps_for(m)
+        out[m] = {"steps": steps, "custom": custom}
+    return out
+
+
+@router.post("/modes/{mode}")
+def modes_save(mode: str, payload: dict):
+    from ..services import house_modes
+    return house_modes.save_steps(mode, (payload or {}).get("steps"))
+
+
+@router.delete("/modes/{mode}")
+def modes_reset(mode: str):
+    from ..services import house_modes
+    return house_modes.save_steps(mode, None)
+
+
 @router.get("/thermostat-schedule")
 def thermostat_schedule_get():
     from ..services import thermo_sched

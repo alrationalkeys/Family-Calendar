@@ -1431,7 +1431,7 @@ function renderHM(h, force){
 
   // scene shortcuts: all-off first, then the HA scenes (max 4 tiles)
   const scenes=tiles.filter(t=>t.domain==="scene"&&!/night|leav|away|home/i.test(t.name)).slice(0,3);   // built-in Good night / Leaving cover those
-  let html=FHHome.wxHTML(hmAlerts)+FHHome.healthHTML(hmHealth)+FHHome.laundryHTML(hmLaundry)+`<div class="hm-scenes">
+  let html=FHHome.wxHTML(hmAlerts)+`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
     <button class="hm-scene" onclick="hmWelcome(this,'morning')"><span class="ic">☀️</span>Morning</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
@@ -1561,7 +1561,8 @@ function renderHM(h, force){
     });
   }
 
-  const sig=html.replace(/&t=\d+/g,"");
+  const tail=hmView!=="day"?`<div style="margin-top:14px">${FHHome.laundryHTML(hmLaundry)}${FHHome.healthHTML(hmHealth)}</div>`:"";   // washer/dryer + needs attention at the bottom
+  const sig=(html+tail).replace(/&t=\d+/g,"");
   if(!force && body.dataset.sig===sig){ body.querySelectorAll(".hm-cam img").forEach(im=>{ im.src=im.src.replace(/&t=\d+/,"&t="+Date.now()); }); return; }
   body.dataset.sig=sig; body.innerHTML=html;
 
@@ -1570,6 +1571,7 @@ function renderHM(h, force){
   if(hmView==="3d"){ const holder=document.createElement("div"); body.appendChild(holder);
     if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(holder,h,{id:"main", height:Math.min(560,Math.max(380,Math.round(window.innerHeight*0.62))), pins:true});
     else FHHome.renderIsoView(holder,h); }
+  if(tail){ const tl=document.createElement("div"); tl.innerHTML=tail; body.appendChild(tl); }
 
   body.querySelectorAll(".hm-cam").forEach(c=>{ c.onclick=()=>openCam(c.dataset.cam, c.dataset.name); });
   body.querySelectorAll("[data-vg]").forEach(b=>{ b.onclick=async()=>{ if(navigator.vibrate) navigator.vibrate(8);

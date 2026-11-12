@@ -54,13 +54,13 @@
     [0,360,720,1080,1440].forEach(m=>{ out+=`<line x1="${x(m)}" x2="${x(m)}" y1="16" y2="${H}" stroke="var(--tl-grid)"/>`; });
     rows.forEach((r,i)=>{
       if(r.kind!==lastK){ y+=GH; out+=`<text class="gh" x="0" y="${y-6}">${GROUP[r.kind]}</text>`; lastK=r.kind; }
-      out+=`<text class="nm" x="0" y="${y+11}">${esc(r.name.replace(/\s*thermostat\s*/i," ").trim())}${r.no_action&&!r.source?'<tspan class="gh" style="text-transform:none;letter-spacing:0;font-weight:400"> · doesn’t report when it runs</tspan>':''}</text>`;
+      out+=`<text class="nm" x="0" y="${y+11}">${esc(r.name.replace(/\s*thermostat\s*/i," ").trim())}${r.estimated?'<tspan class="gh" style="text-transform:none;letter-spacing:0;font-weight:400"> · estimated from room temp</tspan>':''}</text>`;
       out+=`<rect x="${L}" y="${y+16}" width="${R-L}" height="8" rx="3" fill="var(--tl-grid)"/>`;
       (r.spans||[]).forEach(([a,b,k])=>{
         const c=r.kind==="climate"?COLOR[k]:COLOR[r.kind], w=Math.max(2,x(b)-x(a));
-        out+=`<rect class="sp" x="${x(a)}" y="${y+15}" width="${w}" height="10" rx="3" fill="${c}"
-           data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
-        out+=`<rect class="hit" x="${x(a)-4}" y="${y+6}" width="${w+8}" height="24" fill="transparent" data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
+        out+=`<rect class="sp" x="${x(a)}" y="${y+15}" width="${w}" height="10" rx="3" fill="${c}" ${r.estimated?'fill-opacity=".55" stroke="'+c+'" stroke-dasharray="3 2"':''}
+           data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
+        out+=`<rect class="hit" x="${x(a)-4}" y="${y+6}" width="${w+8}" height="24" fill="transparent" data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
       });
       y+=LANE;
     });

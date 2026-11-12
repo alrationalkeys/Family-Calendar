@@ -95,6 +95,31 @@ def _spans_from(hist: list, t0, t1) -> list:
     return out
 
 
+def _estimate(states: list, t0, t1) -> list:
+    """Alarm.com thermostats don't report hvac_action. Call it cooling while the room is at/above the cool
+    setpoint (cool / heat_cool / auto) and heating while at/below the heat setpoint (heat / heat_cool / auto)."""
+    conv = []
+    for st in states:
+        a = st.get("attributes") or {}
+        mode = st.get("state")
+        try:
+            cur = float(a.get("current_temperature"))
+        except (TypeError, ValueError):
+            cur = None
+        hi = a.get("target_temp_high") if mode in ("heat_cool", "auto") else a.get("temperature") if mode == "cool" else None
+        lo = a.get("target_temp_low") if mode in ("heat_cool", "auto") else a.get("temperature") if mode == "heat" else None
+        act = None
+        try:
+            if cur is not None and hi is not None and cur >= float(hi):
+                act = "cooling"
+            elif cur is not None and lo is not None and cur <= float(lo):
+                act = "heating"
+        except (TypeError, ValueError):
+            pass
+        conv.append({"last_changed": st.get("last_updated") or st.get("last_changed"), "attributes": {"hvac_action": act}})
+    return _spans(conv, "climate", t0, t1)
+
+
 def _overlap(spans, lo, hi):
     return sum(max(0, min(b, hi) - max(a, lo)) for a, b, _ in spans)
 
@@ -158,6 +183,9 @@ def get(day: str | None = None) -> dict:
                         row["source"] = fb
                     except Exception:
                         pass
+                if not row.get("source"):         # no run data at all: estimate from room temp vs setpoints
+                    row["spans"] = _estimate(lst, t0, t1)
+                    row["estimated"] = True
             if sp or k == "climate":
                 rows.append(row)
         for lst in history(list(power)[:12], True):

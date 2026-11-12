@@ -52,7 +52,8 @@ DESCRIBE = {
 GROUPS = [
     {"key": "peak", "title": "Thermostats", "file": "peak_thermostat",
      "blurb": "The daily heat and AC schedule, plus Santee Cooper peak hours (heat and AC off so nothing sets a demand charge).",
-     "auto": r"^(fh_(peak|sched)_|fhs_)",           # fhs_ = the multi-time thermostat schedule (thermo_sched.py) "helpers": r"^(input_number|input_datetime|input_boolean)\.(peak_|sched_)",
+     # fhs_ = the multi-time thermostat schedule (thermo_sched.py)
+     "auto": r"^(fh_(peak|sched)_|fhs_)", "helpers": r"^(input_number|input_datetime|input_boolean)\.(peak_|sched_)",
      "order": [], "status": ["binary_sensor.santee_cooper_peak_now", "binary_sensor.peak_summer_season"]},
     {"key": "outdoor", "title": "Outdoor & holiday lights", "file": "outdoor_lights",
      "blurb": "Nightly lights from sunset to sunrise; holiday lights switch on by date (October, and Thanksgiving into January).",

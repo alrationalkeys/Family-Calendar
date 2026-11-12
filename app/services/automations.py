@@ -168,7 +168,9 @@ def _guess(missing: str, names: dict):
     pool = [e for e in names if e.split(".")[0] in ("light", "switch")]
     for test in (lambda e: e.split(".", 1)[1] == obj,
                  lambda e: re.fullmatch(re.escape(obj) + r"_\d+", e.split(".", 1)[1]) is not None,
-                 lambda e: re.sub(r"[^a-z0-9]+", "_", str(names[e]).lower()).strip("_") == obj):
+                 lambda e: re.sub(r"[^a-z0-9]+", "_", str(names[e]).lower()).strip("_") == obj,
+                 lambda e: e.split(".", 1)[1].startswith(obj + "_"),                     # fridge_upper -> fridge_upper_led
+                 lambda e: set(obj.split("_")) <= set(re.findall(r"[a-z0-9]+", str(names[e]).lower()))):   # back_patio -> "Back Patio Govee"
         hits = [e for e in pool if test(e)]
         if len(hits) == 1:
             return hits[0]

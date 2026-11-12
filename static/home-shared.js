@@ -11,14 +11,16 @@
      (garage on the RIGHT). x runs left→right across the 38 ft front, gy runs from the
      patio (0) through the back wall (8) to the front porch (~57). `floor` 1 = down,
      2 = up. `key` is the Home Assistant name/area hint. Optional furnishing hints:
-     bed/tv/counter = which wall ("n" back, "s" front, "e", "w") the piece sits on. */
+     bed/tv/counter/desk = which wall ("n" back, "s" front, "e", "w") the piece sits on; table = which half the dining
+     table takes ("c" centred); train = the half the village train table takes; fireplace (under the TV),
+     sectional (an L couch instead of a sofa), screened (porch with screens + a ceiling fan). */
   const PLAN_W=38, MIRROR=true;
   const ROOMS_DRAWN=[
     // ---- first floor ----
-    {floor:1, name:"Back Porch", key:"patio",     gx:28,   gy:0,    gw:10,   gd:8,    open:true},
-    {floor:1, name:"Bedroom 4", key:"bedroom 4", gx:0,    gy:8,    gw:11,   gd:13,   bed:"e"},
-    {floor:1, name:"Living",    key:"living",    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w"},
-    {floor:1, name:"Dining",    key:"dining",    gx:25,   gy:8,    gw:13,   gd:13.4},
+    {floor:1, name:"Back Porch", key:"patio",     gx:28,   gy:0,    gw:10,   gd:8,    open:true, screened:true},
+    {floor:1, name:"Office",    key:"office",    gx:0,    gy:8,    gw:11,   gd:13,   desk:"e", tv:"w"},   // bedroom 4, used as the office
+    {floor:1, name:"Living",    key:"living",    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w", fireplace:true, sectional:true},
+    {floor:1, name:"Breakfast", key:"breakfast", gx:25,   gy:8,    gw:13,   gd:13.4, table:"w", train:"e"},   // eat-in table + the village train
     {floor:1, name:"Kitchen",   key:"kitchen",   gx:25,   gy:21.4, gw:13,   gd:10.4, counter:"e"},
     {floor:1, name:"Bath 2",    key:"bath 2",    gx:0,    gy:21,   gw:6,    gd:10,   tub:"n"},
     {floor:1, name:"Closet",    key:"closet 4",  gx:6,    gy:21,   gw:5,    gd:5},
@@ -28,7 +30,7 @@
     {floor:1, name:"Foyer",     key:"foyer",     gx:19.3, gy:36.2, gw:5.7,  gd:16},
     {floor:1, name:"Pantry",    key:"pantry",    gx:25,   gy:31.8, gw:7.7,  gd:8.7},
     {floor:1, name:"Butler's",  key:"butler",    gx:32.7, gy:31.8, gw:5.3,  gd:8.7},
-    {floor:1, name:"Flex Room", key:"flex",      gx:25,   gy:40.5, gw:13,   gd:11.7, tv:"n"},
+    {floor:1, name:"Dining Room", key:"dining room", gx:25, gy:40.5, gw:13,   gd:11.7, table:"c"},     // the flex room, used as the dining room
     {floor:1, name:"Front Porch", key:"porch",     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
     // ---- second floor ----
     {floor:2, name:"Sitting",       key:"sitting",       gx:0,    gy:8,    gw:9.5,  gd:13.8},
@@ -53,12 +55,12 @@
     {f:1, dir:"h", x:9.65, z:56.2, w:16,  type:"garage"},
     {f:1, dir:"v", x:19.3, z:39,   w:3,   type:"door"},      // garage -> foyer
     {f:1, dir:"h", x:17,   z:36.2, w:3,   type:"door"},      // garage -> hall
-    {f:1, dir:"v", x:25,   z:46.3, w:8,   type:"opening"},   // foyer <-> flex
+    {f:1, dir:"v", x:25,   z:46.3, w:8,   type:"opening"},   // foyer <-> dining room
     {f:1, dir:"h", x:22.2, z:36.2, w:5.7, type:"opening"},   // foyer <-> hall
     {f:1, dir:"h", x:18,   z:26,   w:12,  type:"opening"},   // hall <-> living
     {f:1, dir:"v", x:25,   z:26,   w:9,   type:"opening"},   // kitchen open to living + hall
     {f:1, dir:"v", x:25,   z:14.7, w:12,  type:"opening"},   // living <-> dining
-    {f:1, dir:"h", x:33,   z:8,    w:6,   type:"slider"},    // dining -> patio
+    {f:1, dir:"h", x:33,   z:8,    w:6,   type:"slider"},    // breakfast -> back porch
     {f:1, dir:"h", x:35.3, z:31.8, w:3,   type:"door"},      // kitchen -> butler's
     {f:1, dir:"v", x:25,   z:36,   w:3,   type:"door"},      // pantry (from hall)
     {f:1, dir:"v", x:32.7, z:36,   w:2.5, type:"door"},      // pantry <-> butler's
@@ -80,11 +82,11 @@
     {f:2, dir:"v", x:9.5,  z:37.7, w:2.5, type:"door"},      // linen (from the hall)
   ];
   const WINDOWS_DRAWN=[
-    {f:1, dir:"h", x:5.5,  z:8,    w:4}, {f:1, dir:"v", x:0,  z:14.5, w:4},      // bedroom 4
+    {f:1, dir:"h", x:5.5,  z:8,    w:4}, {f:1, dir:"v", x:0,  z:14.5, w:4},      // office
     {f:1, dir:"h", x:15,   z:8,    w:4}, {f:1, dir:"h", x:21, z:8,    w:4},      // living
-    {f:1, dir:"v", x:38,   z:14.7, w:4},                                           // dining
+    {f:1, dir:"v", x:38,   z:14.7, w:4},                                           // breakfast
     {f:1, dir:"v", x:38,   z:24,   w:3},                                           // kitchen
-    {f:1, dir:"h", x:31.5, z:52.2, w:5}, {f:1, dir:"v", x:38, z:46,   w:4},      // flex
+    {f:1, dir:"h", x:31.5, z:52.2, w:5}, {f:1, dir:"v", x:38, z:46,   w:4},      // dining room
     {f:1, dir:"v", x:0,    z:26,   w:2.5},                                         // bath 2
     {f:2, dir:"v", x:0,    z:14,   w:4}, {f:2, dir:"h", x:4.7, z:8,   w:3},      // sitting
     {f:2, dir:"h", x:17,   z:8,    w:5},                                           // bedroom 1
@@ -98,7 +100,7 @@
   function mirrorRoom(r){
     if(!MIRROR) return r;
     const o={...r, gx:PLAN_W-r.gx-r.gw};
-    ["bed","tv","counter","tub"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
+    ["bed","tv","counter","tub","desk","table","train"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
     if(o.shower) o.shower=o.shower.replace(/[ew]/g,c=>flipSide(c));
     if(r.stairs) o.stairs={...r.stairs, gx:PLAN_W-r.stairs.gx-r.stairs.gw};
     if(r.stairwell) o.stairwell={...r.stairwell, gx:PLAN_W-r.stairwell.gx-r.stairwell.gw};

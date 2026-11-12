@@ -2654,8 +2654,8 @@ async function runMode(mode, btn, code){
   const label=btn?btn.textContent:""; if(btn){ btn.disabled=true; btn.textContent="…"; }
   let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall", code:code||null, open_garage:mode==="welcome"}).then(x=>x.json()); }catch(e){}
   if(btn){ btn.disabled=false; btn.textContent=label; }
-  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":mode==="morning"?"\u2600\uFE0F Good morning":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
-  if(mode==="morning" && typeof sayBriefingNow==="function") setTimeout(()=>sayBriefingNow("today"), 2500);
+  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":mode==="morning"?"\u2600\uFE0F Good morning":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false && !r.quiet) sayAloud(r.say); }
+  if(r.briefing && typeof sayBriefingNow==="function") setTimeout(()=>sayBriefingNow("today"), 1500);
   setTimeout(loadHome, 1200);
 }
 

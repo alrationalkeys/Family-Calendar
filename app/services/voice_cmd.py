@@ -769,7 +769,7 @@ def _interpret(text: str, use_ai: bool = True) -> dict:
     if not q and re.search(lead + r"(?:good ?morning|morning everyone|rise and shine|wake up)\b", tl):
         from . import house_modes                  # the Good morning button's steps (voice never disarms)
         r = house_modes.run("morning")
-        return {"ok": True, "say": r.get("say", "Good morning!"), "refresh": True, "briefing": True}
+        return {"ok": True, "say": "Good morning!", "refresh": True, "briefing": bool(r.get("briefing"))}
     if not q and re.search(lead + r"(?:we're leaving|we are leaving|were leaving|i'm leaving|i am leaving|im leaving|leaving now|(?:we're |we are |i'm |i am )?(?:going|heading) out|away mode|bye bye|see you later)\b", tl):
         from . import house_modes
         r = house_modes.run("away", close_garage=(True if ("close" in w and "garage" in w) else None))

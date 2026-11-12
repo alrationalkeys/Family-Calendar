@@ -84,7 +84,7 @@ GROUPS = {"*lights": "all the lights", "*indoor": "the indoor lights", "*outdoor
           "*locks": "all the locks", "*garage": "the garage door", "*entry": "the entry lights"}
 
 
-STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "disarm", "open_garage", "thermostat", "schedule", "village", "scene", "say"}
+STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "disarm", "open_garage", "thermostat", "schedule", "village", "scene", "say", "briefing"}
 MODES = ("goodnight", "away", "welcome", "morning")
 
 
@@ -214,6 +214,7 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
     open_now = [ha_svc.opening_label(t, gcover) for t in by("binary_sensor")
                 if t.get("device_class") in ("door", "window", "garage_door", "opening") and t["on"]]
     open_now = [x for x in open_now if x]
+    brief = [False]
     for st in steps:
         k = st.get("type")
         try:
@@ -318,12 +319,16 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 for e in st.get("entities") or []:
                     if str(e).startswith("scene."):
                         ha_svc.call_service("scene", "turn_on", e)
+            elif k == "briefing":
+                brief[0] = True                        # the wall reads the day's briefing after the summary
             elif k == "say":
                 msg = str(st.get("message") or "").strip()[:200]
                 if msg:
                     notes.append(msg if msg.endswith((".", "!", "?")) else msg + ".")
         except Exception:
             warnings.append(f"one step ({k}) didn't work")
+    if brief[0]:
+        notes.append("__briefing__")
     # anything left open that no step closed
     for lbl in open_now:
         if mode != "welcome" and f"{lbl} is open" not in " ".join(warnings):
@@ -352,7 +357,12 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
         except Exception:
             pass
         lead = {"goodnight": "Good night.", "away": "Bye for now.", "morning": "Good morning!"}.get(mode) or f"Welcome home{', ' + who if who else ''}."
-        return _finish(mode, lead, done, warnings, notes, source)
+        briefing = "__briefing__" in notes
+        notes = [n for n in notes if n != "__briefing__"]
+        r = _finish(mode, lead, done, warnings, notes, source, quiet=(mode == "morning"))
+        r["briefing"] = briefing
+        r["quiet"] = mode == "morning"        # people may still be asleep: banner, no voice
+        return r
     if close_garage is None:                       # match the Alarm.com Sleep/Away scenes: close it (setting can turn this off)
         close_garage = s.get("closeGarageOnModes", True) is not False
     done, warnings, notes = [], [], []
@@ -485,7 +495,7 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
     return _finish(mode, lead, done, warnings, notes, source)
 
 
-def _finish(mode, lead, done, warnings, notes, source):
+def _finish(mode, lead, done, warnings, notes, source, quiet=False):
     def join_and(xs):
         return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
     say = lead
@@ -495,7 +505,7 @@ def _finish(mode, lead, done, warnings, notes, source):
     if warnings:
         say += " Heads up: " + join_and(warnings) + "."
     say = say.replace("..", ".")
-    if source != "wall":
+    if source != "wall" and not quiet:
         _announce(say)
     try:
         from . import ha_live

@@ -351,7 +351,7 @@
   const DAYS = [["mon","M"],["tue","T"],["wed","W"],["thu","T"],["fri","F"],["sat","S"],["sun","S"]];
   let spec = null, editId = null, houseMode = null;
   const MODE_DO = [["off","Turn off"],["on","Turn on"],["dim","Dim / color"],["lock","Lock"],["close","Close garage"],["arm","Arm the alarm"],["disarm","Disarm the alarm"],
-    ["open_garage","Open the garage (after disarm)"],["thermostat","Thermostat"],["schedule","Thermostats back to schedule"],["village","Christmas village"],["say","Say it on the wall"]];
+    ["open_garage","Open the garage (after disarm)"],["thermostat","Thermostat"],["schedule","Thermostats back to schedule"],["village","Christmas village"],["say","Say it on the wall"],["briefing","Read the morning briefing"]];
   const MODE_TITLE = {goodnight: "🌙 Good night", morning: "☀️ Good morning", away: "🚪 Leaving", welcome: "🏡 I'm home"};
   const doList = () => houseMode ? MODE_DO.filter(d => (d[0] !== "open_garage" || houseMode === "welcome") && (d[0] !== "disarm" || houseMode === "morning")) : DO;
 
@@ -429,11 +429,11 @@
       return ({on: `turn on ${l}${a.dark ? " (after dark)" : ""}`, off: `turn off ${l}`, dim: `set ${l} to ${a.pct || 50}%`, lock: `lock ${l}`, close: `close ${l}`,
         arm: `arm the alarm (${({stay: "Stay", away: "Away", night: "Night"})[a.arm || "stay"]})`, disarm: "disarm the alarm", open_garage: "open the garage once disarmed",
         thermostat: a.mode === "off" ? `turn ${l} off` : `set ${l} to ${a.temp || "?"}°`, schedule: "thermostats back to the schedule",
-        village: a.village === "wake" ? "wake the Christmas village" : "put the Christmas village to sleep", say: `say "${a.message || "…"}"`})[a.type] || a.type; }).join(" → ");
+        village: a.village === "wake" ? "wake the Christmas village" : "put the Christmas village to sleep", say: `say "${a.message || "…"}"`, briefing: "read the morning briefing"})[a.type] || a.type; }).join(" → ");
   }
   function drawMode(sh){
     sh.innerHTML = `<h3>${MODE_TITLE[houseMode]}<button data-x aria-label="Close">✕</button></h3>
-      <div class="au-blurb">${houseMode === "morning" ? "It wakes the wall and reads the morning briefing. Then, in this order:" : houseMode === "welcome" ? (window.FH && FH.get().welcomeNoCode === true ? "First it disarms the alarm (one tap, no code). Then, in this order:" : "First it disarms the alarm with the code you type. Then, in this order:") : "When the button is tapped, in this order:"}</div>
+      <div class="au-blurb">${houseMode === "morning" ? "It wakes the wall quietly (no talking, just a note on the screen). Then, in this order:" : houseMode === "welcome" ? (window.FH && FH.get().welcomeNoCode === true ? "First it disarms the alarm (one tap, no code). Then, in this order:" : "First it disarms the alarm with the code you type. Then, in this order:") : "When the button is tapped, in this order:"}</div>
       <div class="rb-step">${spec.do.map((a, i) => actUI(a, i).replace('<button data-rm=', `<button data-mv="${i}" data-d="-1" aria-label="Move up">↑</button><button data-mv="${i}" data-d="1" aria-label="Move down">↓</button><button data-rm=`)).join("")}
         <div class="rb-chips" style="margin-top:8px">${doList().map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
       <div class="rb-sum" id="rb-sum">${esc(modeSummary(spec.do))}</div>

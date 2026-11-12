@@ -2800,20 +2800,41 @@ async function allLightsOff(){
   for(const eid of lights){ try{ await post("/api/ha/service",{domain:"light",service:"turn_off",entity_id:eid}); }catch(e){} }
   setTimeout(loadHome,500);
 }
+/* tap feedback: the tile pulses while Home Assistant works, then a small pill says what happened */
+function tapToast(msg, ok){
+  let t=document.getElementById("tap-toast");
+  if(!t){ t=document.createElement("div"); t.id="tap-toast"; document.body.appendChild(t);
+    const st=document.createElement("style"); st.textContent=`#tap-toast{position:fixed; left:50%; bottom:120px; transform:translate(-50%,20px); z-index:9000; opacity:0; transition:.25s;
+      background:rgba(20,20,20,.92); color:#fff; padding:14px 22px; border-radius:999px; font-size:20px; font-weight:700; box-shadow:0 8px 30px rgba(0,0,0,.4); pointer-events:none; white-space:nowrap}
+      #tap-toast.on{opacity:1; transform:translate(-50%,0)} #tap-toast.bad{background:#b3261e}
+      .tile.busy{animation:tilepulse .8s ease-in-out infinite} @keyframes tilepulse{50%{transform:scale(.95); filter:brightness(1.35)}}
+      .tile.done{animation:tiledone .5s ease-out} @keyframes tiledone{0%{box-shadow:0 0 0 0 rgba(255,210,120,.9)} 100%{box-shadow:0 0 0 14px rgba(255,210,120,0)}}`;
+    document.head.appendChild(st); }
+  t.textContent=msg; t.classList.toggle("bad", ok===false); t.classList.add("on");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"), ok===null?6000:2200);
+}
 async function onTileTap(el){
   resetSleep();
-  const eid=el.dataset.ha, domain=el.dataset.domain;
+  const eid=el.dataset.ha, domain=el.dataset.domain, name=el.dataset.name||"";
   if(domain==="alarm_control_panel"){ openAlarmPad(el); return; }
   if(domain==="media_player"){ openRemote(el.dataset.ha, el.dataset.name); return; }
   if(domain==="camera"){ openCamera(eid, el.dataset.name); return; }
   if(el.classList.contains("ro")) return;      // sensors: nothing to do
-  // optimistic flip for instant feedback
-  const wasOn=el.classList.contains("on");
-  if(!el.classList.contains("scene")) el.classList.toggle("on");
+  if(el.classList.contains("busy")) return;     // already working on it
+  if(navigator.vibrate) navigator.vibrate(10);
+  const scene=el.classList.contains("scene"), wasOn=el.classList.contains("on");
+  const verb=scene?"Running":domain==="lock"?(wasOn?"Unlocking":"Locking"):domain==="cover"?(wasOn?"Closing":"Opening"):(wasOn?"Turning off":"Turning on");
+  tapToast(`${verb} ${name}…`, null);
+  el.classList.add("busy");
+  if(!scene) el.classList.toggle("on");         // optimistic flip
   try{
-    await post("/api/ha/toggle",{entity_id:eid});
+    const r=await post("/api/ha/toggle",{entity_id:eid}); let j={}; try{ j=await r.json(); }catch(e){}
+    if(r.ok===false||j.ok===false) throw new Error(j.reason||"failed");
+    el.classList.remove("busy"); el.classList.add("done"); setTimeout(()=>el.classList.remove("done"),600);
+    const past=scene?"✓ "+name+" done":domain==="lock"?(wasOn?"🔓 "+name+" unlocked":"🔒 "+name+" locked"):domain==="cover"?"✓ "+name+(wasOn?" closing":" opening"):"✓ "+name+(wasOn?" off":" on");
+    tapToast(past, true);
     setTimeout(loadHome, 400);                  // reconcile with real state
-  }catch(e){ el.classList.toggle("on", wasOn); }  // revert on failure
+  }catch(e){ el.classList.remove("busy"); if(!scene) el.classList.toggle("on", wasOn); tapToast("Couldn't reach "+name+". Try again", false); }
 }
 
 /* ---- light pop-up: on/off, brightness, colour wheel (FHHome.lightPanelHTML) ---- */

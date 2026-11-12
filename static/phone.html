@@ -1153,7 +1153,17 @@ function hmLive(on){
 }
 document.addEventListener("visibilitychange",()=>{ hmLive(curView==="home"); if(!document.hidden&&curView==="home") loadHM(); });
 let hmView="rooms", hmLast=null, hmSig="", hmHealth=null, hmAlerts=[], hmLaundry=[];
-FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
+FHHome.toggle = async (eid)=>{
+  if(navigator.vibrate) navigator.vibrate(8);
+  const t=(FHHome.tilesOf(hmLast||{})).find(x=>x.entity_id===eid)||{}, name=t.name||"", d=t.domain||eid.split(".")[0], wasOn=!!t.on;
+  const scene=d==="scene"||d==="script";
+  const verb=scene?"Running":d==="lock"?(wasOn?"Unlocking":"Locking"):d==="cover"?(wasOn?"Closing":"Opening"):(wasOn?"Turning off":"Turning on");
+  toast(`${verb} ${name}…`);
+  try{ const r=await post("/api/ha/toggle",{entity_id:eid}); let j={}; try{ j=await r.json(); }catch(e){}
+    if(r.ok===false||j.ok===false) throw new Error();
+    toast(scene?`✓ ${name} done`:d==="lock"?(wasOn?`🔓 ${name} unlocked`:`🔒 ${name} locked`):d==="cover"?`✓ ${name} ${wasOn?"closing":"opening"}`:`✓ ${name} ${wasOn?"off":"on"}`);
+  }catch(e){ toast(`Couldn't reach ${name||"it"}. Try again`); }
+  setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
 let _camT=null, _camEid=null, _camStream=null;
 function openCam(eid,name){ _camEid=eid; const ov=$("#camov"); $("#cam-title").textContent="📷 "+(name||"Camera"); ov.classList.remove("live"); ov.classList.add("on");

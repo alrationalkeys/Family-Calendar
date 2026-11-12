@@ -24,6 +24,7 @@ const FH = (() => {
     panelSizes: [1.1, 1.1, 0.9],   // relative heights of the side panels
     textSize: "normal",      // normal | large  (bigger, easier-to-read content)
     homeLayout: [],          // custom floor-plan rooms; [] = built-in sample
+    villageWithHouse: true,  // Good night / Leaving put the Christmas village to sleep
     spotifyStartVolume: 45,  // % the wall's Spotify player starts at
     spotifyPlaylists: [],    // [{name, uri}] pinned on the Home tab's Spotify card
     icloudAlbumUrl: "",      // iCloud Shared Album public link -> slideshow photos

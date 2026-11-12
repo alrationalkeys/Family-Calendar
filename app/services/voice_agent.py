@@ -59,6 +59,11 @@ TOOLS = [
     {"name": "set_timer", "description": "Start a kitchen timer on the wall, or cancel all timers (seconds = 0).",
      "input_schema": {"type": "object", "properties": {
          "seconds": {"type": "integer"}, "label": {"type": ["string", "null"]}}, "required": ["seconds"]}},
+    {"name": "village", "description": "The Christmas village (North Pole Village): shows, carolers, the train, sleep/wake.",
+     "input_schema": {"type": "object", "properties": {"command": {"type": "string",
+         "enum": ["tree", "rachell", "carol", "train", "stop", "wake", "sleep"],
+         "description": "tree = tree show, rachell = Rachell's show, carol = carolers sing, train = whistle then laps, stop = stop the train"}},
+         "required": ["command"]}},
     {"name": "house_mode", "description": "Run a whole-house routine: 'goodnight' (lock up, arm Stay, close garage) or 'away' (leaving).",
      "input_schema": {"type": "object", "properties": {"mode": {"type": "string", "enum": ["goodnight", "away"]}},
                       "required": ["mode"]}},
@@ -265,6 +270,10 @@ def _run_tool(name, a, tiles, out):
         secs = int(a.get("seconds") or 0)
         out["timer"] = {"cancel": True} if secs <= 0 else {"seconds": min(secs, 24 * 3600), "label": a.get("label")}
         return "timer cancelled" if secs <= 0 else "timer started"
+    if name == "village":
+        from . import village
+        r = village.command(str(a.get("command") or ""))
+        return "done" if r.get("ok") else "error: " + (r.get("reason") or "village not answering")
     if name == "house_mode":
         from . import house_modes
         r = house_modes.run(a.get("mode") if a.get("mode") in ("goodnight", "away") else "goodnight")

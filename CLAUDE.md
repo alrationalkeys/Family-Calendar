@@ -156,7 +156,13 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 Handoff doc: `docs/village/README.md` — three ESP32 boards on the LAN, HTTP-controlled: Board A `village-fx`
 (192.168.1.200, effects hub, `/cmd?do=wake|sleep|tree|rachell|carol|train|play:N|light:N|rinkon|lampson|manual…`,
 `/status` plain text), Board B `village-train` (192.168.1.121, `/go?laps=N`, `/stop`, `/status`), WLED `village-lights`
-(192.168.1.133?, presets 1 Off · 2 Sleepy · 3 Evening · 4 Tree show · 5 Rachell's show). Village is finished and
+(192.168.1.134, presets 1 Off · 2 Sleepy · 3 Evening · 4 Tree show · 5 Rachell's show).
+FamilyHub side: `services/village.py` + `routers/village.py` (`GET /api/village/status`, `POST /api/village/cmd {do}` —
+tree|rachell|carol|train|stop|laps1|laps3|wake|sleep|rinkon|rinkoff). Tile on the wall + phone Home pages only while the
+boards answer. Voice: "start/stop the train", "tree show", "Rachell's show", "carolers", "village to sleep/wake" (+ a
+`village` tool for the AI). Good night / Leaving (`settings.villageWithHouse`) = sleep + manual mode + WLED off; FamilyHub
+flips it back to automatic 06:00–16:00 or on I'm home, only if it was the one that paused it (settings key `village_paused`).
+Board IPs in `settings.villageFx` / `villageTrain` (private IPs only). Village is finished and
 snow-covered: **never flash firmware unless Alex asks**; real `secrets.h` never goes in the repo. Board A runs its own
 schedule (open 16:00–23:00) + motion wake, so HA/FamilyHub should complement it, not fight it. `manual`/`override` toggle.
 

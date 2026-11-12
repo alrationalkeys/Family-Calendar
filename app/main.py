@@ -23,7 +23,7 @@ from .db import init_db
 from .routers import (calendar, chores, meals, photos, ai, dashboard,
                       todos, groceries, categories, settings, sources, weather,
                       events, notifications, rewards, display, ha, login, routines, mail, announce, summary, admin,
-                      spotify, travel)
+                      spotify, travel, village)
 from .auth import pin_guard
 from fastapi import Depends
 
@@ -66,6 +66,13 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(20)
 
     task = asyncio.create_task(_display_loop())
+
+    # Christmas village: back to automatic in the morning after a Good night / Leaving pause
+    try:
+        from .services import village as _village
+        _village.start()
+    except Exception:
+        pass
 
     # background: pull forwarded emails into pending imports every 5 min (no-op unless configured)
     from .services import mail_import
@@ -183,6 +190,7 @@ app.include_router(announce.router, prefix="/api/announce", tags=["announce"])
 app.include_router(summary.router, prefix="/api/summary", tags=["summary"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(travel.router, prefix="/api/travel", tags=["travel"])
+app.include_router(village.router, prefix="/api/village", tags=["village"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

@@ -627,6 +627,27 @@ def stt_prompt() -> str:
     return ("Glossary: " + ", ".join(dict.fromkeys(words)) + ".")[:600]
 
 
+def _village_cmd(low: str):
+    """Spoken village request -> village.COMMANDS key, or None."""
+    if re.search(r"\btrain\b", low):
+        if re.search(r"\b(stop|halt|park|enough)\b", low):
+            return "stop"
+        if re.search(r"\b(start|run|go|send|choo|all aboard|lap|ride)\b", low):
+            return "train"
+    if re.search(r"\btree show\b|\bshow\b.*\btree\b", low):
+        return "tree"
+    if re.search(r"\brach(?:el+|al+)'?s?\s+(?:village\s+|special\s+)?show\b", low):
+        return "rachell"
+    if re.search(r"\bcarol+ers?\b|\bcarolling\b", low):
+        return "carol"
+    if re.search(r"\bvillage\b", low):
+        if re.search(r"\b(sleep|bed|night|off|quiet)\b", low):
+            return "sleep"
+        if re.search(r"\b(wake|up|on|start)\b", low):
+            return "wake"
+    return None
+
+
 def _interpret(text: str, use_ai: bool = True) -> dict:
     """Instant rules for the obvious commands; with an Anthropic key everything else (lists, calendar,
     check-offs, thermostats, questions) goes to voice_agent, which understands loose phrasing and acts with tools.
@@ -689,6 +710,17 @@ def _interpret(text: str, use_ai: bool = True) -> dict:
             return {"ok": True, "say": f"Timer set for {_say_duration(secs)}" + (f" for {label}" if label else "") + ".",
                     "timer": {"seconds": secs, "label": label}}
         return {"ok": False, "say": "How long? Say something like: set a timer for ten minutes."}
+
+    # the Christmas village: "start the train", "stop the train", "Rachell's show", "tree show",
+    # "carolers", "put the village to sleep", "wake up the village"
+    vg = _village_cmd(t.lower())
+    if vg:
+        from . import village
+        r = village.command(vg)
+        done = {"train": "All aboard!", "stop": "Stopping the train.", "tree": "Starting the tree show.",
+                "rachell": "Starting Rachell's show.", "carol": "Here come the carolers.",
+                "sleep": "Putting the village to sleep.", "wake": "Waking up the village."}[vg]
+        return {"ok": bool(r.get("ok")), "say": done if r.get("ok") else "The village isn't answering right now."}
 
     # music / Spotify: "play my dinner playlist in the kitchen", "pause the music",
     # "next song", "turn the music up"

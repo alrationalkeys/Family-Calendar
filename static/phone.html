@@ -553,6 +553,7 @@
     <summary><span class="fi">🏠</span><span class="ft"><b>House buttons</b><small>Good night · Leaving · I'm home</small></span></summary>
     <div class="hint" style="margin-top:0; line-height:1.6">🌙 <b>Good night</b> locks the doors, arms the alarm (Stay) and closes the garage.<br>🚪 <b>Leaving</b> also turns off the lights and TVs.<br>🏡 <b>I'm home</b> asks for the alarm code, disarms, opens the garage and turns on lights after dark.</div>
     <label class="chk"><input type="checkbox" id="set-gnlights"> Good night also turns off the lights and TVs</label>
+    <label class="chk"><input type="checkbox" id="set-village"> Good night and Leaving put the Christmas village to sleep (back on automatic in the morning)</label>
     <label class="chk"><input type="checkbox" id="set-closegarage"> Good night and Leaving close the garage</label>
     <label class="chk"><input type="checkbox" id="set-opengarage"> I'm home opens the garage</label>
     <div class="hint" style="margin-bottom:0">Thermostat (leave empty to not change it):</div>
@@ -1172,8 +1173,10 @@ async function hmWeather(){
   try{ const w=await fetch("/api/weather").then(r=>r.json()); if(w&&!w.error) hmWx=w; }catch(e){}
   return hmWx;
 }
+let hmVillage=null;     // Christmas village status (tile hides while it doesn't answer)
 async function loadHM(){
   let h=null;
+  fetch("/api/village/status").then(r=>r.json()).then(v=>{ const was=JSON.stringify(hmVillage); hmVillage=v; if(hmLast&&JSON.stringify(v)!==was) renderHM(hmLast,true); }).catch(()=>{});
   try{ [h]=await Promise.all([fetch("/api/ha/home").then(r=>r.json()), hmWeather(), fetch("/api/ha/presence").then(r=>r.json()).then(r=>{ hmPresence=r.people||[]; }).catch(()=>{})]); }catch(e){}
   if(!h){ $("#hm-hero").innerHTML=""; $("#hm-body").innerHTML='<div class="hm-offline">Can\'t reach the wall right now.</div>'; return; }
   renderHM(h,false);
@@ -1424,6 +1427,14 @@ function renderHM(h, force){
     </div>`;
   }
 
+  if(hmVillage&&hmVillage.reachable&&hmView!=="3d"){
+    const v=hmVillage, awake=/awake|show/.test(v.mode||"");
+    const vb=(d,ic,t)=>`<button class="hm-scene" data-vg="${d}"><span class="ic">${ic}</span>${t}</button>`;
+    html+=`<div class="hm-sec">🎄 Village <span style="text-transform:none;letter-spacing:0;font-weight:500">· ${E(v.said||"")}</span></div>
+      <div class="hm-scenes">${vb("tree","🌲","Tree show")}${vb("rachell","💖","Rachell's")}${vb("carol","🎶","Carolers")}
+      ${vb("train","🚂","Train")}${vb("stop","⏹️","Stop train")}${awake?vb("sleep","🌙","Sleep"):vb("wake","☀️","Wake up")}</div>`;
+  }
+
   if(hmView==="rooms"){
     const rooms=FHHome.resolveRooms(h);
     const byRoom=new Map();
@@ -1517,6 +1528,11 @@ function renderHM(h, force){
     else FHHome.renderIsoView(holder,h); }
 
   body.querySelectorAll(".hm-cam").forEach(c=>{ c.onclick=()=>openCam(c.dataset.cam, c.dataset.name); });
+  body.querySelectorAll("[data-vg]").forEach(b=>{ b.onclick=async()=>{ if(navigator.vibrate) navigator.vibrate(8);
+    const ic=b.innerHTML; b.disabled=true; let r={};
+    try{ r=await post("/api/village/cmd",{do:b.dataset.vg}).then(x=>x.json()); }catch(e){}
+    b.disabled=false; b.innerHTML=ic; if(!r.ok) toast(r.reason||"The village isn't answering");
+    setTimeout(()=>fetch("/api/village/status").then(x=>x.json()).then(v=>{ hmVillage=v; if(hmLast) renderHM(hmLast,true); }).catch(()=>{}),1500); }; });
   // tap a room card (not one of its device buttons) -> pop-up with every device in it
   body.querySelectorAll(".hm-room[data-rn]").forEach(c=>{ c.onclick=(e)=>{ if(e.target.closest("button")) return;
     openRoom({room:c.dataset.rn, floor:c.dataset.rf}); }; });
@@ -1714,6 +1730,7 @@ function loadSettingsUI(){
   $("#set-home").value=s.homeAddress||""; $("#set-home").onchange=e=>FH.save({homeAddress:e.target.value.trim()});
   $("#set-leavebuf").value=s.leaveBuffer??5; $("#set-leavebuf").onchange=e=>FH.save({leaveBuffer:Math.max(0,Math.min(30,parseInt(e.target.value,10)||0))});
   $("#set-leave").checked=s.leaveAlerts!==false; $("#set-leave").onchange=e=>FH.save({leaveAlerts:e.target.checked});
+  $("#set-village").checked=s.villageWithHouse!==false; $("#set-village").onchange=e=>FH.save({villageWithHouse:e.target.checked});
   $("#set-gnlights").checked=s.goodnightLightsOff===true; $("#set-gnlights").onchange=e=>FH.save({goodnightLightsOff:e.target.checked});
   $("#set-closegarage").checked=s.closeGarageOnModes!==false; $("#set-closegarage").onchange=e=>FH.save({closeGarageOnModes:e.target.checked});
   $("#set-sleeparm").checked=s.sleepOnNightArm!==false; $("#set-sleeparm").onchange=e=>FH.save({sleepOnNightArm:e.target.checked});

@@ -396,6 +396,12 @@
   @media(max-width:760px){ #kidmode{padding:16px} .km-name{font-size:24px} }
 
   /* Spotify now-playing card (Home tab) */
+  .vg-card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:14px}
+  .vg-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+  .vg-t{font-weight:700; font-size:17px} .vg-s{color:var(--ink-dim); font-size:14px}
+  .vg-btns{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px}
+  .vg-btns .cc-qa{width:100%; padding:12px 6px; font-size:15px}
+  @media (max-width:900px){ .vg-btns{grid-template-columns:repeat(3,minmax(0,1fr))} }
   .sp{display:flex; gap:16px; align-items:center; background:var(--panel); border-radius:16px; padding:14px 16px; margin-bottom:14px; border:1px solid var(--line); flex-wrap:wrap}
   .sp-art{width:84px; height:84px; border-radius:12px; background:linear-gradient(135deg,#1db954,#0d6b35); flex:none; display:flex; align-items:center; justify-content:center; font-size:38px; overflow:hidden}
   .sp-art img{width:100%; height:100%; object-fit:cover}
@@ -2484,8 +2490,29 @@ async function loadHomeStatus(){
   bar.classList.add("show");
   bar.onclick=()=>showPage("home");
 }
+/* ---- Christmas village tile (services/village.py) — only shows while the village answers ---- */
+let lastVillage=null;
+async function loadVillage(){ try{ lastVillage=await fetch("/api/village/status").then(r=>r.json()); }catch(e){ lastVillage=null; } }
+function villageCardHTML(v){
+  if(!v||!v.reachable) return "";
+  const awake=/awake|show/.test(v.mode||"");
+  const b=(d,ic,t)=>`<button class="cc-qa" data-vg="${d}">${ic} ${t}</button>`;
+  return `<div class="vg-card"><div class="vg-head"><span class="vg-t">\u{1F384} North Pole Village</span><span class="vg-s">${esc(v.said||"")}</span></div>
+    <div class="vg-btns">${b("tree","\u{1F332}","Tree show")}${b("rachell","\u{1F496}","Rachell's show")}${b("carol","\u{1F3B6}","Carolers")}
+    ${b("train","\u{1F682}","Train")}${b("stop","\u23F9\uFE0F","Stop train")}${awake?b("sleep","\u{1F319}","Sleep"):b("wake","\u2600\uFE0F","Wake up")}</div></div>`;
+}
+function bindVillage(root){
+  root.querySelectorAll("[data-vg]").forEach(btn=>{ btn.onclick=async()=>{
+    resetSleep(); const lbl=btn.textContent; btn.disabled=true; btn.textContent="…";
+    let r={}; try{ r=await post("/api/village/cmd",{do:btn.dataset.vg}).then(x=>x.json()); }catch(e){}
+    btn.disabled=false; btn.textContent=lbl;
+    if(!r.ok) banner("\u{1F384} Village", r.reason||"The village isn't answering.");
+    setTimeout(()=>loadVillage().then(()=>{ if(lastHome&&curPage==="home") renderHome(lastHome); }), 1500);
+  }; });
+}
 async function loadHome(){
   loadPresence();
+  loadVillage().then(()=>{ if(lastHome&&curPage==="home") renderHome(lastHome); });
   const wrap=$("#home-wrap"); if(!wrap) return;
   let h;
   try{ h=(await cachedFetch("/api/ha/home","ha")).data; }
@@ -2571,6 +2598,7 @@ function renderTilesView(body,h){
   </div>`;
 
   if(h.spotify) html += spotifyCardHTML(h.spotify);
+  html += villageCardHTML(lastVillage);
 
   (h.groups||[]).forEach(g=>{
     html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
@@ -2599,6 +2627,7 @@ function renderTilesView(body,h){
   body.dataset.sig = sig;
   body.innerHTML = html;
   bindSpotify(body);
+  bindVillage(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
   const lo=body.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;

@@ -142,6 +142,16 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
                 ha_svc.call_service("climate", "set_temperature", t["entity_id"], {"temperature": float(temp)})
             if by("climate"):
                 done.append(f"set the thermostat to {int(float(temp))}")
+        # the Christmas village: quiet for the night (FamilyHub puts it back on automatic in the morning)
+        if s.get("villageWithHouse", True) is not False:
+            try:
+                from . import village
+                if village.status().get("reachable"):
+                    v = village.pause_for_night()
+                    if v:
+                        done.append(v)
+            except Exception:
+                pass
         lead = "Good night." if mode == "goodnight" else "Bye for now."
         if mode == "goodnight":
             try:
@@ -151,6 +161,11 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
             except Exception:
                 pass
     elif mode == "welcome":
+        try:                                   # village back on automatic if Good night / Leaving paused it
+            from . import village
+            village.resume()
+        except Exception:
+            pass
         # 1) disarm with the code from the keypad
         still_armed = False
         for t in by("alarm_control_panel"):

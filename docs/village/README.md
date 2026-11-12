@@ -33,7 +33,7 @@ Three controllers on the home WiFi (2.4 GHz). No data wires between them; they t
 |---|---|---|---|
 | **Board A** (ESP32 30-pin) | `village-fx.local` | 192.168.1.200 | Effects brain and the "hub": 2 DFPlayer sound players, buttons, motion sensors, rink motor, street lamps, sleigh (on hold), tells WLED which preset to show, tells Board B when to run. Serves the main phone page. |
 | **Board B** (ESP32 30-pin) | `village-train.local` | 192.168.1.121 | Train: LionChief Bluetooth engine control (relay backup on track power), station IR sensors, red/green signal, railroad crossing (2 servos, flashing lamps). |
-| **WLED** (GLEDOPTO ESP32, 4 outputs) | `village-lights.local` | 192.168.1.133 (unverified) | All village lights and the tree. Stock WLED. |
+| **WLED** (GLEDOPTO ESP32, 4 outputs) | `village-lights.local` | 192.168.1.134 (confirmed by Alex, Nov 12) | All village lights and the tree. Stock WLED. |
 
 **First step for HA: make DHCP reservations for all three** in the router so the IPs never move. mDNS (`.local`) often doesn't resolve inside the HA container, so the package uses IPs.
 

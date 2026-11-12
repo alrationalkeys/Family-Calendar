@@ -42,7 +42,7 @@ def _spans(states: list, kind: str, t0: datetime, t1: datetime) -> list:
         t = max(_parse(st.get("last_changed") or st.get("last_updated")), t0)
         if kind == "climate":
             a = (st.get("attributes") or {}).get("hvac_action")
-            label = {"heating": "heat", "cooling": "cool"}.get(a)
+            label = {"heating": "heat", "cooling": "cool", "running": "run"}.get(a)
         else:
             label = "on" if st.get("state") not in _OFF else None
         if cur and cur[1] != label:
@@ -53,6 +53,44 @@ def _spans(states: list, kind: str, t0: datetime, t1: datetime) -> list:
         out.append((cur[0], min(t1, now), cur[1]))
     m = lambda t: round((t - t0).total_seconds() / 60, 1)
     return [[m(a), m(b), lab] for a, b, lab in out if b > a]
+
+
+_RUN = ("action", "running", "operating", "equipment", "status", "stage")
+
+
+def _fallback(climate_id: str, name: str, states: list):
+    """A thermostat without hvac_action: look for a sibling sensor that says what the system is doing
+    (e.g. sensor.downstairs_thermostat_hvac_action, binary_sensor.upstairs_thermostat_running)."""
+    base = climate_id.split(".", 1)[1]
+    nm = (name or "").lower()
+    best = None
+    for st in states:
+        eid = st.get("entity_id", "")
+        dom, obj = eid.split(".", 1) if "." in eid else ("", "")
+        if dom not in ("sensor", "binary_sensor"):
+            continue
+        fn = str((st.get("attributes") or {}).get("friendly_name", "")).lower()
+        if not (obj.startswith(base) or (nm and fn.startswith(nm))):
+            continue
+        if any(w in obj or w in fn for w in _RUN):
+            score = 0 if "action" in obj or "action" in fn else 1
+            if best is None or score < best[0]:
+                best = (score, eid)
+    return best[1] if best else None
+
+
+def _spans_from(hist: list, t0, t1) -> list:
+    """Spans from a sibling sensor: text containing heat/cool, or a binary 'running' sensor (label 'run')."""
+    out = []
+    for lst in hist:
+        conv = []
+        for st in lst:
+            v = str(st.get("state", "")).lower()
+            lab = "heat" if "heat" in v else "cool" if "cool" in v else "run" if v == "on" else None
+            conv.append({"last_changed": st.get("last_changed") or st.get("last_updated"),
+                         "attributes": {"hvac_action": {"heat": "heating", "cool": "cooling", "run": "running"}.get(lab)}})
+        out += _spans(conv, "climate", t0, t1)
+    return out
 
 
 def _overlap(spans, lo, hi):
@@ -108,8 +146,18 @@ def get(day: str | None = None) -> dict:
             for st in lst:
                 st.setdefault("entity_id", eid)
             sp = _spans(lst, k, t0, t1)
+            row = {"entity_id": eid, "name": ents.get(eid, eid), "kind": k, "spans": sp}
+            if k == "climate" and not any("hvac_action" in (st.get("attributes") or {}) for st in lst):
+                row["no_action"] = True        # this thermostat never says when it's heating/cooling
+                fb = _fallback(eid, ents.get(eid, ""), all_states)
+                if fb:
+                    try:
+                        row["spans"] = _spans_from(history([fb], True), t0, t1)
+                        row["source"] = fb
+                    except Exception:
+                        pass
             if sp or k == "climate":
-                rows.append({"entity_id": eid, "name": ents.get(eid, eid), "kind": k, "spans": sp})
+                rows.append(row)
         for lst in history(list(power)[:12], True):
             if not lst:
                 continue

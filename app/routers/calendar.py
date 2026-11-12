@@ -25,6 +25,39 @@ def _settings():
         return {}
 
 
+def _birthdays(start, end):
+    """🎂 Name (turns N) on each birthday in [start, end]."""
+    from datetime import date as _d
+    from ..db import get_db
+    items = [{"name": b.get("name"), "date": b.get("date")} for b in (_settings().get("birthdays") or []) if isinstance(b, dict)]
+    try:
+        with get_db() as conn:
+            items += [{"name": r["name"], "date": r["birthday"]} for r in conn.execute("SELECT name, birthday FROM people WHERE birthday IS NOT NULL AND birthday != ''")]
+    except Exception:
+        pass
+    out, seen = [], set()
+    for b in items:
+        name, ds = str(b.get("name") or "").strip(), str(b.get("date") or "")
+        if not name or len(ds) < 5:
+            continue
+        try:
+            m, dd = int(ds[-5:-3]), int(ds[-2:])
+        except ValueError:
+            continue
+        for y in range(start.year, end.year + 1):
+            try:
+                day = _d(y, m, dd)
+            except ValueError:
+                day = _d(y, 3, 1) if (m, dd) == (2, 29) else None
+            if not day or not (start <= day <= end) or (name, day) in seen:
+                continue
+            seen.add((name, day))
+            age = f" (turns {y - int(ds[:4])})" if len(ds) >= 10 and ds[:4].isdigit() else ""
+            out.append({"title": f"🎂 {name}'s birthday{age}", "start": day.isoformat(), "end": day.isoformat(),
+                        "all_day": True, "source": "holiday", "color": "#e87ba4"})
+    return out
+
+
 @router.get("/events")
 def events(days: int = 30, back: int = 0, person_id: int | None = None):
     """Merged feed: synced sources + local events + ICS feeds + holidays.
@@ -75,6 +108,11 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
     hol_sets = _settings().get("holidays", {})
     if any(hol_sets.values()):
         merged += holidays_svc.get_holidays(hol_sets, start, start + timedelta(days=max(days, 366)))
+    # Birthdays: family members (people.birthday) + the relatives list (settings.birthdays) as all-day items.
+    try:
+        merged += _birthdays(start, start + timedelta(days=max(days, 1)))
+    except Exception:
+        pass
     # Per-person filter: show this person's events plus shared/unassigned ones.
     if person_id is not None:
         merged = [e for e in merged

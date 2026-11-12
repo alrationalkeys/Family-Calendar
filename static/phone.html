@@ -579,6 +579,12 @@
     <input id="person-name" placeholder="Add someone: their name">
     <div class="colors" id="person-colors"></div>
     <button class="go" id="person-add">Add person</button>
+    <hr>
+    <b style="display:block; margin:4px 0">🎂 Birthdays</b>
+    <div class="hint" style="margin-top:0">Dad, sisters, grandparents… On their birthday the wall turns into a party with their name on it, and it shows on the calendar.</div>
+    <div id="bday-list"></div>
+    <div class="srow" style="gap:6px"><input id="bday-name" placeholder="Name (e.g. Dad)" style="flex:1; margin:0"><input type="date" id="bday-date" style="width:auto; margin:0"></div>
+    <button class="go" id="bday-add" style="margin-top:6px">Add birthday</button>
     <div class="srow" style="margin-top:10px"><span>Who's using this phone?</span><input id="set-who" placeholder="Your name" style="width:46%; margin:0"></div>
     <div class="hint">So the wall can say "Alex added Dentist, Thursday at 3". Set it once on each phone.</div>
   </details>
@@ -1803,7 +1809,22 @@ function saveDisp(){
 ["disp-enabled","disp-start","disp-end"].forEach(id=>{ const el=$("#"+id); if(el) el.onchange=saveDisp; });
 
 /* family members */
+function loadBdays(){
+  const box=$("#bday-list"); if(!box) return; const esc=FHHome.esc;
+  const list=(FH.get().birthdays||[]).slice().sort((a,b)=>String(a.date).slice(-5).localeCompare(String(b.date).slice(-5)));
+  const md=d=>{ const p=String(d).slice(-5).split("-"); return new Date(2000,+p[0]-1,+p[1]).toLocaleDateString([], {month:"long", day:"numeric"}); };
+  const age=d=>{ if(String(d).length<10) return ""; const y=+String(d).slice(0,4), now=new Date(), mmdd=String(d).slice(5);
+    let a=now.getFullYear()-y; const today=String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0"); if(today<mmdd) a++; return ` · turns ${a}`; };
+  box.innerHTML=list.length?list.map((b,i)=>`<div class="srow" style="padding:6px 0"><span>🎂 <b>${esc(b.name)}</b> <span style="color:var(--ink-dim)">${md(b.date)}${age(b.date)}</span></span><button style="border:0; background:var(--panel2); color:#e5534b; border-radius:9px; padding:7px 11px; font:inherit; font-size:13px; font-weight:600" data-bd="${esc(b.name)}|${esc(b.date)}">Remove</button></div>`).join(""):'<div class="hint">None yet.</div>';
+  box.querySelectorAll("[data-bd]").forEach(btn=>btn.onclick=()=>{ const [n,d]=btn.dataset.bd.split("|");
+    FH.save({birthdays:(FH.get().birthdays||[]).filter(b=>!(b.name===n&&b.date===d))}); loadBdays(); });
+  const add=$("#bday-add"); if(add&&!add._wired){ add._wired=true; add.onclick=()=>{
+    const name=$("#bday-name").value.trim(), date=$("#bday-date").value;
+    if(!name||!date){ toast("Add a name and a date"); return; }
+    FH.save({birthdays:[...(FH.get().birthdays||[]), {name, date}]}); $("#bday-name").value=""; $("#bday-date").value=""; toast("🎂 Added "+name); loadBdays(); }; }
+}
 async function loadPeople(){
+  loadBdays();
   let list=[];
   try{ list=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
   people=list;

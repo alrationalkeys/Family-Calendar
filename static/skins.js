@@ -118,7 +118,8 @@ const Skins = (() => {
   function thanksgiving(y){ const dow = new Date(y, 10, 1).getDay(); return new Date(y, 10, 1 + ((4 - dow + 7) % 7) + 21); }
   function birthdayPeople(now){
     now = now || new Date(); const mmdd = String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
-    const list = (typeof people !== "undefined" && Array.isArray(people)) ? people : [];
+    const list = (typeof people !== "undefined" && Array.isArray(people)) ? people.slice() : [];
+    try { ((typeof FH !== "undefined" && FH.get().birthdays) || []).forEach(b => { if (b && b.name && b.date) list.push({name: b.name, birthday: b.date}); }); } catch (e) {}
     return list.filter(p => p && p.birthday && String(p.birthday).slice(-5) === mmdd);
   }
   function auto(now){

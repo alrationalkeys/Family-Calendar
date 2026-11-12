@@ -1836,7 +1836,7 @@ async function loadPeople(){
   list.forEach(p=>{
     const row=document.createElement("div"); row.className="prow";
     row.innerHTML=`<div class="pav" style="background:${p.color}">${(p.name||"?").slice(0,1).toUpperCase()}</div>`+
-      `<div class="pname">${p.name}${p.birthday?`<div class="hint" style="margin:0">🎂 ${fmtBday(p.birthday)}</div>`:''}</div>`+
+      `<div class="pname">${p.name}${p.birthday?`<div class="hint" style="margin:0">🎂 ${fmtBday(p.birthday)}${bdayAge(p.birthday)}</div>`:''}</div>`+
       `<button data-act="bday" title="Birthday">🎂</button><button data-act="edit">Edit</button><button class="del" data-act="del">Delete</button>`;
     row.querySelector('[data-act="edit"]').onclick=()=>renamePerson(p);
     row.querySelector('[data-act="bday"]').onclick=()=>setBirthday(p);
@@ -1845,11 +1845,30 @@ async function loadPeople(){
   });
 }
 function fmtBday(b){ const m=String(b||"").match(/(\d{2})-(\d{2})$/); if(!m) return b; return new Date(2000,+m[1]-1,+m[2]).toLocaleDateString([],{month:"long",day:"numeric"}); }
-async function setBirthday(p){
-  const cur=p.birthday||""; const v=prompt(`${p.name}'s birthday (MM-DD, e.g. 07-04). Leave blank to clear:`, cur.slice(-5)); if(v===null) return;
-  const t=v.trim(); if(t&&!/^\d{2}-\d{2}$/.test(t)){ toast("Use MM-DD, like 07-04"); return; }
-  await fetch("/api/categories/people/"+p.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.name,color:p.color,birthday:t||null})}).catch(()=>{});
-  toast(t?"Birthday saved — the wall turns into a party that day":"Birthday cleared"); loadPeople();
+function bdayAge(b){ b=String(b||""); if(!/^\d{4}-\d{2}-\d{2}$/.test(b)) return "";
+  const now=new Date(), t=String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+  const a=now.getFullYear()-(+b.slice(0,4))-(t<b.slice(5)?1:0); return ` · ${a}`; }
+function setBirthday(p){
+  // a real date picker (with the year) in a small sheet; the year is optional-free: picker always has one
+  const old=document.getElementById("bd-sheet"); if(old) old.remove();
+  const cur=String(p.birthday||""), val=/^\d{4}-\d{2}-\d{2}$/.test(cur)?cur:"";
+  const ov=document.createElement("div"); ov.id="bd-sheet";
+  ov.style.cssText="position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.5); display:flex; align-items:flex-end; justify-content:center";
+  ov.innerHTML=`<div style="background:var(--panel); color:var(--ink); width:100%; max-width:520px; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom))">
+    <b style="font-size:17px">🎂 ${FHHome.esc(p.name)}'s birthday</b>
+    <div class="hint" style="margin:4px 0 10px">${cur&&!val?"Saved as "+fmtBday(cur)+" (no year). Pick the full date to add the year.":"The wall turns into a party that day."}</div>
+    <input type="date" id="bd-in" value="${val}" style="width:100%; font-size:16px">
+    <div style="display:flex; gap:8px; margin-top:12px">
+      ${cur?'<button id="bd-clear" style="flex:1; border:0; border-radius:12px; padding:12px; background:var(--panel2); color:#e5534b; font:inherit; font-weight:700">Clear</button>':''}
+      <button id="bd-cancel" style="flex:1; border:0; border-radius:12px; padding:12px; background:var(--panel2); color:var(--ink); font:inherit; font-weight:700">Cancel</button>
+      <button id="bd-save" class="go" style="flex:2; margin:0">Save</button></div></div>`;
+  document.body.appendChild(ov);
+  const save=async v=>{ await fetch("/api/categories/people/"+p.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.name,color:p.color,birthday:v||null})}).catch(()=>{});
+    ov.remove(); toast(v?"Birthday saved":"Birthday cleared"); loadPeople(); };
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.querySelector("#bd-cancel").onclick=()=>ov.remove();
+  const c=ov.querySelector("#bd-clear"); if(c) c.onclick=()=>save(null);
+  ov.querySelector("#bd-save").onclick=()=>{ const v=ov.querySelector("#bd-in").value; if(!v){ toast("Pick a date"); return; } save(v); };
 }
 async function renamePerson(p){
   const name=prompt("Rename person:", p.name); if(name===null) return;

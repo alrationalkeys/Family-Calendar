@@ -199,9 +199,8 @@ def _choices(states: list) -> dict:
                 item["kind"] = "motion" if a.get("device_class") in ("motion", "occupancy", "presence") else "leak" if a.get("device_class") == "moisture" else "door"
                 if re.search(r"\b(person|animal|vehicle|package)\s+detected\b", name, re.I):
                     item["kind"] = "camera"
-            area = areas.get(eid)
-            if area and area.lower() not in name.lower():
-                item["area"] = area          # "Motion Sensor" -> "Motion Sensor (Kitchen)"
+            if areas.get(eid):
+                item["area"] = areas[eid]    # the room it's in, from Home Assistant
             c[key].append(item)
     for v in c.values():
         v.sort(key=lambda x: x["name"].lower())

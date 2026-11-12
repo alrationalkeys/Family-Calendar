@@ -127,8 +127,17 @@
 
   /* checklist of devices: groups = [[title, items]], chosen = [ids] */
   function checklist(groups, chosen){
-    return `<div class="au-list">` + groups.filter(g => g[1].length).map(([t, items]) =>
-      `<div class="grp">${esc(t)}</div>` + items.map(i => `<label><input type="checkbox" value="${esc(i.id)}" ${chosen.includes(i.id) ? "checked" : ""}>${esc(i.name)}</label>`).join("")
+    // grouped by room (Home Assistant Areas), then lights / plugs within each room
+    const rooms = new Map();
+    groups.filter(g => g[1].length).forEach(([t, items]) => items.forEach(i => {
+      const r = i.area || "Other";
+      if (!rooms.has(r)) rooms.set(r, []);
+      rooms.get(r).push({...i, kind: t});
+    }));
+    const order = [...rooms.keys()].sort((a, b) => (a === "Other") - (b === "Other") || a.localeCompare(b));
+    const many = groups.filter(g => g[1].length).length > 1;
+    return `<div class="au-list">` + order.map(r => `<div class="grp">${esc(r)}</div>` + rooms.get(r).map(i =>
+      `<label><input type="checkbox" value="${esc(i.id)}" ${chosen.includes(i.id) ? "checked" : ""}>${esc(i.name)}${many && /plug|switch/i.test(i.kind) && !/plug|switch/i.test(i.name) ? ` <span class="dim">(plug)</span>` : ""}</label>`).join("")
     ).join("") + `</div>`;
   }
   const picked = el => [...el.querySelectorAll(".au-list input:checked")].map(i => i.value);
@@ -416,7 +425,7 @@
                    ["camera", "Camera detections (person, animal, vehicle, package)"], ["leak", "Water leak"]];
       const label = x => {
         let n = x.name.replace(/\s+occupancy$/i, " (stays on while someone's there)");
-        if (x.area) n += ` · ${x.area}`;
+        if (x.area && !n.toLowerCase().includes(x.area.toLowerCase())) n += ` · ${x.area}`;
         if (x.d === "camera") n = n.replace(/^(.*?)\s+(person|animal|vehicle|package)\s+detected$/i, (m, cam, what) => `${cam} camera: ${what.toLowerCase()}`);
         return n;
       };

@@ -60,10 +60,13 @@ def on_state(eid: str, old: dict | None, new: dict | None):
         if not new or not old:
             return
         attrs = new.get("attributes") or {}
-        if not is_state_sensor(eid, attrs):
-            return
         o, n = str(old.get("state") or ""), str(new.get("state") or "")
-        if o == n or not _RUN.search(o) or _END.search(o) or not _END.search(n):
+        if eid.startswith("binary_sensor.") and "end_of_cycle" in eid and _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))):
+            if not (o == "off" and n == "on"):          # GE SmartHQ: "Laundry End of Cycle" flips on when it's done
+                return
+        elif not is_state_sensor(eid, attrs):
+            return
+        elif o == n or not _RUN.search(o) or _END.search(o) or not _END.search(n):
             return
         mach = _machine(eid, attrs.get("friendly_name", "")) or "laundry"
         if time.time() - _last.get(mach, 0) < 600:

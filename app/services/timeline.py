@@ -72,6 +72,8 @@ def _fallback(climate_id: str, name: str, states: list):
         fn = str((st.get("attributes") or {}).get("friendly_name", "")).lower()
         if not (obj.startswith(base) or (nm and fn.startswith(nm))):
             continue
+        if any(w in obj or w in fn for w in ("battery", "trouble", "malfunction", "signal", "debug", "temperature", "humidity")):
+            continue
         if any(w in obj or w in fn for w in _RUN):
             score = 0 if "action" in obj or "action" in fn else 1
             if best is None or score < best[0]:

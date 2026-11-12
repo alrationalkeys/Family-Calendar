@@ -111,6 +111,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   own routines" (`POST /api/ha/automations/convert {keys}`) rebuilds the outdoor/kitchen packages as fhu_* routines from the
   current helper values (stale ids fixed via `_guess`), switches the packaged automations off and hides those cards
   (settings key `routines_converted`). Thermostats stay packaged (peak save/restore).
+  'Then wait…' steps: minutes = delay in the same run (mode restart); until a time / sunrise / sunset / motion quiet =
+  a separate trigger in the same automation (trigger ids part0..N + choose), because HA cancels wait_for_trigger on every
+  automation reload. Next-morning parts skip day/date checks. Old-style routines are rebuilt once (flag routines_parts_v1).
   Thermostat schedule = any number of slots {at, days, targets (climate ids), heat, cool}: `services/thermo_sched.py`,
   `GET/POST /api/ha/thermostat-schedule`. Saved into HA as `script.fhs_thermostat_now` (per thermostat, the latest slot
   looking back over the week; auto -> low/high) + automation `fhs_thermostat_slots` (fires at each slot time, not during

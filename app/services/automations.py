@@ -248,10 +248,15 @@ def list_all() -> dict:
         row = {"entity_id": s["entity_id"], "name": a.get("friendly_name") or s["entity_id"],
                "on": s.get("state") == "on", "last": a.get("last_triggered"), "about": "", "id": str(a.get("id") or "")}
         (mine if row["id"].startswith("fhu_") else other).append(row)
+    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_parts_v1")
     for r in mine[:40]:
         spec = _MINE.get(r["id"]) if ha_svc.demo_mode() else (get_routine(r["id"]).get("spec"))
+        if upgrade and spec and any(a.get("type") == "wait" and (a.get("until") or "minutes") != "minutes" for a in spec.get("do") or []):
+            save_routine(spec, r["id"])        # one-time: rebuild "wait until …" routines as separate triggers
         r["about"] = summary(spec, names) if spec else "Changed in Home Assistant; edit it there."
         r["editable"] = bool(spec)
+    if upgrade:
+        _flag_set("routines_parts_v1")
     if other:
         groups.append({"key": "other", "title": "Made in Home Assistant", "blurb": "Routines created in the Home Assistant app.",
                        "installed": True, "status": [], "automations": other, "settings": []})
@@ -379,11 +384,11 @@ def _do_text(a: dict, names: dict) -> str:
 def _wait_text(a: dict, names: dict) -> str:
     k = a.get("until") or "minutes"
     if k == "time":
-        return f"then wait until {_nice_time(a.get('at') or '')}"
+        return f"then at {_nice_time(a.get('at') or '')}"
     if k in ("sunrise", "sunset"):
-        return f"then wait until {k}"
+        return f"then at {k}"
     if k == "quiet":
-        return f"then wait until {names.get(a.get('entity'), a.get('entity') or 'it')} is quiet for {int(a.get('minutes') or 5)} min"
+        return f"then once {names.get(a.get('entity'), a.get('entity') or 'it')} has been quiet {int(a.get('minutes') or 5)} min"
     return f"then wait {int(a.get('minutes') or 5)} min"
 
 
@@ -561,8 +566,11 @@ def build(spec: dict) -> dict:
                     wt = {"trigger": "state", "entity_id": e, "to": "off", "for": {"minutes": mins}}
                 else:
                     raise ValueError("Pick what to wait for")
-                acts.append({"wait_for_trigger": [wt], "timeout": {"hours": 23, "minutes": 59}, "continue_on_timeout": False})
-    if not [x for x in acts if "delay" not in x and "wait_for_trigger" not in x]:
+                # Not a wait_for_trigger: HA cancels running waits whenever automations reload (any routine
+                # saved, a restart), so 'turn off at 10:30' would silently not happen. Each one becomes its own
+                # trigger in the same automation instead (see the segments below).
+                acts.append({"__seg__": wt, "quiet": u == "quiet"})
+    if not [x for x in acts if "delay" not in x and "__seg__" not in x]:
         raise ValueError("Add at least one thing for it to do")
     if spec.get("ifoff"):           # "only if those lights are off" — the lights the routine turns on / dims
         offs = []
@@ -572,13 +580,52 @@ def build(spec: dict) -> dict:
         if offs:
             conds.append({"condition": "state", "entity_id": list(dict.fromkeys(offs)), "state": "off"})
     name = str(spec.get("name") or "").strip()[:80] or summary(spec).split(":")[0]
-    return {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":")),
-            # with a wait in it, a new trigger starts over (more motion = the lights stay on longer)
-            "mode": "restart" if any(a.get("type") == "wait" for a in spec.get("do") or []) else "single",
-            "triggers": [trig], "conditions": conds, "actions": acts}
+    out = {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":"))}
+    if not any("__seg__" in x for x in acts):
+        out.update(mode="restart" if any("delay" in x for x in acts) else "single",   # more motion = stays on longer
+                   triggers=[trig], conditions=conds, actions=acts)
+        return out
+    # "turn on at sunset ... (until 10:30 PM) turn off": one automation, one trigger per part, so every part fires on
+    # its own even if Home Assistant restarted or reloaded in between. The first part keeps all the "only if"s; the
+    # later parts keep the days / dates (and the time window for "until the motion is quiet").
+    keep = [c for c in conds if (c.get("condition") == "time" and "weekday" in c) or c.get("condition") == "template"]
+    window = [c for c in conds if c.get("condition") == "time" and "after" in c]
+    segs, cur = [{"trigger": dict(trig, id="part0"), "conds": conds, "acts": []}], None
+    for x in acts:
+        if "__seg__" in x:
+            wt = x["__seg__"]
+            # a part that lands the next morning (sunrise, or a clock time before noon) skips the day / date checks:
+            # "on at 11:45 PM until Jan 6, off at sunrise" must still turn off on the morning of Jan 7
+            next_day = (wt.get("trigger") == "sun" and wt.get("event") == "sunrise") or \
+                (wt.get("trigger") == "time" and str(wt.get("at", "99"))[:2] < "12")
+            cur = {"trigger": dict(wt, id=f"part{len(segs)}"), "conds": ([] if next_day else keep) + (window if x.get("quiet") else []), "acts": []}
+            segs.append(cur)
+        else:
+            segs[-1]["acts"].append(x)
+    segs = [g for g in segs if g["acts"]]
+    out.update(mode="queued",
+               triggers=[g["trigger"] for g in segs], conditions=[],
+               actions=[{"choose": [{"conditions": [{"condition": "trigger", "id": g["trigger"]["id"]}] + g["conds"], "sequence": g["acts"]}
+                                    for g in segs]}])
+    return out
 
 
 _MINE: dict[str, dict] = {}      # demo mode store
+
+
+def _flag_get(key: str) -> bool:
+    from ..db import get_db
+    try:
+        with get_db() as conn:
+            return conn.execute("SELECT 1 FROM settings WHERE key=?", (key,)).fetchone() is not None
+    except Exception:
+        return False
+
+
+def _flag_set(key: str):
+    from ..db import get_db
+    with get_db() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", (key,))
 
 
 def _converted() -> list:

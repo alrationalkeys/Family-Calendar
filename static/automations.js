@@ -557,12 +557,12 @@
     if (a.type === "village") body += `<div class="rb-row"><select data-a="village">${[["sleep","Put it to sleep for the night"],["wake","Wake it up"]].map(([v,t]) => `<option value="${v}" ${(a.village || "sleep") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
     if (a.type === "wait"){
       const u = a.until || "minutes", motion = (ch.sensors || []).filter(x => x.kind === "motion");
-      body += `<div class="rb-row"><select data-a="until">${[["minutes","a number of minutes"],["time","until a time"],["sunrise","until sunrise"],["sunset","until sunset"],["quiet","until the motion is quiet"]].map(([v,t]) => `<option value="${v}" ${u === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
+      body += `<div class="rb-row"><select data-a="until">${[["minutes","a number of minutes"],["time","until a time of day"],["sunrise","until sunrise"],["sunset","until sunset"],["quiet","until the motion is quiet"]].map(([v,t]) => `<option value="${v}" ${u === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
       if (u === "minutes") body += `<div class="rb-row"><input type="number" min="1" max="720" data-a="minutes" value="${esc(a.minutes || 5)}" style="width:90px"> minutes</div>`;
       if (u === "time") body += `<div class="rb-row"><input type="time" data-a="at" value="${esc(a.at || "23:00")}"></div>`;
       if (u === "quiet") body += `<div class="rb-row"><select data-a="entity">${motion.map(x => `<option value="${esc(x.id)}" ${a.entity === x.id ? "selected" : ""}>${esc(x.name)}${x.area && !x.name.includes(x.area) ? " · " + esc(x.area) : ""}</option>`).join("")}</select></div>
         <div class="rb-row">for <input type="number" min="1" max="240" data-a="minutes" value="${esc(a.minutes || 10)}" style="width:80px"> minutes</div>`;
-      body += `<div class="hint" style="margin:4px 0 0">Then add what happens after, e.g. Turn off.</div>`;
+      body += `<div class="hint" style="margin:4px 0 0">${u === "minutes" ? "Then add what happens after, e.g. Turn off." : "Everything after this happens at that moment every day (even if Home Assistant restarted), e.g. Turn off."}</div>`;
     }
     if (a.type === "notify" || a.type === "say") body += `<div class="rb-row"><input type="text" data-a="message" maxlength="200" placeholder="${a.type === "say" ? "e.g. Time to take the dogs out" : "e.g. The garage door opened"}" value="${esc(a.message || "")}"></div>`;
     return `<div class="rb-act" data-i="${i}"><div class="hd"><span>${esc(label)}</span><button data-rm="${i}" aria-label="Remove">✕</button></div>${body}</div>`;
@@ -594,7 +594,7 @@
     const acts = spec.do.map(a => { const l = (a.entities || []).map(nm).join(", ") || "…";
       return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white === "color" ? (a.rgb ? " in rgb(" + a.rgb.join(",") + ")" : " in a color") : a.white === "daylight" ? " daylight" : a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
         lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`,
-        wait: (a.until || "minutes") === "minutes" ? `wait ${a.minutes || 5} min` : a.until === "time" ? `wait until ${a.at || "?"}` : a.until === "quiet" ? `wait until ${nm(a.entity)} is quiet ${a.minutes || 10} min` : `wait until ${a.until}`})[a.type]; });
+        wait: (a.until || "minutes") === "minutes" ? `wait ${a.minutes || 5} min` : a.until === "time" ? `then at ${a.at || "?"}` : a.until === "quiet" ? `then once ${nm(a.entity)} has been quiet ${a.minutes || 10} min` : `then at ${a.until}`})[a.type]; });
     return t + " → " + (acts.length ? acts.join("; ") : "add something to do");
   }
   function draw(){

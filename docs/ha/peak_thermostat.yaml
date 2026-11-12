@@ -59,7 +59,7 @@ script:
   # Set the thermostats to the schedule's temperatures for the current time of day, in whatever mode each is in
   # (heat -> heat temp, cool -> cool temp, heat/cool or auto -> both). A thermostat that's off is left off.
   fh_thermostat_schedule:
-    alias: Thermostats - apply the daily schedule
+    alias: Thermostats - apply the daily schedule (v2)
     mode: queued
     fields:
       entities: { description: "thermostats (default: both)" }
@@ -71,6 +71,12 @@ script:
             {{ states('input_datetime.sched_day_start')[:5] <= n < states('input_datetime.sched_night_start')[:5] }}
           h: "{{ states('input_number.sched_day_heat' if day else 'input_number.sched_night_heat') | float(65) }}"
           c: "{{ states('input_number.sched_day_cool' if day else 'input_number.sched_night_cool') | float(72) }}"
+      # FamilyHub's multi-time schedule (Settings > Thermostats) takes over once it's been saved
+      - if: "{{ states('script.fhs_thermostat_now') not in ['unknown', 'unavailable'] }}"
+        then:
+          - action: script.fhs_thermostat_now
+            data: { entities: "{{ ids if ids is list else [ids] }}" }
+          - stop: "FamilyHub schedule applied"
       - repeat:
           for_each: "{{ ids if ids is list else [ids] }}"
           sequence:

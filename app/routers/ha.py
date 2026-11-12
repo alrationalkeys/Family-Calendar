@@ -251,6 +251,19 @@ def automations_convert(payload: dict):
     return automations.convert_to_routines(tuple(keys)) if keys else {"ok": False, "reason": "nothing to convert"}
 
 
+@router.get("/thermostat-schedule")
+def thermostat_schedule_get():
+    from ..services import thermo_sched
+    return thermo_sched.get()
+
+
+@router.post("/thermostat-schedule")
+def thermostat_schedule_save(payload: dict):
+    """{slots:[{at, days, targets, heat, cool}]} -> script + automation in Home Assistant, applied now."""
+    from ..services import thermo_sched
+    return thermo_sched.save((payload or {}).get("slots"))
+
+
 @router.post("/automations/setting")
 def automations_setting(payload: dict):
     from ..services import automations

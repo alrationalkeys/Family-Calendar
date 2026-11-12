@@ -111,6 +111,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   own routines" (`POST /api/ha/automations/convert {keys}`) rebuilds the outdoor/kitchen packages as fhu_* routines from the
   current helper values (stale ids fixed via `_guess`), switches the packaged automations off and hides those cards
   (settings key `routines_converted`). Thermostats stay packaged (peak save/restore).
+  Thermostat schedule = any number of slots {at, days, targets (climate ids), heat, cool}: `services/thermo_sched.py`,
+  `GET/POST /api/ha/thermostat-schedule`. Saved into HA as `script.fhs_thermostat_now` (per thermostat, the latest slot
+  looking back over the week; auto -> low/high) + automation `fhs_thermostat_slots` (fires at each slot time, not during
+  peak, honours sched_enabled; slot list JSON in its description). peak_thermostat.yaml's fh_thermostat_schedule (v2)
+  hands over to it, so peak end lands on the right slot; the old fh_sched_apply is switched off on save.
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
   (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The

@@ -16,6 +16,10 @@
   .au-group>summary::after{content:"›"; font-size:22px; color:var(--ink-dim); transition:transform .15s}
   .au-group[open]>summary::after{transform:rotate(90deg)}
   .au-group .gb{padding:0 0 10px}
+  .ts-row{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .ts-row .ts-t{flex:1 1 100%; font-size:14px} .ts-row .ts-v{flex:1; color:var(--ink-dim); font-size:13.5px}
+  .ts-row .chg{border:0; background:var(--panel2); color:var(--ink); border-radius:9px; padding:6px 12px; font:inherit; font-size:13px; font-weight:600}
+  .ts-form{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px; margin:8px 0}
   .au-h{display:flex; align-items:center; justify-content:space-between; gap:10px}
   .au-h b{font-size:16px}
   .au-blurb{font-size:13px; color:var(--ink-dim); margin:4px 0 8px; line-height:1.4}
@@ -153,12 +157,9 @@
   const LAYOUT = {
     peak(H, g){
       const st = g.status || [], peakNow = st.find(x => /peak now/i.test(x.name)), summer = st.find(x => /summer/i.test(x.name));
-      return card("📅 Daily schedule", ctl(H, "input_boolean.sched_enabled"),
-          line(`<span class="lbl">☀️ Day from</span> ${ctl(H, "input_datetime.sched_day_start")}`) +
-          line(`<span class="lbl"></span>heat ${ctl(H, "input_number.sched_day_heat")} &nbsp; cool ${ctl(H, "input_number.sched_day_cool")}`, "sub") +
-          line(`<span class="lbl">🌙 Night from</span> ${ctl(H, "input_datetime.sched_night_start")}`) +
-          line(`<span class="lbl"></span>heat ${ctl(H, "input_number.sched_night_heat")} &nbsp; cool ${ctl(H, "input_number.sched_night_cool")}`, "sub") +
-          line(`Switch the Alarm.com thermostat schedule off once; this runs it now.`, "note"))
+      return card("📅 Schedule", ctl(H, "input_boolean.sched_enabled"),
+          `<div class="ts-box" data-ts>Loading the schedule…</div>` +
+          line(`Each time sets the thermostats it's for until the next time. Peak hours still win.`, "note"))
         + card("⚡ Peak hours (Santee Cooper)", ctl(H, "input_boolean.peak_enabled"),
           line(`Heat and AC are <b>off</b> during peak${peakNow ? ` · <span class="pill ${peakNow.on ? "on" : ""}">${peakNow.on ? "Peak right now" : "Not peak now"}</span>` : ""}`) +
           line(`<span class="lbl">❄️ Winter peak</span><span class="dim">Nov–Mar</span>`, "hd") +
@@ -273,6 +274,8 @@
     html += `<div class="au-note">Changes take effect right away and stay after Home Assistant restarts. Turning a routine off pauses it until you turn it back on.</div>`;
     box.innerHTML = html;
 
+    const tsBox = box.querySelector("[data-ts]");
+    if (tsBox) thermoSched(tsBox);
     box.querySelectorAll("[data-convert]").forEach(b => b.onclick = async () => {
       const g = (data.groups || []).find(x => x.key === b.dataset.convert);
       if (!confirm(`Rebuild "${g ? g.title : b.dataset.convert}" as your own routines? Same times and lights, each one editable under Your routines. The built-in versions get switched off.`)) return;
@@ -344,6 +347,53 @@
     return ov;
   }
   function closeBuilder(){ const ov = document.getElementById("au-ov"); if (ov) ov.classList.remove("on"); }
+  /* ---- thermostat schedule: any number of times, per thermostat (services/thermo_sched.py) ---- */
+  const TS_DAYS = [["mon","M"],["tue","T"],["wed","W"],["thu","T"],["fri","F"],["sat","S"],["sun","S"]];
+  async function thermoSched(el, keep){
+    let d = keep;
+    if (!d){ try { d = await fetch("/api/ha/thermostat-schedule").then(r => r.json()); } catch(e){ el.textContent = "Couldn’t load the schedule."; return; } }
+    const stats = d.thermostats || [], nm = id => (stats.find(x => x.id === id) || {name: id.replace("climate.", "")}).name;
+    const who = s => s.targets.length >= stats.length && stats.length > 1 ? "Both" : s.targets.map(nm).join(" + ");
+    const dayTxt = ds => ds.length === 7 ? "Every day" : ds.join() === "mon,tue,wed,thu,fri" ? "Weekdays" : ds.join() === "sat,sun" ? "Weekends"
+      : ds.map(x => x[0].toUpperCase() + x.slice(1, 3)).join(" ");
+    const icon = at => { const h = +at.slice(0, 2); return h < 5 || h >= 20 ? "🌙" : h < 12 ? "🌅" : h < 17 ? "☀️" : "🌆"; };
+    const slots = d.slots || [];
+    let html = slots.map((s, i) => `<div class="ts-row" data-i="${i}"><div class="ts-t"><b>${icon(s.at)} ${esc(fmtT(s.at))}</b> · ${esc(dayTxt(s.days))} · ${esc(who(s))}</div>
+        <div class="ts-v">heat ${s.heat}° · cool ${s.cool}°</div><button class="chg" data-ts-ed="${i}">Edit</button></div>`).join("");
+    html += `<button class="au-new" data-ts-add style="margin-top:8px">＋ Add a time</button>`;
+    if (!d.saved) html += `<div class="hint" style="margin-top:6px">This is your current day / night schedule. Change anything and it switches to the new schedule.</div>`;
+    if (d.saved === true && d.package_ready === false) html += `<div class="au-missing">Re-download <code>peak_thermostat.yaml</code> once so "back on after peak" uses these times.</div>`;
+    el.innerHTML = html;
+    const save = async (next) => {
+      const r = await post("/api/ha/thermostat-schedule", {slots: next});
+      if (!r.ok){ say(r.reason || "Couldn’t save"); return false; }
+      say("Saved — the thermostats are on it"); d.slots = r.slots; d.saved = true; thermoSched(el, d); return true;
+    };
+    const edit = (i) => {
+      const s = i == null ? {at: "07:00", days: TS_DAYS.map(x => x[0]), targets: stats.map(x => x.id), heat: 66, cool: 72} : JSON.parse(JSON.stringify(slots[i]));
+      const row = i == null ? el.querySelector("[data-ts-add]") : el.querySelector(`.ts-row[data-i="${i}"]`);
+      const f = document.createElement("div"); f.className = "ts-form";
+      const draw = () => { f.innerHTML = `<div class="rb-row"><input type="time" data-f="at" value="${esc(s.at)}"></div>
+        <div class="rb-chips">${TS_DAYS.map(([k, t]) => `<button data-fd="${k}" class="${s.days.includes(k) ? "on" : ""}" style="width:38px; padding:8px 0">${t}</button>`).join("")}</div>
+        <div class="rb-chips" style="margin-top:6px"><button data-fq="all">Every day</button><button data-fq="wk">Weekdays</button><button data-fq="we">Weekends</button></div>
+        <div class="rb-chips" style="margin-top:8px">${stats.map(t => `<button data-ft="${esc(t.id)}" class="${s.targets.includes(t.id) ? "on" : ""}">${esc(t.name)}</button>`).join("")}</div>
+        <div class="rb-row">heat <input type="number" min="45" max="85" data-f="heat" value="${s.heat}" style="width:74px">° &nbsp; cool <input type="number" min="55" max="95" data-f="cool" value="${s.cool}" style="width:74px">°</div>
+        <div class="rb-btns" style="margin-top:8px">${i == null ? "" : `<button class="del" data-fx="del">Delete</button>`}<button data-fx="cancel">Cancel</button><button class="save" data-fx="save">Save</button></div>`;
+        f.querySelectorAll("[data-f]").forEach(x => x.oninput = x.onchange = () => { s[x.dataset.f] = x.type === "number" ? +x.value : x.value; });
+        f.querySelectorAll("[data-fd]").forEach(b => b.onclick = () => { const k = b.dataset.fd; s.days = s.days.includes(k) ? s.days.filter(x => x !== k) : TS_DAYS.map(x => x[0]).filter(x => x === k || s.days.includes(x)); draw(); });
+        f.querySelectorAll("[data-fq]").forEach(b => b.onclick = () => { s.days = {all: TS_DAYS.map(x => x[0]), wk: ["mon","tue","wed","thu","fri"], we: ["sat","sun"]}[b.dataset.fq]; draw(); });
+        f.querySelectorAll("[data-ft]").forEach(b => b.onclick = () => { const k = b.dataset.ft; s.targets = s.targets.includes(k) ? s.targets.filter(x => x !== k) : [...s.targets, k]; draw(); });
+        f.querySelector('[data-fx="cancel"]').onclick = () => thermoSched(el, d);
+        const del = f.querySelector('[data-fx="del"]');
+        if (del) del.onclick = () => { if (slots.length < 2){ say("Keep at least one time"); return; } if (confirm("Delete this time?")) save(slots.filter((_, j) => j !== i)); };
+        f.querySelector('[data-fx="save"]').onclick = () => { const next = slots.slice(); if (i == null) next.push(s); else next[i] = s; save(next); };
+      };
+      draw(); row.replaceWith(f);
+    };
+    el.querySelectorAll("[data-ts-ed]").forEach(b => b.onclick = () => edit(+b.dataset.tsEd));
+    el.querySelector("[data-ts-add]").onclick = () => edit(null);
+  }
+
   function openBuilder(id, s){
     editId = id;
     spec = s ? JSON.parse(JSON.stringify(s)) : {name:"", when:{type:"time", at:"18:00"}, days:DAYS.map(d=>d[0]), dark:false, home:false, do:[]};

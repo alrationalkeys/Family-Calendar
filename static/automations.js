@@ -411,11 +411,22 @@
       const all = [...(ch.sensors||[]).map(x=>({...x, d:x.kind})), ...(ch.locks||[]).map(x=>({...x, d:"lock"})), ...(ch.covers||[]).map(x=>({...x, d:"cover"}))];
       if (w.entity && !all.some(x => x.id === w.entity)) all.unshift({id: w.entity, name: nameOf(w.entity), d: /motion|occupancy|presence/.test(w.entity) ? "motion" : "door"});
       const cur = all.find(x => x.id === w.entity) || all[0];
+      // grouped + labelled: "Front Door" the sensor vs the lock, motion vs camera detections
+      const GRP = [["motion", "Motion sensors"], ["door", "Doors & windows (open / closed)"], ["lock", "Locks"], ["cover", "Garage doors"],
+                   ["camera", "Camera detections (person, animal, vehicle, package)"], ["leak", "Water leak"]];
+      const label = x => {
+        let n = x.name.replace(/\s+occupancy$/i, " (stays on while someone's there)");
+        if (x.area) n += ` · ${x.area}`;
+        if (x.d === "camera") n = n.replace(/^(.*?)\s+(person|animal|vehicle|package)\s+detected$/i, (m, cam, what) => `${cam} camera: ${what.toLowerCase()}`);
+        return n;
+      };
+      const opts = GRP.map(([k, t]) => { const xs = all.filter(x => x.d === k); return xs.length ? `<optgroup label="${esc(t)}">${xs.map(x => `<option value="${esc(x.id)}" ${x.id === w.entity ? "selected" : ""}>${esc(label(x))}</option>`).join("")}</optgroup>` : ""; }).join("");
       if (cur && !w.entity) w.entity = cur.id;
       const tos = !cur ? [] : cur.d === "lock" ? [["unlocked","is unlocked"],["locked","is locked"]] : cur.d === "cover" ? [["open","opens"],["closed","closes"]]
-        : cur.d === "motion" ? [["on","detects motion"],["off","goes quiet"]] : cur.d === "leak" ? [["on","detects water"]] : [["on","opens"],["off","closes"]];
+        : cur.d === "motion" ? [["on","detects motion"],["off","goes quiet"]] : cur.d === "leak" ? [["on","detects water"]]
+        : cur.d === "camera" ? [["on","sees it"]] : [["on","opens"],["off","closes"]];
       if (!tos.some(t => t[0] === w.to)) w.to = tos.length ? tos[0][0] : "on";
-      return all.length ? `<div class="rb-row"><select data-w="entity">${all.map(x => `<option value="${esc(x.id)}" ${x.id === w.entity ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+      return all.length ? `<div class="rb-row"><select data-w="entity">${opts}</select>
         <select data-w="to">${tos.map(([v,t]) => `<option value="${v}" ${w.to === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
         + (w.to === "off" || w.to === "closed" ? `<div class="rb-row"><span>for</span><input type="number" min="0" max="240" data-w="for" value="${esc(w.for || 0)}" style="width:80px"><span>minutes (0 = right away)</span></div>` : "")
         : `<div class="hint">No doors or sensors found in Home Assistant.</div>`;

@@ -180,6 +180,10 @@ def _guess(missing: str, names: dict):
 def _choices(states: list) -> dict:
     """Devices the pickers and the routine builder can offer, grouped."""
     c = {k: [] for k in ("lights", "switches", "covers", "locks", "climates", "media", "sensors", "people", "alarms")}
+    try:
+        areas = ha_svc.entity_areas()
+    except Exception:
+        areas = {}
     for s in states:
         eid, a = s["entity_id"], s.get("attributes") or {}
         d, name = eid.split(".")[0], a.get("friendly_name") or eid
@@ -193,6 +197,11 @@ def _choices(states: list) -> dict:
             item = {"id": eid, "name": name}
             if d == "binary_sensor":
                 item["kind"] = "motion" if a.get("device_class") in ("motion", "occupancy", "presence") else "leak" if a.get("device_class") == "moisture" else "door"
+                if re.search(r"\b(person|animal|vehicle|package)\s+detected\b", name, re.I):
+                    item["kind"] = "camera"
+            area = areas.get(eid)
+            if area and area.lower() not in name.lower():
+                item["area"] = area          # "Motion Sensor" -> "Motion Sensor (Kitchen)"
             c[key].append(item)
     for v in c.values():
         v.sort(key=lambda x: x["name"].lower())
@@ -336,7 +345,11 @@ def _when_text(w: dict, names: dict) -> str:
         return (f"{abs(off)} min {'before' if off < 0 else 'after'} {when}" if off else f"At {when}").capitalize()
     if t == "device":
         to = w.get("to")
-        motion = bool(re.search(r"motion|occupancy|presence", str(w.get("entity") or "")))
+        ent = str(w.get("entity") or "")
+        if re.search(r"(person|animal|vehicle|package)_detected", ent):
+            what = re.search(r"(person|animal|vehicle|package)_detected", ent).group(1)
+            return f"When {n(ent)} sees a{'n' if what == 'animal' else ''} {what}".replace(" detected sees", " sees")
+        motion = bool(re.search(r"motion|occupancy|presence", ent))
         verb = {"on": "detects motion" if motion else "opens", "off": "goes quiet" if motion else "closes", "open": "opens",
                 "closed": "closes", "unlocked": "is unlocked", "locked": "is locked"}.get(to, to)
         mins = int(w.get("for") or 0)

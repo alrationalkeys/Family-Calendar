@@ -180,6 +180,8 @@ def entity_areas(max_age: float = 300.0) -> dict:
                     out[e["entity_id"]] = areas[aid]
                 if e.get("platform"):
                     _PLATFORM[e["entity_id"]] = e["platform"]
+                if e.get("entity_category"):
+                    _CATEGORY[e["entity_id"]] = e["entity_category"]     # "config" / "diagnostic"
             return out
 
     try:
@@ -193,6 +195,7 @@ def entity_areas(max_age: float = 300.0) -> dict:
 
 
 _PLATFORM: dict = {}      # entity_id -> integration ("blink", "alarmdotcom", …), filled with the area lookup
+_CATEGORY: dict = {}      # entity_id -> "config" | "diagnostic" (device settings, not things to control)
 
 
 def is_blink(eid: str, attrs: dict | None = None) -> bool:
@@ -280,6 +283,8 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
 
 
 def _states_to_tiles(states) -> list:
+    if not demo_mode():
+        entity_areas()        # cached 5 min; fills _CATEGORY / _PLATFORM before filtering
     tiles = []
     for s in states:
         eid = s.get("entity_id", "")
@@ -293,6 +298,8 @@ def _states_to_tiles(states) -> list:
             continue
         if domain != "camera" and is_blink(eid, attrs):
             continue          # Blink: just the cameras (no arm/disarm, motion, battery or temperature tiles)
+        if _CATEGORY.get(eid) in ("config", "diagnostic"):
+            continue          # device settings (e.g. a motion sensor's "LED indicator" switch), not devices
         tiles.append(_tile(eid, s.get("state", ""), attrs))
     return tiles
 

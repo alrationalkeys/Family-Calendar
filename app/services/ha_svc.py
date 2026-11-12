@@ -136,8 +136,8 @@ _DEMO.setdefault("camera.backyard", {"state": "idle", "attributes": {"friendly_n
 _DEMO.setdefault("binary_sensor.front_door_doorbell", {"state": "off", "attributes": {"friendly_name": "Front Door Doorbell Button", "device_class": "occupancy"}})
 # demo Areas (the real ones come from HA's registries, see entity_areas())
 _DEMO_AREAS = {"light.driveway": "Driveway", "camera.front_door": "Front Walkway", "camera.backyard": "Patio", "binary_sensor.front_door_doorbell": "Front Walkway", "light.porch": "Porch", "light.kitchen": "Kitchen",
-               "light.living_room": "Living", "light.master_bed": "Master Bedroom",
-               "media_player.living_room_tv": "Living", "media_player.bedroom_tv": "Master Bedroom",
+               "light.living_room": "Living Room", "light.master_bed": "Master Bedroom",
+               "media_player.living_room_tv": "Living Room", "media_player.bedroom_tv": "Master Bedroom",
                "cover.garage": "Garage", "binary_sensor.garage_motion": "Garage"}
 
 

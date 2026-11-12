@@ -17,24 +17,24 @@
   const PLAN_W=38, MIRROR=true, Y0=2;   // Y0: the screened porch sticks 2 ft past the drawn patio, so shift everything down
   const ROOMS_DRAWN=[
     // ---- first floor ----
-    {floor:1, name:"Back Porch", key:"patio",     gx:26,   gy:-2,   gw:12,   gd:10,   open:true, screened:true},   // the 12x10 screened porch option
+    {floor:1, name:"Back Porch", key:"patio", areas:["back porch"],     gx:26,   gy:-2,   gw:12,   gd:10,   open:true, screened:true},   // the 12x10 screened porch option
     {floor:1, name:"Office",    key:"office",    gx:0,    gy:8,    gw:11,   gd:13,   desk:"e", tv:"w"},   // bedroom 4, used as the office
-    {floor:1, name:"Living",    key:"living",    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w", fireplace:true, sectional:true},
-    {floor:1, name:"Breakfast", key:"breakfast", gx:25,   gy:8,    gw:13,   gd:13.4, table:"w", train:"e"},   // eat-in table + the village train
+    {floor:1, name:"Living Room", key:"living", areas:["living room"],    gx:11,   gy:8,    gw:14,   gd:18,   tv:"w", fireplace:true, sectional:true},
+    {floor:1, name:"Breakfast", key:"breakfast", areas:[], sameAs:"kitchen", gx:25,   gy:8,    gw:13,   gd:13.4, table:"w", train:"e"},   // eat-in table + the village train; one open room with the Kitchen in HA
     {floor:1, name:"Kitchen",   key:"kitchen",   gx:25,   gy:21.4, gw:13,   gd:10.4, counter:"e"},
     {floor:1, name:"Bath 2",    key:"bath 2",    gx:0,    gy:21,   gw:6,    gd:10,   tub:"n"},
     {floor:1, name:"Closet",    key:"closet 4",  gx:6,    gy:21,   gw:5,    gd:5},
     {floor:1, name:"Hall",      key:"hall",      gx:6,    gy:26,   gw:19,   gd:10.2, stairs:{gx:13.2, gy:27.1, gw:7, gd:7.4, up:"n"}},
     {floor:1, name:"Mud Room",  key:"mud",       gx:0,    gy:31,   gw:6,    gd:5.2},
-    {floor:1, name:"Garage",    key:"garage",    gx:0,    gy:36.2, gw:19.3, gd:20},
-    {floor:1, name:"Foyer",     key:"foyer",     gx:19.3, gy:36.2, gw:5.7,  gd:16},
+    {floor:1, name:"Garage",    key:"garage", areas:["garage"],    gx:0,    gy:36.2, gw:19.3, gd:20},
+    {floor:1, name:"Front Entryway", key:"foyer", areas:["front entryway"],     gx:19.3, gy:36.2, gw:5.7,  gd:16},
     {floor:1, name:"Pantry",    key:"pantry",    gx:25,   gy:31.8, gw:7.7,  gd:8.7},
     {floor:1, name:"Butler's",  key:"butler",    gx:32.7, gy:31.8, gw:5.3,  gd:8.7},
-    {floor:1, name:"Dining Room", key:"dining room", gx:25, gy:40.5, gw:13,   gd:11.7, table:"c"},     // the flex room, used as the dining room
-    {floor:1, name:"Front Porch", key:"porch",     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
+    {floor:1, name:"Formal Dining Room", key:"dining room", areas:["formal dining room"], gx:25, gy:40.5, gw:13,   gd:11.7, table:"c"},     // the flex room, used as the dining room
+    {floor:1, name:"Front Porch", key:"porch", areas:["front porch"],     gx:19.3, gy:52.2, gw:18.7, gd:5,    open:true},
     // ---- second floor ----
     {floor:2, name:"Sitting",       key:"sitting",       gx:0,    gy:8,    gw:9.5,  gd:13.8, tree:true},
-    {floor:2, name:"Bedroom 1",     key:"master",        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n", tv:"s"},
+    {floor:2, name:"Master Bedroom", key:"master", areas:["master bedroom"],        gx:9.5,  gy:8,    gw:15.3, gd:13.8, bed:"n", tv:"s"},
     {floor:2, name:"Bath 1",        key:"bath 1",        gx:24.8, gy:8,    gw:13.2, gd:13.8, tub:"none", shower:"ne"},   // walk-in glass shower, no tub
     {floor:2, name:"Master Closet", key:"master closet", gx:0,    gy:21.8, gw:19.3, gd:5.8},
     {floor:2, name:"Loft",          key:"loft",          gx:19.3, gy:21.8, gw:18.7, gd:18.5, tv:"s", sectional:true, treeT:0.9},   // TV on the bedroom-3 wall, tree by the windows
@@ -42,9 +42,9 @@
     {floor:2, name:"Hall",          key:"upstairs hall", gx:9.5,  gy:27.6, gw:9.8,  gd:12.7, stairwell:{gx:9.5, gy:27.6, gw:3.8, gd:7.5}},
     {floor:2, name:"Closet",        key:"closet 2",      gx:0,    gy:35.1, gw:5.8,  gd:5.2},
     {floor:2, name:"Linen",         key:"linen",         gx:5.8,  gy:35.1, gw:3.7,  gd:5.2},
-    {floor:2, name:"Bedroom 2",     key:"bedroom 2",     gx:0,    gy:40.3, gw:13.3, gd:12,   bed:"e"},
+    {floor:2, name:"Small Bedroom", key:"bedroom 2", areas:["small bedroom"],     gx:0,    gy:40.3, gw:13.3, gd:12,   bed:"e"},
     {floor:2, name:"Bath 3",        key:"bath 3",        gx:13.3, gy:40.3, gw:6,    gd:10.8, tub:"s"},
-    {floor:2, name:"Bedroom 3",     key:"bedroom 3",     gx:19.3, gy:40.3, gw:18.7, gd:12,   bed:"e"},
+    {floor:2, name:"Large Bedroom", key:"bedroom 3", areas:["large bedroom"],     gx:19.3, gy:40.3, gw:18.7, gd:12,   bed:"e"},
   ];
   /* Doors and windows, as drawn. dir "h" = sits in a wall that runs left-right (at gy),
      dir "v" = sits in a wall that runs front-back (at gx). x/z is the opening's centre,
@@ -156,6 +156,7 @@
   function roomFor(t, rooms){
     const lc=s=>String(s||"").toLowerCase(), txt=lc(t.name)+" "+lc(t.area);
     if(/\bback\b/.test(txt)&&/porch|patio|deck/.test(txt)){ const b=rooms.find(r=>/patio|back porch/.test(lc(r.key)+" "+lc(r.name))); if(b) return b; }
+    const ar=lc(t.area); if(ar){ const a=rooms.find(r=>(r.areas||[]).includes(ar)); if(a) return a; }   // HA area names (Settings > Areas)
     return rooms.find(r=>lc(t.area)&&lc(t.area)===lc(r.name)) || rooms.find(r=>lc(t.name).includes(lc(r.key))) || rooms.find(r=>lc(t.area).includes(lc(r.key))) || null;
   }
   function tilesOf(h){ return (h.groups||[]).reduce((a,g)=>a.concat(g.tiles||[]),[]); }
@@ -164,8 +165,8 @@
     const lc=s=>String(s||"").toLowerCase();
     const byId=id=>tiles.find(t=>t.entity_id===id);
     const layout=getLayout();
-    const byKey=(dom,k,dc,r)=>tiles.find(t=>t.domain===dom&&(!dc||t.device_class===dc)&&(lc(t.name).includes(lc(k))||lc(t.area||"").includes(lc(k)))&&roomFor(t,layout)===r);
-    return layout.map(r=>{
+    const byKey=(dom,k,dc,r)=>tiles.find(t=>t.domain===dom&&(!dc||t.device_class===dc)&&(lc(t.name).includes(lc(k))||lc(t.area||"").includes(lc(k))||(r.areas||[]).includes(lc(t.area)))&&roomFor(t,layout)===r);
+    const out=layout.map(r=>{
       const light=(r.light&&byId(r.light))||byKey("light",r.key,null,r);
       const cover=(r.cover&&byId(r.cover))||byKey("cover",r.key,null,r);
       const temp =(r.temp &&byId(r.temp)) ||byKey("sensor",r.key,"temperature",r);
@@ -174,6 +175,8 @@
       const on=light?light.on:(cover?cover.state!=="closed":(media?media.on:false));
       return {...r, light, cover, temp, media, ctrl, on};
     });
+    // a room that is part of another HA area (breakfast nook = Kitchen) lights up with it
+    return out.map(r=>{ if(!r.sameAs||r.light) return r; const o=out.find(x=>x.key===r.sameAs&&(x.floor||1)===(r.floor||1)); return o?{...r, light:o.light, ctrl:o.ctrl, on:o.on}:r; });
   }
   const fpNote=()=>'<div class="fp-note">Tap a room to toggle its light. Rooms light up as devices get an Area in Home Assistant.</div>';
 

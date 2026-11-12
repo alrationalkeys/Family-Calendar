@@ -469,18 +469,20 @@
     v.overlay.innerHTML=""; v.anchors=[];
     const fr=rooms.filter(r=>(r.floor||1)===floorN);
     const byRoom=devicesByRoom(h, fr);
+    const lightOf=r=>{ const devs=byRoom.get(r)||[]; return r.light||devs.find(t=>t.domain==="light")||devs.find(t=>t.domain==="switch"&&/light|lamp|led/i.test(t.name)); };
+    const shared=new Map(); fr.forEach(r=>{ if(r.sameAs&&!lightOf(r)){ const o=fr.find(x=>x.key===r.sameAs); const l=o&&lightOf(o); if(l) shared.set(r,l); } });   // breakfast nook = HA Kitchen
     const night=nightFactor();
     v.hemi.intensity=1.05-0.6*night; v.sun.intensity=1.35-1.0*night; v.fill.intensity=0.35-0.15*night;
     v.renderer.toneMappingExposure=1.05-0.12*night;
     const E=esc;
-    const litRooms=new Set(); fr.forEach(r=>{ const devs=byRoom.get(r)||[]; const l=r.light||devs.find(t=>t.domain==="light"); if(l&&l.on) litRooms.add(r.name); });
+    const litRooms=new Set(); fr.forEach(r=>{ const devs=byRoom.get(r)||[]; const l=shared.get(r)||r.light||devs.find(t=>t.domain==="light"); if(l&&l.on) litRooms.add(r.name); });
     (v.wins||[]).forEach(wm=>{ const lit=litRooms.has(wm.userData.win); wm.material.emissive.setHex(lit?0xffc98a:0x7fa6e0); wm.material.emissiveIntensity=lit?0.9:0.35*night; });
     // garage door follows the HA cover (closed = panel shown); no cover entity = closed
     const gar=fr.find(r=>isGarage(r)); const cover=gar?(byRoom.get(gar)||[]).find(t=>t.domain==="cover"):null;
     const garOpen=!!(cover&&/open/.test(cover.state||"")); (v.garage||[]).forEach(m=>{ m.visible=!garOpen; });
     fr.forEach(r=>{
       const cx=r.gx+r.gw/2, cz=r.gy+r.gd/2, devs=byRoom.get(r)||[];
-      const light=r.light||devs.find(t=>t.domain==="light")||devs.find(t=>t.domain==="switch"&&/light|lamp|led/i.test(t.name));
+      const light=shared.get(r)||lightOf(r);
       const media=r.media||devs.find(t=>t.domain==="media_player");
       const on=!!(light&&light.on);
       if(light){

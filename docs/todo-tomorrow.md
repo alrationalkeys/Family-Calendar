@@ -8,7 +8,8 @@
   - [ ] **Christmas lights inside** — the window plugs (all of them, incl. the 4th).
 - [ ] Turn **off** "Turn them on tonight anyway" (Christmas season already covers it; left on, the lights keep coming on after Jan 6).
 - [ ] Christmas season is set to start **Nov 11 (today)** → lights come on at sunset tonight. Clear the date if you'd rather start after Thanksgiving.
-- [ ] Alarm.com: turn OFF the thermostat schedule + the light schedules (incl. "Christmas Lights Upstairs").
+- [ ] Alarm.com: turn OFF both thermostat schedules (Manual / no schedule) + thermostat rules, and the light schedules (incl. "Christmas Lights Upstairs"). FamilyHub runs all of it now.
+- [ ] Kitchen + outdoor cards: tap "Fix it" / Change on every red list (names didn't match → nothing ran at sunset / 8 PM).
 - [ ] Spotify on the wall now starts at 45% — after updating the wall, play something and check the level (change it: Settings → Advanced → Spotify).
 - [ ] Voice test at the wall: "add dentist Friday at 3 for Rachell", "we need paper towels", "what's on the grocery list",
       "check off paper towels", "what's the temperature inside". Phone → Settings → Advanced → Voice → screenshot the history if anything's off.
@@ -69,7 +70,7 @@
 - [x] File editor add-on → add `homeassistant:` / `packages: !include_dir_named packages` to configuration.yaml → make a `packages` folder.
 - [x] Add `peak_thermostat.yaml` and `outdoor_lights.yaml` (file names need underscores, not dashes; HA's folder is /homeassistant in the Terminal) (kitchen_lights.yaml after the Zigbee move). Check entity names.
 - [x] Developer tools → Check configuration → Restart. FamilyHub Settings → Automations should show them installed.
-- [ ] Alarm.com: thermostat schedule Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM, Cool 70° all day; turn OFF the 4 light schedules.
+- [x] ~~Alarm.com thermostat schedule~~ — replaced: FamilyHub runs the thermostat schedule; Alarm.com's gets turned off.
 
 ## Update the routine files (editable from FamilyHub now)
 - [x] Terminal: `cd /homeassistant/packages && rm -f *.yaml && wget <the two links in the chat>` → `ha core check` → `ha core restart`.
@@ -79,7 +80,7 @@
 ## Thermostat peak hours
 - [x] Santee Cooper hours set (summer 3–6 PM, winter 6–9 AM). Every day, weekends included.
 - [x] Install `docs/ha/peak_thermostat.yaml` in /config/packages/ (check the two thermostat entity names), restart.
-- [ ] Then simplify the Alarm.com schedule on BOTH thermostats, once: Heat 67° 6 PM–9 AM, 60° 9 AM–6 PM; Cool 70° all day.
+- [x] ~~Simplify the Alarm.com schedule~~ — not needed, FamilyHub's Thermostats card is the schedule now.
 
 ## Live traffic for leave-by (optional, 5 min)
 - [ ] Free key at developer.tomtom.com → add `TOMTOM_API_KEY=...` to the wall's `.env` → phone Settings → Restart FamilyHub.

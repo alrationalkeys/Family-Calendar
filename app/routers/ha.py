@@ -175,6 +175,13 @@ def mode(payload: dict):
                            tapped=p.get("source") in ("wall", "phone"))   # only the wall / phone buttons; HA geofence ("ha") or no source never disarms
 
 
+@router.get("/timeline")
+def timeline(day: str | None = None):
+    """What ran when on one day (HA history): heat/AC, lights, plugs, TVs + power sensors + the peak window."""
+    from ..services import timeline as tl
+    return tl.get(day)
+
+
 @router.get("/presence")
 def presence():
     """Who's home (HA person.* from the companion app)."""

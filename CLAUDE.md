@@ -144,6 +144,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   phones get an HA push with the picture; Rokus that are on show it via media_player.play_media (url/jpg).
   Settings `doorbellTv`, `doorbellSpeak`; env `FAMILYHUB_URL` = LAN URL phones/TVs load the snapshot from.
 - 3D driveway: `/api/ha/home` carries `people` (house_modes.presence); Alex's white pickup / Rachell's white CX-9 show while their HA person is home (no person = shown). Garage furnished from photos (workbench wall, fridge, gym wall). Phone Home tab is live via the same SSE stream (30 s backup poll).
+- `GET /api/ha/timeline?day=` (`services/timeline.py`): one day of HA history as on-spans (heat/AC from hvac_action, lights, plugs, TVs) + device_class power sensors + the peak window + stats; phone Home tab "📊 Today" (`static/timeline.js`, day nav, tap a bar for times).
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
 - `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
 - `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated

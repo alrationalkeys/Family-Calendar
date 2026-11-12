@@ -473,7 +473,7 @@
 <div id="view-home" hidden>
   <div id="hm-hero"></div>
   <div class="hm-tabs" id="hm-tabs">
-    <button data-v="rooms" class="active">🏠 Rooms</button><button data-v="plan">📐 Plan</button><button data-v="3d">🏘 3D</button><button data-v="all">☰ All</button>
+    <button data-v="rooms" class="active">🏠 Rooms</button><button data-v="plan">📐 Plan</button><button data-v="3d">🏘 3D</button><button data-v="all">☰ All</button><button data-v="day">📊 Today</button>
   </div>
   <div id="hm-body"><div class="hint" style="padding:30px 0; text-align:center">Loading the house…</div></div>
 </div>
@@ -745,6 +745,7 @@
 <script src="/seasonal.js"></script>
 <script src="/skins.js"></script>
 <script src="/automations.js"></script>
+<script src="/timeline.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const PALETTE = ["#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e9a23b","#e0533d","#3db5c9","#9aa0a6"];
@@ -1544,6 +1545,7 @@ function renderHM(h, force){
   body.dataset.sig=sig; body.innerHTML=html;
 
   if(hmView==="plan"){ const holder=document.createElement("div"); body.appendChild(holder); FHHome.renderFloorView(holder,h,{budget:360}); }
+  if(hmView==="day"&&window.FHTimeline){ const holder=document.createElement("div"); body.appendChild(holder); FHTimeline.render(holder); }
   if(hmView==="3d"){ const holder=document.createElement("div"); body.appendChild(holder);
     if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(holder,h,{id:"main", height:Math.min(560,Math.max(380,Math.round(window.innerHeight*0.62))), pins:true});
     else FHHome.renderIsoView(holder,h); }

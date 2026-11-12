@@ -445,7 +445,14 @@
     bindSteps(sh, sum);
     sh.querySelector("[data-save]").onclick = async () => {
       const err = sh.querySelector("#rb-err"); err.textContent = "";
-      if (spec.do.some(a => ["on","off","dim","lock","close","thermostat"].includes(a.type) && !(a.entities || []).length)){ err.textContent = "Pick what each step is for."; return; }
+      const empty = spec.do.findIndex(a => ["on","off","dim","lock","close","thermostat"].includes(a.type) && !(a.entities || []).length);
+      if (empty >= 0){
+        const lab = ([...DO, ...MODE_DO].find(d => d[0] === spec.do[empty].type) || ["", "A step"])[1];
+        err.textContent = `The "${lab}" step has nothing picked. Tap Pick on it and choose, or tap ✕ to remove that step.`;
+        const box = sh.querySelector(`.rb-act[data-i="${empty}"]`);
+        if (box){ box.style.outline = "2px solid #c0392b"; box.scrollIntoView({behavior: "smooth", block: "center"}); const d = box.querySelector("details"); if (d) d.open = true; }
+        return;
+      }
       const r = await post("/api/ha/modes/" + houseMode, {steps: spec.do});
       if (!r.ok){ err.textContent = r.reason || "Couldn’t save"; return; }
       closeBuilder(); say(`${MODE_TITLE[houseMode]} saved`); if (modeBox) houseModes(modeBox);
@@ -645,7 +652,14 @@
     sh.querySelector("[data-save]").onclick = async () => {
       const err = sh.querySelector("#rb-err"); err.textContent = "";
       if (!spec.do.length){ err.textContent = "Add at least one thing for it to do (step 4)."; return; }
-      if (spec.do.some(a => ["on","off","dim","thermostat","lock","close"].includes(a.type) && !(a.entities || []).length)){ err.textContent = "Pick the devices for each step in 4."; return; }
+      const empty = spec.do.findIndex(a => ["on","off","dim","thermostat","lock","close"].includes(a.type) && !(a.entities || []).length);
+      if (empty >= 0){
+        const lab = (DO.find(d => d[0] === spec.do[empty].type) || ["", "A step"])[1];
+        err.textContent = `The "${lab}" step has nothing picked. Tap Pick on it and choose, or tap ✕ to remove that step.`;
+        const box = sh.querySelector(`.rb-act[data-i="${empty}"]`);
+        if (box){ box.style.outline = "2px solid #c0392b"; box.scrollIntoView({behavior: "smooth", block: "center"}); const d = box.querySelector("details"); if (d) d.open = true; }
+        return;
+      }
       if (!spec.days.length){ err.textContent = "Pick at least one day."; return; }
       const r = await post("/api/ha/automations/routine", {id: editId, spec: toSpec()});
       if (!r.ok){ err.textContent = r.reason || "Couldn’t save"; return; }

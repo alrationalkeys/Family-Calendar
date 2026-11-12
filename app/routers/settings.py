@@ -36,6 +36,8 @@ DEFAULTS = {
     "peakAlerts": True,               # push if heat/AC is still on 3 min into peak hours
     "weeklySummary": True,            # Sunday 6 PM: heat/AC hours, peak use, low batteries
     "batteryLow": 25,
+    "laundryAlerts": True,            # GE SmartHQ washer/dryer: "the washer is done" (voice by day, silent push at night)
+    "laundryQuietStart": "21:30", "laundryQuietEnd": "07:30",
     "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
     "rainCheck": True,                # push if rain is coming and the garage or a window is open
     "packageAlerts": True,            # front cameras + AI: push when a package is left (needs ANTHROPIC_API_KEY)                 # % that counts as a low battery

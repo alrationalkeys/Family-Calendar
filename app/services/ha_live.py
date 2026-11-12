@@ -128,6 +128,11 @@ async def _run_once(ws_url: str, token: str):
                         doorbell.on_state(eid, data.get("old_state"), new, _states)
                     except Exception:
                         pass
+                    try:
+                        from . import laundry
+                        laundry.on_state(eid, data.get("old_state"), new)
+                    except Exception:
+                        pass
                     if eid.startswith("alarm_control_panel."):
                         try:
                             from . import display_svc, ha_svc

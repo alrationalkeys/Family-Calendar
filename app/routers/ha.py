@@ -195,6 +195,12 @@ def timeline_week():
     return {"days": watch.week()}
 
 
+@router.get("/laundry")
+def laundry_status():
+    from ..services import laundry
+    return {"machines": laundry.status()}
+
+
 @router.get("/timeline")
 def timeline(day: str | None = None):
     """What ran when on one day (HA history): heat/AC, lights, plugs, TVs + power sensors + the peak window."""

@@ -25,7 +25,7 @@ const FH = (() => {
     textSize: "normal",      // normal | large  (bigger, easier-to-read content)
     homeLayout: [],          // custom floor-plan rooms; [] = built-in sample
     villageWithHouse: true,
-    nightCheck: true, nightCheckTime: "22:30", peakAlerts: true, weeklySummary: true, batteryLow: 25, wxAlerts: true, rainCheck: true, packageAlerts: true,
+    nightCheck: true, nightCheckTime: "22:30", peakAlerts: true, weeklySummary: true, batteryLow: 25, laundryAlerts: true, laundryQuietStart: "21:30", laundryQuietEnd: "07:30", wxAlerts: true, rainCheck: true, packageAlerts: true,
     welcomeNoCode: false,    // I'm home button disarms without the code  // Good night / Leaving put the Christmas village to sleep
     spotifyStartVolume: 45,  // % the wall's Spotify player starts at
     spotifyPlaylists: [],    // [{name, uri}] pinned on the Home tab's Spotify card

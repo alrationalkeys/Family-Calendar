@@ -107,3 +107,13 @@
 - [ ] Alarm.com rule screenshots (to move them into Home Assistant).
 - [ ] What should happen when someone gets home (after the HA app is on both phones, location "Always").
 - [x] Holiday art — all installed.
+
+## Down the road
+- [ ] **Energy monitor:** Emporia Vue 3 with 16 sensors (~$200, Amazon). Not the commercial 3-phase one.
+      Electrician installs it in the panel; name circuits in the Emporia app (AC, air handler/heat strips,
+      water heater, dryer, range). Home Assistant → Marketplace (HACS) → **Emporia Vue** → sign in.
+      Screenshot the circuit names to Claude → cost per day + peak power on the Today dashboard.
+- [ ] **Thermostats → Z-Wave stick** (real heating/cooling run times): dealer code → panel removes each
+      thermostat → HA Z-Wave → Add → rename the new entity to `climate.downstairs_thermostat` / `climate.upstairs_thermostat`.
+- [ ] **Faster alarm** (qolsysgw): panel → 3rd Party Connections → Control4 on → secure token → see setup doc §B–C.
+- [ ] Raise **Cool** to 76–78 on every thermostat slot for the winter (Settings → Schedules & routines → Thermostats).

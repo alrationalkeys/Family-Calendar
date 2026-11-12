@@ -350,10 +350,10 @@
   const DO = [["on","Turn on"],["off","Turn off"],["dim","Dim lights to…"],["thermostat","Thermostat"],["lock","Lock doors"],["close","Close garage"],["notify","Notify our phones"],["say","Say it on the wall"],["wait","Then wait…"]];
   const DAYS = [["mon","M"],["tue","T"],["wed","W"],["thu","T"],["fri","F"],["sat","S"],["sun","S"]];
   let spec = null, editId = null, houseMode = null;
-  const MODE_DO = [["off","Turn off"],["on","Turn on"],["dim","Dim / color"],["lock","Lock"],["close","Close garage"],["arm","Arm the alarm"],
+  const MODE_DO = [["off","Turn off"],["on","Turn on"],["dim","Dim / color"],["lock","Lock"],["close","Close garage"],["arm","Arm the alarm"],["disarm","Disarm the alarm"],
     ["open_garage","Open the garage (after disarm)"],["thermostat","Thermostat"],["schedule","Thermostats back to schedule"],["village","Christmas village"],["say","Say it on the wall"]];
-  const MODE_TITLE = {goodnight: "🌙 Good night", away: "🚪 Leaving", welcome: "🏡 I'm home"};
-  const doList = () => houseMode ? MODE_DO.filter(d => d[0] !== "open_garage" || houseMode === "welcome") : DO;
+  const MODE_TITLE = {goodnight: "🌙 Good night", morning: "☀️ Good morning", away: "🚪 Leaving", welcome: "🏡 I'm home"};
+  const doList = () => houseMode ? MODE_DO.filter(d => (d[0] !== "open_garage" || houseMode === "welcome") && (d[0] !== "disarm" || houseMode === "morning")) : DO;
 
   function ensureSheet(){
     let ov = document.getElementById("au-ov");
@@ -427,13 +427,13 @@
   function modeSummary(steps){
     return (steps || []).map(a => { const l = (a.entities || []).map(nameOf).join(", ") || "…";
       return ({on: `turn on ${l}${a.dark ? " (after dark)" : ""}`, off: `turn off ${l}`, dim: `set ${l} to ${a.pct || 50}%`, lock: `lock ${l}`, close: `close ${l}`,
-        arm: `arm the alarm (${({stay: "Stay", away: "Away", night: "Night"})[a.arm || "stay"]})`, open_garage: "open the garage once disarmed",
+        arm: `arm the alarm (${({stay: "Stay", away: "Away", night: "Night"})[a.arm || "stay"]})`, disarm: "disarm the alarm", open_garage: "open the garage once disarmed",
         thermostat: a.mode === "off" ? `turn ${l} off` : `set ${l} to ${a.temp || "?"}°`, schedule: "thermostats back to the schedule",
         village: a.village === "wake" ? "wake the Christmas village" : "put the Christmas village to sleep", say: `say "${a.message || "…"}"`})[a.type] || a.type; }).join(" → ");
   }
   function drawMode(sh){
     sh.innerHTML = `<h3>${MODE_TITLE[houseMode]}<button data-x aria-label="Close">✕</button></h3>
-      <div class="au-blurb">${houseMode === "welcome" ? (window.FH && FH.get().welcomeNoCode === true ? "First it disarms the alarm (one tap, no code). Then, in this order:" : "First it disarms the alarm with the code you type. Then, in this order:") : "When the button is tapped, in this order:"}</div>
+      <div class="au-blurb">${houseMode === "morning" ? "It wakes the wall and reads the morning briefing. Then, in this order:" : houseMode === "welcome" ? (window.FH && FH.get().welcomeNoCode === true ? "First it disarms the alarm (one tap, no code). Then, in this order:" : "First it disarms the alarm with the code you type. Then, in this order:") : "When the button is tapped, in this order:"}</div>
       <div class="rb-step">${spec.do.map((a, i) => actUI(a, i).replace('<button data-rm=', `<button data-mv="${i}" data-d="-1" aria-label="Move up">↑</button><button data-mv="${i}" data-d="1" aria-label="Move down">↓</button><button data-rm=`)).join("")}
         <div class="rb-chips" style="margin-top:8px">${doList().map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
       <div class="rb-sum" id="rb-sum">${esc(modeSummary(spec.do))}</div>
@@ -469,7 +469,7 @@
     let d = {};
     try { d = await fetch("/api/ha/modes").then(r => r.json()); } catch(e){ el.textContent = "Couldn’t load the buttons."; return; }
     if (!styled){ const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st); styled = true; }
-    el.innerHTML = ["goodnight", "away", "welcome"].map(m => `<div class="ts-row"><div class="ts-t"><b>${MODE_TITLE[m]}</b>${d[m] && d[m].custom ? ' <span class="dim">· customized</span>' : ""}</div>
+    el.innerHTML = ["goodnight", "morning", "away", "welcome"].map(m => `<div class="ts-row"><div class="ts-t"><b>${MODE_TITLE[m]}</b>${d[m] && d[m].custom ? ' <span class="dim">· customized</span>' : ""}</div>
       <div class="ts-v">${esc(modeSummary((d[m] || {}).steps))}</div><button class="chg" data-hm="${m}">Edit steps</button></div>`).join("");
     el.querySelectorAll("[data-hm]").forEach(b => b.onclick = () => {
       houseMode = b.dataset.hm; editId = null;
@@ -551,6 +551,7 @@
     if (a.type === "on" && houseMode) body += `<label class="rb-chk"><input type="checkbox" data-ab="dark" ${a.dark ? "checked" : ""}> Only after dark</label>`;
     if (a.type === "arm") body += `<div class="rb-row"><select data-a="arm">${[["stay","Stay (dogs can roam)"],["away","Away"],["night","Night"]].map(([v,t]) => `<option value="${v}" ${(a.arm || "stay") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
       + (houseMode === "away" ? `<div class="hint" style="margin:4px 0 0">Won't arm if a door or window is open; it tells you which.</div>` : "");
+    if (a.type === "disarm") body += `<div class="hint" style="margin:0">With the code you type${window.FH && FH.get().welcomeNoCode === true ? ", or one tap (no-code is on)" : ""}. Saying "good morning" never disarms.</div>`;
     if (a.type === "open_garage") body += `<div class="hint" style="margin:0">Only once the alarm is disarmed (if it didn't disarm, the garage stays shut).</div>`;
     if (a.type === "schedule") body += `<div class="hint" style="margin:0">Sets both thermostats to whatever the schedule says right now (skipped during peak).</div>`;
     if (a.type === "village") body += `<div class="rb-row"><select data-a="village">${[["sleep","Put it to sleep for the night"],["wake","Wake it up"]].map(([v,t]) => `<option value="${v}" ${(a.village || "sleep") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;

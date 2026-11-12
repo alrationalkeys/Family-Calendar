@@ -133,7 +133,7 @@
   .hm-wx2 .good{color:#5cb88a} .hm-wx2 .warn{color:#e0a44a}
   .hm-hero3d .hm-live{left:14px; right:auto; top:12px; background:rgba(12,14,20,.55); padding:5px 9px; border-radius:999px; pointer-events:none}
   .hm-hero-plain{padding:22px 18px; border-radius:24px; background:linear-gradient(160deg,#1a1c24,#0f1015); border:1px solid var(--line); margin-bottom:12px}
-  .hm-scenes{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px}
+  .hm-scenes{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px}
   .hm-scene{background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px 4px 12px; text-align:center; color:var(--ink); font:inherit; font-size:12px; font-weight:600;
     display:flex; flex-direction:column; gap:10px; align-items:center; line-height:1.15}
   .hm-scene .ic{font-size:26px; line-height:1}
@@ -1137,22 +1137,25 @@ $("#hm-tabs").querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ hmView=b.d
 
 let hmWx=null, hmWxAt=0, hmPresence=null;
 /* I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code (sent to the alarm, never saved) */
-function hmWelcome(btn){
+function hmWelcome(btn, mode){
+  mode=mode||"welcome";
   const tiles=FHHome.tilesOf(hmLast||{}), alarm=tiles.find(t=>t.domain==="alarm_control_panel");
-  if(!(alarm && /^armed|pending|arming/.test(alarm.state||"")) || FH.get().welcomeNoCode===true) return hmMode("welcome", btn);
+  if(!(alarm && /^armed|pending|arming/.test(alarm.state||"")) || FH.get().welcomeNoCode===true) return hmMode(mode, btn);
   let ov=$("#wkov");
   if(!ov){ ov=document.createElement("div"); ov.id="wkov";
-    ov.innerHTML=`<div class="wk-card"><h3>🏡 Welcome home</h3><div class="wk-sub">Alarm code to disarm and open the garage</div>
+    ov.innerHTML=`<div class="wk-card"><h3 id="wk-h"></h3><div class="wk-sub" id="wk-s"></div>
       <div class="wk-dots" id="wk-dots"></div><div class="wk-keys">${[1,2,3,4,5,6,7,8,9,"⌫",0,"✓"].map(k=>`<button data-k="${k}">${k}</button>`).join("")}</div>
       <button class="wk-x">Cancel</button></div>`;
     document.body.appendChild(ov); }
+  $("#wk-h").textContent=mode==="morning"?"☀️ Good morning":"🏡 Welcome home";
+  $("#wk-s").textContent=mode==="morning"?"Alarm code to disarm":"Alarm code to disarm and open the garage";
   let buf=""; const dots=()=>{ $("#wk-dots").textContent="•".repeat(buf.length)||" "; }; dots();
   ov.classList.add("on");
   ov.querySelector(".wk-x").onclick=()=>{ buf=""; ov.classList.remove("on"); };
   ov.querySelectorAll(".wk-keys button").forEach(b=>b.onclick=()=>{ if(navigator.vibrate) navigator.vibrate(6);
     const k=b.dataset.k;
     if(k==="⌫") buf=buf.slice(0,-1);
-    else if(k==="✓"){ const c=buf; buf=""; ov.classList.remove("on"); if(c) hmMode("welcome", btn, c); return; }
+    else if(k==="✓"){ const c=buf; buf=""; ov.classList.remove("on"); hmMode(mode, btn, c||null); return; }
     else if(buf.length<8) buf+=k;
     dots(); });
 }
@@ -1395,6 +1398,7 @@ function renderHM(h, force){
   const scenes=tiles.filter(t=>t.domain==="scene"&&!/night|leav|away|home/i.test(t.name)).slice(0,3);   // built-in Good night / Leaving cover those
   let html=`<div class="hm-scenes">
     <button class="hm-scene" onclick="hmMode('goodnight',this)"><span class="ic">🌙</span>Good night</button>
+    <button class="hm-scene" onclick="hmWelcome(this,'morning')"><span class="ic">☀️</span>Morning</button>
     <button class="hm-scene" onclick="hmMode('away',this)"><span class="ic">🚪</span>Leaving</button>
     <button class="hm-scene" onclick="hmWelcome(this)"><span class="ic">🏡</span>I'm home</button>
     <button class="hm-scene" id="hm-lights-off"><span class="ic">💡</span>All off</button>

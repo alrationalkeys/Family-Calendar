@@ -159,7 +159,7 @@ def doorbell_test(payload: dict | None = None):
 
 @router.post("/mode")
 def mode(payload: dict):
-    """One-tap house modes: {mode: goodnight|away|welcome, who?, close_garage?, arm?, source?}.
+    """One-tap house modes: {mode: goodnight|away|welcome|morning, who?, close_garage?, arm?, source?}.
     Returns what was done + warnings + a sentence the wall speaks."""
     p = payload or {}
     return house_modes.run(p.get("mode", ""), who=p.get("who"), close_garage=(None if p.get("close_garage") is None else bool(p.get("close_garage"))),
@@ -256,7 +256,7 @@ def modes_get():
     """The steps behind Good night / Leaving / I'm home (custom or built-in)."""
     from ..services import house_modes
     out = {}
-    for m in ("goodnight", "away", "welcome"):
+    for m in house_modes.MODES:
         steps, custom = house_modes.steps_for(m)
         out[m] = {"steps": steps, "custom": custom}
     return out

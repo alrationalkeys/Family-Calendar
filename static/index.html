@@ -2585,6 +2585,7 @@ function renderTilesView(body,h){
   kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${h.count}</div><div class="cc-kpi-l">devices</div></div>`);
 
   const qa=['<button class="cc-qa" data-mode="goodnight">\u{1F319} Good night</button>',
+            '<button class="cc-qa" data-mode="morning">\u2600\uFE0F Good morning</button>',
             '<button class="cc-qa" data-mode="away">\u{1F6AA} Leaving</button>',
             '<button class="cc-qa" data-mode="welcome">\u{1F3E1} I\'m home</button>',
             '<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
@@ -2646,14 +2647,15 @@ async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then
 async function runMode(mode, btn, code){
   resetSleep();
   // I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code first
-  if(mode==="welcome" && code===undefined && FH.get().welcomeNoCode!==true){
+  if((mode==="welcome"||mode==="morning") && code===undefined && FH.get().welcomeNoCode!==true){
     const tiles=lastHome?FHHome.tilesOf(lastHome):[], alarm=tiles.find(t=>t.domain==="alarm_control_panel");
-    if(alarm && /^armed|pending|arming/.test(alarm.state||"")){ openWelcomePad(btn); return; }
+    if(alarm && /^armed|pending|arming/.test(alarm.state||"")){ openWelcomePad(btn, mode); return; }
   }
   const label=btn?btn.textContent:""; if(btn){ btn.disabled=true; btn.textContent="…"; }
   let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall", code:code||null, open_garage:mode==="welcome"}).then(x=>x.json()); }catch(e){}
   if(btn){ btn.disabled=false; btn.textContent=label; }
-  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
+  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":mode==="morning"?"\u2600\uFE0F Good morning":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false) sayAloud(r.say); }
+  if(mode==="morning" && typeof sayBriefingNow==="function") setTimeout(()=>sayBriefingNow("today"), 2500);
   setTimeout(loadHome, 1200);
 }
 
@@ -2836,9 +2838,10 @@ function closeLightPop(){ const ov=$("#lightpop"); if(ov) ov.classList.remove("o
 /* ---- alarm PIN pad ---- */
 let pinBuf="", pinTile=null;
 let pinWelcome=null;
-function openWelcomePad(btn){
-  pinTile=null; pinWelcome={btn}; pinBuf="";
-  $("#pin-title").textContent="Welcome home"; $("#pin-sub").textContent="Enter your alarm code to disarm and open the garage";
+function openWelcomePad(btn, mode){
+  pinTile=null; pinWelcome={btn, mode:mode||"welcome"}; pinBuf="";
+  $("#pin-title").textContent=mode==="morning"?"Good morning":"Welcome home";
+  $("#pin-sub").textContent=mode==="morning"?"Enter your alarm code to disarm":"Enter your alarm code to disarm and open the garage";
   renderPinDots(); $("#pinpad").classList.add("on");
 }
 function openAlarmPad(el){
@@ -2852,7 +2855,7 @@ function openAlarmPad(el){
 function renderPinDots(){ $("#pin-dots").textContent = "•".repeat(pinBuf.length); }
 function closePinPad(){ $("#pinpad").classList.remove("on"); pinBuf=""; pinTile=null; pinWelcome=null; }
 async function submitPin(){
-  if(pinWelcome){ const w=pinWelcome, c=pinBuf; closePinPad(); if(c) runMode("welcome", w.btn, c); return; }
+  if(pinWelcome){ const w=pinWelcome, c=pinBuf; closePinPad(); runMode(w.mode, w.btn, c||null); return; }
   if(!pinTile){ closePinPad(); return; }
   const armed = pinTile.classList.contains("on");
   const action = armed ? "disarm" : "arm_away";

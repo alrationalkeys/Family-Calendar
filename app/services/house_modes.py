@@ -84,14 +84,15 @@ GROUPS = {"*lights": "all the lights", "*indoor": "the indoor lights", "*outdoor
           "*locks": "all the locks", "*garage": "the garage door", "*entry": "the entry lights"}
 
 
-STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "open_garage", "thermostat", "schedule", "village", "scene", "say"}
+STEP_TYPES = {"off", "on", "dim", "lock", "close", "arm", "disarm", "open_garage", "thermostat", "schedule", "village", "scene", "say"}
+MODES = ("goodnight", "away", "welcome", "morning")
 
 
 def save_steps(mode: str, steps) -> dict:
     """Validate + store a button's steps (None / [] = back to the built-in sequence)."""
     import json
     from ..db import get_db
-    if mode not in ("goodnight", "away", "welcome"):
+    if mode not in MODES:
         return {"ok": False, "reason": "unknown button"}
     clean = []
     for st in steps or []:
@@ -99,6 +100,8 @@ def save_steps(mode: str, steps) -> dict:
             continue
         if st["type"] == "open_garage" and mode != "welcome":
             continue                                   # only I'm home opens the garage
+        if st["type"] == "disarm" and mode != "morning":
+            continue                                   # I'm home always disarms first; nothing else may
         ents = [str(e) for e in (st.get("entities") or []) if re.fullmatch(r"\*[a-z]+|[a-z_]+\.[a-z0-9_]+", str(e))]
         x = {k: v for k, v in st.items() if k in ("type", "arm", "mode", "temp", "cool", "pct", "white", "rgb", "dark", "village", "message")}
         x["entities"] = ents
@@ -132,6 +135,8 @@ def default_steps(mode: str) -> list:
              [{"type": "arm", "arm": "away" if s.get("awayArm") == "away" else "stay"}]
         if s.get("awayTemp"):
             st.append({"type": "thermostat", "entities": ["*all"], "mode": "keep", "temp": s["awayTemp"]})
+    elif mode == "morning":
+        return [{"type": "disarm"}, {"type": "schedule"}]
     elif mode == "welcome":
         st = ([{"type": "open_garage"}] if s.get("openGarageOnHome", True) is not False else []) + \
              [{"type": "on", "entities": ["*entry"], "dark": True}]
@@ -258,6 +263,18 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 for t in by("alarm_control_panel"):
                     r = ha_svc.call_service("alarm_control_panel", svc, t["entity_id"])
                     done.append(("armed the alarm" + {"alarm_arm_away": " (Away)", "alarm_arm_night": " for the night"}.get(svc, "")) if r.get("ok") else "couldn't arm the alarm")
+            elif k == "disarm" and mode == "morning":   # same rule as I'm home: typed code, or a tap with no-code on
+                for t in by("alarm_control_panel"):
+                    if not t["state"].startswith("armed") and t["state"] not in ("arming", "pending"):
+                        continue
+                    if code or (tapped and s.get("welcomeNoCode") is True):
+                        r = ha_svc.call_service("alarm_control_panel", "alarm_disarm", t["entity_id"], {"code": str(code)} if code else None)
+                        if r.get("ok"):
+                            done.append("disarmed the alarm")
+                        else:
+                            warnings.append("the alarm didn't disarm" + (", check the code" if code else ""))
+                    else:
+                        notes.append("The alarm is still armed." if not tapped else "The alarm is still armed, disarm it on the keypad.")
             elif k == "open_garage" and mode == "welcome" and open_garage:
                 for t in by("cover"):
                     if re.search(r"garage", t["name"] + " " + t["entity_id"], re.I) and t["state"] in ("closed", "closing"):
@@ -321,19 +338,20 @@ def run(mode: str, who: str | None = None, close_garage: bool | None = None, arm
     tiles = _tiles()
     s = _settings()
     steps, custom = steps_for(mode)
-    if custom:
+    if custom or mode == "morning":
         done, warnings, notes = [], [], []
         if not arm:
             steps = [x for x in steps if x.get("type") != "arm"]
         _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=tapped)
-        if mode == "goodnight":
-            try:
-                from . import display_svc
-                if display_svc._sleep_settings()[0]:
-                    display_svc.enter_sleep("goodnight")
-            except Exception:
-                pass
-        lead = "Good night." if mode == "goodnight" else "Bye for now." if mode == "away" else f"Welcome home{', ' + who if who else ''}."
+        try:
+            from . import display_svc
+            if mode == "goodnight" and display_svc._sleep_settings()[0]:
+                display_svc.enter_sleep("goodnight")
+            if mode == "morning":
+                display_svc.exit_sleep("morning")          # the wall wakes up (sleep mode over)
+        except Exception:
+            pass
+        lead = {"goodnight": "Good night.", "away": "Bye for now.", "morning": "Good morning!"}.get(mode) or f"Welcome home{', ' + who if who else ''}."
         return _finish(mode, lead, done, warnings, notes, source)
     if close_garage is None:                       # match the Alarm.com Sleep/Away scenes: close it (setting can turn this off)
         close_garage = s.get("closeGarageOnModes", True) is not False

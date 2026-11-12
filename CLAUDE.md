@@ -213,7 +213,9 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
 - Alarm: nothing disarms or unlocks except the I'm home BUTTON (`/api/ha/mode` passes `tapped=True`). It disarms with the
   typed code, or with no code when Alex turned on `settings.welcomeNoCode` (his choice, Nov 2026). Voice/AI never disarm
   (house_modes.run without tapped). Garage only opens after a successful disarm. House buttons = editable steps in
-  settings row `house_modes` (`GET/POST/DELETE /api/ha/modes/{mode}`), built-in sequence when empty.
+  settings row `house_modes` (`GET/POST/DELETE /api/ha/modes/{mode}`), built-in sequence when empty. Modes: goodnight,
+  morning (wakes the wall + briefing; default disarm -> thermostats back to schedule; `disarm` step allowed only here, same
+  tap/code rule), away, welcome.
 
 ## Known follow-ups (not yet done)
 - Jewish holiday dates are approximate (Hebrew calendar) — swap to a proper lib for precision.

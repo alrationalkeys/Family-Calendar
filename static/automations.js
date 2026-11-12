@@ -65,7 +65,7 @@
   .au-line .num{display:inline-flex; align-items:center; gap:2px}
   .pill{font-size:12px; padding:2px 9px; border-radius:999px; background:var(--panel); color:var(--ink-dim)}
   .pill.on{background:color-mix(in srgb, var(--now) 25%, var(--panel)); color:var(--ink); font-weight:600}
-  .au-pick .miss{color:#c0392b}
+  .au-pick .miss, .rb-act .miss{color:#c0392b}
   .au-card .au-pick{padding:2px 0 6px}
   details.au-more summary{font-size:13px; color:var(--ink-dim); cursor:pointer; padding:4px 0}
   .au-pick{padding:6px 0}
@@ -140,7 +140,7 @@
       if (!rooms.has(r)) rooms.set(r, []);
       rooms.get(r).push({...i, kind: t});
     }));
-    const order = [...rooms.keys()].sort((a, b) => (b === "Quick picks") - (a === "Quick picks") || (a === "Other") - (b === "Other") || a.localeCompare(b));
+    const order = [...rooms.keys()].sort((a, b) => b.startsWith("Not found") - a.startsWith("Not found") || (b === "Quick picks") - (a === "Quick picks") || (a === "Other") - (b === "Other") || a.localeCompare(b));
     const many = groups.filter(g => g[1].length).length > 1;
     return `<div class="au-list">` + order.map(r => `<div class="grp">${esc(r)}</div>` + rooms.get(r).map(i =>
       `<label><input type="checkbox" value="${esc(i.id)}" ${chosen.includes(i.id) ? "checked" : ""}>${esc(i.name)}${many && /plug|switch/i.test(i.kind) && !/plug|switch/i.test(i.name) ? ` <span class="dim">(plug)</span>` : ""}</label>`).join("")
@@ -505,7 +505,7 @@
     }
     if (w.type === "device"){
       const all = [...(ch.sensors||[]).map(x=>({...x, d:x.kind})), ...(ch.locks||[]).map(x=>({...x, d:"lock"})), ...(ch.covers||[]).map(x=>({...x, d:"cover"}))];
-      if (w.entity && !all.some(x => x.id === w.entity)) all.unshift({id: w.entity, name: nameOf(w.entity), d: /motion|occupancy|presence/.test(w.entity) ? "motion" : "door"});
+      if (w.entity && !all.some(x => x.id === w.entity)) all.unshift({id: w.entity, name: nameOf(w.entity) === w.entity ? `⚠ ${w.entity} (not found, pick again)` : nameOf(w.entity), d: /motion|occupancy|presence/.test(w.entity) ? "motion" : "door"});
       const cur = all.find(x => x.id === w.entity) || all[0];
       // grouped + labelled: "Front Door" the sensor vs the lock, motion vs camera detections
       const GRP = [["motion", "Motion sensors"], ["door", "Doors & windows (open / closed)"], ["lock", "Locks"], ["cover", "Garage doors"],
@@ -551,8 +551,11 @@
     let body = "";
     if (lists){
       a.entities = a.entities || [];
-      body += `<div class="names">${a.entities.length ? esc(a.entities.map(nameOf).join(", ")) : "Tap Pick to choose"}</div>
-        <details ${a.entities.length ? "" : "open"}><summary style="font-size:13px; cursor:pointer">Pick</summary>${checklist(lists.map(([t, it]) => [t, it || []]), a.entities)}</details>`;
+      // a device renamed (new entity id) or removed in Home Assistant: flag it and let it be unticked
+      const gone = a.entities.filter(id => nameOf(id) === id);
+      if (gone.length) lists.unshift(["Not found", gone.map(id => ({id, name: id + " (not found)", area: "Not found: untick, then pick the new one"}))]);
+      body += `<div class="names">${a.entities.length ? a.entities.map(id => gone.includes(id) ? `<span class="miss">⚠ ${esc(id)} (not found, pick again)</span>` : esc(nameOf(id))).join(", ") : "Tap Pick to choose"}</div>
+        <details ${a.entities.length && !gone.length ? "" : "open"}><summary style="font-size:13px; cursor:pointer">Pick</summary>${checklist(lists.map(([t, it]) => [t, it || []]), a.entities)}</details>`;
     }
     if (a.type === "dim") body += `<div class="rb-row"><input type="number" min="1" max="100" data-a="pct" value="${esc(a.pct || 50)}" style="width:90px"> %
       <select data-a="white">${[["","as they are"],["warm","warm white"],["daylight","daylight"],["cool","cool white"],["color","a color…"]].map(([v,t]) => `<option value="${v}" ${(a.white || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`

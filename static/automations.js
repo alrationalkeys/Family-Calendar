@@ -235,6 +235,8 @@
       const sub = !g.installed && g.key !== "other" ? "Not set up yet" : !allOn ? "Paused" : missing ? "Pick the lights (some are missing)" : ({peak: "Daily schedule + peak hours", outdoor: "Front, holiday and Christmas lights", kitchen: "Evening, night-light, morning"}[g.key] || `${g.automations.length} routines`);
       html += head(g.key, ICON[g.key] || "⚙️", g.title, sub, missing || !allOn);
       html += `<div class="au-blurb">${esc(g.blurb)}</div>`;
+      if (g.installed && (g.key === "outdoor" || g.key === "kitchen"))
+        html += `<button class="au-new" data-convert="${g.key}" style="margin:0 0 10px">✨ Turn these into my own routines (edit each one)</button>`;
       if (g.automations.length) html += `<div class="au-line row" style="padding:0 0 8px"><span class="lbl">All of these on</span>${sw(`data-group="${g.key}" aria-label="All of ${esc(g.title)}"`, allOn)}</div>`;
       if (!g.installed && g.key !== "other") html += `<div class="au-missing">Not installed in Home Assistant yet: add <code>docs/ha/${esc(g.file || g.key)}.yaml</code> to the packages folder.</div>`;
       if (g.status.length && !LAYOUT[g.key]) html += `<div class="au-chips">${g.status.map(s => `<span class="au-chip ${s.on ? "on" : ""}">${esc(s.name)}: ${s.on ? "yes" : "no"}</span>`).join("")}</div>`;
@@ -271,6 +273,15 @@
     html += `<div class="au-note">Changes take effect right away and stay after Home Assistant restarts. Turning a routine off pauses it until you turn it back on.</div>`;
     box.innerHTML = html;
 
+    box.querySelectorAll("[data-convert]").forEach(b => b.onclick = async () => {
+      const g = (data.groups || []).find(x => x.key === b.dataset.convert);
+      if (!confirm(`Rebuild "${g ? g.title : b.dataset.convert}" as your own routines? Same times and lights, each one editable under Your routines. The built-in versions get switched off.`)) return;
+      b.disabled = true; b.textContent = "Building your routines…";
+      const r = await post("/api/ha/automations/convert", {keys: [b.dataset.convert]});
+      if (!r.ok){ say(r.reason || "Couldn’t build them"); b.disabled = false; b.textContent = "✨ Turn these into my own routines (edit each one)"; return; }
+      say(`Made ${r.made.length} routine${r.made.length === 1 ? "" : "s"}` + (r.skipped && r.skipped.length ? ` (skipped ${r.skipped.length} with no lights picked)` : ""));
+      setTimeout(() => load(box, toast), 1500);
+    });
     box.querySelectorAll("input[data-auto]").forEach(el => el.onchange = async () => {
       const r = await post("/api/ha/automations/toggle", {entity_id: el.dataset.auto, on: el.checked});
       say(r.ok ? (el.checked ? "Turned on" : "Paused") : (r.reason || "Couldn’t reach Home Assistant"));
@@ -348,13 +359,16 @@
     }
     if (w.type === "device"){
       const all = [...(ch.sensors||[]).map(x=>({...x, d:x.kind})), ...(ch.locks||[]).map(x=>({...x, d:"lock"})), ...(ch.covers||[]).map(x=>({...x, d:"cover"}))];
+      if (w.entity && !all.some(x => x.id === w.entity)) all.unshift({id: w.entity, name: nameOf(w.entity), d: /motion|occupancy|presence/.test(w.entity) ? "motion" : "door"});
       const cur = all.find(x => x.id === w.entity) || all[0];
       if (cur && !w.entity) w.entity = cur.id;
       const tos = !cur ? [] : cur.d === "lock" ? [["unlocked","is unlocked"],["locked","is locked"]] : cur.d === "cover" ? [["open","opens"],["closed","closes"]]
         : cur.d === "motion" ? [["on","detects motion"],["off","goes quiet"]] : cur.d === "leak" ? [["on","detects water"]] : [["on","opens"],["off","closes"]];
       if (!tos.some(t => t[0] === w.to)) w.to = tos.length ? tos[0][0] : "on";
       return all.length ? `<div class="rb-row"><select data-w="entity">${all.map(x => `<option value="${esc(x.id)}" ${x.id === w.entity ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
-        <select data-w="to">${tos.map(([v,t]) => `<option value="${v}" ${w.to === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : `<div class="hint">No doors or sensors found in Home Assistant.</div>`;
+        <select data-w="to">${tos.map(([v,t]) => `<option value="${v}" ${w.to === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
+        + (w.to === "off" || w.to === "closed" ? `<div class="rb-row"><span>for</span><input type="number" min="0" max="240" data-w="for" value="${esc(w.for || 0)}" style="width:80px"><span>minutes (0 = right away)</span></div>` : "")
+        : `<div class="hint">No doors or sensors found in Home Assistant.</div>`;
     }
     if (w.type === "arrive" || w.type === "leave"){
       const ppl = ch.people || [];
@@ -382,11 +396,18 @@
       body += `<div class="names">${a.entities.length ? esc(a.entities.map(nameOf).join(", ")) : "Tap Pick to choose"}</div>
         <details ${a.entities.length ? "" : "open"}><summary style="font-size:13px; cursor:pointer">Pick</summary>${checklist(lists.map(([t, it]) => [t, it || []]), a.entities)}</details>`;
     }
-    if (a.type === "dim") body += `<div class="rb-row"><input type="number" min="1" max="100" data-a="pct" value="${esc(a.pct || 50)}" style="width:90px"> %</div>`;
+    if (a.type === "dim") body += `<div class="rb-row"><input type="number" min="1" max="100" data-a="pct" value="${esc(a.pct || 50)}" style="width:90px"> %
+      <select data-a="white">${[["","as they are"],["warm","warm white"],["cool","cool white"]].map(([v,t]) => `<option value="${v}" ${(a.white || "") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>`;
     if (a.type === "thermostat") body += `<div class="rb-row"><select data-a="mode">${[["heat","Heat"],["cool","Cool"],["heat_cool","Heat/Cool"],["auto","Auto"],["off","Off"]].map(([v,t]) => `<option value="${v}" ${a.mode === v ? "selected" : ""}>${t}</option>`).join("")}</select>
       ${a.mode === "heat" || a.mode === "cool" || !a.mode ? `<input type="number" min="45" max="95" data-a="temp" value="${esc(a.temp || 68)}" style="width:90px"> °` : ""}</div>`;
     if (a.type === "notify" || a.type === "say") body += `<div class="rb-row"><input type="text" data-a="message" maxlength="200" placeholder="${a.type === "say" ? "e.g. Time to take the dogs out" : "e.g. The garage door opened"}" value="${esc(a.message || "")}"></div>`;
     return `<div class="rb-act" data-i="${i}"><div class="hd"><span>${esc(label)}</span><button data-rm="${i}" aria-label="Remove">✕</button></div>${body}</div>`;
+  }
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function mdUI(k){
+    const v = (spec.dates && spec.dates[k]) || (k === "from" ? "11-27" : "01-06"), m = +v.slice(0, 2), d = +v.slice(3, 5);
+    return `<select data-md="${k}" data-part="m">${MONTHS.map((t, i) => `<option value="${i + 1}" ${m === i + 1 ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <input type="number" min="1" max="31" data-md="${k}" data-part="d" value="${d}" style="width:64px">`;
   }
   function toSpec(){            // builder state -> what the server expects
     const s = JSON.parse(JSON.stringify(spec)), w = s.when;
@@ -396,14 +417,18 @@
   function summaryText(){
     const w = spec.when, nm = nameOf;
     let t = w.type === "time" ? `At ${w.at || "?"}` : (w.type === "sunset" || w.type === "sunrise") ? (+(w.offset||0) ? `${Math.abs(w.offset)} min ${w.offset < 0 ? "before" : "after"} ${w.type}` : `At ${w.type}`)
-      : w.type === "device" ? `When ${nm(w.entity)} ${({on:"opens / detects motion", off:"closes / goes quiet", open:"opens", closed:"closes", unlocked:"is unlocked", locked:"is locked"})[w.to] || w.to}`
+      : w.type === "device" ? `When ${nm(w.entity)} ${(/motion|occupancy|presence/.test(w.entity || "") ? {on:"detects motion", off:"goes quiet"} : {on:"opens", off:"closes"})[w.to] || ({open:"opens", closed:"closes", unlocked:"is unlocked", locked:"is locked"})[w.to] || w.to}`
       : w.type === "arrive" ? (w.person ? `When ${nm(w.person)} gets home` : "When the first person gets home")
       : w.type === "leave" ? (w.person ? `When ${nm(w.person)} leaves` : "When everyone has left") : `When the alarm ${({armed_home:"is armed Stay", armed_away:"is armed Away", armed_night:"is armed Night", disarmed:"is disarmed", triggered:"goes off"})[w.to] || "changes"}`;
     const d = spec.days || [];
     if (d.length && d.length < 7) t += d.join() === "mon,tue,wed,thu,fri" ? " on weekdays" : d.join() === "sat,sun" ? " on weekends" : " on " + d.map(x => x[0].toUpperCase() + x.slice(1, 3)).join(", ");
-    if (spec.dark) t += ", only after dark"; if (spec.home) t += ", only if someone's home";
+    if (w.type === "device" && +(w.for || 0) && (w.to === "off" || w.to === "closed")) t += ` for ${w.for} min`;
+    const md = v => { const m = +String(v || "").slice(0, 2), d = +String(v || "").slice(3, 5); return m ? `${MONTHS[m - 1]} ${d}` : "?"; };
+    if (spec.between) t += `, only between ${spec.between.after || "?"} and ${spec.between.before || "?"}`;
+    if (spec.dates) t += `, ${spec.dates_except ? "except" : "only"} ${md(spec.dates.from)} to ${md(spec.dates.to)}`;
+    if (spec.dark) t += ", only after dark"; if (spec.home) t += ", only if someone's home"; if (spec.ifoff) t += ", only if those lights are off";
     const acts = spec.do.map(a => { const l = (a.entities || []).map(nm).join(", ") || "…";
-      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
+      return ({on:`turn on ${l}`, off:`turn off ${l}`, dim:`set ${l} to ${a.pct || 50}%${a.white ? " " + a.white + " white" : ""}`, thermostat:`set ${l} to ${a.mode === "off" ? "off" : (a.mode || "heat").replace("_","/") + (a.mode === "heat" || a.mode === "cool" || !a.mode ? " " + (a.temp || 68) + "°" : "")}`,
         lock:`lock ${l}`, close:`close ${l}`, notify:`send our phones "${a.message || "…"}"`, say:`say on the wall "${a.message || "…"}"`})[a.type]; });
     return t + " → " + (acts.length ? acts.join("; ") : "add something to do");
   }
@@ -416,7 +441,12 @@
         <div class="rb-chips" style="margin-top:6px"><button data-days="all">Every day</button><button data-days="wk">Weekdays</button><button data-days="we">Weekends</button></div></div>
       <div class="rb-step"><div class="rb-lab">3 · Only if (optional)</div>
         <label class="rb-chk"><input type="checkbox" data-flag="dark" ${spec.dark ? "checked" : ""}> It's dark out</label>
-        <label class="rb-chk"><input type="checkbox" data-flag="home" ${spec.home ? "checked" : ""}> Someone's home</label></div>
+        <label class="rb-chk"><input type="checkbox" data-flag="home" ${spec.home ? "checked" : ""}> Someone's home</label>
+        <label class="rb-chk"><input type="checkbox" data-opt="between" ${spec.between ? "checked" : ""}> Between certain times</label>
+        ${spec.between ? `<div class="rb-row"><input type="time" data-b="after" value="${esc(spec.between.after || "20:00")}"><span>and</span><input type="time" data-b="before" value="${esc(spec.between.before || "08:00")}"></div>` : ""}
+        <label class="rb-chk"><input type="checkbox" data-opt="dates" ${spec.dates ? "checked" : ""}> Certain dates of the year (holidays)</label>
+        ${spec.dates ? `<div class="rb-row"><select data-dx>${[["only","Only"],["except","Except"]].map(([v,t]) => `<option value="${v}" ${(spec.dates_except ? "except" : "only") === v ? "selected" : ""}>${t}</option>`).join("")}</select>${mdUI("from")}<span>to</span>${mdUI("to")}</div>` : ""}
+        <label class="rb-chk"><input type="checkbox" data-flag="ifoff" ${spec.ifoff ? "checked" : ""}> The lights it turns on are off (don't change them if someone set them)</label></div>
       <div class="rb-step"><div class="rb-lab">4 · Then do this</div>${spec.do.map(actUI).join("")}
         <div class="rb-chips" style="margin-top:8px">${DO.map(([k,t]) => `<button data-add="${k}">＋ ${t}</button>`).join("")}</div></div>
       <div class="rb-step"><div class="rb-lab">Name (optional)</div><input type="text" data-name maxlength="80" placeholder="e.g. Porch light when we get home" value="${esc(spec.name || "")}"></div>
@@ -426,10 +456,19 @@
     const $$ = q => sh.querySelectorAll(q), sum = () => { sh.querySelector("#rb-sum").textContent = summaryText(); };
     $$("[data-x]").forEach(b => b.onclick = closeBuilder);
     $$("[data-when]").forEach(b => b.onclick = () => { const k = b.dataset.when; spec.when = k === "time" ? {type:"time", at:"18:00"} : {type:k, offset:0}; draw(); });
-    $$("[data-w]").forEach(el => el.onchange = el.oninput = () => { spec.when[el.dataset.w] = el.dataset.w === "offset" ? +el.value : el.value; if (el.dataset.w === "entity"){ spec.when.to = null; draw(); } else sum(); });
+    $$("[data-w]").forEach(el => el.onchange = el.oninput = () => { spec.when[el.dataset.w] = (el.dataset.w === "offset" || el.dataset.w === "for") ? +el.value : el.value; if (el.dataset.w === "entity" || (el.dataset.w === "to" && el.tagName === "SELECT")){ if (el.dataset.w === "entity") spec.when.to = null; draw(); } else sum(); });
     $$("[data-day]").forEach(b => b.onclick = () => { const k = b.dataset.day; spec.days = spec.days.includes(k) ? spec.days.filter(x => x !== k) : DAYS.map(d => d[0]).filter(d => d === k || spec.days.includes(d)); draw(); });
     $$("[data-days]").forEach(b => b.onclick = () => { spec.days = {all:DAYS.map(d=>d[0]), wk:["mon","tue","wed","thu","fri"], we:["sat","sun"]}[b.dataset.days]; draw(); });
     $$("[data-flag]").forEach(el => el.onchange = () => { spec[el.dataset.flag] = el.checked; sum(); });
+    $$("[data-opt]").forEach(el => el.onchange = () => { const k = el.dataset.opt;
+      if (!el.checked){ delete spec[k]; if (k === "dates") delete spec.dates_except; }
+      else spec[k] = k === "between" ? {after:"20:00", before:"08:00"} : {from:"11-27", to:"01-06"};
+      draw(); });
+    $$("[data-b]").forEach(el => el.onchange = el.oninput = () => { spec.between[el.dataset.b] = el.value; sum(); });
+    $$("[data-dx]").forEach(el => el.onchange = () => { spec.dates_except = el.value === "except"; sum(); });
+    $$("[data-md]").forEach(el => el.onchange = el.oninput = () => { const k = el.dataset.md, row = el.parentNode;
+      const m = +row.querySelector(`[data-md="${k}"][data-part="m"]`).value, d = Math.max(1, Math.min(31, +row.querySelector(`[data-md="${k}"][data-part="d"]`).value || 1));
+      spec.dates[k] = String(m).padStart(2, "0") + "-" + String(d).padStart(2, "0"); sum(); });
     $$("[data-add]").forEach(b => b.onclick = () => { spec.do.push({type:b.dataset.add, entities:[], mode:"heat", temp:68, pct:50}); draw(); });
     $$("[data-rm]").forEach(b => b.onclick = () => { spec.do.splice(+b.dataset.rm, 1); draw(); });
     $$(".rb-act").forEach(box => { const a = spec.do[+box.dataset.i];

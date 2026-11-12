@@ -205,7 +205,11 @@ def list_all() -> dict:
     names = {s["entity_id"]: (s.get("attributes") or {}).get("friendly_name") or s["entity_id"] for s in states}
     autos = [s for s in states if s["entity_id"].startswith("automation.")]
     used, groups = set(), []
+    conv = set(_converted())
     for g in GROUPS:
+        if g["key"] in conv:                       # rebuilt as "Your routines"; packaged versions are off
+            used.update(s["entity_id"] for s in autos if re.search(g["auto"], str((s.get("attributes") or {}).get("id") or "")))
+            continue
         items = []
         for s in autos:
             a = s.get("attributes") or {}
@@ -330,9 +334,11 @@ def _when_text(w: dict, names: dict) -> str:
         return (f"{abs(off)} min {'before' if off < 0 else 'after'} {when}" if off else f"At {when}").capitalize()
     if t == "device":
         to = w.get("to")
-        verb = {"on": "opens / detects motion", "off": "closes / goes quiet", "open": "opens", "closed": "closes",
-                "unlocked": "is unlocked", "locked": "is locked"}.get(to, to)
-        return f"When {n(w.get('entity'))} {verb}"
+        motion = bool(re.search(r"motion|occupancy|presence", str(w.get("entity") or "")))
+        verb = {"on": "detects motion" if motion else "opens", "off": "goes quiet" if motion else "closes", "open": "opens",
+                "closed": "closes", "unlocked": "is unlocked", "locked": "is locked"}.get(to, to)
+        mins = int(w.get("for") or 0)
+        return f"When {n(w.get('entity'))} {verb}" + (f" for {mins} min" if mins and to in ("off", "closed") else "")
     if t == "arrive":
         return "When the first person gets home" if not w.get("person") else f"When {n(w.get('person'))} gets home"
     if t == "leave":
@@ -347,8 +353,9 @@ def _when_text(w: dict, names: dict) -> str:
 def _do_text(a: dict, names: dict) -> str:
     t = a.get("type")
     lst = ", ".join(names.get(e, e) for e in (a.get("entities") or [])) or "nothing picked"
+    white = {"warm": " warm white", "cool": " cool white"}.get(a.get("white") or "", "")
     return {"on": f"turn on {lst}", "off": f"turn off {lst}",
-            "dim": f"set {lst} to {a.get('pct', 50)}%",
+            "dim": f"set {lst} to {a.get('pct', 50)}%{white}",
             "thermostat": f"set {lst} to {('off' if a.get('mode') == 'off' else str(a.get('mode') or 'heat').replace('_', '/') + ' ' + str(a.get('temp') or '') + '°')}",
             "lock": f"lock {lst}", "close": f"close {lst}",
             "notify": f"send phones \"{a.get('message', '')}\"", "say": f"say on the wall \"{a.get('message', '')}\""}.get(t, t or "")
@@ -360,12 +367,42 @@ def summary(spec: dict, names: dict | None = None) -> str:
     days = spec.get("days") or []
     if days and len(days) < 7:
         s += (" on weekdays" if days == DAYS[:5] else " on weekends" if days == DAYS[5:] else " on " + ", ".join(_DAYNAME.get(d, d) for d in days))
+    if spec.get("between"):
+        b = spec["between"]
+        s += f", only between {_nice_time(b.get('after') or '')} and {_nice_time(b.get('before') or '')}"
+    if spec.get("dates"):
+        dr = spec["dates"]
+        s += f", {'except' if spec.get('dates_except') else 'only'} {_nice_md(dr.get('from'))} to {_nice_md(dr.get('to'))}"
     if spec.get("dark"):
         s += ", only after dark"
     if spec.get("home"):
         s += ", only if someone's home"
+    if spec.get("ifoff"):
+        s += ", only if those lights are off"
     acts = [_do_text(a, names) for a in (spec.get("do") or [])]
     return s + ": " + ("; ".join(acts) if acts else "nothing yet") + "."
+
+
+def _nice_md(md) -> str:
+    try:
+        return datetime.date(2000, int(str(md)[:2]), int(str(md)[3:5])).strftime("%b %-d")
+    except (ValueError, TypeError):
+        return str(md)
+
+
+def _md(v) -> str:
+    v = str(v or "")
+    if not re.fullmatch(r"\d{2}-\d{2}", v):
+        raise ValueError("Pick both dates")
+    datetime.date(2000, int(v[:2]), int(v[3:]))          # raises on Feb 31 etc.
+    return v
+
+
+def _hm(v, what) -> str:
+    v = str(v or "")
+    if not re.fullmatch(r"\d{1,2}:\d{2}", v) or int(v.split(":")[0]) > 23 or int(v.split(":")[1]) > 59:
+        raise ValueError(f"Pick the {what} time")
+    return v.zfill(5) + ":00"
 
 
 def _notify_services() -> list:
@@ -397,6 +434,9 @@ def build(spec: dict) -> dict:
         if not _ID.match(e) or e.split(".")[0] not in ("binary_sensor", "cover", "lock", "light", "switch", "media_player"):
             raise ValueError("Pick the door, sensor or device")
         trig = {"trigger": "state", "entity_id": e, "to": str(w.get("to") or "on")}
+        mins = max(0, min(240, int(w.get("for") or 0)))
+        if mins and trig["to"] in ("off", "closed"):
+            trig["for"] = {"minutes": mins}
     elif t in ("arrive", "leave"):
         p = str(w.get("person") or "")
         if p:
@@ -420,6 +460,14 @@ def build(spec: dict) -> dict:
     days = [d for d in (spec.get("days") or []) if d in DAYS]
     if days and len(days) < 7:
         conds.append({"condition": "time", "weekday": days})
+    if spec.get("between"):
+        b = spec["between"]
+        conds.append({"condition": "time", "after": _hm(b.get("after"), "start"), "before": _hm(b.get("before"), "end")})
+    if spec.get("dates"):
+        a, b = _md(spec["dates"].get("from")), _md(spec["dates"].get("to"))
+        expr = f"(('{a}' <= md <= '{b}') if '{a}' <= '{b}' else (md >= '{a}' or md <= '{b}'))"   # wraps past New Year
+        conds.append({"condition": "template", "value_template":
+                      "{% set md = now().strftime('%m-%d') %}{{ " + ("not " if spec.get("dates_except") else "") + expr + " }}"})
     if spec.get("dark"):
         conds.append({"condition": "state", "entity_id": "sun.sun", "state": "below_horizon"})
     if spec.get("home"):
@@ -435,8 +483,10 @@ def build(spec: dict) -> dict:
         elif k == "dim":
             ids = _ids(a.get("entities"), "light")
             if ids:
-                acts.append({"action": "light.turn_on", "target": {"entity_id": ids},
-                             "data": {"brightness_pct": max(1, min(100, int(float(a.get("pct") or 50))))}})
+                data = {"brightness_pct": max(1, min(100, int(float(a.get("pct") or 50))))}
+                if a.get("white") in ("warm", "cool"):
+                    data["color_temp_kelvin"] = 2700 if a["white"] == "warm" else 5000
+                acts.append({"action": "light.turn_on", "target": {"entity_id": ids}, "data": data})
         elif k == "thermostat":
             ids = _ids(a.get("entities"), "climate")
             mode = a.get("mode") or "heat"
@@ -466,12 +516,136 @@ def build(spec: dict) -> dict:
                 acts.append({"event": "familyhub", "event_data": {"kind": "say", "message": msg}})
     if not acts:
         raise ValueError("Add at least one thing for it to do")
+    if spec.get("ifoff"):           # "only if those lights are off" — the lights the routine turns on / dims
+        offs = []
+        for a in spec.get("do") or []:
+            if a.get("type") in ("on", "dim"):
+                offs += _ids(a.get("entities"), "light", "switch")
+        if offs:
+            conds.append({"condition": "state", "entity_id": list(dict.fromkeys(offs)), "state": "off"})
     name = str(spec.get("name") or "").strip()[:80] or summary(spec).split(":")[0]
     return {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":")),
             "mode": "single", "triggers": [trig], "conditions": conds, "actions": acts}
 
 
 _MINE: dict[str, dict] = {}      # demo mode store
+
+
+def _converted() -> list:
+    from ..db import get_db
+    try:
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='routines_converted'").fetchone()
+            return json.loads(row["value"]) if row else []
+    except Exception:
+        return []
+
+
+def convert_to_routines(keys=("outdoor", "kitchen")) -> dict:
+    """Rebuild the packaged outdoor + kitchen schedules as ordinary FamilyHub routines (same times, the lights
+    the cards hold — stale names swapped for the device they meant), then switch the packaged versions off and
+    hide their cards. Thermostats stay packaged (peak hours need save/restore)."""
+    states = _states()
+    names = {s["entity_id"]: (s.get("attributes") or {}).get("friendly_name") or s["entity_id"] for s in states}
+    st = {s["entity_id"]: s.get("state") for s in states}
+
+    def lst(helper, guess_re=None):
+        ids = [x.strip() for x in str(st.get(helper) or "").split(",") if x.strip() and x.strip() not in ("unknown", "unavailable")]
+        ids = [i if i in names else (_guess(i, names) or i) for i in ids]
+        ids = [i for i in ids if i in names]
+        if not ids and guess_re:
+            ids = [e for e in names if e.split(".")[0] in ("light", "switch") and re.search(guess_re, names[e], re.I)]
+        return list(dict.fromkeys(ids))
+
+    def hm(helper, default):
+        v = str(st.get(helper) or "")[:5]
+        return v if re.fullmatch(r"\d{2}:\d{2}", v) else default
+
+    def num(helper, default):
+        try:
+            return int(float(st.get(helper)))
+        except (TypeError, ValueError):
+            return default
+
+    every = [d for d in DAYS]
+    R = []
+    if "outdoor" in keys:
+        night = lst("input_text.fh_outdoor_night_lights", r"front porch|driveway|side door")
+        plug = lst("input_text.fh_outdoor_holiday_lights", r"exterior lights")
+        windows = lst("input_text.fh_outdoor_window_lights")
+        xs = str(st.get("input_datetime.fh_outdoor_xmas_start") or "")
+        xmas_from = xs[5:10] if re.fullmatch(r"\d{4}-(11|12)-\d{2}.*", xs) else "11-27"
+        last = f"01-{num('input_number.fh_outdoor_xmas_last_day', 6):02d}"
+        hol_from = "10-01" if st.get("input_boolean.fh_outdoor_halloween") != "off" else xmas_from
+        switch_at, win_off = hm("input_datetime.fh_outdoor_switchover", "23:50"), hm("input_datetime.fh_outdoor_windows_off", "22:30")
+        hol = {"from": hol_from, "to": last}
+        R += [
+            {"name": "Holiday lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0}, "dates": hol,
+             "do": [{"type": "on", "entities": plug}]},
+            {"name": "Holiday lights off, front lights on", "when": {"type": "time", "at": switch_at}, "dates": hol,
+             "do": [{"type": "off", "entities": plug}, {"type": "on", "entities": night}]},
+            {"name": "Front lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0}, "dates": hol, "dates_except": True,
+             "do": [{"type": "on", "entities": night}]},
+            {"name": "Outside lights off at sunrise", "when": {"type": "sun", "event": "sunrise", "offset": 0},
+             "do": [{"type": "off", "entities": list(dict.fromkeys(night + plug))}]},
+            {"name": "Christmas window lights on at sunset", "when": {"type": "sun", "event": "sunset", "offset": 0},
+             "dates": {"from": xmas_from, "to": last}, "do": [{"type": "on", "entities": windows}]},
+            {"name": "Christmas window lights off", "when": {"type": "time", "at": win_off},
+             "dates": {"from": xmas_from, "to": last}, "do": [{"type": "off", "entities": windows}]},
+        ]
+    if "kitchen" in keys:
+        up, low = lst("input_text.fh_kitchen_upper_lights", r"upper"), lst("input_text.fh_kitchen_lower_lights", r"lower")
+        patio = lst("input_text.fh_kitchen_patio_lights", r"patio")
+        motion = "binary_sensor.kitchen_motion" if "binary_sensor.kitchen_motion" in names else \
+            next((e for e in names if e.startswith("binary_sensor.") and re.search(r"motion", e) and re.search(r"kitchen|motion_sensor", e)), "binary_sensor.kitchen_motion")
+        quiet = num("input_number.fh_kitchen_quiet_minutes", 10)
+        mb = num("input_number.fh_kitchen_motion_bright", 20)
+        until = hm("input_datetime.fh_kitchen_motion_until", "08:00")
+        low_from, up_from = hm("input_datetime.fh_kitchen_lower_motion_from", "20:00"), hm("input_datetime.fh_kitchen_upper_motion_from", "00:00")
+        R += [
+            {"name": "Kitchen evening lights", "when": {"type": "time", "at": hm("input_datetime.fh_kitchen_evening_on", "20:00")},
+             "do": [{"type": "dim", "entities": up, "pct": num("input_number.fh_kitchen_evening_bright", 10), "white": "warm"},
+                    {"type": "dim", "entities": patio, "pct": 100, "white": "cool"}]},
+            {"name": "Patio off", "when": {"type": "time", "at": hm("input_datetime.fh_kitchen_patio_off", "21:45")},
+             "do": [{"type": "off", "entities": patio}]},
+            {"name": "Kitchen uppers off", "when": {"type": "time", "at": hm("input_datetime.fh_kitchen_uppers_off", "00:00")},
+             "do": [{"type": "off", "entities": up}]},
+            {"name": "Kitchen lights off in the morning", "when": {"type": "time", "at": hm("input_datetime.fh_kitchen_morning_off", "08:10")},
+             "do": [{"type": "off", "entities": list(dict.fromkeys(up + low))}]},
+            {"name": "Kitchen night-light (lowers) on motion", "when": {"type": "device", "entity": motion, "to": "on"},
+             "between": {"after": low_from, "before": until}, "ifoff": True,
+             "do": [{"type": "dim", "entities": low, "pct": mb, "white": "warm"}]},
+            {"name": "Kitchen night-light (lowers) off when quiet", "when": {"type": "device", "entity": motion, "to": "off", "for": quiet},
+             "between": {"after": low_from, "before": until}, "do": [{"type": "off", "entities": low}]},
+            {"name": "Kitchen night-light (uppers) on motion", "when": {"type": "device", "entity": motion, "to": "on"},
+             "between": {"after": up_from, "before": until}, "ifoff": True,
+             "do": [{"type": "dim", "entities": up, "pct": mb, "white": "warm"}]},
+            {"name": "Kitchen night-light (uppers) off when quiet", "when": {"type": "device", "entity": motion, "to": "off", "for": quiet},
+             "between": {"after": up_from, "before": until}, "do": [{"type": "off", "entities": up}]},
+        ]
+    made, skipped = [], []
+    for i, spec in enumerate(R):
+        spec.setdefault("days", every)
+        spec["do"] = [a for a in spec["do"] if a.get("entities")]
+        if not spec["do"]:
+            skipped.append(spec["name"])
+            continue
+        rid = f"fhu_{int(time.time() * 1000):x}{i:02d}"
+        r = save_routine(spec, rid)
+        (made if r.get("ok") else skipped).append(spec["name"] if r.get("ok") else f"{spec['name']} ({r.get('reason')})")
+        if not r.get("ok") and "admin" in str(r.get("reason", "")):
+            return {"ok": False, "reason": r["reason"], "made": made}
+    # packaged versions off (they'd double up) and their cards hidden
+    pats = [g["auto"] for g in GROUPS if g["key"] in keys]
+    for s in states:
+        yid = str((s.get("attributes") or {}).get("id") or "")
+        if s["entity_id"].startswith("automation.") and any(re.search(p, yid) for p in pats) and not yid.endswith("_defaults"):
+            set_automation(s["entity_id"], False)
+    from ..db import get_db
+    with get_db() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('routines_converted', ?)",
+                     (json.dumps(sorted(set(_converted()) | set(keys))),))
+    return {"ok": True, "made": made, "skipped": skipped}
 
 
 def get_routine(rid: str) -> dict:

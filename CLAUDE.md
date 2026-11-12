@@ -106,6 +106,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   "Your routines" = builder (`automations.build(spec)`) -> HA `/api/config/automation/config/fhu_*` (needs an admin
   token); spec JSON lives in the automation description so it can be re-edited. Builder never unlocks/disarms.
   "Say on the wall" = HA event `familyhub` {kind:say} that `ha_live` turns into an announcement. UI: `static/automations.js`.
+  Builder spec extras: `when.for` (minutes, quiet/closed triggers), `between` {after,before}, `dates` {from,to MM-DD, wraps
+  New Year} + `dates_except`, `ifoff` (only if the lights it turns on are off), dim `white` warm|cool. "Turn these into my
+  own routines" (`POST /api/ha/automations/convert {keys}`) rebuilds the outdoor/kitchen packages as fhu_* routines from the
+  current helper values (stale ids fixed via `_guess`), switches the packaged automations off and hides those cards
+  (settings key `routines_converted`). Thermostats stay packaged (peak save/restore).
 - `/api/summary` — flat JSON of the family's day for HA REST sensors (docs §J)
 - Spotify on the wall (official device): `services/spotify_web.py` + `routers/spotify.py`
   (`/api/spotify/status|login|callback|code|token|device|devices|state|playlists|cmd`). The

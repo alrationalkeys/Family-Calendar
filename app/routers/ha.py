@@ -243,6 +243,14 @@ def routine_delete(rid: str):
     return automations.delete_routine(rid)
 
 
+@router.post("/automations/convert")
+def automations_convert(payload: dict):
+    """Rebuild the packaged outdoor / kitchen schedules as editable 'Your routines' (packaged ones switched off)."""
+    from ..services import automations
+    keys = [k for k in ((payload or {}).get("keys") or ["outdoor", "kitchen"]) if k in ("outdoor", "kitchen")]
+    return automations.convert_to_routines(tuple(keys)) if keys else {"ok": False, "reason": "nothing to convert"}
+
+
 @router.post("/automations/setting")
 def automations_setting(payload: dict):
     from ..services import automations

@@ -154,7 +154,25 @@ def _setting(s: dict, names: dict) -> dict:
     elif d == "input_text":
         ids = [x.strip() for x in str(s.get("state") or "").split(",") if x.strip() and x.strip() not in ("unknown", "unavailable")]
         out.update(kind="lights", value=ids, labels=[names.get(i, i) for i in ids])
+        fixes = {i: _guess(i, names) for i in ids if i not in names}
+        fixes = {k: v for k, v in fixes.items() if v}
+        if fixes:       # e.g. switch.exterior_lights_smart_plug is really light.exterior_lights_smart_plug
+            out["fixes"] = [{"from": k, "to": v, "name": names[v]} for k, v in fixes.items()]
     return out
+
+
+def _guess(missing: str, names: dict):
+    """The device a stale id most likely meant: same object id in the other domain, a _2-style rename, or the
+    same words in the name. Only lights/switches, and only when there's exactly one candidate."""
+    obj = missing.split(".", 1)[-1]
+    pool = [e for e in names if e.split(".")[0] in ("light", "switch")]
+    for test in (lambda e: e.split(".", 1)[1] == obj,
+                 lambda e: re.fullmatch(re.escape(obj) + r"_\d+", e.split(".", 1)[1]) is not None,
+                 lambda e: re.sub(r"[^a-z0-9]+", "_", str(names[e]).lower()).strip("_") == obj):
+        hits = [e for e in pool if test(e)]
+        if len(hits) == 1:
+            return hits[0]
+    return None
 
 
 def _choices(states: list) -> dict:

@@ -145,7 +145,8 @@
     const s = H[eid]; if (!s) return "";
     const ids = s.value || [], names = s.labels || [];
     const shown = ids.length ? ids.map((x, i) => names[i] && names[i] !== x ? esc(names[i]) : `<span class="miss">⚠ ${esc(x)} (not found, pick again)</span>`).join(", ") : `<span class="miss">None picked yet: tap Change</span>`;
-    return `<div class="au-pick" data-pick="${esc(eid)}"><div class="top"><label>${esc(label)}</label><button class="chg">Change</button></div><div class="names">${shown}</div></div>`;
+    const fix = (s.fixes || []).length ? `<button class="au-new au-fix" style="margin-top:8px">Fix it: use ${esc(s.fixes.map(f => f.name).join(", "))}</button>` : "";
+    return `<div class="au-pick" data-pick="${esc(eid)}"><div class="top"><label>${esc(label)}</label><button class="chg">Change</button></div><div class="names">${shown}</div>${fix}</div>`;
   }
   const card = (title, right, body) => `<div class="au-card"><div class="au-ch"><b>${title}</b>${right || ""}</div>${body}</div>`;
   const line = (inner, cls) => `<div class="au-line ${cls || ""}">${inner}</div>`;
@@ -292,6 +293,14 @@
     box.querySelectorAll("[data-pick]").forEach(p => {
       const s = data.groups.flatMap(g => g.settings).find(x => x.entity_id === p.dataset.pick);
       const btn = p.querySelector(".chg");
+      const fx = p.querySelector(".au-fix");
+      if (fx) fx.onclick = async () => {                       // swap each stale id for the device it meant
+        const map = Object.fromEntries((s.fixes || []).map(f => [f.from, f.to]));
+        const ids = (s.value || []).map(x => map[x] || x);
+        fx.disabled = true; fx.textContent = "…";
+        const r = await post("/api/ha/automations/setting", {entity_id: s.entity_id, value: ids});
+        say(r.ok ? "Fixed" : (r.reason || "Couldn’t save")); load(box, toast);
+      };
       btn.onclick = async () => {
         const open = p.querySelector(".au-list");
         if (!open){ p.insertAdjacentHTML("beforeend", checklist([["Lights", ch.lights || []], ["Plugs & switches", ch.switches || []]], s.value || [])); btn.textContent = "Done"; return; }

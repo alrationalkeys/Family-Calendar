@@ -300,6 +300,8 @@ _BORING_WORDS = ("active_app", "supports_", "headphones_connected", "_app_id", "
 
 
 def _boring(eid: str, domain: str, attrs: dict, state: str = "") -> bool:
+    if domain == "script" and eid.startswith("script.fh_"):      # FamilyHub's own helper scripts
+        return True
     if domain not in ("sensor", "binary_sensor"):
         return False
     if eid.startswith(_BORING_PREFIX) or any(w in eid for w in _BORING_WORDS):

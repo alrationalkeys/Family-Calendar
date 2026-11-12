@@ -220,6 +220,17 @@ def _weekly_tick(s: dict, now: datetime):
     _push(" ".join(parts), "familyhub-week")
 
 
+def _rain_openings() -> list:
+    """Things rain would get into: an open garage door (cover) or an open window."""
+    try:
+        tiles = [t for g in ha_svc.get_home().get("groups", []) for t in g.get("tiles", [])]
+    except Exception:
+        return []
+    out = [t["name"] for t in tiles if t["domain"] == "cover" and t["state"] in ("open", "opening")]
+    out += [t["name"] for t in tiles if t["domain"] == "binary_sensor" and t.get("device_class") == "window" and t.get("on")]
+    return out
+
+
 # ---------------------------------------------------------------- loop
 def _loop():
     time.sleep(30)
@@ -230,6 +241,9 @@ def _loop():
                 _peak_tick(s)
                 _night_tick(s, now)
                 _weekly_tick(s, now)
+                from . import wx_alerts
+                wx_alerts.tick(_push, s)
+                wx_alerts.rain_tick(_push, s, _rain_openings)
         except Exception:
             pass
         time.sleep(60 - datetime.now().second % 60 or 60)

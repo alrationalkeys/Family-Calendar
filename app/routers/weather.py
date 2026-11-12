@@ -13,3 +13,10 @@ def weather(lat: float = weather_svc.DEFAULT_LAT, lon: float = weather_svc.DEFAU
 @router.get("/forecast")
 def forecast(lat: float = weather_svc.DEFAULT_LAT, lon: float = weather_svc.DEFAULT_LON, days: int = 7):
     return weather_svc.get_forecast(lat, lon, days)
+
+
+@router.get("/alerts")
+def alerts():
+    """National Weather Service alerts for the house (Moderate and up), with a prep checklist for storms."""
+    from ..services import wx_alerts
+    return {"alerts": wx_alerts.alerts()}

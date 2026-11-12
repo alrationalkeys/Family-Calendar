@@ -324,9 +324,43 @@
     return `<div class="fhh"><h4>⚠ Needs attention</h4>${low.map(x=>item("🔋", x.name, x.level!=null?x.level+"% battery":"battery low")).join("")}
       ${off.map(x=>item("📴", x.name, "not responding")).join("")}</div>`;
   }
+  /* Weather alerts (NWS, GET /api/weather/alerts, cached 5 min): a red/amber strip; tap = details + storm checklist. */
+  let _wx={at:0, data:[]};
+  async function wxAlerts(){
+    if(Date.now()-_wx.at<300000) return _wx.data;
+    try{ _wx={at:Date.now(), data:(await fetch("/api/weather/alerts").then(r=>r.json())).alerts||[]}; }catch(e){ _wx.at=Date.now(); }
+    return _wx.data;
+  }
+  function wxCss(){ if(document.getElementById("fhwx-css")) return; const st=document.createElement("style"); st.id="fhwx-css";
+    st.textContent=`.fhwx{display:flex; align-items:center; gap:10px; border-radius:12px; padding:10px 12px; margin:0 0 10px; cursor:pointer; color:#fff; font-size:14.5px; line-height:1.3}
+    .fhwx.big{background:#b3261e} .fhwx.mod{background:#8a5a00} .fhwx b{font-size:15px} .fhwx .go{margin-left:auto; opacity:.8; flex:none}
+    #fhwx-ov{position:fixed; inset:0; z-index:9500; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px}
+    #fhwx-ov .box{background:var(--panel,#1c1c1c); color:var(--ink,#eee); border-radius:18px; max-width:620px; width:100%; max-height:85vh; overflow:auto; padding:18px 18px 14px}
+    #fhwx-ov h3{margin:0 0 4px} #fhwx-ov p{white-space:pre-wrap; font-size:14px; line-height:1.45; color:var(--ink-dim,#bbb)}
+    #fhwx-ov label{display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:15px} #fhwx-ov input{-webkit-appearance:checkbox !important; appearance:auto !important; width:20px !important; height:20px !important; min-width:20px; padding:0 !important; border:0 !important; background:none !important; accent-color:#e9a23b; flex:none; margin:1px 0 0 !important; display:inline-block !important; opacity:1 !important; position:static !important}
+    #fhwx-ov .close{border:0; background:var(--panel2,#333); color:inherit; border-radius:10px; padding:10px 16px; font:inherit; font-weight:700; margin-top:10px; width:100%}`;
+    document.head.appendChild(st); }
+  function wxHTML(list){
+    if(!list||!list.length) return "";
+    wxCss();
+    return list.slice(0,2).map((a,i)=>`<div class="fhwx ${a.big?"big":"mod"}" onclick="FHHome.wxOpen(${i})"><span style="font-size:20px">${a.big?"⚠️":"🌬️"}</span>
+      <span><b>${esc(a.event)}</b><br><span style="opacity:.9">${esc(a.headline).slice(0,140)}</span></span><span class="go">›</span></div>`).join("");
+  }
+  function wxOpen(i){
+    const a=(_wx.data||[])[i]; if(!a) return; wxCss();
+    const key="fhwx-"+a.id; let done={}; try{ done=JSON.parse(localStorage.getItem(key)||"{}"); }catch(e){}
+    const ov=document.createElement("div"); ov.id="fhwx-ov";
+    ov.innerHTML=`<div class="box"><h3>${a.big?"⚠️ ":""}${esc(a.event)}</h3><div style="color:var(--ink-dim,#bbb); font-size:13px">${a.expires?"Until "+esc(new Date(a.expires).toLocaleString([], {weekday:"short", hour:"numeric", minute:"2-digit"})):""}</div>
+      ${a.checklist&&a.checklist.length?`<h4 style="margin:14px 0 4px">Get ready</h4>${a.checklist.map((c,j)=>`<label><input type="checkbox" data-j="${j}" ${done[j]?"checked":""}>${esc(c)}</label>`).join("")}`:""}
+      ${a.instruction?`<h4 style="margin:14px 0 0">What to do</h4><p>${esc(a.instruction)}</p>`:""}<h4 style="margin:14px 0 0">Details</h4><p>${esc(a.description)}</p>
+      <button class="close">Close</button></div>`;
+    ov.onclick=e=>{ if(e.target===ov||e.target.classList.contains("close")) ov.remove(); };
+    ov.querySelectorAll("input[data-j]").forEach(c=>c.onchange=()=>{ done[c.dataset.j]=c.checked; try{ localStorage.setItem(key, JSON.stringify(done)); }catch(e){} });
+    document.body.appendChild(ov);
+  }
   window.FHHome = {
     lightPanelHTML, bindLightPanel, SWATCHES,
-    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc, health, healthHTML,
+    DEFAULT_LAYOUT, DEFAULT_PLAN, HA_ICON, haIcon, haStateLabel, esc, health, healthHTML, wxAlerts, wxHTML, wxOpen,
     getLayout, getPlan, roomFor, layoutExtent, isCustomLayout, resolveRooms, tilesOf, floorsIn,
     renderFloorView, renderIsoView,
     get floor(){ return homeFloor; }, set floor(f){ homeFloor=f; },

@@ -3381,5 +3381,16 @@ async function syncSettings(){
   applyPanels(); applySeasonal(); applyHero();
 }
 </script>
+<script>
+/* NWS weather warnings: a strip floating over the top of every page (tap = details + storm checklist) */
+(function(){
+  const el=document.createElement("div"); el.id="wx-wall";
+  el.style.cssText="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:60; width:min(720px,92vw); pointer-events:auto";
+  document.body.appendChild(el);
+  const go=async()=>{ if(!window.FHHome||!FHHome.wxAlerts) return; const a=await FHHome.wxAlerts();
+    el.innerHTML=FHHome.wxHTML((a||[]).filter(x=>x.big).slice(0,1)); };
+  setTimeout(go, 4000); setInterval(go, 300000);
+})();
+</script>
 </body>
 </html>

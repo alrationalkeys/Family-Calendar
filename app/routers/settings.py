@@ -35,7 +35,10 @@ DEFAULTS = {
     "nightCheckTime": "22:30",
     "peakAlerts": True,               # push if heat/AC is still on 3 min into peak hours
     "weeklySummary": True,            # Sunday 6 PM: heat/AC hours, peak use, low batteries
-    "batteryLow": 25,                 # % that counts as a low battery
+    "batteryLow": 25,
+    "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
+    "rainCheck": True,                # push if rain is coming and the garage or a window is open
+    "packageAlerts": True,            # front cameras + AI: push when a package is left (needs ANTHROPIC_API_KEY)                 # % that counts as a low battery
     "welcomeNoCode": False,           # the I'm home BUTTON disarms without asking for the code (voice never disarms)         # Good night / Leaving put the village to sleep for the night
     "spotifyStartVolume": 45,        # % the wall's Spotify player starts at (perceived loudness, like the wall's volume buttons)
     "spotifyPlaylists": [],          # [{name, uri}] pinned on the Home tab's Spotify card

@@ -114,6 +114,12 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
         where = re.sub(r"(doorbell|door bell|button|ring|chime|motion|sensor|camera)", "", name, flags=re.I).strip() or "the door"
         _last.update({"at": now, "kind": kind, "camera": cam, "name": cam_name or name, "where": where, "source": eid})
         threading.Thread(target=_fanout, args=(kind, cam, where), daemon=True).start()
+        try:                                   # 📦 did they leave a package? (front cameras, AI key set)
+            from . import porch
+            if cam and porch.watches(cam, cam_name or name):
+                threading.Thread(target=porch.check, args=(cam, cam_name or name, 45 if kind == "doorbell" else 25), daemon=True).start()
+        except Exception:
+            pass
     except Exception:
         pass
 

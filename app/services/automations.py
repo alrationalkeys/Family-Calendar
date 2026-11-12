@@ -185,6 +185,8 @@ def _choices(states: list) -> dict:
         d, name = eid.split(".")[0], a.get("friendly_name") or eid
         if d == "binary_sensor" and a.get("device_class") not in ("door", "window", "garage_door", "opening", "motion", "occupancy", "presence", "moisture"):
             continue
+        if d in ("alarm_control_panel", "binary_sensor", "switch") and ha_svc.is_blink(eid, a):
+            continue                         # Blink is view-only in FamilyHub
         key = {"light": "lights", "switch": "switches", "cover": "covers", "lock": "locks", "climate": "climates",
                "media_player": "media", "binary_sensor": "sensors", "person": "people", "alarm_control_panel": "alarms"}.get(d)
         if key:
@@ -452,7 +454,8 @@ def build(spec: dict) -> dict:
             raise ValueError("Pick what the alarm does")
         e = str(w.get("entity") or "")
         trig = {"trigger": "state", "entity_id": e, "to": to} if _ID.match(e) and e.startswith("alarm_control_panel.") \
-            else {"trigger": "state", "entity_id": [s["entity_id"] for s in _states() if s["entity_id"].startswith("alarm_control_panel.")] or "alarm_control_panel.none", "to": to}
+            else {"trigger": "state", "entity_id": [s["entity_id"] for s in _states() if s["entity_id"].startswith("alarm_control_panel.")
+                                                    and not ha_svc.is_blink(s["entity_id"], s.get("attributes"))] or "alarm_control_panel.none", "to": to}
     else:
         raise ValueError("Pick when it should happen")
 

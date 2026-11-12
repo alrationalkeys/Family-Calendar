@@ -130,8 +130,9 @@ async def _run_once(ws_url: str, token: str):
                         pass
                     if eid.startswith("alarm_control_panel."):
                         try:
-                            from . import display_svc
-                            display_svc.on_alarm((new or {}).get("state"), ((data.get("old_state") or {}).get("state")))
+                            from . import display_svc, ha_svc
+                            if not ha_svc.is_blink(eid, (new or {}).get("attributes")):     # Blink never drives sleep mode
+                                display_svc.on_alarm((new or {}).get("state"), ((data.get("old_state") or {}).get("state")))
                         except Exception:
                             pass
                 _updated = time.time()

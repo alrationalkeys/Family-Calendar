@@ -178,6 +178,8 @@ def entity_areas(max_age: float = 300.0) -> dict:
                 aid = e.get("area_id") or dev_area.get(e.get("device_id"))
                 if aid and aid in areas:
                     out[e["entity_id"]] = areas[aid]
+                if e.get("platform"):
+                    _PLATFORM[e["entity_id"]] = e["platform"]
             return out
 
     try:
@@ -188,6 +190,18 @@ def entity_areas(max_age: float = 300.0) -> dict:
         pass
     _AREA_CACHE["at"] = _t.time()      # on failure keep the old map and don't retry for a while
     return _AREA_CACHE["map"]
+
+
+_PLATFORM: dict = {}      # entity_id -> integration ("blink", "alarmdotcom", …), filled with the area lookup
+
+
+def is_blink(eid: str, attrs: dict | None = None) -> bool:
+    """Blink cameras are view-only in FamilyHub: no arming, no motion pop-ups, no battery/temperature tiles."""
+    if not _PLATFORM and not demo_mode():
+        entity_areas()
+    a = attrs or {}
+    return (_PLATFORM.get(eid) == "blink" or "blink" in eid.lower()
+            or "blink" in str(a.get("attribution", "")).lower() or str(a.get("friendly_name", "")).lower().startswith("blink "))
 
 
 def _attach_areas(tiles: list) -> list:
@@ -277,6 +291,8 @@ def _states_to_tiles(states) -> list:
             continue          # Spotify gets its own now-playing card, not a TV tile
         if _boring(eid, domain, attrs, s.get("state", "")):
             continue
+        if domain != "camera" and is_blink(eid, attrs):
+            continue          # Blink: just the cameras (no arm/disarm, motion, battery or temperature tiles)
         tiles.append(_tile(eid, s.get("state", ""), attrs))
     return tiles
 

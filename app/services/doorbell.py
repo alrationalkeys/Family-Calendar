@@ -86,6 +86,9 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
             return
         dom = eid.split(".", 1)[0]
         attrs = new.get("attributes") or {}
+        from . import ha_svc
+        if ha_svc.is_blink(eid, attrs):      # Blink is view-only: no pop-ups on motion
+            return
         name = attrs.get("friendly_name", eid)
         ns, os_ = _lc(new.get("state")), _lc((old or {}).get("state"))
         kind = None

@@ -43,7 +43,7 @@
   .au-set > label:not(.au-sw){font-size:13.5px; flex:1}
   .au-set .u{font-size:13px; color:var(--ink-dim); margin-left:-4px}
   .au-note{font-size:12.5px; color:var(--ink-dim); margin-top:8px; line-height:1.4}
-  .au-set input[type=time], .au-set input[type=number], .au-set input[type=date]{width:auto; max-width:120px; margin:0; padding:6px 8px; font:inherit; font-size:14px;
+  .au-set input[type=time], .au-set input[type=number], .au-set input[type=date]{width:auto; max-width:120px; margin:0; padding:6px 8px; font:inherit; font-size:16px;
     background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px}
   .au-sub{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); margin:10px 0 2px; font-weight:700}
   .au-missing{font-size:13px; color:var(--ink-dim); background:var(--panel2); border-radius:10px; padding:8px 10px; margin:4px 0 8px}
@@ -82,7 +82,7 @@
   /* routine builder sheet */
   #au-ov{position:fixed; inset:0; z-index:90; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center}
   #au-ov.on{display:flex}
-  #au-sheet{width:100%; max-width:600px; max-height:92vh; overflow:auto; background:var(--panel); color:var(--ink); border-radius:22px 22px 0 0;
+  #au-sheet{width:100%; max-width:600px; max-height:92vh; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; box-sizing:border-box; background:var(--panel); color:var(--ink); border-radius:22px 22px 0 0;
     padding:16px 16px calc(20px + env(safe-area-inset-bottom)); box-shadow:0 -10px 40px rgba(0,0,0,.4)}
   #au-sheet h3{margin:0 0 4px; font-size:20px; display:flex; justify-content:space-between; align-items:center}
   #au-sheet h3 button{border:0; background:var(--panel2); color:var(--ink); width:38px; height:38px; border-radius:50%; font-size:16px}
@@ -92,9 +92,14 @@
   .rb-chips button{border:0; background:var(--panel2); color:var(--ink); border-radius:999px; padding:9px 13px; font:inherit; font-size:14px; font-weight:600; cursor:pointer}
   .rb-chips button.on{background:var(--now); color:#fff}
   .rb-row{display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap}
-  #au-sheet input[type=text], #au-sheet input[type=time], #au-sheet input[type=number], #au-sheet select{font:inherit; font-size:15px; padding:9px 10px; border-radius:10px;
+  #au-sheet input[type=text], #au-sheet input[type=time], #au-sheet input[type=number], #au-sheet select{font:inherit; font-size:16px; padding:9px 10px; border-radius:10px; min-width:0; box-sizing:border-box;
     border:1px solid var(--line); background:var(--panel2); color:var(--ink); margin:0; max-width:100%}
   #au-sheet input[type=text]{width:100%}
+  /* iPhone: nothing may poke out sideways (long sensor names in pickers), or the sheet pans left/right */
+  #au-sheet *{min-width:0; max-width:100%; box-sizing:border-box}
+  #au-sheet select{text-overflow:ellipsis; overflow:hidden; white-space:nowrap}
+  .rb-row>select{flex:1 1 140px}
+  #au-sheet .names, #au-sheet .rb-sum, #au-sheet label{overflow-wrap:anywhere}
   .rb-chk{display:flex; align-items:center; gap:10px; font-size:14.5px; padding:6px 0}
   .rb-chk input, .au-list input{-webkit-appearance:checkbox !important; appearance:auto !important; width:20px !important; height:20px !important; min-width:20px;
     padding:0 !important; border:0 !important; background:none !important; accent-color:var(--now); margin:0 !important; flex:none; display:inline-block !important; opacity:1 !important; position:static !important}

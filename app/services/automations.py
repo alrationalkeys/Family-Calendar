@@ -257,6 +257,18 @@ def set_automation(entity_id: str, on: bool) -> dict:
 
 
 def set_helper(entity_id: str, value) -> dict:
+    r = _set_helper(entity_id, value)
+    # a thermostat schedule change takes effect now, not at the next day/night switch-over
+    if r.get("ok") and not r.get("demo") and re.match(r"^(input_number|input_datetime)\.sched_|^input_boolean\.sched_enabled$", entity_id):
+        try:
+            if ha_svc._current_state("input_boolean.sched_enabled") == "on" and ha_svc._current_state("input_boolean.peak_active") != "on":
+                ha_svc.call_service("script", "turn_on", "script.fh_thermostat_schedule")
+        except Exception:
+            pass
+    return r
+
+
+def _set_helper(entity_id: str, value) -> dict:
     d = entity_id.split(".")[0]
     if d not in _WRITABLE[1:]:
         return {"ok": False, "reason": "can't change that from here"}

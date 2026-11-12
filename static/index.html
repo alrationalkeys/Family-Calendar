@@ -2606,7 +2606,7 @@ function renderTilesView(body,h){
   if(h.spotify) html += spotifyCardHTML(h.spotify);
   html += villageCardHTML(lastVillage);
 
-  (h.groups||[]).forEach(g=>{
+  (h.groups||[]).filter(g=>g.group!=="Sensors").forEach(g=>{     // door/motion/temp sensors work behind the scenes (status bar, night check, 3D), no tiles
     html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
     g.tiles.forEach(t=>{
       if(t.domain==="camera"){

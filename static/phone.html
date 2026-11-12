@@ -1502,7 +1502,7 @@ function renderHM(h, force){
         html+=`<div class="hm-room${on?' on':''}" data-rn="${E(room.name)}" data-rf="${room.floor||1}" title="Tap for every device in this room">
           ${temp?`<div class="hm-room-t">${E(temp.state)}${E(temp.unit||'°')}</div>`:''}
           <div><div class="hm-room-n"><span class="hm-room-ic">${hmRoomIcon(room)}</span>${E(room.name)}</div><div class="hm-room-s">${on?E(onNames.slice(0,2).join(', ')||'On'):'All off'}</div></div>
-          <div class="hm-room-devs">${devs.filter(d=>d.domain!=="sensor").map(d=>hmDevButton(d,[room.name,room.key,d.area])).join('')}</div>
+          <div class="hm-room-devs">${devs.filter(d=>d.domain!=="sensor"&&d.domain!=="binary_sensor").map(d=>hmDevButton(d,[room.name,room.key,d.area])).join('')}</div>
         </div>`;
       });
       html+='</div>';
@@ -1550,7 +1550,7 @@ function renderHM(h, force){
         html+=`<div class="hm-row"><div class="ric">${/out|porch|patio|walk/i.test(t.name)?'🌿':'🌡'}</div><div class="rt"><b>${E(t.name.replace(/temp(erature)?/i,'').trim())}</b><span>${sub}</span></div><div class="rv">${num(t)?E(t.state)+E(t.unit||'°'):'<small>—</small>'}</div></div>`; });
     }
   } else if(hmView==="all"){
-    (h.groups||[]).forEach(g=>{
+    (h.groups||[]).filter(g=>g.group!=="Sensors").forEach(g=>{
       html+=`<div class="hm-sec">${E(g.group)}</div><div class="tile-grid">`;
       g.tiles.forEach(t=>{
         const scene=t.activatable, ro=!t.toggleable&&!t.activatable, un=t.state==="unavailable";

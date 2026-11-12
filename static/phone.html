@@ -1112,11 +1112,24 @@ function switchView(v){
   if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); if(window.FHAutomations) FHAutomations.load($("#au-box"), toast); }
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
-  if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 8000); }
+  if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 30000); hmLive(true); } else hmLive(false);
   if(!document.body.classList.contains("embed")) try{ localStorage.setItem("fh_view", v); }catch(e){}
 }
 
 /* ===================== Home tab: the house in your pocket ===================== */
+/* live: the server's SSE stream bumps a version on every HA state change -> reload right away
+   (the 30 s timer stays as a backup). Closed while the Home tab isn't showing or the app is in the background. */
+let hmES=null, hmESv=null, hmESt=0;
+function hmLive(on){
+  if(!on||document.hidden||!("EventSource" in window)){ if(hmES){ try{hmES.close();}catch(e){} hmES=null; } return; }
+  if(hmES) return;
+  try{ hmES=new EventSource("/api/ha/events"); }catch(e){ return; }
+  hmES.onmessage=m=>{ let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
+    if(hmESv!==null&&d.version!==hmESv&&curView==="home"){ clearTimeout(hmESt); hmESt=setTimeout(loadHM, 250); }
+    hmESv=d.version; };
+  hmES.onerror=()=>{ try{hmES.close();}catch(e){} hmES=null; setTimeout(()=>{ if(curView==="home") hmLive(true); }, 5000); };
+}
+document.addEventListener("visibilitychange",()=>{ hmLive(curView==="home"); if(!document.hidden&&curView==="home") loadHM(); });
 let hmView="rooms", hmLast=null, hmSig="";
 FHHome.toggle = async (eid)=>{ if(navigator.vibrate) navigator.vibrate(8); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };

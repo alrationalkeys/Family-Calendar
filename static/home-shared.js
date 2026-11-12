@@ -26,7 +26,7 @@
     {floor:1, name:"Closet",    key:"closet 4",  gx:6,    gy:21,   gw:5,    gd:5},
     {floor:1, name:"Hall",      key:"hall",      gx:6,    gy:26,   gw:19,   gd:10.2, stairs:{gx:13.2, gy:27.1, gw:7, gd:7.4, up:"n"}},
     {floor:1, name:"Mud Room",  key:"mud",       gx:0,    gy:31,   gw:6,    gd:5.2},
-    {floor:1, name:"Garage",    key:"garage", areas:["garage"],    gx:0,    gy:36.2, gw:19.3, gd:20},
+    {floor:1, name:"Garage",    key:"garage", areas:["garage"], workbench:"e", gym:"w",    gx:0,    gy:36.2, gw:19.3, gd:20},
     {floor:1, name:"Front Entryway", key:"foyer", areas:["front entryway"],     gx:19.3, gy:36.2, gw:5.7,  gd:16},
     {floor:1, name:"Pantry",    key:"pantry",    gx:25,   gy:31.8, gw:7.7,  gd:8.7},
     {floor:1, name:"Butler's",  key:"butler",    gx:32.7, gy:31.8, gw:5.3,  gd:8.7},
@@ -99,7 +99,7 @@
   const flipSide=s=>({e:"w",w:"e"}[s]||s);
   function mirrorRoom(r){
     const o={...r, gx:MIRROR?PLAN_W-r.gx-r.gw:r.gx, gy:r.gy+Y0};
-    ["bed","tv","counter","tub","desk","table","train"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
+    ["bed","tv","counter","tub","desk","table","train","workbench","gym"].forEach(k=>{ if(o[k]) o[k]=flipSide(o[k]); });
     if(o.shower) o.shower=o.shower.replace(/[ew]/g,c=>flipSide(c));
     if(r.stairs) o.stairs={...r.stairs, gx:PLAN_W-r.stairs.gx-r.stairs.gw, gy:r.stairs.gy+Y0};
     if(r.stairwell) o.stairwell={...r.stairwell, gx:PLAN_W-r.stairwell.gx-r.stairwell.gw, gy:r.stairwell.gy+Y0};

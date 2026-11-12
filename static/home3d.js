@@ -247,10 +247,24 @@
       if(/mud/.test(k)){ const b=placed(r, opposite(longSide), 0.5, 0.3); b.add(box(Math.max(1,L-1.5),1.5,1.4,COL.woodDk,0,0,0.7)); g.add(b); }
       return; }
     if(/garage/.test(k)){ if(w<9||d<15) return;
-      const car=(cxx,czz,c)=>{ g.add(box(6,2.2,15,c,cxx,0.9,czz)); g.add(box(5.2,2,7.5,COL.dark,cxx,3.1,czz+0.4)); [[-2.6,-5],[2.6,-5],[-2.6,5],[2.6,5]].forEach(p=>{ const wh=cyl(1.15,0.9,COL.dark,cxx+p[0],0,czz+p[1],16); wh.rotation.z=Math.PI/2; wh.position.y=1.15; g.add(wh); }); };
-      car(cx-(w>16?4.6:0), cz+1, COL.car); if(w>16) car(cx+4.6, cz+1, COL.car2);
-      g.add(cyl(1,5,COL.white,x0+1.5,0,z0+1.5,16));                                                   // water heater
-      const sh=placed(r,"n",0.5,0.3); for(let i=0;i<3;i++) sh.add(box(Math.min(10,w-6),0.12,1.4,COL.steel,0,1.5+i*1.6,0.7)); g.add(sh); // shelving
+      if(!r.workbench){ g.add(cyl(1,5,COL.white,x0+1.5,0,z0+1.5,16)); return; }
+      const wb=r.workbench, gy=r.gym||opposite(wb), wood=0xc8a46a, L=d;
+      // the work wall: plywood benches + cubby shelving + mitre saw, overhead rack above (front to back)
+      const b=placed(r, wb, 0.5, 0.2);
+      b.add(box(L*0.62,3,2.4,wood,-L*0.08,0,1.2)); b.add(box(L*0.62,0.15,2.5,0xb08850,-L*0.08,3,1.25));
+      b.add(box(2.6,6,1.6,wood,L*0.27,0,0.8)); for(let i=1;i<4;i++) b.add(box(2.6,0.12,1.6,0xb08850,L*0.27,i*1.5,0.8));   // cubby shelves
+      b.add(box(1.4,1,1.2,0xb3261e,-L*0.18,3.1,1.1)); b.add(cyl(0.6,0.12,0x9aa0a8,-L*0.18,4,1.1,16));                        // mitre saw
+      b.add(box(L*0.5,0.15,3,COL.dark,-L*0.05,7.2,1.6)); b.add(box(L*0.5,1,2.6,0x7a2f2f,-L*0.05,7.35,1.6));                  // overhead rack with the Christmas boxes
+      b.add(box(1.6,6,0.5,0xe0542b,-L*0.42,0,0.4)); b.add(cyl(0.45,2.6,0x2f7bd6,-L*0.47,1.6,0.35,12));                    // ladder + water filters by the door
+      g.add(b);
+      const f=placed(r, "n", wb==="e"?0.72:0.28, 0.2); f.add(box(2.8,5.6,2.6,COL.white,0,0,1.3)); g.add(f);                // garage fridge by the house door
+      // gym wall: cable machine, spin bike, the printer bench
+      const m=placed(r, gy, 0.6, 0.2);
+      m.add(box(4,6.2,0.4,COL.dark,0,0,0.3)); m.add(box(0.3,6.2,3,COL.dark,-1.8,0,1.6)); m.add(box(0.3,6.2,3,COL.dark,1.8,0,1.6)); m.add(box(3.2,0.3,0.3,COL.dark,0,6,2.9));
+      m.add(box(1.8,1.6,3,0xb3261e,0,0,2.4));
+      m.add(box(1,2.6,3.2,COL.white,4.3,0,1.8)); m.add(cyl(1,0.25,COL.dark,4.3,1,0.6,16).rotateZ(Math.PI/2));               // spin bike
+      m.add(box(3.6,2.6,1.6,wood,-4.8,0,0.8)); m.add(box(1.6,1.4,1.4,COL.dark,-4.8,2.6,0.8));                                // bench + 3D printer
+      g.add(m);
       return; }
     if(/foyer/.test(k)){ if(d>8){ const side=w>d?"n":"w"; const p=placed(r, side==="w"?"w":"n", 0.3, 0.3); p.add(box(3.2,2.6,1.1,COL.woodDk,0,0,0.55)); g.add(p); rug(g, Math.min(w-1.5,4), Math.min(d-2,6), cx, z0+d-4, COL.rug2);
       if(XMAS){ xtree(g, x0+1.6, z0+d-3.2, 4.2); g.add(cyl(0.5,5.2,0xb3261e,x0+w-1,0,z0+1.5,12)); g.add(cyl(0.55,0.9,0x1b1b1b,x0+w-1,5.2,z0+1.5,12)); } } return; }   // little tree + the nutcracker
@@ -271,6 +285,23 @@
       [[x0+0.2,z0+0.2],[x0+w-0.2,z0+0.2],[x0+w/2,z0+0.2]].forEach(([px,pz])=>g.add(box(0.4,EXT_H+1.4,0.4,COL.wallTop,px,0,pz)));
       return; }
     if(/patio/.test(k)){ g.add(cyl(1.6,0.12,COL.dark,cx,2.3,cz,20)); g.add(cyl(0.12,2.3,COL.dark,cx,0,cz,8)); [[-2.4,0],[2.4,0],[0,-2.4],[0,2.4]].forEach(p=>g.add(box(1.5,1.4,1.5,COL.fabricDk,cx+p[0],0,cz+p[1]))); plant(g,x0+1,z0+d-1,false); return; }
+  }
+
+  /* ---------- driveway: the concrete pad + whoever is home parked on it ---------- */
+  function vehicle(kind){
+    const c=new THREE.Group(), W=0xf2f2f0, G=0x1d2a3c;
+    const wheel=(x,z)=>{ const m=cyl(1.1,0.8,COL.dark,0,0,0,16); m.rotation.z=Math.PI/2; m.position.set(x,1.1,z); c.add(m); };
+    if(kind==="truck"){ c.add(box(6.4,2.4,18,W,0,1,0)); c.add(box(6,2.6,6.4,W,0,3.4,-2.2)); c.add(box(5.8,1.6,6,G,0,3.9,-2.2));   // cab + glass
+      c.add(box(6.4,1.6,7,0xdfe2e4,0,3.4,5.4)); c.add(box(5.6,0.2,6.4,COL.dark,0,3.5,5.4)); }                                          // open bed
+    else { c.add(box(6.2,2.6,16,W,0,1,0)); c.add(box(5.8,2.4,10,W,0,3.6,0.6)); c.add(box(5.9,1.6,9.6,G,0,4,0.6)); }                    // SUV body + glass band
+    [-5,5].forEach(z=>{ wheel(-3,z); wheel(3,z); });
+    c.scale.setScalar(0.92); return c; }
+  function driveway(g, gar, v){
+    const z0=gar.gy+gar.gd, len=20, x=gar.gx+gar.gw/2;
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(gar.gw, 0.12, len), floorMat("concrete", gar.gw, len)); pad.position.set(x,0.06,z0+len/2); pad.receiveShadow=true; g.add(pad);
+    const outer=gar.gx+gar.gw/2>19?1:-1;   // the side away from the porch (after mirroring the garage is on the right)
+    [["alex","truck",x+outer*gar.gw/4],["rachell","suv",x-outer*gar.gw/4]].forEach(([who,kind,cx])=>{
+      const c=vehicle(kind); c.position.set(cx,0,z0+len/2+0.5); c.userData.who=who; g.add(c); v.cars.push(c); });
   }
 
   /* ---------- stairs ---------- */
@@ -454,6 +485,7 @@
     if(floorN>1){ const ghost=buildFloor(rooms, floorN-1, true, plan); ghost.position.y=-LEVEL_H; g.add(ghost); }
     const ext=FHHome.layoutExtent(rooms);
     const plate=new THREE.Mesh(new THREE.PlaneGeometry(ext*2.2, ext*2.2), new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.22})); plate.rotation.x=-Math.PI/2; plate.position.set(ext/2,-0.45-(floorN>1?LEVEL_H:0),ext/2); g.add(plate);
+    v.cars=[]; if(floorN===1){ const gar=rooms.find(r=>(r.floor||1)===1&&isGarage(r)); if(gar) driveway(g, gar, v); }
     v.root.add(g); v.built=g;
     let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9; rooms.filter(r=>(r.floor||1)===floorN).forEach(r=>{ minX=Math.min(minX,r.gx); maxX=Math.max(maxX,r.gx+r.gw); minZ=Math.min(minZ,r.gy); maxZ=Math.max(maxZ,r.gy+r.gd); });
     v.orbit.tx=(minX+maxX)/2; v.orbit.tz=(minZ+maxZ)/2+1;
@@ -480,6 +512,8 @@
     // garage door follows the HA cover (closed = panel shown); no cover entity = closed
     const gar=fr.find(r=>isGarage(r)); const cover=gar?(byRoom.get(gar)||[]).find(t=>t.domain==="cover"):null;
     const garOpen=!!(cover&&/open/.test(cover.state||"")); (v.garage||[]).forEach(m=>{ m.visible=!garOpen; });
+    // cars on the driveway follow HA's person.* (home = parked). No phone linked = leave the car shown.
+    const ppl=(h&&h.people)||[]; (v.cars||[]).forEach(c=>{ const p=ppl.find(x=>String(x.name||"").toLowerCase().startsWith(c.userData.who)); c.visible=p?!!p.home:true; });
     fr.forEach(r=>{
       const cx=r.gx+r.gw/2, cz=r.gy+r.gd/2, devs=byRoom.get(r)||[];
       const light=shared.get(r)||lightOf(r);

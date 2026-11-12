@@ -25,7 +25,14 @@ def status():
 
 @router.get("/home")
 def home():
-    return ha_svc.get_home()
+    h = ha_svc.get_home()
+    try:                                   # who's home: the 3D house parks their car in the driveway
+        from ..services import house_modes
+        if isinstance(h, dict):
+            h["people"] = house_modes.presence()
+    except Exception:
+        pass
+    return h
 
 
 @router.post("/toggle")

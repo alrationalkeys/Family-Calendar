@@ -238,6 +238,8 @@ def list_all() -> dict:
             found.sort(key=lambda s: (order.get(s["entity_id"], 999), names[s["entity_id"]].lower()))
             settings = [_setting(s, names) for s in found]
         status = [{"name": names.get(e, e), "on": by_id[e].get("state") == "on"} for e in g["status"] if e in by_id]
+        if not items and g["key"] in ("outdoor", "kitchen"):
+            continue          # optional packages: not installed (or removed in favour of your own routines) = no card
         groups.append({"key": g["key"], "title": g["title"], "blurb": g["blurb"], "file": g["file"], "installed": bool(items),
                        "status": status, "automations": items, "settings": settings})
     mine, other = [], []

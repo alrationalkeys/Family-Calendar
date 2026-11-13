@@ -376,7 +376,7 @@
       .fhld .on{outline:2px solid color-mix(in srgb,#3987e5 60%,transparent)}`; document.head.appendChild(st); }
     const pretty=v=>{ v=String(v||""); return /^(off|idle|standby|---|unknown|unavailable)$/i.test(v)||!v?"Off":v.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()); };
     return `<div class="fhld">${list.map(m=>`<div class="${m.running?"on":""}"><span class="ic">${m.name==="Dryer"?"🌀":"🫧"}</span><span><b>${esc(m.name)}</b>
-      <small>${m.running?esc(pretty(m.state))+(m.remaining_min?` · ${m.remaining_min} min left`:""):esc(pretty(m.state))}</small></span></div>`).join("")}</div>`;
+      <small>${m.running?esc(m.cycle||pretty(m.state))+(m.remaining_min?` · ${m.remaining_min} min left`:""):esc(pretty(m.state))}</small></span></div>`).join("")}</div>`;
   }
   window.FHHome = {
     lightPanelHTML, bindLightPanel, SWATCHES,

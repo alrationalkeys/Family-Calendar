@@ -255,6 +255,10 @@ def status() -> list:
                 m["_rank"] = rank
                 m["state"] = v
                 m["running"] = bool(_RUN.search(v)) and not _END.search(v)
+        elif re.search(r"_cycle$", eid) and not re.search(r"sub_cycle|end_of_cycle|cycle_count", eid):
+            v = str(st.get("state") or "")
+            if v and v.lower() not in ("---", "off", "unknown", "unavailable", "none") and not re.fullmatch(r"-?[\d.]+", v):
+                m["cycle"] = v.replace("_", " ")       # GE's cycle name, e.g. "Timed Dry"
         elif re.search(r"remaining|time_left", eid):
             try:
                 v = float(st.get("state"))
@@ -264,4 +268,8 @@ def status() -> list:
                 pass
     for v in out.values():
         v.pop("_rank", None)
+        if not v["running"] and (v["remaining_min"] or 0) > 0 and not _END.search(v["state"] or "off"):
+            v["running"] = True                      # minutes counting down = running, whatever the state word is
+        if not v["running"]:
+            v.pop("cycle", None)
     return [v for v in out.values() if v["state"]]

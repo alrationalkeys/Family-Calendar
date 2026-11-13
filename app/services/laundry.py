@@ -22,6 +22,9 @@ _END = re.compile(r"end|complete|done|finish|clean|idle|^off$|standby|ready", re
 _SKIP = re.compile(r"time|remaining|door|lock|temp|soil|level|option|setting|dispens|count|error|wifi|signal|"
                    r"remote|delay_time|cycle$|^cycle", re.I)
 _last: dict = {}          # machine -> time announced
+_done_at: dict = {}       # machine -> when it finished (cleared when its door opens or a new cycle starts)
+_nudged: set = set()      # machines already nudged about clothes sitting in them
+_soon: set = set()        # machines already warned "done in ~10 min" this cycle
 
 
 def _settings() -> dict:
@@ -61,6 +64,10 @@ def on_state(eid: str, old: dict | None, new: dict | None):
             return
         attrs = new.get("attributes") or {}
         o, n = str(old.get("state") or ""), str(new.get("state") or "")
+        if eid.startswith("binary_sensor.") and "door" in eid and _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))):
+            if n == "on" and o != "on":                   # door opened: someone's dealing with it
+                _done_at.pop(_machine(eid, attrs.get("friendly_name", "")) or "laundry", None)
+            return
         if eid.startswith("binary_sensor.") and "end_of_cycle" in eid and _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))):
             if not (o == "off" and n == "on"):          # GE SmartHQ: "Laundry End of Cycle" flips on when it's done
                 return
@@ -72,6 +79,7 @@ def on_state(eid: str, old: dict | None, new: dict | None):
         if time.time() - _last.get(mach, 0) < 600:
             return
         _last[mach] = time.time()
+        _done_at[mach] = time.time(); _nudged.discard(mach); _soon.discard(mach)
         s = _settings()
         if s.get("laundryAlerts", True) is False:
             return
@@ -80,11 +88,23 @@ def on_state(eid: str, old: dict | None, new: dict | None):
         pass
 
 
-def _announce(mach: str, quiet: bool):
+def _message(mach: str) -> str:
+    if mach == "washer":
+        try:
+            d = next((m for m in status() if m["name"] == "Dryer"), None)
+            if d and not d["running"]:
+                return "🧺 The washer is done, ready to move to the dryer."
+        except Exception:
+            pass
+    return f"🧺 The {mach} is done." if mach != "laundry" else "🧺 The laundry is done."
+
+
+def _announce(mach: str, quiet: bool, text: str | None = None, speak: bool = True):
+    """Wall (spoken, daytime only) + phones (silent in quiet hours)."""
     from ..db import get_db
     from . import ha_svc
-    text = f"🧺 The {mach} is done." if mach != "laundry" else "🧺 The laundry is done."
-    if not quiet:
+    text = text or _message(mach)
+    if not quiet and speak:
         try:
             with get_db() as conn:          # the wall shows + speaks announcements
                 conn.execute("INSERT INTO notifications (title, body, kind, at) VALUES (?,?,?,?)",
@@ -102,6 +122,31 @@ def _announce(mach: str, quiet: bool):
                         ha_svc.call_service("notify", svc, "", {"title": "FamilyHub", "message": text, "data": data})
     except Exception:
         pass
+
+
+def tick():
+    """Every minute from the house-watch loop: 'done in ~10 min' and 'clothes still sitting there'."""
+    s = _settings()
+    if s.get("laundryAlerts", True) is False:
+        return
+    soon = int(s.get("laundrySoonMin", 10) or 0)
+    nudge = int(s.get("laundryNudgeMin", 30) or 0)
+    quiet = _quiet(s)
+    for m in status():
+        mach = m["name"].lower()
+        if m["running"]:
+            _done_at.pop(mach, None)                  # a new cycle: forget the old one
+            r = m.get("remaining_min")
+            if soon and r is not None and 0 < r <= soon and mach not in _soon:
+                _soon.add(mach)
+                threading.Thread(target=_announce, args=(mach, quiet, f"🧺 The {mach} is done in about {r} min.", False), daemon=True).start()
+            elif r is not None and r > soon + 5:
+                _soon.discard(mach)
+        t = _done_at.get(mach)
+        if nudge and t and mach not in _nudged and time.time() - t >= nudge * 60 and not quiet:
+            _nudged.add(mach)
+            mins = int((time.time() - t) // 60)
+            threading.Thread(target=_announce, args=(mach, False, f"🧺 The {mach} finished {mins} min ago, the clothes are still in there.", False), daemon=True).start()
 
 
 def status() -> list:

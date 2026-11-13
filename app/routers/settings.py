@@ -38,6 +38,8 @@ DEFAULTS = {
     "batteryLow": 25,
     "laundryAlerts": True,            # GE SmartHQ washer/dryer: "the washer is done" (voice by day, silent push at night)
     "laundryQuietStart": "21:30", "laundryQuietEnd": "07:30",
+    "laundrySoonMin": 10,             # "done in about 10 min" (0 = off)
+    "laundryNudgeMin": 30,            # clothes still in it this long after done -> one nudge (0 = off)
     "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
     "rainCheck": True,                # push if rain is coming and the garage or a window is open
     "packageAlerts": True,            # front cameras + AI: push when a package is left (needs ANTHROPIC_API_KEY)                 # % that counts as a low battery

@@ -241,6 +241,8 @@ def _loop():
                 _peak_tick(s)
                 _night_tick(s, now)
                 _weekly_tick(s, now)
+                from . import laundry
+                laundry.tick()
                 from . import wx_alerts
                 wx_alerts.tick(_push, s)
                 wx_alerts.rain_tick(_push, s, _rain_openings)

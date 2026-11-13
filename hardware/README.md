@@ -124,6 +124,10 @@ Slicer / Cura / PrusaSlicer).
    centre of each edge as **sloped joints** (Nov 2026: replaced the stepped laps, whose overhang printed as
    spaghetti). Join: cut 12 mm lengths of 1.75 mm filament as dowels for the top and side seams (the bottom is
    glue-only), CA glue on the sloped faces, clamp flat on glass.
+   **Or join with screws, no glue (Nov 2026):** print `frame_splices.stl` (four small plates, one bed). Each seam gets a plate
+   behind it and 2× **M3×8 self-tapping** screws into pilot holes already in the quarters: top + both sides on the flat back
+   of the moulding, the bottom plate on the frame's underside (hidden by the stand). Dowels optional, for lining the faces up.
+   Leaves a hairline seam on the front.
    Stringing (hairs inside the channel): 205–215 °C, retraction on, wipe + avoid crossing walls; dry the spool if it persists.
    For an invisible joint: sand flush (240 then 400), wipe filler into the hairline, sand, matte spray paint.
    Sized for the measured screen, 14 7/16 × 9 3/16 in; change `screen_w` / `screen_h` and re-export if yours differs.
@@ -148,6 +152,7 @@ front. Open `familyhub-mount.scad` in OpenSCAD (free) and set `part`.
 | `cleat_wall` | 1 | 166×30×12 French-cleat half that screws to the wall; bevel on its top edge sloping down toward the wall. |
 | `stand` | 1 | Counter easel: 12° leaning plate with a `cleat_wall` tongue at the matching height and a front lip, so the display drops from wall → stand in seconds. |
 | `spk_pocket` | 0–1 | **Optional** pocket for the USB speaker/mic bar, bolted to the case's side wall (M3 + nuts). The bar stands vertically, grille + mic facing out the screen's side edge — hidden from the front. |
+| `frame_splices` | 1 | Four screw-on seam plates for the frame (top, left, right, bottom): no glue. 8× M3×8 self-tapping. |
 | `frame_tl/tr/bl/br` | 4 | **Optional** picture frame: covers the black bezel (~11 mm sides, 13 top, 27 bottom) and laps 1 mm onto the lit 344×194 picture. 34 mm flat face (410×260 overall), 2 mm over the glass, wraps the edge and hooks behind the panel. Four 205×130 quarters, seams only at the centre of each edge, stepped lap joints + 1.75 mm filament dowels. |
 | `test_vesa` / `test_pc` | 1 ea | Small coupons — **print these first**. |
 | `preview` | — | Everything assembled over a ghost of the screen; the console **echoes the port-hump clearance**. |

@@ -568,6 +568,8 @@
     <label class="chk"><input type="checkbox" id="al-wx"> Weather warnings (hurricane, tropical storm, tornado, flood, severe storms): banner on the wall + a push</label>
     <label class="chk"><input type="checkbox" id="al-rain"> Rain check: tell us if rain is coming and the garage or a window is open</label>
     <label class="chk"><input type="checkbox" id="al-laundry"> Laundry: "done in 10 min", "done" (the wall says it by day; silent push 9:30 PM–7:30 AM), and a nudge if clothes sit 30 min</label>
+    <div style="display:flex; gap:6px; margin:2px 0 10px 30px"><button class="tool" id="al-ld-test" style="margin:0">Send a test</button><button class="tool" id="al-ld-log" style="margin:0">What it saw</button></div>
+    <div id="al-ld-out" class="hint" style="margin:0 0 10px 30px; white-space:pre-wrap; display:none"></div>
     <label class="chk"><input type="checkbox" id="al-pkg"> Package on the porch: front cameras + AI spot a delivery and send the picture</label>
     <label class="chk">Low battery means at or below <input type="number" id="al-batt" min="5" max="60" step="5" style="width:70px; display:inline-block; margin:0 4px"> %</label>
   </details>
@@ -1750,6 +1752,15 @@ function loadSettingsUI(){
       if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??"";
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    const out=$("#al-ld-out"), show=t=>{ out.style.display="block"; out.textContent=t; };
+    const lt=$("#al-ld-test"); if(lt&&!lt._wired){ lt._wired=true; lt.onclick=async()=>{ show("Sending…");
+      let r={}; try{ r=await post("/api/ha/laundry/test",{}).then(x=>x.json()); }catch(e){ r={error:"Couldn't reach FamilyHub"}; }
+      show(r.ok?`Sent to: ${r.to.join(", ")}. Check your phones.`:`Didn't send: ${r.error||"unknown"}${(r.to||[]).length?"\nTried: "+r.to.join(", "):""}`); }; }
+    const ll=$("#al-ld-log"); if(ll&&!ll._wired){ ll._wired=true; ll.onclick=async()=>{
+      let r={}; try{ r=await fetch("/api/ha/laundry").then(x=>x.json()); }catch(e){}
+      const seen=(r.seen||[]).map(x=>`${x.at}  ${x.entity.replace(/^(sensor|binary_sensor)\./,"")}: ${x.from} → ${x.to}`).join("\n")||"(nothing yet since FamilyHub last restarted)";
+      const sent=(r.sent||[]).map(x=>`${x.at}  ${x.text}${x.quiet?" (silent)":""} → ${x.to.length?x.to.join(", "):"no phones"}${x.error?"  ⚠ "+x.error:""}`).join("\n")||"(none)";
+      show(`Live link to Home Assistant: ${r.live?"yes":"NO, changes are only seen every 30 s or not at all"}\n\nWasher/dryer changes seen:\n${seen}\n\nMessages sent:\n${sent}`); }; }
     bind("#al-batt","batteryLow",v=>Math.max(5,Math.min(60,+v||25)));
     const t=$("#al-night-test"); if(t&&!t._wired){ t._wired=true; t.onclick=async()=>{ let r={}; try{ r=await fetch("/api/ha/night-check").then(x=>x.json()); }catch(e){}
       toast((r.issues||[]).length?"Right now: "+r.issues.join("; "):"All buttoned up ✓"); }; } }

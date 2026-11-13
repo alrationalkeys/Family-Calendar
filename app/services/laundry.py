@@ -23,6 +23,8 @@ _SKIP = re.compile(r"time|remaining|door|lock|temp|soil|level|option|setting|dis
                    r"remote|delay_time|cycle$|^cycle", re.I)
 _PROBLEM = re.compile(r"vent|block|clog|error|fault|service|water_?supply|supply|leak|fail|alert|warning|maintenance", re.I)
 _OK_VALUES = {"", "off", "none", "no error", "no_error", "ok", "normal", "unknown", "unavailable", "---", "0", "false", "no"}
+_LOG: list = []           # recent washer/dryer state changes (diagnostics: GET /api/ha/laundry)
+_SENT: list = []          # recent laundry messages and who they went to
 _last: dict = {}          # machine -> time announced
 _done_at: dict = {}       # machine -> when it finished (cleared when its door opens or a new cycle starts)
 _nudged: set = set()      # machines already nudged about clothes sitting in them
@@ -66,6 +68,9 @@ def on_state(eid: str, old: dict | None, new: dict | None):
             return
         attrs = new.get("attributes") or {}
         o, n = str(old.get("state") or ""), str(new.get("state") or "")
+        if _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))) and o != n and not re.search(r"time|remaining|delay", eid):
+            _LOG.append({"at": datetime.now().strftime("%H:%M:%S"), "entity": eid, "from": o, "to": n})
+            del _LOG[:-40]
         fname = str(attrs.get("friendly_name", ""))
         if _MACH.search(eid + " " + fname) and _PROBLEM.search(eid + " " + fname) and eid.split(".")[0] in ("binary_sensor", "sensor"):
             bad = (n == "on") if eid.startswith("binary_sensor.") else (n.lower() not in _OK_VALUES)
@@ -126,17 +131,41 @@ def _announce(mach: str, quiet: bool, text: str | None = None, speak: bool = Tru
                              ("🧺 Laundry", text.replace("🧺 ", ""), "announce", datetime.now().isoformat()))
         except Exception:
             pass
+    sent_to, err = [], ""
     try:
         for dom in ha_svc._request("/api/services") or []:
             if dom.get("domain") == "notify":
                 for svc in (dom.get("services") or {}):
                     if svc.startswith("mobile_app_"):
+                        sent_to.append(svc)
                         data = {"tag": f"familyhub-{mach}"}
                         if quiet:
                             data["push"] = {"interruption-level": "passive"}
-                        ha_svc.call_service("notify", svc, "", {"title": "FamilyHub", "message": text, "data": data})
+                        r = ha_svc.call_service("notify", svc, "", {"title": "FamilyHub", "message": text, "data": data})
+                        if isinstance(r, dict) and r.get("ok") is False:
+                            err = r.get("reason") or "Home Assistant refused the push"
+    except Exception as e:
+        err = str(e)[:120]
+    _SENT.append({"at": datetime.now().strftime("%H:%M:%S"), "text": text, "quiet": quiet, "to": sent_to, "error": err})
+    del _SENT[:-20]
+    return {"to": sent_to, "error": err}
+
+
+def test():
+    """Send a test laundry push right now (not quiet) and say who it went to."""
+    r = _announce("washer", False, "🧺 Test from FamilyHub: laundry alerts are working.", False)
+    if not r["to"] and not r["error"]:
+        r["error"] = "No phones found: install the Home Assistant app on each phone and sign in (it creates notify.mobile_app_<phone>)."
+    return {"ok": bool(r["to"]) and not r["error"], **r}
+
+
+def diag() -> dict:
+    try:
+        from . import ha_live
+        live = ha_live.states() is not None
     except Exception:
-        pass
+        live = False
+    return {"live": live, "seen": _LOG[-15:], "sent": _SENT[-10:]}
 
 
 def tick():

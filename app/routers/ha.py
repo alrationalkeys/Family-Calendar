@@ -198,7 +198,13 @@ def timeline_week():
 @router.get("/laundry")
 def laundry_status():
     from ..services import laundry
-    return {"machines": laundry.status()}
+    return {"machines": laundry.status(), **laundry.diag()}
+
+
+@router.post("/laundry/test")
+def laundry_test():
+    from ..services import laundry
+    return laundry.test()
 
 
 @router.get("/timeline")

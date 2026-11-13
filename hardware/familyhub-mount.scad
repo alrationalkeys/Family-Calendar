@@ -41,7 +41,7 @@
 // ============================================================================
 
 /* [What to render] */
-part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_test_tl, frame_test_br, frame_tl, frame_tr, frame_bl, frame_br, test_vesa, test_pc, preview, exploded]
+part = "back_case"; // [back_case, foot_bar, cleat_case, cleat_wall, stand, spk_pocket, frame_test_tl, frame_test_br, frame_tl, frame_tr, frame_bl, frame_br, frame_splices, test_vesa, test_pc, preview, exploded]
 
 /* [Screen — Forzola 15.6in] */
 screen_w = 366.7;    // measured 14 7/16 in
@@ -327,6 +327,38 @@ module f_pins(){
   for(sx=[-1,1]) translate([sx*(x_r + uc_side), f_slope*zc, zc]) rotate([90,0,0]) cylinder(h=f_pin_l, d=f_pin_d, center=true, $fn=16);   // side seams
   // bottom seam: the moulding there is only ~3.5 mm wide, so it is glue-only (the panel holds the frame square)
 }
+// ---------- screwed seams (no glue): a splice plate behind each seam, M3x8 self-tapping ----------
+// Top + sides: plate on the flat back of the moulding (u from f_wall+f_gap to ext, 10 mm of solid depth),
+// two screws each side of the seam. Bottom: the moulding there is only ~3.5 mm wide, so its plate goes on
+// the frame's outer BOTTOM face (hidden by the stand) and screws in sideways through moulding + return wall.
+f_sp_len = 44;  f_sp_t = 3;  f_sp_bt = 4;  f_sp_off = 13;      // plate length, thickness (back / bottom), screw offset from seam
+f_pilot = 2.5;  f_pilot_d = 5;                                  // M3 self-tap pilot: dia, depth
+f_zb = f_depth - f_front;                                       // back face of the moulding (z, frame coords)
+module f_screw_pilots(){
+  y_t = panel_h/2 - f_oy;  y_b = -panel_h/2 - f_oy;  x_r = panel_w/2;
+  u0 = f_gap + f_wall;
+  uc_top = (u0 + f_ext_top)/2;  uc_side = (u0 + f_ext_side)/2;
+  sx0 = f_slope*f_zb;                                            // where the sloped seam meets the back face
+  for(d=[-1,1]) translate([sx0 + d*f_sp_off, y_t + uc_top, f_zb - f_pilot_d]) cylinder(h=f_pilot_d + 1, d=f_pilot, $fn=16);            // top
+  for(sx=[-1,1], d=[-1,1]) translate([sx*(x_r + uc_side), sx0 + d*f_sp_off, f_zb - f_pilot_d]) cylinder(h=f_pilot_d + 1, d=f_pilot, $fn=16);  // sides
+  zc = (f_zb + 0)/2;  bx = f_slope*zc;                           // bottom: sideways into the outer face, mid-depth
+  for(d=[-1,1]) translate([bx + d*f_sp_off, y_b - f_ext_bot - 1, zc]) rotate([-90,0,0]) cylinder(h=f_pilot_d + 1, d=f_pilot, $fn=16);
+}
+// the plates themselves, printed flat. Clearance holes 3.4 mm, shallow counterbore for pan heads.
+module f_splice(w, t){
+  difference(){
+    translate([-f_sp_len/2, -w/2, 0]) cube([f_sp_len, w, t]);
+    for(d=[-1,1]) translate([d*f_sp_off, 0, -1]){ cylinder(h=t+2, d=3.4, $fn=20); translate([0,0,t-1]) cylinder(h=2, d=6.2, $fn=24); }
+  }
+}
+module frame_splices(){   // all four on one plate: top, left, right (back-of-moulding) + bottom (underside)
+  w_top = f_ext_top - f_gap - f_wall - 1.5;  w_side = f_ext_side - f_gap - f_wall - 1.5;  w_bot = f_depth - 1.5;
+  translate([0,   0, 0]) f_splice(w_top,  f_sp_t);
+  translate([0,  25, 0]) f_splice(w_side, f_sp_t);
+  translate([0,  50, 0]) f_splice(w_side, f_sp_t);
+  translate([0,  72, 0]) f_splice(w_bot,  f_sp_bt);
+}
+
 // the region one quarter owns: x (and y) measured from a cut plane that leans f_slope per mm of depth
 module f_region(sx, sy){
   multmatrix([[1, 0, f_slope, 0], [0, 1, f_slope, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -337,6 +369,7 @@ module frame_quarter(sx, sy){
   translate([0, 0, f_front]) difference(){
     intersection(){ frame_whole(); f_region(sx, sy); }
     f_pins();
+    f_screw_pilots();
   }
 }
 // the whole frame in display coordinates (glass front at z = -hump_d - screen_t, +z toward the wall)
@@ -416,6 +449,7 @@ else if(part=="frame_tl") frame_tl();
 else if(part=="frame_tr") frame_tr();
 else if(part=="frame_bl") frame_bl();
 else if(part=="frame_br") frame_br();
+else if(part=="frame_splices") frame_splices();
 else if(part=="asm:frame")    frame_assembled();
 else if(part=="test_vesa")  test_vesa();
 else if(part=="test_pc")    test_pc();

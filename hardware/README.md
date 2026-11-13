@@ -113,7 +113,7 @@ Slicer / Cura / PrusaSlicer).
 2. `back_case.stl` — the big one (~7 h). Print **cavity up** (as exported), 0.2 mm, 3 walls,
    20% infill, no supports.
 3. `foot_bar.stl`, `cleat_case.stl`, `cleat_wall.stl` — flat, fast. Print the cleats bevel-up as exported (no supports).
-4. `stand.stl` — optional counter easel (199 mm wide, 166 mm tall, base on the bed, no supports).
+4. `stand.stl` — optional counter easel (199 mm wide, 166 mm tall, base on the bed, no supports). An 80 × 45 mm arch at the bottom of the back plate lets the screen + C3 cables run straight out the back.
 5. `spk_pocket.stl` — optional, only if you want the speaker bar hidden in the case.
 6. **Picture frame** (optional, hides the whole black bezel). **Fit-test first:** `frame_test_tl.stl` and
    `frame_test_br.stl` are the outer 60 × 60 mm of two real corners (draft speed, 2 walls, 10% infill,

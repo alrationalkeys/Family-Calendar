@@ -222,7 +222,16 @@ stand_plate_t = 8;
 stand_h       = 170;                       // plate height along the lean
 stand_w       = cleat_len + 30;            // 196 — fits a 250 mm bed
 stand_tongue  = 147;                       // tongue (cleat_wall centre) up the plate: the panel's bottom edge hangs ~12 mm above the base
-module stand(){ difference(){ stand_body(); translate([-500,-500,-60]) cube([1000,1000,60]); } }   // trim the leaning plate flush with the bed
+stand_cable_w = 80;   // cable pass-through at the bottom of the back plate (HDMI/USB/power/LAN from the case slot)
+stand_cable_h = 45;
+module stand(){ difference(){
+  stand_body();
+  translate([-500,-500,-60]) cube([1000,1000,60]);                       // trim the leaning plate flush with the bed
+  // cable arch: a rounded-top opening through the leaning plate, centred, so the cables run straight out the back
+  translate([stand_plate_t, 0, 0]) rotate([0, -stand_lean, 0])
+    translate([-stand_plate_t - 5, 0, 0]) rotate([90, 0, 90]) linear_extrude(stand_plate_t + 30)
+      hull(){ translate([-stand_cable_w/2, -10]) square([stand_cable_w, 1]); for(sx=[-1,1]) translate([sx*(stand_cable_w/2 - 12), stand_cable_h - 12]) circle(r=12, $fn=40); }
+} }
 module stand_body(){
   base_t = 6; lip_h = 22; lip_t = 8;
   // base plate

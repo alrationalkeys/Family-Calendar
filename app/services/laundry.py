@@ -5,7 +5,7 @@ Laundry done: watches the washer/dryer entities Home Assistant gets from GE's Sm
 A cycle counts as finished when the machine's state sensor goes from running (run / wash / rinse / spin /
 dry / cool down…) to an end state (end of cycle / complete / done / idle / off / clean). Then:
   daytime (settings.laundryQuietStart..End not covering now)  -> wall says "🧺 The washer is done" + phone push
-  quiet hours (default 21:30-07:30)                            -> silent push only, no voice
+  quiet hours (default 21:30-07:30)                            -> phone push only, the wall stays silent
 Also exposes status() for the wall: [{name, running, remaining_min}].
 Settings: laundryAlerts (bool), laundryQuietStart / laundryQuietEnd "HH:MM".
 """
@@ -139,8 +139,7 @@ def _announce(mach: str, quiet: bool, text: str | None = None, speak: bool = Tru
                     if svc.startswith("mobile_app_"):
                         sent_to.append(svc)
                         data = {"tag": f"familyhub-{mach}"}
-                        if quiet:
-                            data["push"] = {"interruption-level": "passive"}
+                        # quiet hours only silence the WALL; phones always get a normal banner (Nov 2026: silent pushes got missed)
                         r = ha_svc.call_service("notify", svc, "", {"title": "FamilyHub", "message": text, "data": data})
                         if isinstance(r, dict) and r.get("ok") is False:
                             err = r.get("reason") or "Home Assistant refused the push"

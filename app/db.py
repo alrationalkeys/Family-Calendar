@@ -56,7 +56,7 @@ def _migrate(conn):
         "meals":     [("category_id", "INTEGER"), ("color", "TEXT")],
         "todos":     [("category_id", "INTEGER"), ("color", "TEXT"),
                       ("due_date", "TEXT"), ("recurrence", "TEXT"),
-                      ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"),
+                      ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"), ("list_name", "TEXT"),
                       ("person_id", "INTEGER")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT"), ("got_at", "TEXT")],   # got_at: when ticked; purged 30 min later
         "people":    [("birthday", "TEXT")],        # "MM-DD" or "YYYY-MM-DD"; drives the Birthday skin + countdown

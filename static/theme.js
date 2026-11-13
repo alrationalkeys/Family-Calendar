@@ -44,6 +44,7 @@ const FH = (() => {
     briefingHour: 6,         // ...but not before this hour
     doorbellTv: true,        // flash the doorbell snapshot on any Roku that is on
     doorbellSpeak: true,
+    todoLists: ["This weekend", "Work"],
     birthdays: [],           // [{name, date}] relatives: wall goes Birthday on their day
     skin: "auto",            // holiday skin: auto | off | christmas | thanksgiving
     skinBanner: true,        // the "Days until …" card in the header

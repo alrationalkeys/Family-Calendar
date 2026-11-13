@@ -97,6 +97,7 @@
         display:flex; flex-direction:column; justify-content:space-between; cursor:pointer; user-select:none;
         transition:transform .08s, background .15s, border-color .15s}
   .tile:active{transform:scale(.97)}
+  .tl-name{display:inline-flex; align-items:center; gap:4px} .tl-arrow{border:0; background:transparent; color:inherit; font-size:26px; line-height:1; padding:0 8px; cursor:pointer; opacity:.7}
   .tile.ro{cursor:default}
   .tile.ro:active{transform:none}
   .tile.on{background:color-mix(in srgb, var(--now) 20%, var(--panel)); border-color:color-mix(in srgb, var(--now) 55%, transparent);
@@ -830,7 +831,7 @@
       </section>
       <aside class="side">
         <div class="card sb" id="panel-scoreboard" style="display:none"><h2 data-panel="scoreboard"><span>Scoreboard</span><span class="caret">&#9662;</span></h2><div class="body" id="scoreboard"></div></div>
-        <div class="card" id="panel-todos"><h2 data-panel="todos"><span>To-Do</span><span class="h2r"><button class="addbtn" data-add="todo" title="Add to-do">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="todos"></div></div>
+        <div class="card" id="panel-todos"><h2 data-panel="todos"><span class="tl-name"><button class="tl-arrow" data-tl="-1" aria-label="Previous list">‹</button><span id="todo-list-name">To-Do</span><button class="tl-arrow" data-tl="1" aria-label="Next list">›</button></span><span class="h2r"><button class="addbtn" data-add="todo" title="Add to-do">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="todos"></div></div>
         <div class="resizer" data-above="0" data-below="1"></div>
         <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span>Groceries</span><span class="h2r"><button class="addbtn" data-add="grocery" title="Add item">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="groceries"></div></div>
         <div class="resizer" data-above="1" data-below="2"></div>
@@ -1579,8 +1580,31 @@ function holdable(row, open){
   row.appendChild(m);
 }
 let showLaterTodos=false;
+/* several to-do lists: "To-Do" + settings.todoLists + any iCloud Reminders list; ‹ › on the box header cycles them */
+const todoListOf=t=>t.list_name||t.ext_list||"To-Do";
+let todoList=(()=>{ try{ return localStorage.getItem("fh_todo_list")||"To-Do"; }catch(e){ return "To-Do"; } })();
+function todoLists(todos){
+  const names=["To-Do", ...((FH.get().todoLists)||[])];
+  (todos||[]).forEach(t=>{ const n=todoListOf(t); if(!names.includes(n)) names.push(n); });
+  return names;
+}
+function cycleTodoList(dir){
+  const all=todoLists(lastTodos); let i=all.indexOf(todoList); i=(i<0?0:i+dir+all.length)%all.length;
+  todoList=all[i]; try{ localStorage.setItem("fh_todo_list", todoList); }catch(e){}
+  renderTodos(lastTodos); resetSleep();
+}
+let lastTodos=[];
+document.addEventListener("click", e=>{ const b=e.target.closest(".tl-arrow"); if(!b) return; e.stopPropagation(); cycleTodoList(+b.dataset.tl); }, true);
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
+  if(box.id==="todos"){
+    lastTodos=todos;
+    const all=todoLists(todos); if(!all.includes(todoList)) todoList="To-Do";
+    const nm=$("#todo-list-name"); if(nm){
+      nm.textContent=todoList; nm.title=all.length>1?"Tap ‹ › for your other lists":""; }
+    document.querySelectorAll("#panel-todos .tl-arrow").forEach(b=>b.style.display=all.length>1?"":"none");
+    todos=todos.filter(t=>todoListOf(t)===todoList);
+  }
   // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
   const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
   const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done).length;
@@ -1957,7 +1981,7 @@ function startQuickAdd(kind, box){
   box.prepend(inp); inp.focus();
   const submit=async()=>{
     const v=inp.value.trim(); if(!v){ inp.remove(); return; }
-    if(kind==="todo") await post("/api/todos/",{title:v}).catch(()=>{});
+    if(kind==="todo") await post("/api/todos/",{title:v, list_name:todoList}).catch(()=>{});
     else if(kind==="grocery") await post("/api/groceries/",{item:v}).catch(()=>{});
     else await post("/api/meals/",{date:localISODate(), slot:"dinner", title:v}).catch(()=>{});
     await load();
@@ -2145,6 +2169,7 @@ $("#add-event").onclick=()=>{ openAdd("event", cursor); resetSleep(); };
 function openAdd(kind, date, time){
   const d=date instanceof Date?dateStr(date):(date||"");
   const q=new URLSearchParams({embed:"add", kind:kind||"event"}); if(d) q.set("date",d); if(time) q.set("time",time);
+  if(kind==="todo"&&todoList&&todoList!=="To-Do") q.set("list",todoList);
   $("#add-frame").src="/phone.html?"+q.toString();
   $("#add-ov").classList.add("on"); $("#add-box").classList.add("on"); resetSleep();
 }

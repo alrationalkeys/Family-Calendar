@@ -59,6 +59,7 @@ DEFAULTS = {
     "briefingHour": 6,               # ...but not before this hour
     "doorbellTv": True,              # flash the doorbell snapshot on any Roku that is on
     "doorbellSpeak": True,
+    "todoLists": ["This weekend", "Work"],   # extra to-do lists (the main "To-do" is always there)
     "birthdays": [],                 # [{name, date "MM-DD"|"YYYY-MM-DD"}]: extended family; Birthday skin on the day
     "skin": "auto",                  # holiday skin: auto | off | christmas | thanksgiving
     "skinBanner": True,              # the "Days until …" card in the header

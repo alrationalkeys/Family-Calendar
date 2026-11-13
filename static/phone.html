@@ -589,6 +589,13 @@
     <div class="hint">So the wall can say "Alex added Dentist, Thursday at 3". Set it once on each phone.</div>
   </details>
 
+  <details class="form sect fold" data-fold="todolists">
+    <summary><span class="fi">📝</span><span class="ft"><b>To-do lists</b><small>This weekend, Work… flip between them on the wall</small></span></summary>
+    <div class="hint" style="margin-top:0">"To-Do" is always there. Add as many more as you like; the wall's To-Do box gets ‹ › to switch. iCloud Reminders lists show up on their own.</div>
+    <div id="tl-list"></div>
+    <div class="srow" style="gap:6px"><input id="tl-name" placeholder="New list (e.g. Garage projects)" style="flex:1; margin:0"><button class="go" id="tl-add" style="width:auto; margin:0; padding:10px 16px">Add</button></div>
+  </details>
+
   <details class="form sect fold" data-fold="cal">
     <summary><span class="fi">🗓</span><span class="ft"><b>Calendar &amp; lists</b><small>Side boxes, chores on the calendar, holidays, leave-by</small></span></summary>
     <div class="hint" style="margin-top:0">Boxes on the right side of the wall's calendar:</div>
@@ -895,7 +902,10 @@ function renderForm(){
       <select id="c_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveChore()">Add chore</button>`;
   } else if(formKind==="todo"){
+    const tls=["To-Do", ...(FH.get().todoLists||[])], pre=new URLSearchParams(location.search).get("list")||"To-Do";
+    if(!tls.includes(pre)) tls.push(pre);
     f.innerHTML=`<input id="t_title" placeholder="What needs doing?">
+      <select id="t_list">${tls.map(n=>`<option ${n===pre?"selected":""}>${FHHome.esc(n)}</option>`).join("")}</select>
       <div class="two"><select id="t_person">${peopleOptions()}</select><input id="t_due" type="date"></div>
       <div class="two"><select id="t_recur">${recurOptions()}</select><select id="t_cat">${catOptions()}</select></div>${colorRow}
       <button class="go" onclick="saveTodo()">Add to-do</button>`;
@@ -989,7 +999,7 @@ async function saveChore(){
 async function saveTodo(){
   const title=$("#t_title").value.trim(); if(!title)return;
   const r=await post("/api/todos/",{title, person_id:num($("#t_person").value), category_id:num($("#t_cat").value), color:chosenColor,
-    due_date:$("#t_due").value||null, recurrence:$("#t_recur").value||null});
+    due_date:$("#t_due").value||null, recurrence:$("#t_recur").value||null, list_name:($("#t_list")||{}).value||null});
   if(!r.ok){ toast("Couldn't add to-do"); return; }
   toast("To-do added"); $("#t_title").value="";
 }
@@ -1821,6 +1831,21 @@ function saveDisp(){
 ["disp-enabled","disp-start","disp-end"].forEach(id=>{ const el=$("#"+id); if(el) el.onchange=saveDisp; });
 
 /* family members */
+function loadTodoLists(){
+  const box=$("#tl-list"); if(!box) return; const esc=FHHome.esc, L=FH.get().todoLists||[];
+  box.innerHTML=`<div class="srow" style="padding:6px 0"><span>📝 <b>To-Do</b> <span style="color:var(--ink-dim)">(main list)</span></span></div>`+
+    L.map((n,i)=>`<div class="srow" style="padding:6px 0"><span>📝 <b>${esc(n)}</b></span><span style="display:flex; gap:6px">
+      <button class="tl-mv" data-i="${i}" style="border:0; background:var(--panel2); color:var(--ink); border-radius:9px; padding:7px 10px">↑</button>
+      <button class="tl-rm" data-i="${i}" style="border:0; background:var(--panel2); color:#e5534b; border-radius:9px; padding:7px 11px; font:inherit; font-size:13px; font-weight:600">Remove</button></span></div>`).join("");
+  box.querySelectorAll(".tl-rm").forEach(b=>b.onclick=()=>{ const n=L[+b.dataset.i];
+    if(!confirm(`Remove the "${n}" list? Its to-dos move to the main To-Do list.`)) return;
+    fetch("/api/todos/").then(r=>r.json()).then(all=>Promise.all(all.filter(t=>t.list_name===n).map(t=>fetch("/api/todos/"+t.id+"/list",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({list_name:null})})))).catch(()=>{});
+    FH.save({todoLists:L.filter((_,i)=>i!==+b.dataset.i)}); loadTodoLists(); });
+  box.querySelectorAll(".tl-mv").forEach(b=>b.onclick=()=>{ const i=+b.dataset.i; if(!i) return; const m=L.slice(); [m[i-1],m[i]]=[m[i],m[i-1]]; FH.save({todoLists:m}); loadTodoLists(); });
+  const add=$("#tl-add"); if(add&&!add._wired){ add._wired=true; add.onclick=()=>{ const n=$("#tl-name").value.trim().slice(0,40);
+    if(!n) return; if(/^to-?\s?do$/i.test(n)||(FH.get().todoLists||[]).includes(n)){ toast("You already have that list"); return; }
+    FH.save({todoLists:[...(FH.get().todoLists||[]), n]}); $("#tl-name").value=""; toast("📝 Added "+n); loadTodoLists(); }; }
+}
 function loadBdays(){
   const box=$("#bday-list"); if(!box) return; const esc=FHHome.esc;
   const list=(FH.get().birthdays||[]).slice().sort((a,b)=>String(a.date).slice(-5).localeCompare(String(b.date).slice(-5)));
@@ -1836,7 +1861,7 @@ function loadBdays(){
     FH.save({birthdays:[...(FH.get().birthdays||[]), {name, date}]}); $("#bday-name").value=""; $("#bday-date").value=""; toast("🎂 Added "+name); loadBdays(); }; }
 }
 async function loadPeople(){
-  loadBdays();
+  loadBdays(); loadTodoLists();
   let list=[];
   try{ list=await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
   people=list;

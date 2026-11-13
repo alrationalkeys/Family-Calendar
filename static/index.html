@@ -787,6 +787,10 @@
     .date{font-size:19px}
     .tabs button{padding:6px 8px; font-size:12px}
   }
+.whochips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.whochips button,#im-box .whochips button{border:1.5px solid var(--pc);background:transparent;color:var(--ink);border-radius:999px;padding:10px 16px;font:inherit;font-size:16px;min-height:44px;margin:0;width:auto}
+.whochips button.on,#im-box .whochips button.on{background:var(--pc);color:#fff;font-weight:600}
+.whochips button.on::before{content:"\2713  "}
 </style>
 </head>
 <body>
@@ -1138,7 +1142,7 @@
     <select id="ev-cal"></select>
   </div>
   <div class="ev-field" id="ev-person-row"><label>Person</label>
-    <select id="ev-person"></select>
+    <div id="ev-person"></div>
   </div>
   <div class="ev-field" id="ev-color-row"><label>Color</label>
     <div class="ev-colors" id="ev-colors"></div>
@@ -1532,13 +1536,20 @@ function itemMenu(kind, item, opts){
     if(a==="stop"){
       let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
       if(!raw){ banner("Couldn't change it", "Try again in a moment"); return; }
-      const body={title:raw.title, person_id:raw.person_id, category_id:raw.category_id, color:raw.color, due_date:raw.due_date, recurrence:null};
+      const body={title:raw.title, person_id:raw.person_id, person_ids:itemIds(raw), category_id:raw.category_id, color:raw.color, due_date:raw.due_date, recurrence:null};
       if(kind==="chore") body.stars=raw.stars||0;
       await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>{});
       banner("\u{1F501} Stopped repeating", title); return done();
     }
   });
 }
+/* Several people on one item: ids (person_ids, falling back to person_id), joined first names, chip picker. */
+function itemIds(x){ return (x&&x.person_ids&&x.person_ids.length) ? x.person_ids : (x&&x.person_id ? [x.person_id] : []); }
+function whoNames(x){ const n=itemIds(x).map(id=>((people||[]).find(p=>p.id===id)||{}).name).filter(Boolean).map(n=>n.split(" ")[0]);
+  return n.length<=2 ? n.join(" & ") : n.slice(0,-1).join(", ")+" & "+n[n.length-1]; }
+function whoChips(id, ids){ ids=ids||[];
+  return `<div class="whochips" id="${id}">`+(people||[]).map(p=>`<button type="button" data-id="${p.id}" class="${ids.includes(p.id)?"on":""}" style="--pc:${esc(p.color||"#888")}" onclick="this.classList.toggle('on')">${esc(p.name.split(" ")[0])}</button>`).join("")+`</div>`; }
+function whoPicked(id){ const ids=[...document.querySelectorAll(`#${id} button.on`)].map(b=>+b.dataset.id); return {person_id:ids[0]||null, person_ids:ids}; }
 /* Edit a chore / to-do in place: title, who, due date, repeat (+ stars for chores). Starts from the stored item. */
 async function itemEdit(kind, item){
   const api=kind==="chore"?"chores":"todos", box=$("#im-box");
@@ -1549,7 +1560,7 @@ async function itemEdit(kind, item){
   const fld="width:100%; box-sizing:border-box; margin-top:8px; padding:12px; font:inherit; font-size:17px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--ink)";
   box.innerHTML=`<h3>Edit ${kind==="chore"?"chore":"to-do"}</h3>
     <input id="ie-title" style="${fld}" value="${esc(raw.title||"")}" placeholder="Title">
-    <select id="ie-who" style="${fld}">${sel(raw.person_id, [["","Unassigned"], ...(people||[]).map(p=>[p.id, p.name])])}</select>
+    ${whoChips("ie-who", itemIds(raw))}
     <input id="ie-due" type="date" style="${fld}" value="${esc(raw.due_date||"")}">
     <select id="ie-rec" style="${fld}">${sel(rec, [["","Doesn't repeat"],["daily","Every day"],["weekly","Every week"],["monthly","Every month"]])}</select>
     ${kind==="chore"?`<select id="ie-stars" style="${fld}">${sel(raw.stars||0, [[0,"No stars"],[1,"\u2B50"],[2,"\u2B50\u2B50"],[3,"\u2B50\u2B50\u2B50"],[4,"\u2B50\u2B50\u2B50\u2B50"],[5,"\u2B50\u2B50\u2B50\u2B50\u2B50"]])}</select>`:""}
@@ -1559,7 +1570,7 @@ async function itemEdit(kind, item){
   box.querySelector('[data-a="save"]').onclick=async()=>{
     const title=$("#ie-title").value.trim(); if(!title){ $("#ie-title").focus(); return; }
     const newRec=$("#ie-rec").value, keep=String(raw.recurrence||"").split(";").slice(1).join(";");   // keep "interval=2" etc. if the kind didn't change
-    const body={title, person_id:$("#ie-who").value?+$("#ie-who").value:null, category_id:raw.category_id, color:raw.color,
+    const body={title, ...whoPicked("ie-who"), category_id:raw.category_id, color:raw.color,
       due_date:$("#ie-due").value||null, recurrence:newRec?(newRec===rec&&keep?newRec+";"+keep:newRec):null};
     if(kind==="chore") body.stars=+$("#ie-stars").value||0;
     const r=await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>null);
@@ -1612,8 +1623,8 @@ function renderTodos(todos, box){
   if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
   todos.forEach(t=>{
     const row=document.createElement("div"); row.className="list-row"+(t.done?" done":"");
-    const who=t.person_id?((people||[]).find(p=>p.id===t.person_id)||{}).name:"";
-    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who.split(" ")[0])}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
+    const who=whoNames(t);
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who)}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
     row.onclick=async()=>{await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"});load();resetSleep();};
     holdable(row, ()=>itemMenu("todo", t));
     box.appendChild(row);
@@ -1639,7 +1650,7 @@ function renderChoreList(chores, box){
   chores.forEach(c=>{
     const row=document.createElement("div"); row.className="list-row";
     const stars=c.stars?`<div class="qty">${"★".repeat(Math.min(c.stars,5))}</div>`:"";
-    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(c.color||'#4f86c6')}"></span><div class="label">${esc(c.title)}</div>${stars}`;
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(c.color||'#4f86c6')}"></span><div class="label">${esc(c.title)}${whoNames(c)?` <span class="who" style="color:${esc(c.color||'#4f86c6')}">· ${esc(whoNames(c))}</span>`:""}</div>${stars}`;
     row.onclick=async()=>{ await fetch(`/api/chores/${c.id}/toggle`,{method:"POST"}).catch(()=>{}); celebrate(row); load(); resetSleep(); };
     holdable(row, ()=>itemMenu("chore", c));
     box.appendChild(row);
@@ -2030,16 +2041,14 @@ function fillCalOptions(){
   const want=FH.get().defaultCalendar||"";
   sel.value = calTargets.some(t=>t.id===want) ? want : (calTargets.find(t=>t.id!=="local")||calTargets[0]).id;
 }
-function fillPersonOptions(sel){
-  $("#ev-person").innerHTML = `<option value="">Anyone</option>`+
-    people.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
-  $("#ev-person").value = sel!=null ? String(sel) : "";
+function fillPersonOptions(ids){
+  $("#ev-person").outerHTML = whoChips("ev-person", ids||[]);
+  // picking a person colors the event with their color (Google has no person field)
+  $("#ev-person").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const p=people.find(x=>x.id===+b.dataset.id);
+    if(b.classList.contains("on") && p && p.color && whoPicked("ev-person").person_ids.length===1){ chosenEvColor=p.color; syncEvColors(); }
+  }));
 }
-// picking a person colors the event with their color (Google has no person field)
-$("#ev-person").onchange=()=>{
-  const p=people.find(x=>String(x.id)===$("#ev-person").value);
-  if(p && p.color){ chosenEvColor=p.color; syncEvColors(); }
-};
 
 // month skip buttons (built once)
 (function(){ const row=$("#ev-month-row");
@@ -2137,7 +2146,7 @@ function openEditor(ev){
   $("#ev-desc").style.display=(editable||ev.description)?"":"none";
   chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
   $("#ev-color-row").style.display = editable ? "flex" : "none";
-  fillPersonOptions(ev.person_id); $("#ev-person-row").style.display = editable ? "flex" : "none";
+  fillPersonOptions(itemIds(ev)); $("#ev-person-row").style.display = editable ? "flex" : "none";
   $("#ev-cal-row").style.display="none";
   if(modalMode==="edit-local"){ $("#ev-recur-box").style.display=""; parseRecToUI(ev.recurrence); }
   else { $("#ev-recur-box").style.display="none"; }
@@ -2194,7 +2203,7 @@ function eventTimes(){
 $("#ev-save").onclick=async()=>{
   const title=$("#ev-name").value.trim(); if(!title) return;
   const t=eventTimes();
-  const personId = $("#ev-person").value ? parseInt($("#ev-person").value) : null;
+  const who = whoPicked("ev-person");
   const desc = $("#ev-desc").value.trim() || null;
   const location = $("#ev-loc").value.trim() || null;
   try{
@@ -2204,12 +2213,12 @@ $("#ev-save").onclick=async()=>{
       FH.save({defaultCalendar:destination});     // remember the last-used calendar
       const res=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location,
-          recurrence:buildRecFromUI(), color:chosenEvColor, person_id:personId, target:"auto", destination})}).then(r=>r.json()).catch(()=>({}));
+          recurrence:buildRecFromUI(), color:chosenEvColor, ...who, target:"auto", destination})}).then(r=>r.json()).catch(()=>({}));
       if(res.warning) banner(res.warning);
     } else if(modalMode==="edit-local"){
       await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location, recurrence:buildRecFromUI(),
-          person_id:personId, category_id:editing.category_id, color:chosenEvColor})});
+          ...who, category_id:editing.category_id, color:chosenEvColor})});
     } else if(editing){
       const target = modalMode==="edit-icloud" ? "icloud" : "google";
       await fetch("/api/calendar/events",{method:"PUT",headers:{"Content-Type":"application/json"},
@@ -2406,10 +2415,10 @@ async function renderKidMode(){
   const p=kidPerson; if(!p) return; const km=$("#kidmode");
   const d=cache.dash||{}; const today=localISODate();
   const nm=(p.name||"").toLowerCase();
-  const evs=cache.events.filter(e=>{ const st=evStart(e); return st && sameDay(st,new Date()) && (e.person_id===p.id || String(e.title||"").toLowerCase().includes(nm)); })
+  const evs=cache.events.filter(e=>{ const st=evStart(e); return st && sameDay(st,new Date()) && (itemIds(e).includes(p.id) || String(e.title||"").toLowerCase().includes(nm)); })
     .sort((a,b)=>evStart(a)-evStart(b));
   const routines=(d.routines||[]).filter(r=>r.person_id===p.id);
-  const chores=(d.chores||[]).filter(c=>c.person_id===p.id);
+  const chores=(d.chores||[]).filter(c=>itemIds(c).includes(p.id));
   let stars=0, rewards=[];
   try{ const b=await fetch("/api/rewards/balances").then(r=>r.json()); stars=((b.balances||[]).find(x=>x.id===p.id)||{}).stars||0; }catch(e){}
   try{ rewards=await fetch("/api/rewards/").then(r=>r.json()); }catch(e){}

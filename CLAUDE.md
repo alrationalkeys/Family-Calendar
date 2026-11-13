@@ -150,6 +150,10 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Laundry (`services/laundry.py`, hooked into ha_live): GE SmartHQ washer GFW550 + dryer GFD55 via HACS `simbaja/ha_gehome`; a washer/dryer state sensor going running→end = "🧺 The washer is done" (wall voice by day only; phone push always normal; quiet hours laundryQuietStart/End silence just the wall). `GET /api/ha/laundry` = running + minutes left. `laundry.tick()` (house-watch loop): "done in ~N min" push (settings.laundrySoonMin, 10), one nudge if the door isn't opened N min after done (laundryNudgeMin, 30; daytime only), washer-done says "move it to the dryer" when the dryer is idle.
 - Birthdays: `settings.birthdays` [{name, date MM-DD|YYYY-MM-DD}] for relatives (phone Settings > Family > Birthdays) + people.birthday; Skins.birthdayPeople merges both (Birthday skin with their name), `/api/calendar/events` adds "🎂 Name's birthday (turns N)" all-day items.
 - To-do lists: `todos.list_name` (NULL = main "To-Do"; iCloud items use ext_list), `settings.todoLists` = extra list names (phone Settings > To-do lists, add/reorder/remove → items move to To-Do via `POST /api/todos/{id}/list`). Wall To-Do box header ‹ › cycles lists (remembered per screen in localStorage fh_todo_list); + adds to the shown list.
+- Several people per item: to-dos, chores, local events carry `person_ids` (TEXT "1,3"; API takes/returns a list) and
+  `person_id` = the first (colors, old code). `services/assign.py` (norm/ids_of/expand/has/remove_person). Chore stars go to
+  everyone on it; scoreboard, voice "Alex's chores" and `/api/calendar/events?person_id=` match any assignee. Pickers = tap chips
+  (phone forms, wall item editor + event editor); wall rows show "Alex & Rachell".
 - `/api/announce` — phone→wall intercom (queued as a notification; wall speaks `kind=announce`)
 - `GET /api/notifications/digest` — spoken "today" briefing (`spoken`, `summary`, `details`); wall says it on first wake after `settings.briefingHour`
 - `/api/ai/meal-plan` + `/apply` — AI dinner planner (built-in rotation without a key); ingredients → groceries, de-duplicated

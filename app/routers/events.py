@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ..db import get_db
+from ..services.assign import norm, expand
 from ..services.recurrence import expand_events
 from ..services.color import build_lookups, color_for
 
@@ -19,6 +20,7 @@ class LocalEvent(BaseModel):
     end: str | None = None
     all_day: bool = False
     person_id: int | None = None
+    person_ids: list[int] | None = None
     category_id: int | None = None
     color: str | None = None
     description: str | None = None
@@ -38,6 +40,7 @@ def list_events(days: int = 60):
         r["color"] = color_for(r, cats, ppl)
         r["source"] = "local"
         r["all_day"] = bool(r["all_day"])
+        expand(r)
     expanded = expand_events(rows, start, end)
     expanded.sort(key=lambda e: e.get("start") or "")
     return {"events": expanded}
@@ -47,9 +50,9 @@ def list_events(days: int = 60):
 def add_event(e: LocalEvent):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence,reminder_minutes,location) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (e.title, e.start, e.end, int(e.all_day), e.person_id, e.category_id,
+            "INSERT INTO local_events (title,start,end,all_day,person_id,person_ids,category_id,color,description,recurrence,reminder_minutes,location) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (e.title, e.start, e.end, int(e.all_day), *norm(e.person_id, e.person_ids), e.category_id,
              e.color, e.description, e.recurrence, e.reminder_minutes, e.location))
         eid = cur.lastrowid
         _schedule_reminder(conn, eid, e)
@@ -60,9 +63,9 @@ def add_event(e: LocalEvent):
 def update_event(event_id: int, e: LocalEvent):
     with get_db() as conn:
         conn.execute(
-            "UPDATE local_events SET title=?,start=?,end=?,all_day=?,person_id=?,category_id=?,"
+            "UPDATE local_events SET title=?,start=?,end=?,all_day=?,person_id=?,person_ids=?,category_id=?,"
             "color=?,description=?,recurrence=?,reminder_minutes=?,location=? WHERE id=?",
-            (e.title, e.start, e.end, int(e.all_day), e.person_id, e.category_id,
+            (e.title, e.start, e.end, int(e.all_day), *norm(e.person_id, e.person_ids), e.category_id,
              e.color, e.description, e.recurrence, e.reminder_minutes, e.location, event_id))
         conn.execute("DELETE FROM notifications WHERE kind='reminder' AND body=?", (str(event_id),))
         _schedule_reminder(conn, event_id, e)

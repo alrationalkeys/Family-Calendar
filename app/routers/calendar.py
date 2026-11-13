@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ..db import get_db
+from ..services.assign import norm, expand
 from ..services import caldav_sync, google_sync, holidays_svc, ics_feed
 from ..services.recurrence import expand_events
 from ..services.color import build_lookups, color_for
@@ -93,6 +94,7 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
         r["color"] = color_for(r, cats, ppl)
         r["source"] = "local"
         r["all_day"] = bool(r["all_day"])
+        expand(r)
     merged += expand_events(local_rows, start, end)
     # Demo fallback: if no real sources/local events and a demo file exists —
     # unless the family cleared the sample data on purpose.
@@ -116,7 +118,8 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
     # Per-person filter: show this person's events plus shared/unassigned ones.
     if person_id is not None:
         merged = [e for e in merged
-                  if e.get("person_id") in (person_id, None) or e.get("source") in ("holiday", "google", "caldav", "ics")]
+                  if e.get("person_id") in (person_id, None) or person_id in (e.get("person_ids") or [])
+                  or e.get("source") in ("holiday", "google", "caldav", "ics")]
     merged = _explode_multiday(merged, start, end)
     merged.sort(key=lambda e: e.get("start") or "")
     return {"events": merged}
@@ -154,6 +157,7 @@ class NewEvent(BaseModel):
     end: str
     all_day: bool = False
     person_id: int | None = None
+    person_ids: list[int] | None = None
     category_id: int | None = None
     color: str | None = None
     description: str | None = None
@@ -171,9 +175,9 @@ def _has_source(kind: str) -> bool:
 def _add_local_event(ev: "NewEvent") -> dict:
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO local_events (title,start,end,all_day,person_id,category_id,color,description,recurrence,location) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (ev.title, ev.start, ev.end, int(ev.all_day), ev.person_id, ev.category_id, ev.color, ev.description, ev.recurrence, ev.location))
+            "INSERT INTO local_events (title,start,end,all_day,person_id,person_ids,category_id,color,description,recurrence,location) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (ev.title, ev.start, ev.end, int(ev.all_day), *norm(ev.person_id, ev.person_ids), ev.category_id, ev.color, ev.description, ev.recurrence, ev.location))
         return {"id": cur.lastrowid, "target": "local"}
 
 

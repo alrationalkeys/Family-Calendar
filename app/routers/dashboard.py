@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter
 from ..db import get_db
 from ..services.color import build_lookups, color_for
+from ..services.assign import expand
 
 router = APIRouter()
 
@@ -13,6 +14,8 @@ def _colorize(rows, cats, ppl):
     for r in rows:
         d = dict(r)
         d["color"] = color_for(r, cats, ppl)
+        if "person_id" in d:
+            expand(d)
         out.append(d)
     return out
 

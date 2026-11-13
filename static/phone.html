@@ -406,6 +406,10 @@
   body.embed-add #view-add>.sub, body.embed-add #view-add>.magic~.magic{display:none}
   body.embed-add #view-add>.seg{order:-2; flex-wrap:wrap} body.embed-add #form{order:-1; margin-bottom:16px}
   body.embed-add #toast{bottom:20px}
+.who{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+.who button{border:1.5px solid var(--pc);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font:inherit;font-size:15px;min-height:38px}
+.who button.on{background:var(--pc);color:#fff;font-weight:600}
+.who button.on::before{content:"✓ "}
 </style>
 </head>
 <body>
@@ -867,6 +871,14 @@ function peopleOptions(){
   return `<option value="">Unassigned</option>`+
     people.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
 }
+// Who's on it: tap one or more people (none = everyone / unassigned). Read back with whoIds(id).
+function whoChips(id){
+  if(!people.length) return "";
+  return `<div class="who" id="${id}" role="group" aria-label="Who">`+
+    people.map(p=>`<button type="button" data-id="${p.id}" style="--pc:${p.color||'#888'}" onclick="this.classList.toggle('on')">${FHHome.esc(p.name)}</button>`).join("")+`</div>`;
+}
+function whoIds(id){ return [...document.querySelectorAll(`#${id} button.on`)].map(b=>+b.dataset.id); }
+function whoBody(id){ const ids=whoIds(id); return {person_id: ids[0]||null, person_ids: ids}; }
 function recurOptions(){
   return ["","daily","weekly","monthly"].map(r=>
     `<option value="${r}">${r?r[0].toUpperCase()+r.slice(1):"No repeat"}</option>`).join("");
@@ -893,13 +905,13 @@ function renderForm(){
         <select id="e_dur_h" title="Hours">${Array.from({length:24},(_,h)=>`<option value="${h}"${h===1?' selected':''}>${h} h</option>`).join('')}</select>
         <select id="e_dur_m" title="Minutes">${Array.from({length:12},(_,i)=>`<option value="${i*5}">${String(i*5).padStart(2,'0')} min</option>`).join('')}</select>
       </div>
-      <select id="e_person" title="Who">${peopleOptions()}</select>
+      ${whoChips("e_person")}
       <select id="e_cal" title="Which calendar">${calOptions()}</select>
       <select id="e_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveEvent()">Add event</button>`;
   } else if(formKind==="chore"){
     f.innerHTML=`<input id="c_title" placeholder="Chore (e.g. Take out trash)">
-      <div class="two"><select id="c_person">${peopleOptions()}</select><select id="c_stars">${starsOptions()}</select></div>
+      ${whoChips("c_person")}<select id="c_stars">${starsOptions()}</select>
       <div class="two"><input id="c_due" type="date" value="${today}"><select id="c_recur">${recurOptions()}</select></div>
       <select id="c_cat">${catOptions()}</select>${colorRow}
       <button class="go" onclick="saveChore()">Add chore</button>`;
@@ -908,7 +920,7 @@ function renderForm(){
     if(!tls.includes(pre)) tls.push(pre);
     f.innerHTML=`<input id="t_title" placeholder="What needs doing?">
       <select id="t_list">${tls.map(n=>`<option ${n===pre?"selected":""}>${FHHome.esc(n)}</option>`).join("")}</select>
-      <div class="two"><select id="t_person">${peopleOptions()}</select><input id="t_due" type="date"></div>
+      ${whoChips("t_person")}<input id="t_due" type="date" title="Due">
       <div class="two"><select id="t_recur">${recurOptions()}</select><select id="t_cat">${catOptions()}</select></div>${colorRow}
       <button class="go" onclick="saveTodo()">Add to-do</button>`;
   } else if(formKind==="grocery"){
@@ -966,12 +978,12 @@ async function saveEvent(){
   const allday=$("#e_allday").checked;
   let payload;
   const destination=$("#e_cal")?$("#e_cal").value:"local";
-  const person_id=num($("#e_person")?$("#e_person").value:"");
+  const {person_id, person_ids}=whoBody("e_person");
   const recurrence=eventRecurrence();
   const loc=($("#e_loc")&&$("#e_loc").value.trim())||null;
   if(allday){
     const last=$("#e_end_date").value;                                // multi-day trip: last day inclusive
-    payload={title, start:date, end:nextDay(last&&last>date?last:date), all_day:true, destination, person_id, color:chosenColor, recurrence, location:loc};
+    payload={title, start:date, end:nextDay(last&&last>date?last:date), all_day:true, destination, person_id, person_ids, color:chosenColor, recurrence, location:loc};
   } else {
     const time=$("#e_time").value; if(!time){ toast("Pick a time"); return; }
     const start=`${date}T${time}:00`;
@@ -979,7 +991,7 @@ async function saveEvent(){
     const d=new Date(start); d.setMinutes(d.getMinutes()+mins);
     const p=n=>String(n).padStart(2,"0");
     const end=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
-    payload={title, start, end, destination, person_id, color:chosenColor, recurrence, location:loc};
+    payload={title, start, end, destination, person_id, person_ids, color:chosenColor, recurrence, location:loc};
   }
   FH.save({defaultCalendar:destination});
   try{
@@ -992,7 +1004,7 @@ async function saveEvent(){
 }
 async function saveChore(){
   const title=$("#c_title").value.trim(); if(!title)return;
-  const r=await post("/api/chores/",{title, person_id:num($("#c_person").value),
+  const r=await post("/api/chores/",{title, ...whoBody("c_person"),
     category_id:num($("#c_cat").value), color:chosenColor, due_date:$("#c_due").value||null,
     recurrence:$("#c_recur").value||null, stars:parseInt($("#c_stars").value)||0});
   if(!r.ok){ toast("Couldn't add chore"); return; }
@@ -1000,7 +1012,7 @@ async function saveChore(){
 }
 async function saveTodo(){
   const title=$("#t_title").value.trim(); if(!title)return;
-  const r=await post("/api/todos/",{title, person_id:num($("#t_person").value), category_id:num($("#t_cat").value), color:chosenColor,
+  const r=await post("/api/todos/",{title, ...whoBody("t_person"), category_id:num($("#t_cat").value), color:chosenColor,
     due_date:$("#t_due").value||null, recurrence:$("#t_recur").value||null, list_name:($("#t_list")||{}).value||null});
   if(!r.ok){ toast("Couldn't add to-do"); return; }
   toast("To-do added"); $("#t_title").value="";

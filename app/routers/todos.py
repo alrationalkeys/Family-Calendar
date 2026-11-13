@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import date
 from ..db import get_db
 from ..services.recurrence import next_occurrence
+from ..services.assign import norm, expand
 
 router = APIRouter()
 
@@ -15,6 +16,7 @@ class Todo(BaseModel):
     color: str | None = None
     due_date: str | None = None
     recurrence: str | None = None
+    person_ids: list[int] | None = None   # several people; person_id becomes the first
     list_name: str | None = None     # which list ("This weekend", "Work"…); None = the main To-do list
 
 
@@ -33,7 +35,7 @@ def sync_now():
 @router.get("/")
 def list_todos():
     with get_db() as conn:
-        return [dict(r) for r in conn.execute(
+        return [expand(dict(r)) for r in conn.execute(
             "SELECT * FROM todos ORDER BY done, created_at DESC")]
 
 
@@ -41,8 +43,8 @@ def list_todos():
 def add_todo(t: Todo):
     with get_db() as conn:
         cur = conn.execute(
-            "INSERT INTO todos (title, person_id, category_id, color, due_date, recurrence, list_name) VALUES (?,?,?,?,?,?,?)",
-            (t.title, t.person_id, t.category_id, t.color, t.due_date, t.recurrence, _ln(t.list_name)))
+            "INSERT INTO todos (title, person_id, person_ids, category_id, color, due_date, recurrence, list_name) VALUES (?,?,?,?,?,?,?,?)",
+            (t.title, *norm(t.person_id, t.person_ids), t.category_id, t.color, t.due_date, t.recurrence, _ln(t.list_name)))
         return {"id": cur.lastrowid}
 
 
@@ -50,8 +52,8 @@ def add_todo(t: Todo):
 def update_todo(todo_id: int, t: Todo):
     with get_db() as conn:
         conn.execute(
-            "UPDATE todos SET title=?, person_id=?, category_id=?, color=?, due_date=?, recurrence=?, list_name=COALESCE(?, list_name) WHERE id=?",
-            (t.title, t.person_id, t.category_id, t.color, t.due_date, t.recurrence, _ln(t.list_name), todo_id))
+            "UPDATE todos SET title=?, person_id=?, person_ids=?, category_id=?, color=?, due_date=?, recurrence=?, list_name=COALESCE(?, list_name) WHERE id=?",
+            (t.title, *norm(t.person_id, t.person_ids), t.category_id, t.color, t.due_date, t.recurrence, _ln(t.list_name), todo_id))
         return {"id": todo_id}
 
 

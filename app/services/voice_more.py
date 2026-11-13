@@ -255,7 +255,7 @@ def list_query(text: str):
             q = "SELECT title FROM todos WHERE done=0 AND (due_date IS NULL OR due_date<=?)"
             args = [_week_end(today).isoformat()]
             if pid:
-                q += " AND (person_id=? OR person_id IS NULL)"; args.append(pid)
+                q += " AND (person_id IS NULL OR person_id=? OR (','||COALESCE(person_ids,'')||',') LIKE '%,'||?||',%')"; args += [pid, str(pid)]
             rows = [r["title"] for r in conn.execute(q + " ORDER BY due_date IS NULL, due_date, id", args)]
             who = f"{pname}'s" if pid else "the"
             if not rows:
@@ -265,7 +265,7 @@ def list_query(text: str):
             q = "SELECT c.title, p.name FROM chores c LEFT JOIN people p ON p.id=c.person_id WHERE c.done=0 AND (c.due_date IS NULL OR c.due_date<=?)"
             args = [today.isoformat()]
             if pid:
-                q += " AND (c.person_id=? OR c.person_id IS NULL)"; args.append(pid)
+                q += " AND (c.person_id IS NULL OR c.person_id=? OR (','||COALESCE(c.person_ids,'')||',') LIKE '%,'||?||',%')"; args += [pid, str(pid)]
             rows = list(conn.execute(q + " ORDER BY c.due_date, c.id", args))
             if not rows:
                 return f"{pname} has no chores left today." if pid else "No chores left today."

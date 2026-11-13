@@ -204,6 +204,11 @@ def get(day: str | None = None) -> dict:
                 pw.append({"entity_id": eid, "name": a.get("friendly_name") or eid, "points": pts})
     except Exception as e:
         return {"ok": False, "reason": f"Home Assistant history failed ({getattr(e, 'code', '') or 'error'})"}
+    # WLED controllers add a light per segment ("… Main", "… Segment 1"): keep just the controller's own row
+    import re as _re
+    names = {r["name"].lower() for r in rows}
+    rows = [r for r in rows if not (r["kind"] == "light" and (m := _re.match(r"(.+?)\s+(main|segment\s*\d+)$", r["name"], _re.I))
+                                    and m.group(1).lower() in names)]
     order = {"climate": 0, "light": 1, "plug": 2, "tv": 3}
     rows.sort(key=lambda r: (order[r["kind"]], r["name"].lower()))
     return {"ok": True, "day": d.isoformat(), "peak": list(peak), "rows": rows, "power": pw, "stats": _stats(rows, peak),

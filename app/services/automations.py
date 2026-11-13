@@ -252,18 +252,18 @@ def list_all() -> dict:
         row = {"entity_id": s["entity_id"], "name": a.get("friendly_name") or s["entity_id"],
                "on": s.get("state") == "on", "last": a.get("last_triggered"), "about": "", "id": str(a.get("id") or "")}
         (mine if row["id"].startswith("fhu_") else other).append(row)
-    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_parts_v2")
+    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_v3")      # bump to rebuild every saved routine once
     for r in mine[:40]:
         spec = _MINE.get(r["id"]) if ha_svc.demo_mode() else (get_routine(r["id"]).get("spec"))
         if upgrade and spec:
             try:
-                save_routine(spec, r["id"])    # one-time: rebuild every routine with the current builder (Nov 12 fixes)
+                save_routine(spec, r["id"])    # one-time: rebuild every routine with the current builder (Nov 13: window-start check)
             except Exception:
                 pass
         r["about"] = summary(spec, names) if spec else "Changed in Home Assistant; edit it there."
         r["editable"] = bool(spec)
     if upgrade:
-        _flag_set("routines_parts_v2")
+        _flag_set("routines_v3")
     if other:
         groups.append({"key": "other", "title": "Made in Home Assistant", "blurb": "Routines created in the Home Assistant app.",
                        "installed": True, "status": [], "automations": other, "settings": []})
@@ -513,6 +513,14 @@ def build(spec: dict) -> dict:
     if spec.get("home"):
         conds.append({"condition": "numeric_state", "entity_id": "zone.home", "above": 0})
 
+    # A motion/door routine with a time window ("motion after 8 PM") only fires on a CHANGE to on. If the sensor
+    # already went on before the window opened and stayed on (open-plan kitchen, people around all evening), there
+    # is no change inside the window. So also check at the moment the window opens: sensor on -> run now.
+    extra_trigs = []
+    if t == "device" and trig.get("to") in ("on", "open") and spec.get("between") and not trig.get("for"):
+        extra_trigs.append({"trigger": "time", "at": _hm(spec["between"].get("after"), "start")})
+        conds.append({"condition": "state", "entity_id": trig["entity_id"], "state": trig["to"]})
+
     acts = []
     for a in spec.get("do") or []:
         k = a.get("type")
@@ -609,7 +617,7 @@ def build(spec: dict) -> dict:
     out = {"alias": name, "description": _TAG + json.dumps(spec, separators=(",", ":"))}
     if not any("__seg__" in x for x in acts):
         out.update(mode="restart" if any("delay" in x for x in acts) else "single",   # more motion = stays on longer
-                   triggers=[trig], conditions=conds, actions=acts)
+                   triggers=[trig] + extra_trigs, conditions=conds, actions=acts)
         return out
     # "turn on at sunset ... (until 10:30 PM) turn off": one automation, one trigger per part, so every part fires on
     # its own even if Home Assistant restarted or reloaded in between. The first part keeps all the "only if"s; the
@@ -651,8 +659,9 @@ def build(spec: dict) -> dict:
         else:
             segs[-1]["acts"].append(x)
     segs = [g for g in segs if g["acts"]]
+    extra = [dict(x, id="part0") for x in extra_trigs] if segs and segs[0]["trigger"]["id"] == "part0" else []
     out.update(mode="restart" if any("delay" in y for g in segs for y in g["acts"]) else "queued",
-               triggers=[g["trigger"] for g in segs], conditions=[],
+               triggers=[g["trigger"] for g in segs] + extra, conditions=[],
                actions=[{"choose": [{"conditions": [{"condition": "trigger", "id": g["trigger"]["id"]}] + g["conds"], "sequence": g["acts"]}
                                     for g in segs]}])
     return out

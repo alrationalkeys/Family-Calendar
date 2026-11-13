@@ -1579,7 +1579,9 @@ function renderHM(h, force){
       }
       climates.forEach(c=>{ html+=`<div class="hm-row hm-clim-row" data-clim="${E(c.entity_id)}" title="Tap to control"><div class="ric">🌡</div><div class="rt"><b>${E(c.name)}</b><span>${E(FHHome.haStateLabel(c))}</span></div><div class="rv">${c.current_temperature!=null?E(c.current_temperature)+'°':''}</div></div>`; });
       const num=t=>t&&!isNaN(parseFloat(t.state));
-      temps.filter(t=>t!==outdoorT).forEach(t=>{ const hh=partner(t);
+      // skip a thermostat's own temperature sensor (the thermostat row already shows it) and thermometers that are offline
+      const ofClimate=t=>climates.some(c=>{ const b=base(c.name).replace(/thermostat/,"").trim(); return b && base(t.name).replace(/thermostat/,"").trim()===b; });
+      temps.filter(t=>t!==outdoorT && !ofClimate(t) && num(t)).forEach(t=>{ const hh=partner(t);
         const sub=num(hh)?'humidity '+E(hh.state)+'%':(num(t)?'temperature':'offline — check its battery / Bluetooth range');
         html+=`<div class="hm-row"><div class="ric">${/out|porch|patio|walk/i.test(t.name)?'🌿':'🌡'}</div><div class="rt"><b>${E(t.name.replace(/temp(erature)?/i,'').trim())}</b><span>${sub}</span></div><div class="rv">${num(t)?E(t.state)+E(t.unit||'°'):'<small>—</small>'}</div></div>`; });
     }

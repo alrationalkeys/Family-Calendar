@@ -39,9 +39,44 @@ def _settings() -> dict:
         return {}
 
 
+_PREFIX: dict = {}        # GE serial prefix ("d828c1") -> "dryer" | "washer", learned from that machine's other sensors
+
+
+def _prefix(eid: str) -> str | None:
+    """GE SmartHQ ids are <domain>.<serial>_laundry_<thing>: every sensor of one machine shares the serial."""
+    obj = eid.split(".", 1)[-1]
+    return obj.split("_laundry", 1)[0] if "_laundry" in obj and not obj.startswith("laundry") else None
+
+
+def _learn(states) -> None:
+    for st in states or []:
+        eid, a = st.get("entity_id", ""), st.get("attributes") or {}
+        p = _prefix(eid)
+        if not p:
+            continue
+        txt = f"{eid} {a.get('friendly_name', '')}".lower()
+        if "dryer" in txt:
+            _PREFIX[p] = "dryer"
+        elif "washer" in txt and _PREFIX.get(p) != "dryer":
+            _PREFIX[p] = "washer"
+
+
 def _machine(eid: str, name: str) -> str | None:
     txt = f"{eid} {name}".lower()
-    return "dryer" if "dryer" in txt else "washer" if ("washer" in txt or "laundry" in txt) else None
+    if "dryer" in txt:
+        return "dryer"
+    if "washer" in txt:
+        return "washer"
+    p = _prefix(eid)
+    if p and p not in _PREFIX:
+        try:
+            from . import ha_live
+            _learn(ha_live.states())
+        except Exception:
+            pass
+    if p and p in _PREFIX:
+        return _PREFIX[p]
+    return "washer" if "laundry" in txt else None
 
 
 def is_state_sensor(eid: str, attrs: dict) -> bool:
@@ -199,6 +234,7 @@ def status() -> list:
         states = ha_live.states() or ha_svc._request("/api/states") or []
     except Exception:
         return []
+    _learn(states)
     out = {}
     for st in states:
         eid, a = st.get("entity_id", ""), st.get("attributes") or {}
@@ -210,8 +246,15 @@ def status() -> list:
         m = out.setdefault(mach, {"name": mach.title(), "running": False, "remaining_min": None, "state": ""})
         if is_state_sensor(eid, a):
             v = str(st.get("state") or "")
-            m["state"] = v
-            m["running"] = bool(_RUN.search(v)) and not _END.search(v)
+            obj = eid.split(".", 1)[1]
+            # several GE sensors pass the name test; the machine state one wins, numbers (counts, levels) never do
+            rank = 3 if re.search(r"machine_state|machine_status|run_status|operation_state", obj) else \
+                0 if re.fullmatch(r"-?[\d.]+", v.strip()) or v in ("unknown", "unavailable", "") else \
+                2 if re.search(r"_state$|_status$", obj) else 1
+            if rank and rank >= m.get("_rank", 0):
+                m["_rank"] = rank
+                m["state"] = v
+                m["running"] = bool(_RUN.search(v)) and not _END.search(v)
         elif re.search(r"remaining|time_left", eid):
             try:
                 v = float(st.get("state"))
@@ -219,4 +262,6 @@ def status() -> list:
                 m["remaining_min"] = round(v * 60 if unit.startswith("h") else v / 60 if unit.startswith("s") else v)
             except (TypeError, ValueError):
                 pass
+    for v in out.values():
+        v.pop("_rank", None)
     return [v for v in out.values() if v["state"]]

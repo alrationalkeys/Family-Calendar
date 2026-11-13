@@ -21,6 +21,8 @@ _RUN = re.compile(r"run|wash|rinse|spin|dry|cool ?down|fill|soak|steam|tumbl|sen
 _END = re.compile(r"end|complete|done|finish|clean|idle|^off$|standby|ready", re.I)
 _SKIP = re.compile(r"time|remaining|door|lock|temp|soil|level|option|setting|dispens|count|error|wifi|signal|"
                    r"remote|delay_time|cycle$|^cycle", re.I)
+_PROBLEM = re.compile(r"vent|block|clog|error|fault|service|water_?supply|supply|leak|fail|alert|warning|maintenance", re.I)
+_OK_VALUES = {"", "off", "none", "no error", "no_error", "ok", "normal", "unknown", "unavailable", "---", "0", "false", "no"}
 _last: dict = {}          # machine -> time announced
 _done_at: dict = {}       # machine -> when it finished (cleared when its door opens or a new cycle starts)
 _nudged: set = set()      # machines already nudged about clothes sitting in them
@@ -64,6 +66,19 @@ def on_state(eid: str, old: dict | None, new: dict | None):
             return
         attrs = new.get("attributes") or {}
         o, n = str(old.get("state") or ""), str(new.get("state") or "")
+        fname = str(attrs.get("friendly_name", ""))
+        if _MACH.search(eid + " " + fname) and _PROBLEM.search(eid + " " + fname) and eid.split(".")[0] in ("binary_sensor", "sensor"):
+            bad = (n == "on") if eid.startswith("binary_sensor.") else (n.lower() not in _OK_VALUES)
+            was = (o == "on") if eid.startswith("binary_sensor.") else (o.lower() not in _OK_VALUES)
+            if bad and not was:
+                mach = _machine(eid, fname) or "laundry"
+                key = f"{mach}:{eid}"
+                if time.time() - _last.get(key, 0) > 6 * 3600:      # once per problem per 6 h
+                    _last[key] = time.time()
+                    what = re.sub(r"^[A-Z0-9]{6,}\s+|laundry\s+", "", fname, flags=re.I).strip() or "a problem"
+                    extra = "" if eid.startswith("binary_sensor.") else f": {n}"
+                    threading.Thread(target=_announce, args=(mach, False, f"⚠️ {mach.title()}: {what}{extra}. Check it when you can.", True), daemon=True).start()
+            return
         if eid.startswith("binary_sensor.") and "door" in eid and _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))):
             if n == "on" and o != "on":                   # door opened: someone's dealing with it
                 _done_at.pop(_machine(eid, attrs.get("friendly_name", "")) or "laundry", None)

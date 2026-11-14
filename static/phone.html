@@ -579,6 +579,7 @@
     <label class="chk"><input type="checkbox" id="al-xm-motion"> After the lights go off, someone walking up turns them back on for <input type="number" id="al-xm-min" min="1" max="30" style="width:60px; display:inline-block; margin:0 4px"> min (until <input type="time" id="al-xm-until" style="width:110px; display:inline-block; margin:0 4px">)</label>
     <label class="chk"><input type="checkbox" id="al-xm-flash"> Doorbell after dark blinks the outside lights twice</label>
     <label class="chk"><input type="checkbox" id="al-xm-wind"> Windy forecast: tell us to stake the nutcrackers (gusts ≥ <input type="number" id="al-xm-gust" min="15" max="70" step="5" style="width:64px; display:inline-block; margin:0 4px"> mph)</label>
+    <label class="chk"><input type="checkbox" id="al-xm-rain"> Sideways rain or a downpour coming: tell us to bring the porch Santa in (rain with gusts ≥ <input type="number" id="al-xm-rgust" min="10" max="50" step="5" style="width:64px; display:inline-block; margin:0 4px"> mph)</label>
     <label class="chk"><input type="checkbox" id="al-xm-off"> Tell us if the lights' plug goes offline (GFCI tripped)</label>
     <label class="chk"><input type="checkbox" id="al-pkg"> Package on the porch: front cameras + AI spot a delivery and send the picture</label>
     <label class="chk">Low battery means at or below <input type="number" id="al-batt" min="5" max="60" step="5" style="width:70px; display:inline-block; margin:0 4px"> %</label>
@@ -1773,7 +1774,7 @@ function loadSettingsUI(){
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
-    bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline");
+    bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-rgust","rainGust",v=>+v||20);
     { const sel=$("#al-xm-plug"); if(sel&&!sel._wired){ sel._wired=true;
       fetch("/api/ha/home").then(r=>r.json()).then(h=>{ const cur=FH.get().xmasPlug||"";
         (h.groups||[]).flatMap(g=>g.tiles||[]).filter(t=>/^(switch|light)\./.test(t.entity_id)).sort((a,b)=>a.name.localeCompare(b.name))

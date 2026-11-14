@@ -8,6 +8,8 @@ outdoor decor — never the village).
               what it turned on. Until settings.xmasMotionUntil ("01:00").
   doorbell    a ring after dark -> the display blinks twice, then goes back to how it was.
   wind        gusts >= settings.windGust (30 mph) in the next 12 h -> one push a day to stake the nutcrackers.
+  porch rain  rain >= 60% with gusts >= settings.rainGust (20 mph) or >= 0.15 in/h in the next 12 h -> one push a day to
+              bring the indoor Santa in (settings.xmasRain).
   offline     the plug unavailable for 3+ min (outdoor GFCI tripped, usually rain) -> one push; another when it's back.
 
 Settings: xmasMotion, xmasFlash, xmasWind, xmasOffline (bools), xmasMotionMin, xmasMotionUntil, windGust, xmasPlug.
@@ -25,7 +27,7 @@ _NAME = re.compile(r"christmas|xmas|holiday|c9|outdoor decor|outside decor|yard 
 _MOTION_AT = re.compile(r"front|porch|door|driveway|yard|walk|entry|garage|outside|outdoor", re.I)
 _RING = re.compile(r"doorbell|door_bell|door bell|(?<![a-z])(ring|chime)(?![a-z])", re.I)
 _S: dict = {"ours_until": 0.0, "ours_at": 0.0, "offline_since": 0.0, "offline_told": False,
-            "wind_day": None, "wind_checked": 0.0, "flash_at": 0.0}
+            "wind_day": None, "wind_checked": 0.0, "flash_at": 0.0, "rain_day": None, "rain_checked": 0.0}
 
 
 def _settings() -> dict:
@@ -191,6 +193,38 @@ def tick():
             _S["wind_day"] = date.today()
             _push(f"💨 Gusts up to {w['mph']:.0f} mph around {w['at']}. Stake or lay down the nutcrackers and check the sleigh "
                   "and reindeer.", "familyhub-wind")
+    # porch rain: rain likely AND windy (sideways) or a downpour -> bring the indoor Santa in. Hourly, once a day.
+    if s.get("xmasRain", True) is not False and now - _S["rain_checked"] > 3600 and _S["rain_day"] != date.today():
+        _S["rain_checked"] = now
+        try:
+            r = porch_rain(float(s.get("rainGust") or 20))
+        except Exception:
+            r = None
+        if r:
+            _S["rain_day"] = date.today()
+            why = f"with gusts to {r['mph']:.0f} mph" if r["windy"] else "and it could pour"
+            _push(f"🌧 Rain {why} around {r['at']} ({r['pct']}%). Bring the indoor Santa in off the porch.", "familyhub-porch-rain")
+
+
+def porch_rain(gust_lim: float = 20, hours: int = 12) -> dict | None:
+    """First hour in the next `hours` where rain is likely (>= 60%) and either gusts >= gust_lim (sideways rain)
+    or >= 0.15 in/h (a downpour). -> {'at', 'pct', 'mph', 'inches', 'windy'} or None."""
+    from . import weather_svc
+    url = (f"https://api.open-meteo.com/v1/forecast?latitude={weather_svc.DEFAULT_LAT}&longitude={weather_svc.DEFAULT_LON}"
+           f"&hourly=precipitation_probability,precipitation,wind_gusts_10m&wind_speed_unit=mph&precipitation_unit=inch"
+           f"&forecast_hours={hours}&timezone=auto")
+    with urllib.request.urlopen(url, timeout=6) as r:
+        j = json.loads(r.read())
+    h = j.get("hourly") or {}
+    for t, p, mm, g in zip(h.get("time", []), h.get("precipitation_probability") or [], h.get("precipitation") or [],
+                           h.get("wind_gusts_10m") or []):
+        if p is None or p < 60:
+            continue
+        windy, heavy = (g or 0) >= gust_lim, (mm or 0) >= 0.15
+        if windy or heavy:
+            hr = int(t[11:13])
+            return {"at": f"{(hr % 12) or 12} {'AM' if hr < 12 else 'PM'}", "pct": p, "mph": g or 0, "inches": mm or 0, "windy": windy}
+    return None
 
 
 def gusts(hours: int = 12) -> dict | None:

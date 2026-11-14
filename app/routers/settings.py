@@ -45,6 +45,7 @@ DEFAULTS = {
     "xmasMotion": True, "xmasMotionMin": 5, "xmasMotionUntil": "01:00",   # outside Christmas lights back on for walkers after dark
     "xmasFlash": True,                # doorbell after dark blinks the outside Christmas lights
     "xmasWind": True, "windGust": 30, # gusts >= 30 mph forecast -> push to stake the nutcrackers (in season)
+    "xmasRain": True, "rainGust": 20, # sideways rain / downpour forecast -> push to bring the porch Santa in (in season)
     "xmasOffline": True,              # Christmas lights plug offline 3+ min (GFCI tripped) -> push
     "xmasPlug": "",                   # switch.* the display runs on; empty = guess from the name
     "packageAlerts": True,            # front cameras + AI: push when a package is left (needs ANTHROPIC_API_KEY)                 # % that counts as a low battery

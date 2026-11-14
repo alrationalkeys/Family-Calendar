@@ -151,7 +151,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Outside Christmas display (`services/xmas.py`, Nov 10–Jan 15, `GET /api/ha/xmas`): plug = settings.xmasPlug or a switch named
   christmas/xmas/holiday/c9 (never the village). After dark, outdoor motion (front/porch/driveway/yard; Blink included) turns the
   display back on for xmasMotionMin (5) until xmasMotionUntil (01:00), only turning off what it turned on; a doorbell ring after
-  dark blinks it twice; Open-Meteo gusts ≥ windGust (30 mph) in 12 h → one push/day; rain ≥60% with gusts ≥ rainGust (20) or ≥0.15 in/h → "bring the porch Santa in" (xmasRain, once/day). Wind+rain: daytime hourly for hours before 8 PM; at xmasEveningCheck
+  dark blinks it twice; Open-Meteo gusts ≥ windGust (30 mph) in 12 h → one push/day; rain ≥60% with gusts ≥ rainGust (20) or ≥0.15 in/h → "bring the porch Santa in" (xmasRain, once/day). Wind+rain: daytime hourly for hours before 8 PM, repeating every xmasRemindHours (3) while still coming; at xmasEveningCheck
   (20:00) one "🌙 Before bed" push covering tonight→9 AM; nothing pushes 20:00–07:00 otherwise; plug unavailable 3+ min → GFCI push (+ back
   online). Hooked into ha_live + the house-watch tick; phone Settings > Alerts.
 - Birthdays: `settings.birthdays` [{name, date MM-DD|YYYY-MM-DD}] for relatives (phone Settings > Family > Birthdays) + people.birthday; Skins.birthdayPeople merges both (Birthday skin with their name), `/api/calendar/events` adds "🎂 Name's birthday (turns N)" all-day items.

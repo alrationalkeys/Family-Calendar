@@ -186,7 +186,8 @@ def tick():
 
 def _weather_tick(s: dict, now: float):
     """Wind (nutcrackers) + porch rain (indoor Santa).
-    Daytime (07:00-20:00): hourly look at the hours left before 8 PM, push once a day per kind.
+    Daytime (07:00-20:00): hourly look at the hours left before 8 PM; push, then again every settings.xmasRemindHours
+    (3) while it's still coming.
     8 PM (settings.xmasEveningCheck): one look at tonight through 9 AM, so an overnight storm is told
     BEFORE bed instead of waking us at 2 AM. Nothing is pushed between 8 PM and 7 AM otherwise."""
     dt = datetime.now()
@@ -222,24 +223,25 @@ def _weather_tick(s: dict, now: float):
     if not ("07:00" <= hhmm < eve):
         return
     left = max(1, int(eve[:2]) - dt.hour)              # only the hours before the evening check
-    if wind_on and now - _S["wind_checked"] > 3600 and _S["wind_day"] != dt.date():
+    gap = max(1.0, float(s.get("xmasRemindHours") or 3)) * 3600
+    if wind_on and now - _S["wind_checked"] > 3600 and now - (_S.get("wind_at") or 0) >= gap:
         _S["wind_checked"] = now
         try:
             w = gusts(left)
         except Exception:
             w = None
         if w and w["mph"] >= wind_lim:
-            _S["wind_day"] = dt.date()
+            _S["wind_at"] = now
             _push(f"💨 Gusts up to {w['mph']:.0f} mph around {w['at']}. Stake or lay down the nutcrackers and check the sleigh "
                   "and reindeer.", "familyhub-wind")
-    if rain_on and now - _S["rain_checked"] > 3600 and _S["rain_day"] != dt.date():
+    if rain_on and now - _S["rain_checked"] > 3600 and now - (_S.get("rain_at") or 0) >= gap:
         _S["rain_checked"] = now
         try:
             r = porch_rain(rain_gust, left)
         except Exception:
             r = None
         if r:
-            _S["rain_day"] = dt.date()
+            _S["rain_at"] = now
             why = f"with gusts to {r['mph']:.0f} mph" if r["windy"] else "and it could pour"
             _push(f"🌧 Rain {why} around {r['at']} ({r['pct']}%). Bring the indoor Santa in off the porch.", "familyhub-porch-rain")
 

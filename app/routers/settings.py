@@ -45,6 +45,7 @@ DEFAULTS = {
     "xmasMotion": True, "xmasMotionMin": 5, "xmasMotionUntil": "01:00",   # outside Christmas lights back on for walkers after dark
     "xmasFlash": True,                # doorbell after dark blinks the outside Christmas lights
     "xmasWind": True, "windGust": 30, # gusts >= 30 mph forecast -> push to stake the nutcrackers (in season)
+    "xmasRemindHours": 3,            # daytime wind/rain alerts repeat this often while it's still on the way
     "xmasEveningCheck": "20:00",     # overnight wind/rain is told at this time (nothing pushes 8 PM-7 AM otherwise)
     "xmasRain": True, "rainGust": 20, # sideways rain / downpour forecast -> push to bring the porch Santa in (in season)
     "xmasOffline": True,              # Christmas lights plug offline 3+ min (GFCI tripped) -> push

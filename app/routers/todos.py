@@ -5,6 +5,7 @@ from datetime import date
 from ..db import get_db
 from ..services.recurrence import next_occurrence
 from ..services.assign import norm, expand
+from ..services import undo
 
 router = APIRouter()
 
@@ -35,7 +36,7 @@ def sync_now():
 @router.get("/")
 def list_todos():
     with get_db() as conn:
-        return [expand(dict(r)) for r in conn.execute(
+        return [undo.mark(expand(dict(r))) for r in conn.execute(
             "SELECT * FROM todos ORDER BY done, created_at DESC")]
 
 
@@ -59,20 +60,36 @@ def update_todo(todo_id: int, t: Todo):
 
 @router.post("/{todo_id}/toggle")
 def toggle(todo_id: int):
+    """Tick a to-do (a repeating one rolls to its next date). Tapping it again within settings.undoMinutes puts it back."""
     with get_db() as conn:
-        row = conn.execute("SELECT done, recurrence, due_date FROM todos WHERE id=?",
+        row = conn.execute("SELECT done, recurrence, due_date, done_at, undo_due FROM todos WHERE id=?",
                            (todo_id,)).fetchone()
         if not row:
             raise HTTPException(404, "no such to-do")
+        if undo.recent(row):                        # oops: bring it back exactly as it was
+            if row["undo_due"] is not None:
+                conn.execute("UPDATE todos SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
+                             (row["undo_due"] or None, todo_id))
+            else:
+                conn.execute("UPDATE todos SET done=0, done_at=NULL WHERE id=?", (todo_id,))
+            reopen = True
+        else:
+            reopen = False
+    if reopen:
+        import threading
+        from ..services import reminders_sync
+        threading.Thread(target=reminders_sync.push_reopen, args=(todo_id,), daemon=True).start()
+        return {"id": todo_id, "done": 0, "undone": True}
+    with get_db() as conn:
         rec = row["recurrence"]
         if rec and not row["done"]:
             base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()
             nxt = next_occurrence(rec, base)
-            conn.execute("UPDATE todos SET due_date=?, done=0 WHERE id=?",
-                         (nxt.isoformat() if nxt else None, todo_id))
+            conn.execute("UPDATE todos SET due_date=?, done=0, done_at=?, undo_due=? WHERE id=?",
+                         (nxt.isoformat() if nxt else None, undo.now(), row["due_date"] or "", todo_id))
             return {"id": todo_id, "recurred": True, "next": nxt.isoformat() if nxt else None}
         new = 0 if row["done"] else 1
-        conn.execute("UPDATE todos SET done=? WHERE id=?", (new, todo_id))
+        conn.execute("UPDATE todos SET done=?, done_at=?, undo_due=NULL WHERE id=?", (new, undo.now() if new else None, todo_id))
     if new:
         # synced from iCloud Reminders? complete it there too (best effort, off the request path)
         import threading

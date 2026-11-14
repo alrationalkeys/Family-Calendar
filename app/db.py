@@ -52,12 +52,12 @@ def _has_column(conn, table, col):
 def _migrate(conn):
     """Add category_id/color columns to existing installs without data loss."""
     adds = {
-        "chores":    [("category_id", "INTEGER"), ("color", "TEXT"), ("person_ids", "TEXT")],
+        "chores":    [("category_id", "INTEGER"), ("color", "TEXT"), ("person_ids", "TEXT"), ("done_at", "TEXT"), ("undo_due", "TEXT")],
         "meals":     [("category_id", "INTEGER"), ("color", "TEXT")],
         "todos":     [("category_id", "INTEGER"), ("color", "TEXT"),
                       ("due_date", "TEXT"), ("recurrence", "TEXT"),
                       ("ext_uid", "TEXT"), ("ext_source", "TEXT"), ("ext_list", "TEXT"), ("list_name", "TEXT"), ("person_ids", "TEXT"),
-                      ("person_id", "INTEGER")],
+                      ("person_id", "INTEGER"), ("done_at", "TEXT"), ("undo_due", "TEXT")],
         "groceries": [("category_id", "INTEGER"), ("color", "TEXT"), ("got_at", "TEXT")],   # got_at: when ticked; purged 30 min later
         "people":    [("birthday", "TEXT")],        # "MM-DD" or "YYYY-MM-DD"; drives the Birthday skin + countdown
         "local_events": [("description", "TEXT"), ("skip_dates", "TEXT"), ("location", "TEXT"), ("person_ids", "TEXT")],   # location: drives the leave-by countdown   # skip_dates: JSON list of "YYYY-MM-DD" occurrences to leave out

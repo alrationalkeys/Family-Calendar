@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from ..db import get_db
 from ..services.color import build_lookups, color_for
 from ..services.assign import expand
+from ..services import undo
 
 router = APIRouter()
 
@@ -27,12 +28,13 @@ def dashboard():
         cats_map, ppl_map = build_lookups(conn)
         people = [dict(r) for r in conn.execute("SELECT * FROM people")]
         categories = [dict(r) for r in conn.execute("SELECT * FROM categories ORDER BY name")]
-        chores = _colorize(conn.execute(
-            "SELECT * FROM chores WHERE done=0 ORDER BY due_date"), cats_map, ppl_map)
+        cut = undo.cutoff()                      # ticked in the last 30 min stays (crossed out) so a mis-tap can be undone
+        chores = [undo.mark(c) for c in _colorize(conn.execute(
+            f"SELECT * FROM chores WHERE {undo.sql_visible()} ORDER BY due_date", (cut,)), cats_map, ppl_map)]
         meals = _colorize(conn.execute(
             "SELECT * FROM meals WHERE date>=? ORDER BY date, slot", (today,)), cats_map, ppl_map)
-        todos = _colorize(conn.execute(
-            "SELECT * FROM todos WHERE done=0 ORDER BY created_at DESC"), cats_map, ppl_map)
+        todos = [undo.mark(t) for t in _colorize(conn.execute(
+            f"SELECT * FROM todos WHERE {undo.sql_visible()} ORDER BY created_at DESC", (cut,)), cats_map, ppl_map)]
         from .groceries import purge_got
         purge_got(conn)
         groceries = _colorize(conn.execute(

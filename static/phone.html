@@ -1130,8 +1130,8 @@ async function loadAgenda(){
     (cal.events||[]).forEach(e=>{ const s=new Date(e.start); if(isNaN(s)) return; const d=e.all_day&&e.start.length===10?new Date(e.start+"T00:00"):s; if(d<today||d>=end) return; items.push({d, e}); });
     const showTasks=FH.get().calendarTasks!==false;
     if(showTasks){
-      (dash.todos||[]).forEach(t=>{ if(!t.due_date) return; const d=new Date(t.due_date+"T00:00"); if(d>=end) return; items.push({d:d<today?today:d, e:{title:t.title, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, late:d<today}}); });
-      (dash.chores||[]).forEach(c=>{ const d=c.due_date?new Date(c.due_date+"T00:00"):today; if(d>=end) return; items.push({d:d<today?today:d, e:{title:(c.stars?"\u2B50 ":"")+c.title, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, late:d<today}}); });
+      (dash.todos||[]).forEach(t=>{ if(!t.due_date) return; const d=new Date(t.due_date+"T00:00"); if(d>=end) return; items.push({d:d<today?today:d, e:{title:t.title, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, late:d<today, done:!!(t.done||t.just_done)}}); });
+      (dash.chores||[]).forEach(c=>{ const d=c.due_date?new Date(c.due_date+"T00:00"):today; if(d>=end) return; items.push({d:d<today?today:d, e:{title:(c.stars?"\u2B50 ":"")+c.title, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, late:d<today, done:!!(c.done||c.just_done)}}); });
     }
     items.sort((a,b)=>(a.d-b.d) || ((a.e.task?0:1)-(b.e.task?0:1)) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
     if(!items.length){ box.innerHTML=`<div class="hint">Nothing in the next ${agDays} days.</div>`; return; }
@@ -1139,13 +1139,14 @@ async function loadAgenda(){
     items.forEach(({d,e})=>{
       const key=d.toDateString();
       if(key!==last){ last=key; const isT=d.toISOString().slice(0,10)===todayKey || d.getTime()===today.getTime(); html+=`<div class="ag-day${isT?' today':''}">${isT?"Today":d.toLocaleDateString([],{weekday:"long",month:"short",day:"numeric"})}</div>`; }
-      const time = e.task ? "\u2610" : e.all_day ? "all day" : d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
-      html+=`<div class="ag-ev${e.task?' task':''}" ${e.task?`data-kind="${e.task.kind}" data-id="${e.task.id}"`:""}><span class="ag-time">${time}</span><span class="ag-dot" style="background:${E(e.color||'#4f86c6')}"></span><span class="ag-title">${E(e.title)}</span>${e.task?`<span class="ag-kind">${e.task.kind==="chore"?"chore":"to-do"}${e.late?" \u00b7 overdue":""}</span>`:""}</div>`;
+      const time = e.task ? (e.done?"\u2611":"\u2610") : e.all_day ? "all day" : d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+      html+=`<div class="ag-ev${e.task?' task':''}${e.done?' done':''}" ${e.task?`data-kind="${e.task.kind}" data-id="${e.task.id}"`:""}><span class="ag-time">${time}</span><span class="ag-dot" style="background:${E(e.color||'#4f86c6')}"></span><span class="ag-title">${E(e.title)}</span>${e.task?`<span class="ag-kind">${e.task.kind==="chore"?"chore":"to-do"}${e.late?" \u00b7 overdue":""}</span>`:""}</div>`;
     });
     box.innerHTML=html;
     box.querySelectorAll(".ag-ev.task").forEach(row=>row.onclick=async()=>{
       row.classList.toggle("done"); row.querySelector(".ag-time").textContent=row.classList.contains("done")?"\u2611":"\u2610"; if(navigator.vibrate) navigator.vibrate(10);
-      try{ await post(`/api/${row.dataset.kind==="todo"?"todos":"chores"}/${row.dataset.id}/toggle`,{}); toast("Checked off"); }catch(e){ toast("Couldn't reach the wall"); }
+      try{ const r=await post(`/api/${row.dataset.kind==="todo"?"todos":"chores"}/${row.dataset.id}/toggle`,{}).then(x=>x.json()).catch(()=>({}));
+        toast(r.undone?"\u21A9\uFE0F Back on the list":"Checked off \u00b7 tap again within 30 min to undo"); }catch(e){ toast("Couldn't reach the wall"); }
       setTimeout(loadAgenda, 600);
     });
   }catch(e){ box.innerHTML='<div class="hint">Couldn\u2019t load the calendar.</div>'; }

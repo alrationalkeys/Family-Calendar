@@ -1284,8 +1284,8 @@ function evColor(ev){ return ev.color || "#4f86c6"; }
 function taskEvents(){
   if(FH.get().calendarTasks===false || !cache.dash) return [];
   const today=dateStr(new Date()); const out=[];
-  (cache.dash.todos||[]).forEach(t=>{ if(t.due_date) out.push({id:"todo:"+t.id, title:t.title, start:t.due_date, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!t.done}); });
-  (cache.dash.chores||[]).forEach(c=>{ const d=c.due_date||today; if(d>=today || c.due_date) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:c.due_date||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!c.done}); });
+  (cache.dash.todos||[]).forEach(t=>{ if(t.due_date) out.push({id:"todo:"+t.id, title:t.title, start:t.due_date, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!(t.done||t.just_done)}); });
+  (cache.dash.chores||[]).forEach(c=>{ const d=c.due_date||today; if(d>=today || c.due_date) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:c.due_date||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!(c.done||c.just_done)}); });
   return out;
 }
 function calItems(){ return cache.events.concat(taskEvents()); }
@@ -1618,14 +1618,16 @@ function renderTodos(todos, box){
   }
   // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
   const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
-  const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done).length;
-  if(!showLaterTodos) todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done));
+  const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done&&!t.just_done).length;
+  if(!showLaterTodos) todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done&&!t.just_done));
   if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
   todos.forEach(t=>{
-    const row=document.createElement("div"); row.className="list-row"+(t.done?" done":"");
+    const row=document.createElement("div"); row.className="list-row"+((t.done||t.just_done)?" done":"");
+    if(t.just_done) row.title="Checked off. Tap again to bring it back";
     const who=whoNames(t);
     row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who)}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
-    row.onclick=async()=>{await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"});load();resetSleep();};
+    row.onclick=async()=>{ const r=await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"}).then(x=>x.json()).catch(()=>({}));
+      if(r.undone) banner("\u21A9\uFE0F Back on the list", t.title); load(); resetSleep(); };
     holdable(row, ()=>itemMenu("todo", t));
     box.appendChild(row);
   });
@@ -1648,10 +1650,13 @@ function renderChoreList(chores, box){
   box=box||$("#chorelist"); if(!box) return; box.innerHTML="";
   if(!chores.length){box.innerHTML='<div class="empty">No chores right now — all done! \u{1F389}</div>';return;}
   chores.forEach(c=>{
-    const row=document.createElement("div"); row.className="list-row";
+    const row=document.createElement("div"); row.className="list-row"+((c.done||c.just_done)?" done":"");
+    if(c.just_done) row.title="Checked off. Tap again to bring it back";
     const stars=c.stars?`<div class="qty">${"★".repeat(Math.min(c.stars,5))}</div>`:"";
     row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(c.color||'#4f86c6')}"></span><div class="label">${esc(c.title)}${whoNames(c)?` <span class="who" style="color:${esc(c.color||'#4f86c6')}">· ${esc(whoNames(c))}</span>`:""}</div>${stars}`;
-    row.onclick=async()=>{ await fetch(`/api/chores/${c.id}/toggle`,{method:"POST"}).catch(()=>{}); celebrate(row); load(); resetSleep(); };
+    row.onclick=async()=>{ const r=await fetch(`/api/chores/${c.id}/toggle`,{method:"POST"}).then(x=>x.json()).catch(()=>({}));
+      if(r.undone) banner("\u21A9\uFE0F Back on the list", c.stars?`${c.title} · stars taken back`:c.title); else celebrate(row);
+      load(); resetSleep(); };
     holdable(row, ()=>itemMenu("chore", c));
     box.appendChild(row);
   });
@@ -2431,7 +2436,7 @@ async function renderKidMode(){
   routines.forEach(r=>{
     html+=`<div class="km-card"><h3>${esc(r.emoji||"")} ${esc(r.name)}${r.complete?" \u2014 done!":""}</h3>`+r.steps.map((st,i)=>`<div class="km-big${r.done.includes(i)?' done':''}" data-rt="${r.id}" data-i="${i}"><div class="box"></div><span>${st.emoji?esc(st.emoji)+' ':''}${esc(st.title)}</span>${st.minutes?`<span class="star">\u23F1 ${st.minutes} min</span>`:""}</div>`).join("")+`</div>`;
   });
-  html+=`<div class="km-card"><h3>Chores</h3>`+(chores.length?chores.map(c=>`<div class="km-big" data-chore="${c.id}"><div class="box"></div><span>${esc(c.title)}</span>${c.stars?`<span class="star">${"\u2605".repeat(Math.min(c.stars,5))}</span>`:""}</div>`).join(""):'<div class="empty">All done!</div>')+`</div>`;
+  html+=`<div class="km-card"><h3>Chores</h3>`+(chores.length?chores.map(c=>`<div class="km-big" data-chore="${c.id}"${c.just_done?' style="opacity:.45; text-decoration:line-through"':''}><div class="box"></div><span>${esc(c.title)}</span>${c.stars?`<span class="star">${"\u2605".repeat(Math.min(c.stars,5))}</span>`:""}</div>`).join(""):'<div class="empty">All done!</div>')+`</div>`;
   if(rewards.length) html+=`<div class="km-card"><h3>Rewards</h3>`+rewards.map(r=>`<div class="km-rw"><span>${esc(r.name)}</span><span style="color:var(--ink-dim);font-size:13px">\u2605 ${r.cost}</span><button data-rw="${r.id}" ${stars<r.cost?'disabled':''}>Redeem</button></div>`).join("")+`</div>`;
   html+=`</div>`;
   km.innerHTML=html;

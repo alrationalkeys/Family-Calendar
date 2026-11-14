@@ -137,3 +137,33 @@ def push_complete(todo_id: int) -> bool:
     if not src or caldav is None:
         return False
     return complete(json.loads(src["config"]), row["ext_uid"])
+
+
+def push_reopen(todo_id: int) -> bool:
+    """Undo of a tick inside the undo window: mark it not-completed in Reminders again."""
+    with get_db() as conn:
+        row = conn.execute("SELECT ext_uid, ext_source FROM todos WHERE id=?", (todo_id,)).fetchone()
+        if not row or not row["ext_uid"] or not (row["ext_source"] or "").startswith("caldav:"):
+            return False
+        src = conn.execute("SELECT config FROM cal_sources WHERE id=?", (int(row["ext_source"].split(":", 1)[1]),)).fetchone()
+    if not src or caldav is None:
+        return False
+    try:
+        for cal in _client(json.loads(src["config"])).principal().calendars():
+            try:
+                t = cal.todo_by_uid(row["ext_uid"])
+            except Exception:
+                t = None
+            if t:
+                if hasattr(t, "uncomplete"):
+                    t.uncomplete()
+                else:
+                    comp = t.icalendar_component
+                    for k in ("COMPLETED", "PERCENT-COMPLETE"):
+                        comp.pop(k, None)
+                    comp["STATUS"] = "NEEDS-ACTION"
+                    t.save()
+                return True
+    except Exception:
+        pass
+    return False

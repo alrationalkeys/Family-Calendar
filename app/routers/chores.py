@@ -5,6 +5,7 @@ from datetime import datetime, date
 from ..db import get_db
 from ..services.recurrence import next_occurrence
 from ..services.assign import norm, expand, ids_of, has
+from ..services import undo
 
 router = APIRouter()
 
@@ -23,7 +24,7 @@ class Chore(BaseModel):
 @router.get("/")
 def list_chores():
     with get_db() as conn:
-        return [expand(dict(r)) for r in conn.execute("SELECT * FROM chores ORDER BY done, due_date")]
+        return [undo.mark(expand(dict(r))) for r in conn.execute("SELECT * FROM chores ORDER BY done, due_date")]
 
 
 @router.get("/scoreboard")
@@ -98,13 +99,25 @@ def toggle(chore_id: int):
     """Complete a chore. If it recurs, roll due_date forward and stay active.
     Completing a chore with stars credits the assigned person's reward balance."""
     with get_db() as conn:
-        row = conn.execute("SELECT done, recurrence, due_date, stars, person_id, person_ids, title FROM chores WHERE id=?",
-                           (chore_id,)).fetchone()
+        row = conn.execute("SELECT done, recurrence, due_date, stars, person_id, person_ids, title, done_at, undo_due "
+                           "FROM chores WHERE id=?", (chore_id,)).fetchone()
         if not row:
             raise HTTPException(404, "no such chore")
+        reason = f"chore: {row['title']}"
+        if undo.recent(row):                         # oops: put it back and take the stars back off
+            if row["undo_due"] is not None:
+                conn.execute("UPDATE chores SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
+                             (row["undo_due"] or None, chore_id))
+            else:
+                conn.execute("UPDATE chores SET done=0, done_at=NULL WHERE id=?", (chore_id,))
+            if row["stars"]:
+                for pid in ids_of(row):
+                    conn.execute("DELETE FROM reward_ledger WHERE id IN (SELECT id FROM reward_ledger WHERE person_id=? AND "
+                                 "reason=? AND stars>0 AND at>=datetime('now', ?) ORDER BY id DESC LIMIT 1)",
+                                 (pid, reason, f"-{undo.minutes() + 5} minutes"))
+            return {"id": chore_id, "done": 0, "undone": True, "stars_earned": 0}
         rec = row["recurrence"]
         completing = not row["done"]
-        reason = f"chore: {row['title']}"
         earned = 0
         if completing and row["stars"]:
             for pid in ids_of(row):                    # everyone on the chore gets the stars
@@ -118,12 +131,12 @@ def toggle(chore_id: int):
             nxt = next_occurrence(rec, base)
             while nxt and nxt <= date.today():          # an overdue repeat jumps to its next date after today
                 nxt = next_occurrence(rec, nxt)
-            conn.execute("UPDATE chores SET due_date=?, done=0 WHERE id=?",
-                         (nxt.isoformat() if nxt else None, chore_id))
+            conn.execute("UPDATE chores SET due_date=?, done=0, done_at=?, undo_due=? WHERE id=?",
+                         (nxt.isoformat() if nxt else None, undo.now(), row["due_date"] or "", chore_id))
             return {"id": chore_id, "recurred": True, "next": nxt.isoformat() if nxt else None,
                     "stars_earned": earned}
         new = 0 if row["done"] else 1
-        conn.execute("UPDATE chores SET done=?, done_at=? WHERE id=?",
-                     (new, datetime.now().isoformat() if new else None, chore_id))
+        conn.execute("UPDATE chores SET done=?, done_at=?, undo_due=NULL WHERE id=?",
+                     (new, undo.now() if new else None, chore_id))
         return {"id": chore_id, "done": new,
                 "stars_earned": earned}

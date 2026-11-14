@@ -332,8 +332,13 @@ def run(text: str, tiles: list) -> dict | None:
         kw["output_config"] = {"effort": "low"}       # quick, decisive turns for voice
     messages = [{"role": "user", "content": text}]
     out = {"ok": True}
+    import time as _time
+    deadline = _time.time() + 50                     # the wall gives up at 75 s; answer (or say so) well before that
     try:
         for _ in range(6):
+            if _time.time() > deadline:
+                out["say"] = "That one's taking me too long. Try asking it a shorter way."
+                return out
             resp = client.messages.create(messages=messages, **kw)
             if resp.stop_reason == "refusal":
                 return {"ok": True, "say": "Sorry, I can't help with that one."}

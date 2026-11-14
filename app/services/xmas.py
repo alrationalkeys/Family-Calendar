@@ -115,7 +115,11 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
                 _S["flash_at"] = time.time()
                 threading.Thread(target=_flash, args=(p, states[p].get("state") == "on"), daemon=True).start()
             return
-        if a.get("device_class") in ("motion", "occupancy") and ns == "on" and _MOTION_AT.search(eid + " " + name) \
+        txt = eid + " " + name
+        moving = a.get("device_class") in ("motion", "occupancy") or re.search(r"(person|people|vehicle|motion)[ _]detected", txt, re.I)
+        if re.search(r"animal|pet|package", txt, re.I):       # Alarm.com camera AI: cats and parcels don't count
+            moving = False
+        if moving and ns == "on" and _MOTION_AT.search(txt) \
                 and not re.search(r"kitchen|living|bed|bath|stair|hall|office|loft|laundry|dining|pantry|closet", eid + " " + name, re.I):
             if s.get("xmasMotion", True) is False or not _dark(states) or not _late_ok(s):
                 return

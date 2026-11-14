@@ -181,29 +181,72 @@ def tick():
             if _S["offline_told"]:
                 _push("🎄 The outside Christmas lights plug is back online.", "familyhub-xmas")
             _S["offline_since"], _S["offline_told"] = 0.0, False
-    # wind: check hourly, push once a day
-    if s.get("xmasWind", True) is not False and now - _S["wind_checked"] > 3600 and _S["wind_day"] != date.today():
-        _S["wind_checked"] = now
+    _weather_tick(s, now)
+
+
+def _weather_tick(s: dict, now: float):
+    """Wind (nutcrackers) + porch rain (indoor Santa).
+    Daytime (07:00-20:00): hourly look at the hours left before 8 PM, push once a day per kind.
+    8 PM (settings.xmasEveningCheck): one look at tonight through 9 AM, so an overnight storm is told
+    BEFORE bed instead of waking us at 2 AM. Nothing is pushed between 8 PM and 7 AM otherwise."""
+    dt = datetime.now()
+    wind_on, rain_on = s.get("xmasWind", True) is not False, s.get("xmasRain", True) is not False
+    if not (wind_on or rain_on):
+        return
+    wind_lim, rain_gust = float(s.get("windGust") or 30), float(s.get("rainGust") or 20)
+    eve = str(s.get("xmasEveningCheck") or "20:00")[:5]
+    hhmm = dt.strftime("%H:%M")
+    if hhmm >= eve and _S.get("eve_day") != dt.date():
+        if hhmm > _plus(eve, 30):                       # started up late: skip tonight rather than push at midnight
+            _S["eve_day"] = dt.date()
+            return
+        _S["eve_day"] = dt.date()
+        hours = max(1, 33 - dt.hour)                   # through 9 AM tomorrow
+        parts = []
         try:
-            w = gusts()
+            w = gusts(hours) if wind_on else None
         except Exception:
             w = None
-        lim = float(s.get("windGust") or 30)
-        if w and w["mph"] >= lim:
-            _S["wind_day"] = date.today()
+        try:
+            r = porch_rain(rain_gust, hours) if rain_on else None
+        except Exception:
+            r = None
+        if w and w["mph"] >= wind_lim:
+            parts.append(f"gusts up to {w['mph']:.0f} mph around {w['at']}: stake or lay down the nutcrackers and check the sleigh")
+        if r:
+            why = f"rain with gusts to {r['mph']:.0f} mph" if r["windy"] else "heavy rain"
+            parts.append(f"{why} around {r['at']} ({r['pct']}%): bring the indoor Santa in off the porch")
+        if parts:
+            _push("🌙 Before bed, overnight: " + ". ".join(x[0].upper() + x[1:] for x in parts) + ".", "familyhub-tonight")
+        return
+    if not ("07:00" <= hhmm < eve):
+        return
+    left = max(1, int(eve[:2]) - dt.hour)              # only the hours before the evening check
+    if wind_on and now - _S["wind_checked"] > 3600 and _S["wind_day"] != dt.date():
+        _S["wind_checked"] = now
+        try:
+            w = gusts(left)
+        except Exception:
+            w = None
+        if w and w["mph"] >= wind_lim:
+            _S["wind_day"] = dt.date()
             _push(f"💨 Gusts up to {w['mph']:.0f} mph around {w['at']}. Stake or lay down the nutcrackers and check the sleigh "
                   "and reindeer.", "familyhub-wind")
-    # porch rain: rain likely AND windy (sideways) or a downpour -> bring the indoor Santa in. Hourly, once a day.
-    if s.get("xmasRain", True) is not False and now - _S["rain_checked"] > 3600 and _S["rain_day"] != date.today():
+    if rain_on and now - _S["rain_checked"] > 3600 and _S["rain_day"] != dt.date():
         _S["rain_checked"] = now
         try:
-            r = porch_rain(float(s.get("rainGust") or 20))
+            r = porch_rain(rain_gust, left)
         except Exception:
             r = None
         if r:
-            _S["rain_day"] = date.today()
+            _S["rain_day"] = dt.date()
             why = f"with gusts to {r['mph']:.0f} mph" if r["windy"] else "and it could pour"
             _push(f"🌧 Rain {why} around {r['at']} ({r['pct']}%). Bring the indoor Santa in off the porch.", "familyhub-porch-rain")
+
+
+def _plus(hhmm: str, mins: int) -> str:
+    h, m = int(hhmm[:2]), int(hhmm[3:5]) + mins
+    return f"{(h + m // 60) % 24:02d}:{m % 60:02d}"
 
 
 def porch_rain(gust_lim: float = 20, hours: int = 12) -> dict | None:

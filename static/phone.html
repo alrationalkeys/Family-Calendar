@@ -574,6 +574,11 @@
     <label class="chk"><input type="checkbox" id="al-laundry"> Laundry: "done in 10 min", "done" (phones always; the wall also says it except 9:30 PM–7:30 AM), and a nudge if clothes sit 30 min</label>
     <div style="display:flex; gap:6px; margin:2px 0 10px 30px"><button class="tool" id="al-ld-test" style="margin:0">Send a test</button><button class="tool" id="al-ld-log" style="margin:0">What it saw</button></div>
     <div id="al-ld-out" class="hint" style="margin:0 0 10px 30px; white-space:pre-wrap; display:none"></div>
+    <div class="hint" style="margin:10px 0 4px">🎄 Outside Christmas lights (Nov 10 – Jan 15)<span id="al-xmas-plug"></span></div>
+    <label class="chk"><input type="checkbox" id="al-xm-motion"> After the lights go off, someone walking up turns them back on for <input type="number" id="al-xm-min" min="1" max="30" style="width:60px; display:inline-block; margin:0 4px"> min (until <input type="time" id="al-xm-until" style="width:110px; display:inline-block; margin:0 4px">)</label>
+    <label class="chk"><input type="checkbox" id="al-xm-flash"> Doorbell after dark blinks the outside lights twice</label>
+    <label class="chk"><input type="checkbox" id="al-xm-wind"> Windy forecast: tell us to stake the nutcrackers (gusts ≥ <input type="number" id="al-xm-gust" min="15" max="70" step="5" style="width:64px; display:inline-block; margin:0 4px"> mph)</label>
+    <label class="chk"><input type="checkbox" id="al-xm-off"> Tell us if the lights' plug goes offline (GFCI tripped)</label>
     <label class="chk"><input type="checkbox" id="al-pkg"> Package on the porch: front cameras + AI spot a delivery and send the picture</label>
     <label class="chk">Low battery means at or below <input type="number" id="al-batt" min="5" max="60" step="5" style="width:70px; display:inline-block; margin:0 4px"> %</label>
   </details>
@@ -1766,6 +1771,9 @@ function loadSettingsUI(){
       if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??"";
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
+    bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline");
+    fetch("/api/ha/xmas").then(r=>r.json()).then(x=>{ const el=$("#al-xmas-plug"); if(el) el.textContent=x.plug?` · plug: ${x.name||x.plug}`:" · no Christmas plug found (name it with “Christmas” in Home Assistant)"; }).catch(()=>{});
     const out=$("#al-ld-out"), show=t=>{ out.style.display="block"; out.textContent=t; };
     const lt=$("#al-ld-test"); if(lt&&!lt._wired){ lt._wired=true; lt.onclick=async()=>{ show("Sending…");
       let r={}; try{ r=await post("/api/ha/laundry/test",{}).then(x=>x.json()); }catch(e){ r={error:"Couldn't reach FamilyHub"}; }

@@ -243,6 +243,8 @@ def _loop():
                 _weekly_tick(s, now)
                 from . import laundry
                 laundry.tick()
+                from . import xmas
+                xmas.tick()
                 from . import wx_alerts
                 wx_alerts.tick(_push, s)
                 wx_alerts.rain_tick(_push, s, _rain_openings)

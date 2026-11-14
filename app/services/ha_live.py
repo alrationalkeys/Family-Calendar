@@ -133,6 +133,11 @@ async def _run_once(ws_url: str, token: str):
                         laundry.on_state(eid, data.get("old_state"), new)
                     except Exception:
                         pass
+                    try:
+                        from . import xmas                 # outside Christmas display: walk-up lights, doorbell blink
+                        xmas.on_state(eid, data.get("old_state"), new, _states)
+                    except Exception:
+                        pass
                     if eid.startswith("alarm_control_panel."):
                         try:
                             from . import display_svc, ha_svc

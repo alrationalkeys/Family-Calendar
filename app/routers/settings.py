@@ -42,6 +42,11 @@ DEFAULTS = {
     "laundryNudgeMin": 30,            # clothes still in it this long after done -> one nudge (0 = off)
     "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
     "rainCheck": True,                # push if rain is coming and the garage or a window is open
+    "xmasMotion": True, "xmasMotionMin": 5, "xmasMotionUntil": "01:00",   # outside Christmas lights back on for walkers after dark
+    "xmasFlash": True,                # doorbell after dark blinks the outside Christmas lights
+    "xmasWind": True, "windGust": 30, # gusts >= 30 mph forecast -> push to stake the nutcrackers (in season)
+    "xmasOffline": True,              # Christmas lights plug offline 3+ min (GFCI tripped) -> push
+    "xmasPlug": "",                   # switch.* the display runs on; empty = guess from the name
     "packageAlerts": True,            # front cameras + AI: push when a package is left (needs ANTHROPIC_API_KEY)                 # % that counts as a low battery
     "welcomeNoCode": False,           # the I'm home BUTTON disarms without asking for the code (voice never disarms)         # Good night / Leaving put the village to sleep for the night
     "spotifyStartVolume": 45,        # % the wall's Spotify player starts at (perceived loudness, like the wall's volume buttons)

@@ -195,6 +195,12 @@ def timeline_week():
     return {"days": watch.week()}
 
 
+@router.get("/xmas")
+def xmas_status():
+    from ..services import xmas
+    return xmas.status()
+
+
 @router.get("/laundry")
 def laundry_status():
     from ..services import laundry

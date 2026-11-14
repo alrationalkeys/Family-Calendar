@@ -575,6 +575,7 @@
     <div style="display:flex; gap:6px; margin:2px 0 10px 30px"><button class="tool" id="al-ld-test" style="margin:0">Send a test</button><button class="tool" id="al-ld-log" style="margin:0">What it saw</button></div>
     <div id="al-ld-out" class="hint" style="margin:0 0 10px 30px; white-space:pre-wrap; display:none"></div>
     <div class="hint" style="margin:10px 0 4px">🎄 Outside Christmas lights (Nov 10 – Jan 15)<span id="al-xmas-plug"></span></div>
+    <label class="chk" style="display:block">The plug they're on: <select id="al-xm-plug" style="max-width:100%; margin-top:4px"><option value="">Find it by name</option></select></label>
     <label class="chk"><input type="checkbox" id="al-xm-motion"> After the lights go off, someone walking up turns them back on for <input type="number" id="al-xm-min" min="1" max="30" style="width:60px; display:inline-block; margin:0 4px"> min (until <input type="time" id="al-xm-until" style="width:110px; display:inline-block; margin:0 4px">)</label>
     <label class="chk"><input type="checkbox" id="al-xm-flash"> Doorbell after dark blinks the outside lights twice</label>
     <label class="chk"><input type="checkbox" id="al-xm-wind"> Windy forecast: tell us to stake the nutcrackers (gusts ≥ <input type="number" id="al-xm-gust" min="15" max="70" step="5" style="width:64px; display:inline-block; margin:0 4px"> mph)</label>
@@ -1773,6 +1774,12 @@ function loadSettingsUI(){
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline");
+    { const sel=$("#al-xm-plug"); if(sel&&!sel._wired){ sel._wired=true;
+      fetch("/api/ha/home").then(r=>r.json()).then(h=>{ const cur=FH.get().xmasPlug||"";
+        (h.groups||[]).flatMap(g=>g.tiles||[]).filter(t=>/^(switch|light)\./.test(t.entity_id)).sort((a,b)=>a.name.localeCompare(b.name))
+          .forEach(t=>{ const o=document.createElement("option"); o.value=t.entity_id; o.textContent=t.name; sel.appendChild(o); });
+        sel.value=cur; }).catch(()=>{});
+      sel.onchange=()=>{ FH.save({xmasPlug:sel.value}); toast("Saved"); fetch("/api/ha/xmas").then(r=>r.json()).then(x=>{ const el=$("#al-xmas-plug"); if(el) el.textContent=x.plug?` · plug: ${x.name||x.plug}`:""; }).catch(()=>{}); }; } }
     fetch("/api/ha/xmas").then(r=>r.json()).then(x=>{ const el=$("#al-xmas-plug"); if(el) el.textContent=x.plug?` · plug: ${x.name||x.plug}`:" · no Christmas plug found (name it with “Christmas” in Home Assistant)"; }).catch(()=>{});
     const out=$("#al-ld-out"), show=t=>{ out.style.display="block"; out.textContent=t; };
     const lt=$("#al-ld-test"); if(lt&&!lt._wired){ lt._wired=true; lt.onclick=async()=>{ show("Sending…");

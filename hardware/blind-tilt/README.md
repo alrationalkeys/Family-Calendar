@@ -38,3 +38,16 @@ Leaving and voice all work with it.
 ## Plan
 1. Gauge + photos (today) -> 2. first box for ONE window, run from USB on the bench -> 3. add battery + solar and
 measure how long it lasts -> 4. print and build the other 5.
+
+## Notes from Alex's photos (Nov 16, 2026)
+- 2" faux-wood blinds (heavy), white steel headrail open at the top, crown-style valance on clear clips with end returns
+  (valance ends about 1" past the blind). Wand: round, hooks onto the tilter stem at the front-bottom of the headrail
+  with a clear sleeve. **5 full turns** closed-to-closed.
+- The top slat sits right under the headrail, so nothing can hang below it: the motor has to live IN FRONT of the
+  headrail, behind the valance, at the tilter stem.
+- Heavy slats + 5 turns = the MG90S half-turn servos are out. Motor: N20 6 V, slow/strong ratio (1:298, ~30-45 RPM)
+  with encoder -> 5 turns in about 8-10 s.
+- Layout to design: slim motor pod behind the valance at the stem; battery + controller lying on top of / inside the
+  open headrail (hidden by the valance); solar panel on the glass at the top; thin wires between.
+- Still needed: gap headrail-front to valance-back, how far the valance hangs below the headrail, wand top diameter
+  (gauge), and keep-the-wand vs replace-the-wand.

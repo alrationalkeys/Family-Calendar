@@ -64,6 +64,8 @@ async def transcribe(audio: UploadFile = File(...)):
         text = await run_in_threadpool(lambda: speech.transcribe(data, suffix, voice_cmd.stt_prompt()))
         if not text:
             voice_cmd.log_voice("", f"(heard nothing in a {len(data) // 1024} KB clip, {time.time() - t0:.1f} s)", "heard")
+        if text:
+            voice_cmd.log_voice(text, f"(turned the speech into text in {time.time() - t0:.1f} s)", "heard")
         return {"text": text, "secs": round(time.time() - t0, 2)}
     except Exception as e:
         import traceback, sys

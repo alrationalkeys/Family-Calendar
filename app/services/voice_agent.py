@@ -284,6 +284,17 @@ def _run_tool(name, a, tiles, out):
     return "error: unknown tool"
 
 
+BUDGET_S = 55          # seconds one spoken request may take end to end on the AI side
+
+
+def voice_model() -> str:
+    """Model for spoken requests: FAMILYHUB_VOICE_MODEL if set (a faster model makes the wall answer sooner),
+    else whatever FAMILYHUB_AI_MODEL says."""
+    import os
+    from .ai_model import model as _model
+    return (os.environ.get("FAMILYHUB_VOICE_MODEL") or "").strip() or _model()
+
+
 def run(text: str, tiles: list) -> dict | None:
     """Returns {say, refresh?, timer?} or None if the AI couldn't be reached (caller falls back to rules)."""
     if not enabled():
@@ -314,11 +325,18 @@ def run(text: str, tiles: list) -> dict | None:
         "repeating), groceries for things to buy. Assign to a person only when one is named ('for Alex', 'Rachell needs "
         "to', 'remind Alex'); 'me'/'I' = leave unassigned. When a weekday is said with no 'every', it's the next one. "
         "If something essential is missing (no date for an appointment), ask one short question instead of guessing. "
-        "Questions about the family's lists, calendar, devices or the house: answer from the context. Live facts (news, "
-        "scores, hours, prices): use web search if you have it.\n"
+        "Questions about the family's lists, calendar, devices or the house: answer from the context. Cooking, math, "
+        "conversions, definitions and general knowledge: just answer from what you know, no search. Anything that depends "
+        "on what happened recently (sports results, schedules and standings, news, store hours, prices, 'this year', "
+        "'this season', 'last night', 'who won'): ALWAYS search the web first and answer only from what the results "
+        "say. Put the team or subject, the season or year and the exact thing asked in the search. If the first results "
+        "don't contain the specific answer, search again with different words before answering. Give the specifics that "
+        "were asked for (names, scores, dates); if after searching you still can't find them, say plainly that you "
+        "couldn't find it rather than a partial guess.\n"
         "You can't disarm the alarm, unlock doors or open the garage — if asked, say to use the phone or the I'm home "
         "button. During Santee Cooper peak hours the heat and air stay off.\n"
-        "Reply in ONE or two short spoken sentences confirming what you did or answering (it's read aloud): no lists, "
+        "Reply in ONE or two short spoken sentences confirming what you did or answering (it's read aloud; a recipe or "
+        "a list of results may take up to four): no lists, "
         "markdown, emoji or URLs. Don't repeat dates as ISO.\n\n"
         f"Now: {now.strftime('%A %B %-d %Y, %-I:%M %p')}. Dates: {week}.\n"
         f"Family: {people}. Home near {_HOME_LOCATION['city']}, {_HOME_LOCATION['region']}.\n\n"
@@ -326,24 +344,42 @@ def run(text: str, tiles: list) -> dict | None:
     )
     tools = list(TOOLS)
     if _web_enabled():
-        tools.append({"type": "web_search_20260209", "name": "web_search", "max_uses": 2, "user_location": _HOME_LOCATION})
-    client = anthropic.Anthropic(timeout=30.0, max_retries=1)
-    mdl = _model()
-    kw = dict(model=mdl, max_tokens=2048, system=system, tools=tools)
+        tools.append({"type": "web_search_20260209", "name": "web_search", "max_uses": 4, "user_location": _HOME_LOCATION})
+    client = anthropic.Anthropic(max_retries=0)       # no blind retries: a retry restarts the whole (slow) search
+    mdl = voice_model()
+    # the instructions never change between questions, the "Now: ..." part always does: cache the first, not the second
+    cut = system.find("\n\nNow: ")
+    sys_blocks = [{"type": "text", "text": system[:cut], "cache_control": {"type": "ephemeral"}},
+                  {"type": "text", "text": system[cut:].strip()}] if cut > 0 else system
+    kw = dict(model=mdl, max_tokens=2048, system=sys_blocks, tools=tools)
     if re.search(r"opus-4-[678]|opus-5|sonnet-5|haiku-5|fable|mythos", mdl):
         kw["output_config"] = {"effort": "low"}       # quick, decisive turns for voice
     messages = [{"role": "user", "content": text}]
     out = {"ok": True}
     import time as _time
-    deadline = _time.time() + 50                     # the wall gives up at 75 s; answer (or say so) well before that
+    t0 = _time.time()
+    deadline = t0 + BUDGET_S                         # the wall gives up at 75 s; answer (or say so) before that
+    slow = "That one took me too long to look up. Try asking it again, or a little more specifically."
+
+    def call():
+        """One model call, streamed. Streaming keeps bytes flowing, so a web search that takes 40 s isn't cut off by a
+        read timeout the way a plain request was (that cut-off, retried and then re-asked through the old fallback,
+        was the 2-4 minute waits). The overall deadline is checked as the answer arrives."""
+        left = deadline - _time.time()
+        with client.with_options(timeout=max(5.0, left)).messages.stream(messages=messages, **kw) as stream:
+            for _ev in stream:
+                if _time.time() > deadline:
+                    raise TimeoutError
+            return stream.get_final_message()
+
     try:
+        resp = None
         for _ in range(6):
-            left = deadline - _time.time()
-            if left < 4:
+            if deadline - _time.time() < 4:
                 # anything the tools already did stays done: say so instead of inviting a repeat (and a duplicate)
-                out["say"] = "That's done." if (out.get("refresh") or out.get("timer")) else "That one's taking me too long. Try asking it a shorter way."
+                out["say"] = "That's done." if (out.get("refresh") or out.get("timer")) else slow
                 return out
-            resp = client.with_options(timeout=min(30.0, left), max_retries=0 if left < 35 else 1).messages.create(messages=messages, **kw)
+            resp = call()
             if resp.stop_reason == "refusal":
                 return {"ok": True, "say": "Sorry, I can't help with that one."}
             messages.append({"role": "assistant", "content": resp.content})
@@ -364,6 +400,16 @@ def run(text: str, tiles: list) -> dict | None:
         texts = [b.text for b in resp.content if getattr(b, "type", "") == "text" and b.text.strip()]
         say = re.sub(r"https?://\S+", "", (texts[-1] if texts else "")).strip()
         out["say"] = say or ("Done." if out.get("refresh") or out.get("timer") else "I'm not sure.")
+        try:
+            u = resp.usage
+            out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1),
+                         "searches": getattr(getattr(u, "server_tool_use", None), "web_search_requests", 0) or 0}
+        except Exception:
+            pass
+        return out
+    except (TimeoutError, anthropic.APITimeoutError):
+        out["say"] = "That's done." if (out.get("refresh") or out.get("timer")) else slow
+        out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1), "timed_out": True}
         return out
     except anthropic.APIConnectionError:
         if out.get("refresh") or out.get("timer"):

@@ -573,17 +573,24 @@ def _ai_answer(text):
 
 def interpret(text: str) -> dict:
     """Run one spoken command and remember it in the voice history (Settings > Advanced > Voice history)."""
+    import time as _t
+    t0 = _t.time()
     try:
         r = _interpret(text)
     except Exception as e:                      # never leave the wall hanging on a bug
         import traceback
         traceback.print_exc()
         r = {"ok": False, "say": "Sorry, something went wrong with that one.", "error": repr(e)}
-    log_voice(text, r.get("say") or ("(spoke the briefing)" if r.get("briefing") else ""))
+    ai = r.pop("ai", None) or {}
+    note = f"{_t.time() - t0:.0f} s"
+    if ai:
+        note += f" · {ai.get('model', '')}" + (f" · {ai['searches']} web search{'es' if ai['searches'] != 1 else ''}" if ai.get("searches") else "") \
+                + (" · ran out of time" if ai.get("timed_out") else "")
+    log_voice(text, r.get("say") or ("(spoke the briefing)" if r.get("briefing") else ""), took=note)
     return r
 
 
-def log_voice(heard: str, reply: str, kind: str = "command"):
+def log_voice(heard: str, reply: str, kind: str = "command", took: str = ""):
     """Last 60 things the wall heard and what it did, newest first."""
     import json
     try:
@@ -591,7 +598,7 @@ def log_voice(heard: str, reply: str, kind: str = "command"):
             row = conn.execute("SELECT value FROM settings WHERE key='voice_log'").fetchone()
             log = json.loads(row["value"]) if row else []
             log.insert(0, {"at": datetime.datetime.now().isoformat(timespec="seconds"), "heard": (heard or "")[:300],
-                           "reply": (reply or "")[:400], "kind": kind})
+                           "reply": (reply or "")[:400], "kind": kind, "took": took})
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('voice_log', ?)", (json.dumps(log[:60]),))
     except Exception:
         pass
@@ -648,7 +655,7 @@ def _village_cmd(low: str):
     return None
 
 
-def _interpret(text: str, use_ai: bool = True) -> dict:
+def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
     """Instant rules for the obvious commands; with an Anthropic key everything else (lists, calendar,
     check-offs, thermostats, questions) goes to voice_agent, which understands loose phrasing and acts with tools.
     Without a key, or if the AI can't be reached, the rule-based helpers below do their best."""
@@ -862,7 +869,9 @@ def _interpret(text: str, use_ai: bool = True) -> dict:
         r = voice_agent.run(t, tiles)
         if r:
             return r
-        return _interpret(text, use_ai=False)
+        # the AI couldn't be reached at all: the plain rules can still add to lists and so on, but don't ask the
+        # AI the same question a second time (that doubled every slow answer)
+        return _interpret(text, use_ai=False, ai_down=True)
 
     # add to a list ("add …", "remind Rachell to …", "Ella needs to …")
     if "add" in w or "remind" in w or re.search(r"\b(needs?|has|have)\s+to\b", t.lower()):
@@ -871,4 +880,6 @@ def _interpret(text: str, use_ai: bool = True) -> dict:
             return {"ok": True, "say": said, "refresh": True}
 
     # fallback: AI answer (or capability hint)
+    if ai_down:
+        return {"ok": False, "say": "I can't reach the internet for that right now. Try again in a minute."}
     return {"ok": True, "say": _ai_answer(t)}

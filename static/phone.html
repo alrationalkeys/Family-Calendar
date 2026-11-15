@@ -1759,7 +1759,7 @@ async function loadVoiceHistory(){
     const row=document.createElement("div"); row.style.cssText="padding:6px 0;border-bottom:1px solid rgba(127,127,127,.2)";
     const when=document.createElement("small"); when.style.opacity=".6"; when.textContent=(e.at||"").replace("T"," ").slice(5,16)+"  ";
     const heard=document.createElement("b"); heard.textContent=e.heard?("“"+e.heard+"”"):"(nothing heard)";
-    const reply=document.createElement("div"); reply.style.opacity=".8"; reply.textContent="→ "+(e.reply||"");
+    const reply=document.createElement("div"); reply.style.opacity=".8"; reply.textContent="→ "+(e.reply||"")+(e.took?"  ["+e.took+"]":"");
     row.append(when,heard,reply); box.append(row);
   }
 }

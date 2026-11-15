@@ -72,7 +72,9 @@ async def transcribe(audio: UploadFile = File(...)):
         if not text:
             voice_cmd.log_voice("", f"(heard nothing in a {len(data) // 1024} KB clip, {time.time() - t0:.1f} s)", "heard")
         if text:
-            voice_cmd.log_voice(text, f"(turned the speech into text in {time.time() - t0:.1f} s)", "heard")
+            c = speech.last_clip or {}
+            voice_cmd.log_voice(text, f"(turned the speech into text in {time.time() - t0:.1f} s"
+                                + (f"; recording was {c.get('secs')} s long, {c.get('speech')} s of it speech" if c else "") + ")", "heard")
         return {"text": text, "secs": round(time.time() - t0, 2)}
     except Exception as e:
         import traceback, sys

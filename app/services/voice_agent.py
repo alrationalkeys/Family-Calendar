@@ -344,7 +344,9 @@ def run(text: str, tiles: list) -> dict | None:
     )
     tools = list(TOOLS)
     if _web_enabled():
-        tools.append({"type": "web_search_20260209", "name": "web_search", "max_uses": 4, "user_location": _HOME_LOCATION})
+        # the basic search tool on purpose: the newer one runs a filtering step in a sandbox before answering, which
+        # is more thorough but adds many seconds, and a spoken answer is waited for
+        tools.append({"type": "web_search_20250305", "name": "web_search", "max_uses": 3, "user_location": _HOME_LOCATION})
     client = anthropic.Anthropic(max_retries=0)       # no blind retries: a retry restarts the whole (slow) search
     mdl = voice_model()
     # the instructions never change between questions, the "Now: ..." part always does: cache the first, not the second

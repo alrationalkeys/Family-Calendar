@@ -77,6 +77,9 @@ def warm():
     threading.Thread(target=go, daemon=True, name="stt-warm").start()
 
 
+last_clip: dict = {}       # {"secs": clip length, "speech": seconds of it that were speech} for the voice log
+
+
 def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
     """Bytes of any container PyAV can read (webm/opus from MediaRecorder, wav, ogg)."""
     if not audio:
@@ -86,11 +89,18 @@ def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
         f.write(audio)
         path = f.name
     try:
+        # temperature=0.0: ONE decoding pass. The default is a ladder of six temperatures, and on a noisy kitchen clip
+        # Whisper re-decodes the whole thing at each rung when it isn't confident, multiplying the wait.
         segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=True,
-                                           vad_parameters={"min_silence_duration_ms": 700},
+                                           vad_parameters={"min_silence_duration_ms": 500},
                                            condition_on_previous_text=False, without_timestamps=True,
-                                           initial_prompt=prompt or None)
+                                           temperature=0.0, initial_prompt=prompt or None)
         text = " ".join(s.text.strip() for s in segments if (s.no_speech_prob or 0) < 0.8).strip()
+        global last_clip
+        try:
+            last_clip = {"secs": round(float(_info.duration), 1), "speech": round(float(getattr(_info, "duration_after_vad", _info.duration)), 1)}
+        except Exception:
+            last_clip = {}
         return "" if text.lower().strip(" .!") in {g.strip(" .!") for g in _GHOSTS} else text
     finally:
         try:

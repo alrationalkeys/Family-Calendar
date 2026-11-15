@@ -117,7 +117,7 @@ def on_state(eid: str, old: dict | None, new: dict | None):
                     _last[key] = time.time()
                     what = re.sub(r"^[A-Z0-9]{6,}\s+|laundry\s+", "", fname, flags=re.I).strip() or "a problem"
                     extra = "" if eid.startswith("binary_sensor.") else f": {n}"
-                    threading.Thread(target=_announce, args=(mach, False, f"⚠️ {mach.title()}: {what}{extra}. Check it when you can.", True), daemon=True).start()
+                    threading.Thread(target=_announce, args=(mach, _quiet(_settings()), f"⚠️ {mach.title()}: {what}{extra}. Check it when you can.", True), daemon=True).start()
             return
         if eid.startswith("binary_sensor.") and "door" in eid and _MACH.search(eid + " " + str(attrs.get("friendly_name", ""))):
             if n == "on" and o != "on":                   # door opened: someone's dealing with it
@@ -259,7 +259,7 @@ def status() -> list:
             v = str(st.get("state") or "")
             if v and v.lower() not in ("---", "off", "unknown", "unavailable", "none") and not re.fullmatch(r"-?[\d.]+", v):
                 m["cycle"] = v.replace("_", " ")       # GE's cycle name, e.g. "Timed Dry"
-        elif re.search(r"remaining|time_left", eid):
+        elif re.search(r"remaining|time_left", eid) and "delay" not in eid:     # GE's delay-start timer is a different clock
             try:
                 v = float(st.get("state"))
                 unit = str(a.get("unit_of_measurement", "min")).lower()

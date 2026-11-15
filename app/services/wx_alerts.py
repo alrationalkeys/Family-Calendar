@@ -73,10 +73,27 @@ def tick(push, settings: dict):
     """From the house-watch loop (every minute). push(text, tag)."""
     if settings.get("wxAlerts", True) is False:
         return
+    if not _PUSHED.get("_loaded"):                 # remember what was already sent across restarts
+        _PUSHED["_loaded"] = time.time()
+        try:
+            from ..db import get_db
+            with get_db() as conn:
+                row = conn.execute("SELECT value FROM settings WHERE key='wx_pushed'").fetchone()
+            for k, t in (json.loads(row["value"]) if row and row["value"] else {}).items():
+                _PUSHED.setdefault(k, t)
+        except Exception:
+            pass
     for a in alerts():
         if not a["big"] or a["id"] in _PUSHED:
             continue
         _PUSHED[a["id"]] = time.time()
+        try:
+            from ..db import get_db
+            with get_db() as conn:
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('wx_pushed', ?)",
+                             (json.dumps({k: t for k, t in _PUSHED.items() if k != "_loaded" and time.time() - t < 4 * 86400}),))
+        except Exception:
+            pass
         extra = " Prep checklist is on the wall." if a["checklist"] else ""
         push(f"⚠️ {a['event']}: {a['headline']}.{extra}", "familyhub-weather")
         try:
@@ -88,7 +105,7 @@ def tick(push, settings: dict):
         except Exception:
             pass
     for k, t in list(_PUSHED.items()):
-        if time.time() - t > 4 * 86400:
+        if k != "_loaded" and time.time() - t > 4 * 86400:
             _PUSHED.pop(k, None)
 
 

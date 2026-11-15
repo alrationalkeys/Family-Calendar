@@ -1130,8 +1130,8 @@ async function loadAgenda(){
     (cal.events||[]).forEach(e=>{ const s=new Date(e.start); if(isNaN(s)) return; const d=e.all_day&&e.start.length===10?new Date(e.start+"T00:00"):s; if(d<today||d>=end) return; items.push({d, e}); });
     const showTasks=FH.get().calendarTasks!==false;
     if(showTasks){
-      (dash.todos||[]).forEach(t=>{ if(!t.due_date) return; const d=new Date(t.due_date+"T00:00"); if(d>=end) return; items.push({d:d<today?today:d, e:{title:t.title, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, late:d<today, done:!!(t.done||t.just_done)}}); });
-      (dash.chores||[]).forEach(c=>{ const d=c.due_date?new Date(c.due_date+"T00:00"):today; if(d>=end) return; items.push({d:d<today?today:d, e:{title:(c.stars?"\u2B50 ":"")+c.title, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, late:d<today, done:!!(c.done||c.just_done)}}); });
+      (dash.todos||[]).forEach(t=>{ const due=(t.just_done&&t.was_due)||t.due_date; if(!due) return; const d=new Date(due+"T00:00"); if(d>=end) return; items.push({d:d<today?today:d, e:{title:t.title, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, late:d<today&&!t.just_done, done:!!(t.done||t.just_done)}}); });
+      (dash.chores||[]).forEach(c=>{ const due=(c.just_done&&c.was_due)||c.due_date; const d=due?new Date(due+"T00:00"):today; if(d>=end) return; items.push({d:d<today?today:d, e:{title:(c.stars?"\u2B50 ":"")+c.title, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, late:d<today, done:!!(c.done||c.just_done)}}); });
     }
     items.sort((a,b)=>(a.d-b.d) || ((a.e.task?0:1)-(b.e.task?0:1)) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
     if(!items.length){ box.innerHTML=`<div class="hint">Nothing in the next ${agDays} days.</div>`; return; }
@@ -1145,8 +1145,10 @@ async function loadAgenda(){
     box.innerHTML=html;
     box.querySelectorAll(".ag-ev.task").forEach(row=>row.onclick=async()=>{
       row.classList.toggle("done"); row.querySelector(".ag-time").textContent=row.classList.contains("done")?"\u2611":"\u2610"; if(navigator.vibrate) navigator.vibrate(10);
-      try{ const r=await post(`/api/${row.dataset.kind==="todo"?"todos":"chores"}/${row.dataset.id}/toggle`,{}).then(x=>x.json()).catch(()=>({}));
-        toast(r.undone?"\u21A9\uFE0F Back on the list":"Checked off \u00b7 tap again within 30 min to undo"); }catch(e){ toast("Couldn't reach the wall"); }
+      try{ const res=await post(`/api/${row.dataset.kind==="todo"?"todos":"chores"}/${row.dataset.id}/toggle`,{}); if(!res.ok) throw new Error(res.status);
+        const r=await res.json(), um=FH.get().undoMinutes??30;
+        toast(r.undone?"\u21A9\uFE0F Back on the list":"Checked off"+(um?` \u00b7 tap again within ${um} min to undo`:"")); }
+      catch(e){ row.classList.toggle("done"); toast("Couldn't reach the wall"); }
       setTimeout(loadAgenda, 600);
     });
   }catch(e){ box.innerHTML='<div class="hint">Couldn\u2019t load the calendar.</div>'; }
@@ -1165,7 +1167,7 @@ function switchView(v){
   ["add","home","cal","tv","settings"].forEach(k=>{ $("#view-"+k).hidden=(k!==v); $("#nav-"+k).classList.toggle("active",k===v); });
   if(v==="cal"){ loadAgenda(); }
   document.body.classList.toggle("home-dark", v==="home");
-  if(v==="settings"){ loadSettingsUI(); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); if(window.FHAutomations) FHAutomations.load($("#au-box"), toast); }
+  if(v==="settings"){ loadSettingsUI(); FH.load().then(()=>loadSettingsUI()).catch(()=>{}); loadDispCfg(); loadPeople(); loadRC(); loadSPL(); loadSPW(); loadSources(); loadPhotosUI(); loadMail(); loadDbInfo(); loadWallVersion(false); loadPinState(); if(window.FHAutomations) FHAutomations.load($("#au-box"), toast); }
   if(v==="tv"){ loadTVs(); }
   clearInterval(hmTimer);
   if(v==="home"){ loadHM(); hmTimer=setInterval(()=>{ if(!document.hidden) loadHM(); }, 30000); hmLive(true); } else hmLive(false);
@@ -1318,7 +1320,7 @@ function hmShort(t, strip){
 }
 function hmDevButton(t, strip){
   const E=FHHome.esc;
-  const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : t.domain==="camera" ? `onclick="FHHome.camera('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (t.toggleable||t.activatable) ? `onclick="hmTap(this,'${E(t.entity_id)}','${E(t.domain)}','${E(t.name).replace(/'/g,"")}')"` : "";
+  const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(String(t.name).replace(/['"\\]/g,""))}')"` : t.domain==="camera" ? `onclick="FHHome.camera('${E(t.entity_id)}','${E(String(t.name).replace(/['"\\]/g,""))}')"` : (t.toggleable||t.activatable) ? `onclick="hmTap(this,'${E(t.entity_id)}','${E(t.domain)}','${E(String(t.name).replace(/['"\\]/g,""))}')"` : "";
   // "on" = lit / open / unlocked: covers and locks use amber because open/unlocked is the state to notice
   const warn = (t.domain==="cover"||t.domain==="lock");
   const lit = t.domain==="lock" ? t.state!=="locked" : t.on;
@@ -1600,7 +1602,7 @@ function renderHM(h, force){
       html+=`<div class="hm-sec">${E(g.group)}</div><div class="tile-grid">`;
       g.tiles.forEach(t=>{
         const scene=t.activatable, ro=!t.toggleable&&!t.activatable, un=t.state==="unavailable";
-        const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(t.name).replace(/'/g,"")}')"` : (!ro?`onclick="FHHome.toggle('${E(t.entity_id)}')"`:"");
+        const tap = t.domain==="media_player" ? `onclick="FHHome.remote('${E(t.entity_id)}','${E(String(t.name).replace(/['"\\]/g,""))}')"` : (!ro?`onclick="FHHome.toggle('${E(t.entity_id)}')"`:"");
         html+=`<div class="tile${t.on?' on':''}${scene?' scene':''}${ro?' ro':''}${un?' unavail':''}" ${tap}><div class="t-ico">${FHHome.haIcon(t)}</div><div class="t-name">${E(t.name)}</div>${scene?'':`<div class="t-state">${E(FHHome.haStateLabel(t))}</div>`}</div>`;
       });
       html+='</div>';
@@ -1772,8 +1774,9 @@ function setupVoiceHistory(){
 }
 function loadSettingsUI(){
   setupVoiceHistory();
-  { const S=FH.get(), bind=(id,key,fmt)=>{ const el=$(id); if(!el||el._wired) return; el._wired=true;
-      if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??"";
+  { const S=FH.get(), bind=(id,key,fmt)=>{ const el=$(id); if(!el) return;
+      if(document.activeElement!==el){ if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??""; }   // always show what's saved now
+      if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");

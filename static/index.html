@@ -97,7 +97,7 @@
         display:flex; flex-direction:column; justify-content:space-between; cursor:pointer; user-select:none;
         transition:transform .08s, background .15s, border-color .15s}
   .tile:active{transform:scale(.97)}
-  .tl-name{display:inline-flex; align-items:center; gap:4px} .tl-arrow{border:0; background:transparent; color:inherit; font-size:26px; line-height:1; padding:0 8px; cursor:pointer; opacity:.7}
+  .tl-name{display:inline-flex; align-items:center; gap:4px} .tl-arrow{border:0; background:transparent; color:inherit; font-size:30px; line-height:1; padding:0 8px; min-width:46px; min-height:46px; cursor:pointer; opacity:.8}
   .tile.ro{cursor:default}
   .tile.ro:active{transform:none}
   .tile.on{background:color-mix(in srgb, var(--now) 20%, var(--panel)); border-color:color-mix(in srgb, var(--now) 55%, transparent);
@@ -199,7 +199,7 @@
   .lp-card{width:360px; text-align:left} .lp-card h3{text-align:center} .lp-card .pin-sub{text-align:center}
   .lp-btns{display:flex; gap:10px; margin-top:12px} .lp-btns .cc-qa{flex:1; padding:12px}
   .hg-switch{display:inline-flex; gap:4px; background:var(--panel2); border-radius:999px; padding:4px; margin:14px 0 2px}
-  .hg-switch button{border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:15px; padding:8px 16px; border-radius:999px; cursor:pointer}
+  .hg-switch button{border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:16px; padding:12px 20px; min-height:46px; border-radius:999px; cursor:pointer}
   .hg-switch button.active{background:var(--panel); color:var(--ink); font-weight:600}
   .hg-on{font-weight:500; color:var(--now); font-size:13px; margin-left:6px; text-transform:none; letter-spacing:0}
   .tile{position:relative} .t-adj{position:absolute; top:6px; right:6px; width:44px; height:44px; border-radius:50%; border:2px solid rgba(255,255,255,.85);
@@ -1221,7 +1221,7 @@ function zoom(dir){
 }
 /* local calendar date as YYYY-MM-DD (toISOString() would flip to tomorrow after 7pm EST) */
 function localISODate(d){ d=d||new Date(); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
-function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function evStart(ev){ // local Date; date-only all-day strings parsed in local tz (no UTC shift)
   const s=ev.start; if(!s) return null;
   if(/^\d{4}-\d{2}-\d{2}$/.test(s)){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
@@ -1291,8 +1291,8 @@ function evColor(ev){ return ev.color || "#4f86c6"; }
 function taskEvents(){
   if(FH.get().calendarTasks===false || !cache.dash) return [];
   const today=dateStr(new Date()); const out=[];
-  (cache.dash.todos||[]).forEach(t=>{ if(t.due_date) out.push({id:"todo:"+t.id, title:t.title, start:t.due_date, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!(t.done||t.just_done)}); });
-  (cache.dash.chores||[]).forEach(c=>{ const d=c.due_date||today; if(d>=today || c.due_date) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:c.due_date||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!(c.done||c.just_done)}); });
+  (cache.dash.todos||[]).forEach(t=>{ const due=(t.just_done&&t.was_due)||t.due_date; if(due) out.push({id:"todo:"+t.id, title:t.title, start:due, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!(t.done||t.just_done)}); });
+  (cache.dash.chores||[]).forEach(c=>{ const due=(c.just_done&&c.was_due)||c.due_date, d=due||today; if(d>=today || due) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:due||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!(c.done||c.just_done)}); });
   return out;
 }
 function calItems(){ return cache.events.concat(taskEvents()); }
@@ -1538,7 +1538,7 @@ function itemMenu(kind, item, opts){
       const r=await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>null);
       banner(r&&r.ok?"\u{1F5D1} Deleted":"Couldn't delete it", r&&r.ok?title:"Try again in a moment"); return done();
     }
-    if(a==="skip"){ const r=await fetch(`/api/${api}/${item.id}/toggle`,{method:"POST"}).catch(()=>null);
+    if(a==="skip"){ const r=await fetch(`/api/${api}/${item.id}/toggle?skip=true`,{method:"POST"}).catch(()=>null);
       banner(r&&r.ok?"\u23ED Skipped":"Couldn't skip it", r&&r.ok?title:"Try again in a moment"); return done(); }
     if(a==="stop"){
       let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
@@ -2586,9 +2586,14 @@ function renderHome(h){
   const views={tiles:"\u{1F3E0} Tiles", floor:"\u{1F4D0} Floor plan", iso:"\u{1F3D8}️ 3D"};
   const nav=Object.keys(views).map(v=>
     `<button class="hv-btn${homeView===v?' active':''}" data-hv="${v}">${views[v]}</button>`).join("");
-  wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-body"></div><div id="home-health" style="margin-top:14px"></div>`;
-  Promise.all([FHHome.health(), FHHome.laundry()]).then(([d,l])=>{ const el=$("#home-health"); if(el) el.innerHTML=FHHome.laundryHTML(l)+FHHome.healthHTML(d); });
-  wrap.querySelectorAll(".hv-btn").forEach(b=>{ b.onclick=()=>{ homeView=b.dataset.hv; renderHome(lastHome); }; });
+  // Build the shell once per view. Rebuilding it on every refresh (15 s + every HA change) emptied #home-body, so the
+  // "nothing changed, skip" check never hit: every tile was re-created and a finger already down on one lost its tap.
+  if(wrap.dataset.view!==homeView || !$("#home-body")){
+    wrap.dataset.view=homeView;
+    wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-body"></div><div id="home-health" style="margin-top:14px"></div>`;
+    wrap.querySelectorAll(".hv-btn").forEach(b=>{ b.onclick=()=>{ homeView=b.dataset.hv; renderHome(lastHome); }; });
+  }
+  Promise.all([FHHome.health(), FHHome.laundry()]).then(([d,l])=>{ const el=$("#home-health"), h2=FHHome.laundryHTML(l)+FHHome.healthHTML(d); if(el&&el.dataset.sig!==h2){ el.dataset.sig=h2; el.innerHTML=h2; } });
   const body=$("#home-body");
   if(homeView==="floor") return renderFloorView(body,h);
   if(homeView==="iso") return renderIsoView(body,h);
@@ -3295,7 +3300,7 @@ function applyWallMic(){
       if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
       if(r.focus==="alarm"){ showPage("home"); }
-      setTimeout(hide, Math.min(15000, 4000+((r.say||"").length*60)));
+      clearTimeout(window._voHide); window._voHide=setTimeout(hide, Math.min(15000, 4000+((r.say||"").length*60)));
     }catch(e){ status(e&&e.name==="AbortError"?"That took too long. Try again, or ask it a shorter way.":"Something went wrong. Try again."); }
   }
 
@@ -3359,6 +3364,8 @@ function applyWallMic(){
   const stopAll=()=>{ if(stopFn) stopFn(); else if(rec){ try{rec.stop();}catch(e){} } };
 
   fab.onclick=()=>{ resetSleep(); if(listening){ stopAll(); return; }
+    clearTimeout(window._voHide);                       // a reply's auto-close must not shut the next question
+    if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")){ show(); return; }   // one question at a time
     finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; status("Listening…"); show();
     if(useServer()) recordAndSend(); else if(rec){ try{ rec.start(); }catch(e){} } else status("Voice isn't set up — run setup/install-voice.sh"); };
   $("#vo-close").onclick=()=>{ stopAll(); hide(); };

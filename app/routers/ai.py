@@ -61,7 +61,7 @@ async def transcribe(audio: UploadFile = File(...)):
         # Whisper is slow CPU work: run it on a worker thread. Calling it straight from this async route froze the
         # whole server for the length of the transcription, so the wall's other requests timed out ("offline").
         from starlette.concurrency import run_in_threadpool
-        text = await run_in_threadpool(speech.transcribe, data, suffix, voice_cmd.stt_prompt())
+        text = await run_in_threadpool(lambda: speech.transcribe(data, suffix, voice_cmd.stt_prompt()))
         if not text:
             voice_cmd.log_voice("", f"(heard nothing in a {len(data) // 1024} KB clip, {time.time() - t0:.1f} s)", "heard")
         return {"text": text, "secs": round(time.time() - t0, 2)}

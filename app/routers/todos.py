@@ -59,14 +59,17 @@ def update_todo(todo_id: int, t: Todo):
 
 
 @router.post("/{todo_id}/toggle")
-def toggle(todo_id: int):
-    """Tick a to-do (a repeating one rolls to its next date). Tapping it again within settings.undoMinutes puts it back."""
+def toggle(todo_id: int, skip: bool = False, complete: bool = False):
+    """Tick a to-do (a repeating one rolls to its next date). Tapping it again within settings.undoMinutes puts it back.
+    skip = "skip this one" (roll a repeating item on, never an undo). complete = voice: make it done, never un-do it."""
     with get_db() as conn:
         row = conn.execute("SELECT done, recurrence, due_date, done_at, undo_due FROM todos WHERE id=?",
                            (todo_id,)).fetchone()
         if not row:
             raise HTTPException(404, "no such to-do")
-        if undo.recent(row):                        # oops: bring it back exactly as it was
+        if undo.recent(row) and complete:
+            return {"id": todo_id, "done": 1, "already": True}
+        if undo.recent(row) and not skip:           # oops: bring it back exactly as it was
             if row["undo_due"] is not None:
                 conn.execute("UPDATE todos SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
                              (row["undo_due"] or None, todo_id))
@@ -85,10 +88,14 @@ def toggle(todo_id: int):
         if rec and not row["done"]:
             base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()
             nxt = next_occurrence(rec, base)
+            if skip:                                # skipped, not done: no crossed-out row, nothing to undo
+                conn.execute("UPDATE todos SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
+                             (nxt.isoformat() if nxt else None, todo_id))
+                return {"id": todo_id, "recurred": True, "skipped": True, "next": nxt.isoformat() if nxt else None}
             conn.execute("UPDATE todos SET due_date=?, done=0, done_at=?, undo_due=? WHERE id=?",
                          (nxt.isoformat() if nxt else None, undo.now(), row["due_date"] or "", todo_id))
             return {"id": todo_id, "recurred": True, "next": nxt.isoformat() if nxt else None}
-        new = 0 if row["done"] else 1
+        new = 1 if complete else (0 if row["done"] else 1)
         conn.execute("UPDATE todos SET done=?, done_at=?, undo_due=NULL WHERE id=?", (new, undo.now() if new else None, todo_id))
     if new:
         # synced from iCloud Reminders? complete it there too (best effort, off the request path)

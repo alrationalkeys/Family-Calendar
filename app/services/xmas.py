@@ -78,9 +78,24 @@ def _dark(states: dict) -> bool:
 
 def _late_ok(s: dict) -> bool:
     """Between dark and settings.xmasMotionUntil (01:00): not every 3 AM cat."""
-    until = str(s.get("xmasMotionUntil") or "01:00")
+    until = str(s.get("xmasMotionUntil") or "01:00")[:5]
     now = datetime.now().strftime("%H:%M")
-    return now >= "12:00" or now < until
+    if until < "12:00":                        # runs past midnight (01:00): the evening, plus the small hours before it
+        return now >= "12:00" or now < until
+    return "12:00" <= now < until              # ends the same evening (22:00)
+
+
+def _off_this_evening(st: dict) -> bool:
+    """The display went off within the last 10 hours = tonight's schedule already ran and ended. Off since last night
+    (early evening, before the schedule's turn-on) is NOT ours to light: the schedule's own turn-on would be a no-op
+    and our timer would then switch the scheduled display off."""
+    try:
+        from datetime import timezone
+        ch = datetime.fromisoformat(str(st.get("last_changed")).replace("Z", "+00:00"))
+        hr = ch.astimezone().hour                      # it must have gone off in the evening / small hours, not at sunrise
+        return (datetime.now(timezone.utc) - ch).total_seconds() < 10 * 3600 and (hr >= 17 or hr < 4)
+    except Exception:
+        return False
 
 
 def _set(eid: str, on: bool):
@@ -97,16 +112,27 @@ def _push(text: str, tag: str):
 
 
 def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
-    """From ha_live: motion -> walk-up lights, doorbell -> blink. Never raises."""
+    """From ha_live (its asyncio loop): only the cheap name checks happen here; settings, the plug lookup and any
+    switching run on a worker thread so a slow Home Assistant can't stall the server. Never raises."""
     try:
-        if not new or not in_season():
+        if not new or not old or not in_season():       # no old state = entity just appeared (HA restart), not a ring
             return
+        if eid.split(".")[0] not in ("binary_sensor", "event") or str(new.get("state")) == str(old.get("state")):
+            return
+        txt = eid + " " + str((new.get("attributes") or {}).get("friendly_name", ""))
+        if not (_RING.search(txt) or _MOTION_AT.search(txt)):
+            return
+        threading.Thread(target=_on_state, args=(eid, old, new, states), daemon=True).start()
+    except Exception:
+        pass
+
+
+def _on_state(eid: str, old: dict | None, new: dict | None, states: dict):
+    try:
         dom = eid.split(".")[0]
         a = new.get("attributes") or {}
         name = str(a.get("friendly_name", ""))
         ns, os_ = str(new.get("state")), str((old or {}).get("state"))
-        if dom not in ("binary_sensor", "event") or ns == os_:
-            return
         p = plug(states)
         if not p or p not in states:
             return
@@ -127,7 +153,7 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
                 return
             mins = max(1, min(30, int(s.get("xmasMotionMin") or 5)))
             cur = states[p].get("state")
-            if cur == "off":
+            if cur == "off" and _off_this_evening(states[p]):
                 _set(p, True)
                 _S["ours_at"] = time.time()
                 _S["ours_until"] = time.time() + mins * 60
@@ -160,7 +186,7 @@ def tick():
     st = (states.get(p) or {}).get("state")
     now = time.time()
     # walk-up lights: switch back off when the time's up (only if we were the ones who turned it on)
-    if _S["ours_until"]:
+    if _S["ours_until"] and now - _S["flash_at"] > 8:
         if st != "on":
             _S["ours_until"] = 0                               # someone turned it off already
         elif now >= _S["ours_until"]:
@@ -171,7 +197,9 @@ def tick():
                 pass
     # offline = GFCI tripped / unplugged
     if s.get("xmasOffline", True) is not False:
-        if st in ("unavailable", None):
+        if not states or p not in states:
+            pass                                               # Home Assistant itself isn't answering: not the plug's fault
+        elif st == "unavailable":
             _S["offline_since"] = _S["offline_since"] or now
             if not _S["offline_told"] and now - _S["offline_since"] >= 180:
                 _S["offline_told"] = True
@@ -197,21 +225,19 @@ def _weather_tick(s: dict, now: float):
     wind_lim, rain_gust = float(s.get("windGust") or 30), float(s.get("rainGust") or 20)
     eve = str(s.get("xmasEveningCheck") or "20:00")[:5]
     hhmm = dt.strftime("%H:%M")
-    if hhmm >= eve and _S.get("eve_day") != dt.date():
-        if hhmm > _plus(eve, 30):                       # started up late: skip tonight rather than push at midnight
+    mins_now, mins_eve = dt.hour * 60 + dt.minute, int(eve[:2]) * 60 + int(eve[3:5])
+    if mins_now >= mins_eve and _S.get("eve_day") != dt.date():
+        if mins_now > mins_eve + 30:                    # started up late: skip tonight rather than push at midnight
             _S["eve_day"] = dt.date()
             return
-        _S["eve_day"] = dt.date()
         hours = max(1, 33 - dt.hour)                   # through 9 AM tomorrow
         parts = []
         try:
             w = gusts(hours) if wind_on else None
-        except Exception:
-            w = None
-        try:
             r = porch_rain(rain_gust, hours) if rain_on else None
         except Exception:
-            r = None
+            return                                      # forecast didn't answer: try again next minute (for 30 min)
+        _S["eve_day"] = dt.date()
         if w and w["mph"] >= wind_lim:
             parts.append(f"gusts up to {w['mph']:.0f} mph around {w['at']}: stake or lay down the nutcrackers and check the sleigh")
         if r:
@@ -244,11 +270,6 @@ def _weather_tick(s: dict, now: float):
             _S["rain_at"] = now
             why = f"with gusts to {r['mph']:.0f} mph" if r["windy"] else "and it could pour"
             _push(f"🌧 Rain {why} around {r['at']} ({r['pct']}%). Bring the indoor Santa in off the porch.", "familyhub-porch-rain")
-
-
-def _plus(hhmm: str, mins: int) -> str:
-    h, m = int(hhmm[:2]), int(hhmm[3:5]) + mins
-    return f"{(h + m // 60) % 24:02d}:{m % 60:02d}"
 
 
 def porch_rain(gust_lim: float = 20, hours: int = 12) -> dict | None:

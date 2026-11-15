@@ -3,7 +3,7 @@
    Each page supplies its own callbacks: FHHome.toggle(eid), FHHome.remote(eid,name),
    FHHome.rerender(). Keep this file dependency-free (uses FH from theme.js for the layout). */
 (function(){
-  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   /* The home's real layout, traced from the D.R. Horton "two story" plan sheets.
      Units are FEET. Everything below is written AS DRAWN on the sheet (garage on the
@@ -265,7 +265,7 @@
     st.textContent=`.fhl{display:flex; flex-direction:column; gap:12px; padding:6px 0}
       .fhl-dim{display:flex; align-items:center; gap:10px} .fhl-dim input{flex:1; accent-color:#f0a030; height:28px} .fhl-dim small{width:42px; text-align:right; color:var(--ink-dim)}
       .fhl-sw{display:flex; flex-wrap:wrap; gap:8px}
-      .fhl-sw button{width:34px; height:34px; border-radius:50%; border:2px solid rgba(127,127,127,.35); cursor:pointer; padding:0}
+      .fhl-sw button{width:44px; height:44px; border-radius:50%; border:2px solid rgba(127,127,127,.35); cursor:pointer; padding:0}
       .fhl-sw button.on{border-color:var(--ink); transform:scale(1.12)}
       .fhl-wheel{position:relative; width:min(230px,70vw); aspect-ratio:1; border-radius:50%; margin:2px auto; touch-action:none; cursor:crosshair;
         background:radial-gradient(circle closest-side,#fff,rgba(255,255,255,0)),conic-gradient(red,yellow,lime,cyan,blue,magenta,red)}
@@ -290,9 +290,9 @@
     root.querySelectorAll("[data-fhl-sw]").forEach(b=>b.onclick=()=>{ const x=SWATCHES[+b.dataset.fhlSw];
       root.querySelectorAll("[data-fhl-sw]").forEach(o=>o.classList.toggle("on",o===b));
       send(x[2]&&t.whites?{color_temp_kelvin:x[2]}:{rgb_color:x[1]}); place(x[1]); });
-    const wh=root.querySelector('[data-fhl="wheel"]'); if(!wh) return;
-    const dot=wh.querySelector(".fhl-dot");
-    function place(rgb){ if(!rgb) return; const [h,s]=rgbHs(rgb), a=(h-90)*Math.PI/180, r=wh.clientWidth/2;
+    const wh=root.querySelector('[data-fhl="wheel"]');
+    const dot=wh&&wh.querySelector(".fhl-dot");
+    function place(rgb){ if(!rgb||!wh) return; const [h,s]=rgbHs(rgb), a=(h-90)*Math.PI/180, r=wh.clientWidth/2;
       dot.style.display=""; dot.style.left=(r+Math.cos(a)*s*r)+"px"; dot.style.top=(r+Math.sin(a)*s*r)+"px"; dot.style.background=`rgb(${rgb.join(",")})`; }
     let last=0, pend=null, down=false;
     const pick=(e)=>{ const b=wh.getBoundingClientRect(), r=b.width/2, dx=e.clientX-b.left-r, dy=e.clientY-b.top-r;

@@ -95,7 +95,7 @@ def delete_chore(chore_id: int):
 
 
 @router.post("/{chore_id}/toggle")
-def toggle(chore_id: int):
+def toggle(chore_id: int, skip: bool = False, complete: bool = False):
     """Complete a chore. If it recurs, roll due_date forward and stay active.
     Completing a chore with stars credits the assigned person's reward balance."""
     with get_db() as conn:
@@ -104,7 +104,9 @@ def toggle(chore_id: int):
         if not row:
             raise HTTPException(404, "no such chore")
         reason = f"chore: {row['title']}"
-        if undo.recent(row):                         # oops: put it back and take the stars back off
+        if undo.recent(row) and complete:            # voice said "check it off" and it already is: leave it
+            return {"id": chore_id, "done": 1, "already": True, "stars_earned": 0}
+        if undo.recent(row) and not skip:            # oops: put it back and take the stars back off
             if row["undo_due"] is not None:
                 conn.execute("UPDATE chores SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
                              (row["undo_due"] or None, chore_id))
@@ -113,10 +115,20 @@ def toggle(chore_id: int):
             if row["stars"]:
                 for pid in ids_of(row):
                     conn.execute("DELETE FROM reward_ledger WHERE id IN (SELECT id FROM reward_ledger WHERE person_id=? AND "
-                                 "reason=? AND stars>0 AND at>=datetime('now', ?) ORDER BY id DESC LIMIT 1)",
-                                 (pid, reason, f"-{undo.minutes() + 5} minutes"))
+                                 "reason=? AND stars>0 AND at>=datetime(?, 'utc', '-5 seconds') ORDER BY id DESC LIMIT 1)",
+                                 (pid, reason, row["done_at"].replace("T", " ")))
             return {"id": chore_id, "done": 0, "undone": True, "stars_earned": 0}
         rec = row["recurrence"]
+        if skip and rec and not row["done"]:         # "skip this one": roll it on, no stars, nothing to undo
+            base = date.fromisoformat(row["due_date"]) if row["due_date"] else date.today()
+            nxt = next_occurrence(rec, base)
+            while nxt and nxt <= date.today():
+                nxt = next_occurrence(rec, nxt)
+            conn.execute("UPDATE chores SET due_date=?, done=0, done_at=NULL, undo_due=NULL WHERE id=?",
+                         (nxt.isoformat() if nxt else None, chore_id))
+            return {"id": chore_id, "recurred": True, "skipped": True, "next": nxt.isoformat() if nxt else None, "stars_earned": 0}
+        if complete and row["done"]:
+            return {"id": chore_id, "done": 1, "already": True, "stars_earned": 0}
         completing = not row["done"]
         earned = 0
         if completing and row["stars"]:

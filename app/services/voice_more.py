@@ -332,12 +332,16 @@ def complete(text: str):
                 conn.execute("DELETE FROM todos WHERE id=?", (iid,))
             return f"Removed {title} from the to-do list."
         from ..routers.todos import toggle as todo_toggle
-        r = todo_toggle(iid)
+        r = todo_toggle(iid, complete=True)
+        if r.get("already"):
+            return f"{title} is already checked off."
         return f"Marked {title} done." + (" It'll come back next time." if r.get("recurred") else "")
     if remove:
         return f"To delete the chore {title}, hold it on the screen and pick Delete."
     from ..routers.chores import toggle as chore_toggle
-    r = chore_toggle(iid)
+    r = chore_toggle(iid, complete=True)
+    if r.get("already"):
+        return f"{title} is already checked off."
     stars = r.get("stars_earned") or 0
     return f"Nice, {title} is done." + (f" {stars} star{'s' if stars != 1 else ''} earned." if stars else "")
 

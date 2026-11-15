@@ -105,8 +105,10 @@ const FH = (() => {
   async function save(patch) {
     const next = { ...settings, ...patch };
     apply(next);
-    try { await fetch("/api/settings", { method:"PUT",
-      headers:{"Content-Type":"application/json"}, body: JSON.stringify(next) }); }
+    // send only what changed; the server merges it and answers with everything as it now stands
+    try { const r = await fetch("/api/settings", { method:"PATCH",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify(patch) });
+      if (r.ok) { const all = await r.json(); if (all && typeof all === "object") { apply({ ...all, ...patch }); return settings; } } }
     catch(e){}
     return next;
   }

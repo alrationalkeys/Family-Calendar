@@ -208,13 +208,15 @@ def _run_tool(name, a, tiles, out):
         try:
             if kind == "todo":
                 from ..routers.todos import toggle
-                r = toggle(iid)
+                r = toggle(iid, complete=True)
             else:
                 from ..routers.chores import toggle
-                r = toggle(iid)
+                r = toggle(iid, complete=True)
         except Exception:
             return "error: no such item"
         out["refresh"] = True
+        if r.get("already"):
+            return "it was already checked off a few minutes ago (left as is)"
         return "checked off" + (f", {r.get('stars_earned')} stars earned" if r.get("stars_earned") else "") + (", it repeats" if r.get("recurred") else "")
     if name == "control_device":
         known = {t["entity_id"]: t for t in tiles}
@@ -336,10 +338,12 @@ def run(text: str, tiles: list) -> dict | None:
     deadline = _time.time() + 50                     # the wall gives up at 75 s; answer (or say so) well before that
     try:
         for _ in range(6):
-            if _time.time() > deadline:
-                out["say"] = "That one's taking me too long. Try asking it a shorter way."
+            left = deadline - _time.time()
+            if left < 4:
+                # anything the tools already did stays done: say so instead of inviting a repeat (and a duplicate)
+                out["say"] = "That's done." if (out.get("refresh") or out.get("timer")) else "That one's taking me too long. Try asking it a shorter way."
                 return out
-            resp = client.messages.create(messages=messages, **kw)
+            resp = client.with_options(timeout=min(30.0, left), max_retries=0 if left < 35 else 1).messages.create(messages=messages, **kw)
             if resp.stop_reason == "refusal":
                 return {"ok": True, "say": "Sorry, I can't help with that one."}
             messages.append({"role": "assistant", "content": resp.content})
@@ -362,6 +366,9 @@ def run(text: str, tiles: list) -> dict | None:
         out["say"] = say or ("Done." if out.get("refresh") or out.get("timer") else "I'm not sure.")
         return out
     except anthropic.APIConnectionError:
+        if out.get("refresh") or out.get("timer"):
+            out["say"] = "That's done."               # the tools ran; only the wrap-up sentence was lost
+            return out
         return None
     except anthropic.APIStatusError as e:
         import sys

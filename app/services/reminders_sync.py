@@ -17,6 +17,8 @@ Never raises into callers; a dead connection just skips a cycle.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import date, datetime
 
 from ..db import get_db
@@ -120,6 +122,10 @@ def sync_once() -> dict:
                                  (it["title"], it["due"], it["list"], row["id"]))
             # anything we hold for this source that's no longer open upstream was completed/deleted there
             for row in conn.execute("SELECT id, ext_uid FROM todos WHERE ext_source=? AND done=0", (f"caldav:{src['id']}",)).fetchall():
+                if row["ext_uid"] not in seen and time.time() - _REOPENED.get(row["id"], 0) < 900:
+                    # just un-done on the wall and iCloud hasn't caught up (or the reopen failed): try again, don't re-complete it
+                    threading.Thread(target=push_reopen, args=(row["id"],), daemon=True).start()
+                    continue
                 if row["ext_uid"] not in seen:
                     conn.execute("UPDATE todos SET done=1 WHERE id=?", (row["id"],))
                     done_upstream += 1
@@ -139,8 +145,12 @@ def push_complete(todo_id: int) -> bool:
     return complete(json.loads(src["config"]), row["ext_uid"])
 
 
+_REOPENED: dict = {}        # todo id -> when it was un-done here (the sync leaves it open for 15 min)
+
+
 def push_reopen(todo_id: int) -> bool:
     """Undo of a tick inside the undo window: mark it not-completed in Reminders again."""
+    _REOPENED.setdefault(todo_id, time.time())
     with get_db() as conn:
         row = conn.execute("SELECT ext_uid, ext_source FROM todos WHERE id=?", (todo_id,)).fetchone()
         if not row or not row["ext_uid"] or not (row["ext_source"] or "").startswith("caldav:"):

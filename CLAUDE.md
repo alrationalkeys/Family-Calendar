@@ -159,6 +159,11 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Wall Home tiles: "By room" (default; FHHome.resolveRooms/roomFor like the phone; cameras first, scenes last, sensors hidden)
   or "By type" (HA groups); choice in localStorage fh_home_group. Every light tile has the ◐/🎨 button; a switch-only light
   says so in the pop-up (tile.modes = HA supported_color_modes).
+- Calendar source cache (`routers/calendar.py` `_source_events`): iCloud/Google/ICS fetched at most every 90 s (stale copy served
+  while a thread refreshes; last good kept 6 h on failure; a wider cached window serves narrower asks); `cache_clear()` on any
+  event write / source change / Sync now. Weather cached 5 min. `PATCH /api/settings` merges keys (FH.save uses it; PUT replaces).
+  Notifications: unfired >3 h old are dropped, fired pruned after 30 days. `…/toggle?skip=true` = skip a repeat (no stars, no
+  undo); `toggle(id, complete=True)` = voice (never un-does). Dashboard rows carry `was_due` for a just-ticked repeat.
 - Undo a check-off (`services/undo.py`): ticked to-dos/chores keep showing crossed out (`just_done`) for settings.undoMinutes
   (30); toggling inside the window restores them (done=0, a repeat's due date from `undo_due`, chore stars removed from the
   ledger, iCloud reminder reopened via `reminders_sync.push_reopen`). Columns `done_at` + `undo_due` on todos and chores.

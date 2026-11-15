@@ -107,6 +107,24 @@ def get_settings():
         return DEFAULTS
 
 
+@router.patch("")
+def patch_settings(payload: dict):
+    """Change just these keys. (PUT replaces everything, so a phone left open for days used to roll back
+    whatever the wall or the other phone had changed since it last loaded.)"""
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key=?", (KEY,)).fetchone()
+        try:
+            cur = json.loads(row["value"]) if row and row["value"] else {}
+        except json.JSONDecodeError:
+            cur = {}
+        clean = {**DEFAULTS, **cur, **(payload or {})}
+        conn.execute(
+            "INSERT INTO settings (key,value) VALUES (?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (KEY, json.dumps(clean)))
+    return clean
+
+
 @router.put("")
 def put_settings(payload: dict):
     clean = {**DEFAULTS, **payload}

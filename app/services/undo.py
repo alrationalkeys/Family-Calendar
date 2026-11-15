@@ -41,6 +41,8 @@ def recent(row) -> bool:
 def mark(d: dict) -> dict:
     """API/dashboard rows: just_done = show it crossed out with an undo."""
     d["just_done"] = recent(d)
+    if d["just_done"] and d.get("undo_due"):
+        d["was_due"] = d["undo_due"]                 # a repeat that rolled on: the day it was ticked for (calendar chips stay there)
     d.pop("undo_due", None)
     return d
 

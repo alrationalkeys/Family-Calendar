@@ -403,8 +403,11 @@ def _arm_when_closed(svc: str = "alarm_arm_away"):
             if _RUN_GEN[0] != gen:
                 return                                      # I'm home / Good night pressed meanwhile
             panels = [t for t in _tiles() if t["domain"] == "alarm_control_panel"]
-            if not panels or any(t["state"] != "disarmed" for t in panels):
-                return                                      # armed already (keypad, app) or panel unknown
+            if not panels or any(t["state"] in ("unavailable", "unknown") for t in panels):
+                still = still or ["Home Assistant isn't answering"]
+                continue                                    # a blip reading HA: keep waiting, and say so if it never arms
+            if any(t["state"] != "disarmed" for t in panels):
+                return                                      # armed already (keypad, app)
             still = _open_things()
             if not still:
                 time.sleep(3)                               # let the door latch

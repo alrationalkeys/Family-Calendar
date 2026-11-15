@@ -198,6 +198,10 @@
   .pin-card h3{font-size:18px; margin-bottom:4px}
   .lp-card{width:360px; text-align:left} .lp-card h3{text-align:center} .lp-card .pin-sub{text-align:center}
   .lp-btns{display:flex; gap:10px; margin-top:12px} .lp-btns .cc-qa{flex:1; padding:12px}
+  .hg-switch{display:inline-flex; gap:4px; background:var(--panel2); border-radius:999px; padding:4px; margin:14px 0 2px}
+  .hg-switch button{border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:15px; padding:8px 16px; border-radius:999px; cursor:pointer}
+  .hg-switch button.active{background:var(--panel); color:var(--ink); font-weight:600}
+  .hg-on{font-weight:500; color:var(--now); font-size:13px; margin-left:6px; text-transform:none; letter-spacing:0}
   .tile{position:relative} .t-adj{position:absolute; top:6px; right:6px; width:34px; height:34px; border-radius:50%; border:0;
     background:var(--panel2); color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center}
   .pin-card .pin-sub{color:var(--ink-dim); font-size:13px; margin-bottom:12px}
@@ -2587,6 +2591,7 @@ function renderHome(h){
   if(homeView==="iso") return renderIsoView(body,h);
   renderTilesView(body,h);
 }
+let homeGroup=(()=>{ try{ return localStorage.getItem("fh_home_group")||"room"; }catch(e){ return "room"; } })();
 function renderTilesView(body,h){
   const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
   const alarm=tiles.find(t=>t.domain==="alarm_control_panel");
@@ -2645,26 +2650,52 @@ function renderTilesView(body,h){
   if(h.spotify) html += spotifyCardHTML(h.spotify);
   html += villageCardHTML(lastVillage);
 
-  (h.groups||[]).filter(g=>g.group!=="Sensors").forEach(g=>{     // door/motion/temp sensors work behind the scenes (status bar, night check, 3D), no tiles
-    html += '<div class="home-sec"><h3>'+esc(g.group)+'</h3><div class="tile-grid">';
-    g.tiles.forEach(t=>{
-      if(t.domain==="camera"){
-        html += '<div class="tile cam" data-ha="'+esc(t.entity_id)+'" data-domain="camera" data-name="'+esc(t.name)+'">'+
-          '<img src="'+esc(t.snapshot)+'?v=1&t='+Date.now()+'" alt="" loading="lazy"><div class="t-name">📷 '+esc(t.name)+'</div></div>';
-        return;
-      }
-      const scene = t.activatable;
-      const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
-      const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
-      const adj = t.domain==="light" && (t.dimmable||t.color||t.whites) ? '<button class="t-adj" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color">'+(t.color?'\u{1F3A8}':'\u25D0')+'</button>' : '';
-      html += '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+adj+
-        '<div class="t-ico">'+haIcon(t)+'</div>'+
-        '<div class="t-name">'+esc(t.name)+'</div>'+
-        (scene?'':'<div class="t-state">'+esc(haStateLabel(t))+'</div>')+
-      '</div>';
+  const tileHTML=t=>{
+    if(t.domain==="camera"){
+      return '<div class="tile cam" data-ha="'+esc(t.entity_id)+'" data-domain="camera" data-name="'+esc(t.name)+'">'+
+        '<img src="'+esc(t.snapshot)+'?v=1&t='+Date.now()+'" alt="" loading="lazy"><div class="t-name">📷 '+esc(t.name)+'</div></div>';
+    }
+    const scene = t.activatable;
+    const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
+    const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
+    // every light gets the ◐/🎨 button; a light that can only switch says so in the pop-up instead of hiding it
+    const adj = t.domain==="light" ? '<button class="t-adj" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color">'+(t.color?'\u{1F3A8}':'\u25D0')+'</button>' : '';
+    return '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+adj+
+      '<div class="t-ico">'+haIcon(t)+'</div>'+
+      '<div class="t-name">'+esc(t.name)+'</div>'+
+      (scene?'':'<div class="t-state">'+esc(haStateLabel(t))+'</div>')+
+    '</div>';
+  };
+  const sec=(title, list)=> list.length ? '<div class="home-sec"><h3>'+title+'</h3><div class="tile-grid">'+list.map(tileHTML).join("")+'</div></div>' : '';
+  html += `<div class="hg-switch"><button data-hg="room" class="${homeGroup==="room"?"active":""}">\u{1F6AA} By room</button><button data-hg="type" class="${homeGroup==="type"?"active":""}">\u{1F4A1} By type</button></div>`;
+  if(homeGroup==="room"){
+    // like the phone: one section per room (HA Areas / the floor plan), cameras first, scenes last
+    const rooms=FHHome.resolveRooms(h)||[];
+    const hidden=t=>["sensor","binary_sensor","automation","script","alarm_control_panel"].includes(t.domain);
+    const all=tiles.filter(t=>!hidden(t));
+    const cams=all.filter(t=>t.domain==="camera"), scenes=all.filter(t=>t.domain==="scene");
+    const buckets=new Map();              // title -> tiles, in floor-plan order first
+    const dup=n=>rooms.filter(r=>r.name===n).length>1;
+    rooms.forEach(r=>{ const k=r.name+(dup(r.name)?(String(r.floor||1)==="2"?" (upstairs)":" (downstairs)"):""); if(!buckets.has(k)) buckets.set(k,{icon:"", tiles:[], r}); });
+    const order={light:0,switch:1,fan:2,climate:3,media_player:4,cover:5,lock:6};
+    all.filter(t=>t.domain!=="camera"&&t.domain!=="scene").forEach(t=>{
+      const r=FHHome.roomFor(t, rooms);
+      let k=r?(r.name+(dup(r.name)?(String(r.floor||1)==="2"?" (upstairs)":" (downstairs)"):"")):(t.area||"Other devices");
+      if(!buckets.has(k)) buckets.set(k,{tiles:[]});
+      buckets.get(k).tiles.push(t);
     });
-    html += '</div></div>';
-  });
+    html += sec("\u{1F4F7} Cameras", cams);
+    const keys=[...buckets.keys()].filter(k=>buckets.get(k).tiles.length);
+    keys.sort((a,b)=>(a==="Other devices")-(b==="Other devices"));
+    keys.forEach(k=>{ const list=buckets.get(k).tiles.sort((a,b)=>((order[a.domain]??9)-(order[b.domain]??9))||a.name.localeCompare(b.name));
+      const on=list.filter(t=>t.on&&["light","switch","fan"].includes(t.domain)).length;
+      html += sec(esc(k)+(on?` <small class="hg-on">${on} on</small>`:""), list); });
+    html += sec("\u2728 Scenes", scenes);
+  } else {
+    (h.groups||[]).filter(g=>g.group!=="Sensors").forEach(g=>{     // door/motion/temp sensors work behind the scenes (status bar, night check, 3D), no tiles
+      html += sec(esc(g.group), g.tiles);
+    });
+  }
   // Skip the rebuild when nothing visible changed: the 10 s refresh otherwise re-creates
   // every tile and chip, which reads as flicker on the touch screen (and drops a tap).
   // The album-art cache-buster is stripped from the comparison.
@@ -2675,6 +2706,7 @@ function renderTilesView(body,h){
   bindSpotify(body);
   bindVillage(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
+  body.querySelectorAll("[data-hg]").forEach(b=>{ b.onclick=()=>{ homeGroup=b.dataset.hg; try{ localStorage.setItem("fh_home_group", homeGroup); }catch(e){} body.dataset.sig=""; renderTilesView(body, lastHome); }; });
   body.querySelectorAll("[data-adj]").forEach(b=>{ b.addEventListener("pointerdown",e=>e.stopPropagation());
     b.onclick=(e)=>{ e.stopPropagation(); const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===b.dataset.adj); if(t) openLightPop(t); }; });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
@@ -2888,6 +2920,8 @@ function openLightPop(t){
     $("#lp-name").textContent=t.name; $("#lp-state").textContent=t.on?("On"+(t.brightness!=null?" · "+t.brightness+"%":"")):"Off";
     $("#lp-tg").textContent=t.on?"Turn off":"Turn on";
     const body=$("#lp-body"); body.innerHTML=FHHome.lightPanelHTML(t);
+    if(!t.dimmable && !t.color && !t.whites) body.innerHTML='<div class="pin-sub" style="margin:6px 0 2px">Home Assistant says this one can only switch on and off'+
+      ((t.modes&&t.modes.length)?' ('+esc(t.modes.join(", "))+')':'')+'. Brightness and color need the LED controller itself in Home Assistant, not the switch or plug that powers it.</div>';
     FHHome.bindLightPanel(body, t, async data=>{ resetSleep();
       try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:t.entity_id, data}); t.on=true; $("#lp-state").textContent="On"; $("#lp-tg").textContent="Turn off"; }catch(e){} });
   };

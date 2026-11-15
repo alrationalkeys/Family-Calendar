@@ -156,6 +156,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   online). Hooked into ha_live + the house-watch tick; phone Settings > Alerts.
 - Birthdays: `settings.birthdays` [{name, date MM-DD|YYYY-MM-DD}] for relatives (phone Settings > Family > Birthdays) + people.birthday; Skins.birthdayPeople merges both (Birthday skin with their name), `/api/calendar/events` adds "🎂 Name's birthday (turns N)" all-day items.
 - To-do lists: `todos.list_name` (NULL = main "To-Do"; iCloud items use ext_list), `settings.todoLists` = extra list names (phone Settings > To-do lists, add/reorder/remove → items move to To-Do via `POST /api/todos/{id}/list`). Wall To-Do box header ‹ › cycles lists (remembered per screen in localStorage fh_todo_list); + adds to the shown list.
+- Wall Home tiles: "By room" (default; FHHome.resolveRooms/roomFor like the phone; cameras first, scenes last, sensors hidden)
+  or "By type" (HA groups); choice in localStorage fh_home_group. Every light tile has the ◐/🎨 button; a switch-only light
+  says so in the pop-up (tile.modes = HA supported_color_modes).
 - Undo a check-off (`services/undo.py`): ticked to-dos/chores keep showing crossed out (`just_done`) for settings.undoMinutes
   (30); toggling inside the window restores them (done=0, a repeat's due date from `undo_due`, chore stars removed from the
   ledger, iCloud reminder reopened via `reminders_sync.push_reopen`). Columns `done_at` + `undo_due` on todos and chores.

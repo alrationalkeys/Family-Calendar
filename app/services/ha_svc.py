@@ -261,6 +261,7 @@ def _tile(entity_id: str, state: str, attrs: dict) -> dict:
         tile["dimmable"] = bool(modes) and any(m != "onoff" for m in modes) or attrs.get("brightness") is not None
         tile["color"] = any(m in ("hs", "rgb", "rgbw", "rgbww", "xy") for m in modes)
         tile["whites"] = "color_temp" in modes or tile["color"]
+        tile["modes"] = list(modes)                    # shown in the wall's light pop-up when a light can only switch
         if attrs.get("rgb_color"):
             tile["rgb"] = list(attrs["rgb_color"])[:3]
         if attrs.get("brightness") is not None:

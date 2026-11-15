@@ -127,7 +127,7 @@ def info() -> dict:
     if not out["key"]:
         return out
     now = time.time()
-    if _S["voices"] is None or now - _S["voices_at"] > 600:
+    if _S["voices"] is None or now - _S["voices_at"] > 15:      # short: a voice just added on their site should show up right away
         try:
             vs = json.loads(_req("/voices")).get("voices") or []
             _S["voices"] = sorted(({"id": v.get("voice_id"), "name": v.get("name") or "?",

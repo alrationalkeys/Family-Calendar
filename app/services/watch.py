@@ -123,6 +123,7 @@ def _peak_tick(s: dict):
         _PEAK_SEEN.clear()
         return
     now = time.time()
+    _peak_dryer(s)
     for st in _states():
         eid = st.get("entity_id", "")
         if not eid.startswith("climate."):
@@ -140,6 +141,31 @@ def _peak_tick(s: dict):
             _push(f"Peak hours: the {name} thermostat is still on ({st.get('state').replace('_', '/')}). "
                   "Santee Cooper bills on peak use. Turn it off or check the peak schedule.", "familyhub-peak")
             _peak_log({"day": date.today().isoformat(), "at": datetime.now().strftime("%H:%M"), "name": name})
+
+
+def _peak_dryer(s: dict):
+    """The dryer is the biggest thing a person starts by hand. Running in peak hours -> wall + phones, once a day."""
+    if not s.get("peakDryer", True) or _SENT.get("peak:dryer") == date.today():
+        return
+    try:
+        from . import laundry
+        dryer = next((m for m in laundry.status() if "dryer" in m["name"].lower() and m["running"]), None)
+    except Exception:
+        dryer = None
+    if not dryer:
+        return
+    _SENT["peak:dryer"] = date.today()
+    left = dryer.get("remaining_min")
+    text = ("The dryer is running during peak hours" + (f" ({left} min left)" if left else "")
+            + ". Santee Cooper bills on your highest peak hour, so pausing it until peak ends saves money.")
+    try:
+        with get_db() as conn:
+            conn.execute("INSERT INTO notifications (title, body, kind, at) VALUES (?,?,?,?)",
+                         ("⚡ Peak hours", text, "announce", datetime.now().isoformat()))
+    except Exception:
+        pass
+    _push("⚡ " + text, "familyhub-peak-dryer")
+    _peak_log({"day": date.today().isoformat(), "at": datetime.now().strftime("%H:%M"), "name": "Dryer"})
 
 
 # ---------------------------------------------------------------- nightly check

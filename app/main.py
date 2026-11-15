@@ -72,6 +72,11 @@ async def lifespan(app: FastAPI):
         from .services import watch as _watch
         _watch.start()
         try:
+            from .services import gameday as _gameday
+            _gameday.start()                # our teams' live scores -> celebrate
+        except Exception:
+            pass
+        try:
             from .services import speech as _speech
             _speech.warm()                  # first spoken question shouldn't pay for loading the speech model
         except Exception:
@@ -203,6 +208,8 @@ app.include_router(summary.router, prefix="/api/summary", tags=["summary"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(travel.router, prefix="/api/travel", tags=["travel"])
 app.include_router(village.router, prefix="/api/village", tags=["village"])
+from .routers import games as _games  # noqa: E402
+app.include_router(_games.router, prefix="/api/games", tags=["games"])
 
 # Serve the wall display
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

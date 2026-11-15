@@ -568,6 +568,7 @@
       <input type="time" id="al-night-t" style="width:auto; display:inline-block; margin-left:4px"></label>
     <button class="tool" id="al-night-test" style="margin:4px 0 10px">Check right now</button>
     <label class="chk"><input type="checkbox" id="al-peak"> Peak alert: tell us if heat or AC is still on 3 minutes into peak hours</label>
+    <label class="chk"><input type="checkbox" id="al-peakdry"> Peak alert: tell us (and say it on the wall) if the dryer is running during peak hours</label>
     <label class="chk"><input type="checkbox" id="al-week"> Sunday 6 PM: a short note with heat/AC hours, any peak use and low batteries</label>
     <label class="chk"><input type="checkbox" id="al-wx"> Weather warnings (hurricane, tropical storm, tornado, flood, severe storms): banner on the wall + a push</label>
     <label class="chk"><input type="checkbox" id="al-rain"> Rain check: tell us if rain is coming and the garage or a window is open</label>
@@ -587,6 +588,20 @@
     <label class="chk"><input type="checkbox" id="al-xm-off"> Tell us if the lights' plug goes offline (GFCI tripped)</label>
     <label class="chk"><input type="checkbox" id="al-pkg"> Package on the porch: front cameras + AI spot a delivery and send the picture</label>
     <label class="chk">Low battery means at or below <input type="number" id="al-batt" min="5" max="60" step="5" style="width:70px; display:inline-block; margin:0 4px"> %</label>
+  </details>
+
+  <details class="form sect fold" data-fold="gameday">
+    <summary><span class="fi">🏈</span><span class="ft"><b>Game day</b><small>Our teams: live score on the wall, lights flash when they score</small></span></summary>
+    <div id="gd-teams"></div>
+    <div class="srow" style="gap:6px"><select id="gd-league" style="margin:0;width:38%"></select><select id="gd-team" style="margin:0;flex:1;min-width:0"><option value="">Pick a league…</option></select></div>
+    <button class="tool" type="button" id="gd-add" style="margin:6px 0 12px">+ Add this team</button>
+    <label class="chk"><input type="checkbox" id="gd-chip"> Show the live score on the wall</label>
+    <label class="chk"><input type="checkbox" id="gd-speak"> Say it on the wall when they score or win</label>
+    <label class="chk"><input type="checkbox" id="gd-flash"> Flash these lights in the team's colors:</label>
+    <div id="gd-lights" style="margin:2px 0 8px 30px"></div>
+    <label class="chk">Wait <input type="number" id="gd-delay" min="0" max="180" step="5" style="width:64px; display:inline-block; margin:0 4px"> seconds first, so it doesn't beat the TV (streaming runs behind)</label>
+    <button class="tool" type="button" id="gd-test" style="margin:8px 0 4px">Test a touchdown now</button>
+    <div class="hint" id="gd-msg">Football: touchdowns and field goals. Hockey: goals. Baseball: runs. Basketball: only the win. Nothing happens after Good night or between 11:30 PM and 8 AM.</div>
   </details>
 
   <details class="form sect fold" data-fold="family">
@@ -1813,13 +1828,45 @@ function setupVoiceHistory(){
   $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
   const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); loadCloudVoice(); } });
 }
+function gdRender(){
+  const E=FHHome.esc, S=FH.get(), box=$("#gd-teams"); if(!box) return;
+  const teams=S.teams||[];
+  box.innerHTML=teams.length?teams.map((t,i)=>`<div class="srow"><span><i style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${E(t.color)};border:2px solid ${E(t.alt)};vertical-align:-2px;margin-right:8px"></i>${E(t.name)}</span><button class="tool" type="button" data-gdx="${i}" style="margin:0">Remove</button></div>`).join(""):`<div class="hint" style="margin-top:0">No teams yet. Pick a league and a team below.</div>`;
+  box.querySelectorAll("[data-gdx]").forEach(b=>b.onclick=()=>{ const t=(FH.get().teams||[]).slice(); t.splice(+b.dataset.gdx,1); FH.save({teams:t}).then(gdRender); });
+}
+async function gdLights(){
+  const E=FHHome.esc, box=$("#gd-lights"); if(!box||box._done) return;
+  let h=null; try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
+  const lights=((h&&h.groups)||[]).flatMap(g=>g.tiles||[]).filter(t=>t.domain==="light"&&(t.modes||[]).some(m=>/rgb|hs|xy/.test(m)));
+  if(!lights.length){ box.innerHTML=`<div class="hint" style="margin:0">No color lights found in Home Assistant.</div>`; return; }
+  box._done=true;
+  const on=new Set(FH.get().gameLights||[]);
+  box.innerHTML=lights.map(t=>`<label class="chk" style="margin:2px 0"><input type="checkbox" value="${E(t.entity_id)}"${on.has(t.entity_id)?" checked":""}> ${E(t.name)}</label>`).join("");
+  box.onchange=()=>{ FH.save({gameLights:[...box.querySelectorAll("input:checked")].map(i=>i.value)}); toast("Saved"); };
+}
+function setupGameDay(){
+  gdRender(); gdLights();
+  const lg=$("#gd-league"); if(!lg||lg._wired) return; lg._wired=true;
+  let list=[];
+  const E=FHHome.esc, tm=$("#gd-team");
+  const load=async()=>{ tm.innerHTML=`<option value="">Loading…</option>`;
+    try{ const r=await fetch("/api/games/teams?league="+encodeURIComponent(lg.value)); if(!r.ok) throw 0; list=await r.json(); tm.innerHTML=list.map((t,i)=>`<option value="${i}">${E(t.name)}</option>`).join(""); }
+    catch(e){ list=[]; tm.innerHTML=`<option value="">Couldn't load teams</option>`; } };
+  fetch("/api/games/leagues").then(r=>r.json()).then(ls=>{ lg.innerHTML=ls.map(l=>`<option value="${E(l.key)}">${E(l.label)}</option>`).join(""); load(); }).catch(()=>{});
+  lg.onchange=load;
+  $("#gd-add").onclick=()=>{ const t=list[+tm.value]; if(!t) return; const cur=(FH.get().teams||[]).slice();
+    if(cur.some(x=>x.league===t.league&&x.id===t.id)){ toast("Already added"); return; }
+    cur.push(t); FH.save({teams:cur}).then(()=>{ gdRender(); toast("Added "+t.name); }); };
+  $("#gd-test").onclick=async()=>{ const r=await post("/api/games/test",{}).then(r=>r.json()).catch(()=>null);
+    $("#gd-msg").textContent=!r?"Couldn't reach FamilyHub.":r.ok?"Sent. The wall and the lights should celebrate within half a minute.":(r.reason||"Didn't work."); };
+}
 function loadSettingsUI(){
   setupVoiceHistory();
   { const S=FH.get(), bind=(id,key,fmt)=>{ const el=$(id); if(!el) return;
       if(document.activeElement!==el){ if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??""; }   // always show what's saved now
       if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
-    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);

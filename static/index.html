@@ -2262,6 +2262,33 @@ async function checkNotifications(){
     }
   }catch(e){}
 }
+/* Game day: a burst of the team's colour around the screen + confetti, and a small live-score chip. */
+function scoreBurst(color){
+  if(!/^#[0-9a-f]{6}$/i.test(color)) color="#e9a23b";
+  const o=document.createElement("div");
+  o.style.cssText=`position:fixed;inset:0;z-index:79;pointer-events:none;box-shadow:inset 0 0 0 14px ${color}, inset 0 0 140px 40px ${color};opacity:0`;
+  document.body.appendChild(o);
+  o.animate([{opacity:0},{opacity:1},{opacity:.25},{opacity:1},{opacity:.25},{opacity:1},{opacity:0}],{duration:4200,easing:"ease-in-out"}).onfinish=()=>o.remove();
+  for(let k=0;k<5;k++) setTimeout(()=>{ try{ const a=document.createElement("div"); a.style.cssText=`position:fixed;left:${15+Math.random()*70}vw;top:${20+Math.random()*50}vh;width:1px;height:1px`; document.body.appendChild(a); celebrate(a); setTimeout(()=>a.remove(),1500); }catch(e){} }, k*450);
+}
+let _gameHTML="";
+async function loadGameChip(){
+  const s=FH.get();
+  let g=null;
+  if(s.gameChip!==false && (s.teams||[]).length){ try{ const r=await fetch("/api/games").then(r=>r.json()); g=(r.games||[]).find(x=>x.state==="in")||(r.games||[]).find(x=>x.state==="post")||(r.games||[])[0]||null; }catch(e){} }
+  const was=_gameHTML;
+  if(!g) _gameHTML="";
+  else{
+    const col=/^#[0-9a-f]{6}$/i.test(g.team.color)?g.team.color:"var(--now)";
+    const dot=`<i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${col};margin-right:6px"></i>`;
+    const when=g.state==="pre"?new Date(g.start).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):g.detail;
+    _gameHTML=`<span class="hb">${dot}`+(g.state==="pre"
+      ? `${esc(g.team.abbr||g.team.name)} ${g.home?"vs":"@"} ${esc(g.opp_abbr||g.opp)} <span style="opacity:.7">· ${esc(when)}</span>`
+      : `<b>${esc(g.team.abbr||g.team.name)} ${g.us}</b> · ${esc(g.opp_abbr||g.opp)} ${g.them} <span style="opacity:.7">· ${esc(when)}</span>`)+`</span>`;
+  }
+  if(was!==_gameHTML) try{ loadHomeStatus(); }catch(e){}
+}
+setInterval(loadGameChip, 30000); setTimeout(loadGameChip, 4000);
 function showNotification(n){
   // browser notification if permitted, else an on-screen banner
   if("Notification" in window && Notification.permission==="granted"){
@@ -2272,7 +2299,8 @@ function showNotification(n){
   if(FH.get().speakAlerts!==false){
     const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
     if(n.kind==="doorbell"||n.kind==="motion") return;      // handled live via the SSE ring
-    if(n.kind==="announce") sayAloud(clean(n.body||n.title));
+    if(String(n.kind||"").startsWith("score:")){ scoreBurst(n.kind.slice(6)); if(n.body) sayAloud(clean(n.body)); }
+    else if(n.kind==="announce") sayAloud(clean(n.body||n.title));
     else if(n.kind==="reminder") sayAloud("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
     else if(n.kind==="mail") sayAloud(clean(n.title)+". Approve it on your phone.");
     wake();
@@ -2524,7 +2552,7 @@ async function loadHomeStatus(){
   let s;
   try{ s=(await cachedFetch("/api/ha/status","hastatus")).data; }
   catch(e){ s=null; }
-  const chip=tripChip();
+  const chip=[tripChip(),_gameHTML].filter(Boolean).join('<span class="hb-sep">·</span>');
   if(!s || !s.connected){ if(chip){ bar.innerHTML=chip; bar.classList.add("show"); } else bar.classList.remove("show"); return; }
   const parts=[];
   if(chip) parts.push(chip);

@@ -8,6 +8,15 @@ from ..db import get_db
 router = APIRouter()
 
 
+def _cal_changed():
+    """A source was added/removed or a sync was asked for: drop the cached copies of the outside calendars."""
+    try:
+        from .calendar import cache_clear
+        cache_clear()
+    except Exception:
+        pass
+
+
 class CalDAVSource(BaseModel):
     label: str
     url: str = "https://caldav.icloud.com/"
@@ -44,6 +53,7 @@ def status():
 @router.post("/sync")
 def sync_now():
     """Force a calendar fetch + Reminders pull right now."""
+    _cal_changed()
     from .calendar import events as cal_events
     from ..services import reminders_sync, sync_status
     try:
@@ -146,6 +156,7 @@ def test_caldav(t: CalDAVTest):
 
 @router.post("/caldav")
 def add_caldav(s: CalDAVSource):
+    _cal_changed()
     cfg = {"url": s.url, "username": s.username, "password": s.password, "sync_reminders": s.sync_reminders}
     with get_db() as conn:
         cur = conn.execute(
@@ -161,6 +172,7 @@ def add_caldav(s: CalDAVSource):
 
 @router.post("/google")
 def add_google(s: GoogleSource):
+    _cal_changed()
     cfg = {"token_path": "token.json", "creds_path": "credentials.json"}
     with get_db() as conn:
         cur = conn.execute(
@@ -173,6 +185,7 @@ def add_google(s: GoogleSource):
 def delete_source(source_id: int):
     with get_db() as conn:
         conn.execute("DELETE FROM cal_sources WHERE id=?", (source_id,))
+        _cal_changed()
         return {"deleted": source_id}
 
 
@@ -187,6 +200,7 @@ class ICSSource(BaseModel):
 @router.post("/ics")
 def add_ics(s: ICSSource):
     """Subscribe to an external ICS/webcal feed (sports, golf, school, trash, etc.)."""
+    _cal_changed()
     cfg = {"url": s.url, "color": s.color}
     with get_db() as conn:
         cur = conn.execute(

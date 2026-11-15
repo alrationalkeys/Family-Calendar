@@ -16,10 +16,14 @@ router = APIRouter()
 @router.get("/due")
 def due_notifications():
     """Return unfired notifications whose time has passed; caller marks them seen."""
-    now = datetime.now().isoformat()
+    now = datetime.now()
+    stale = (now - timedelta(hours=3)).isoformat()
     with get_db() as conn:
+        # the wall was off or asleep for hours: don't read out a pile of old news ("the washer is done") when it's back
+        conn.execute("UPDATE notifications SET fired=1 WHERE fired=0 AND at<?", (stale,))
+        conn.execute("DELETE FROM notifications WHERE fired=1 AND at<?", ((now - timedelta(days=30)).isoformat(),))
         rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM notifications WHERE fired=0 AND at<=? ORDER BY at", (now,))]
+            "SELECT * FROM notifications WHERE fired=0 AND at<=? ORDER BY at", (now.isoformat(),))]
     return {"notifications": rows}
 
 

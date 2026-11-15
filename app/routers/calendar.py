@@ -26,6 +26,79 @@ def _settings():
         return {}
 
 
+# ---- cache for the outside calendars (iCloud / Google / ICS feeds) ------------------------------------------------
+# The wall asks for the calendar every 10 s and phones, voice, leave-by and the summary ask too. Going out to iCloud
+# on every one of those was thousands of slow round trips a day (and a slow iCloud = the wall's "offline" badge).
+# Each source is fetched at most every _TTL seconds; in between everyone gets the copy. A stale copy is served at
+# once while a background thread refreshes it; a failed refresh keeps the last good copy. Any write through
+# FamilyHub (add / edit / delete / source change) clears the cache so it shows straight away.
+import threading
+import time as _time
+
+_TTL = 90
+_STALE_OK = 6 * 3600
+_SRC_CACHE: dict = {}          # (source id, days, back) -> {"at", "data", "busy"}
+_SRC_LOCK = threading.Lock()
+
+
+def cache_clear():
+    with _SRC_LOCK:
+        _SRC_CACHE.clear()
+
+
+def _fetch_source(s: dict, days: int, back: int) -> list:
+    cfg = json.loads(s["config"])
+    if s["kind"] == "google":
+        return google_sync.fetch_google_events(days_ahead=days, days_back=back, **cfg)
+    if s["kind"] == "caldav":
+        cfg = {k: v for k, v in cfg.items() if k in ("url", "username", "password")}
+        return caldav_sync.fetch_caldav_events(days_ahead=days, days_back=back, **cfg)
+    if s["kind"] == "ics":
+        return ics_feed.fetch_ics_events(days_ahead=days, days_back=back, label=s["label"], **cfg)
+    return []
+
+
+def _refresh(s: dict, days: int, back: int, key):
+    from ..services import sync_status
+    try:
+        got = _fetch_source(s, days, back)
+        with _SRC_LOCK:
+            _SRC_CACHE[key] = {"at": _time.time(), "data": got, "busy": False}
+        sync_status.mark(f"cal:{s['id']}", True, len(got), label=s["label"])
+    except Exception as e:
+        with _SRC_LOCK:
+            if key in _SRC_CACHE:
+                _SRC_CACHE[key]["busy"] = False
+        sync_status.mark(f"cal:{s['id']}", False, 0, str(e), label=s["label"])
+
+
+def _source_events(s: dict, days: int, back: int) -> list:
+    """Events of one outside calendar for [today-back, today+days], from the cache when it can."""
+    now = _time.time()
+    key = (s["id"], days, back)
+    lo, hi = (date.today() - timedelta(days=back)).isoformat(), (date.today() + timedelta(days=days + 1)).isoformat()
+    with _SRC_LOCK:
+        c = _SRC_CACHE.get(key)
+        if not (c and now - c["at"] < _TTL):
+            # a fresh, wider window of the same source covers this one (the wall's 120-day copy serves "today")
+            for (sid, d2, b2), c2 in _SRC_CACHE.items():
+                if sid == s["id"] and d2 >= days and b2 >= back and now - c2["at"] < _TTL:
+                    return [dict(e) for e in c2["data"] if not e.get("start") or lo <= str(e["start"])[:10] < hi]
+        if c and now - c["at"] < _TTL:
+            return [dict(e) for e in c["data"]]
+        if c and now - c["at"] < _STALE_OK:
+            if not c["busy"]:
+                c["busy"] = True
+                threading.Thread(target=_refresh, args=(s, days, back, key), daemon=True).start()
+            return [dict(e) for e in c["data"]]
+    got = _fetch_source(s, days, back)             # nothing usable yet: fetch now (raises on failure, caller reports it)
+    with _SRC_LOCK:
+        _SRC_CACHE[key] = {"at": _time.time(), "data": got, "busy": False}
+        for k in [k for k, v in _SRC_CACHE.items() if now - v["at"] > _STALE_OK]:
+            _SRC_CACHE.pop(k, None)
+    return [dict(e) for e in got]
+
+
 def _birthdays(start, end):
     """🎂 Name (turns N) on each birthday in [start, end]."""
     from datetime import date as _d
@@ -71,18 +144,12 @@ def events(days: int = 30, back: int = 0, person_id: int | None = None):
         local_rows = [dict(r) for r in conn.execute("SELECT * FROM local_events")]
     from ..services import sync_status
     for s in sources:
-        cfg = json.loads(s["config"])
         try:
-            got = []
-            if s["kind"] == "google":
-                got = google_sync.fetch_google_events(days_ahead=days, days_back=back, **cfg)
-            elif s["kind"] == "caldav":
-                cfg = {k: v for k, v in cfg.items() if k in ("url", "username", "password")}
-                got = caldav_sync.fetch_caldav_events(days_ahead=days, days_back=back, **cfg)
-            elif s["kind"] == "ics":
-                got = ics_feed.fetch_ics_events(days_ahead=days, days_back=back, label=s["label"], **cfg)
+            fresh = (s["id"], days, back) not in _SRC_CACHE
+            got = _source_events(s, days, back)
             merged += got
-            sync_status.mark(f"cal:{s['id']}", True, len(got), label=s["label"])
+            if fresh:
+                sync_status.mark(f"cal:{s['id']}", True, len(got), label=s["label"])
         except Exception as e:
             sync_status.mark(f"cal:{s['id']}", False, 0, str(e), label=s["label"])
             merged.append({"title": f"[sync error: {s['label']}: {e}]",
@@ -183,6 +250,11 @@ def _add_local_event(ev: "NewEvent") -> dict:
 
 @router.post("/events")
 def add_event(ev: NewEvent):
+    cache_clear()
+    return _add_event(ev)
+
+
+def _add_event(ev: NewEvent):
     """Create an event. 'auto' writes to Google if connected, otherwise stores
     it locally so it always shows on the calendar. Errors are returned (not 500)
     so the phone can surface them."""
@@ -240,6 +312,7 @@ class EditEvent(BaseModel):
 
 @router.put("/events")
 def edit_event(ev: EditEvent):
+    cache_clear()
     if ev.target == "google":
         return google_sync.update_google_event(ev.event_id, ev.title, ev.start, ev.end,
                                                recurrence=ev.recurrence, color=ev.color,
@@ -255,6 +328,7 @@ def edit_event(ev: EditEvent):
 
 @router.delete("/events/{event_id}")
 def delete_event(event_id: str, target: str = "google"):
+    cache_clear()
     if target == "google":
         return google_sync.delete_google_event(event_id)
     if target == "icloud":

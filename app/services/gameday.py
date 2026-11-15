@@ -31,7 +31,7 @@ LEAGUES = {                                    # key -> (ESPN path, label, extra
     "mlb": ("baseball/mlb", "MLB", ""),
     "nhl": ("hockey/nhl", "NHL", ""),
 }
-_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": ""}
+_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}}
 
 
 def _settings() -> dict:
@@ -152,42 +152,60 @@ def _rgb(c: str) -> list:
     return [int(c[i:i + 2], 16) for i in (0, 2, 4)]
 
 
-def flash(lights: list, color: str, alt: str, rounds: int = 3):
-    """Blink the lights team colour / second colour, then put each one back exactly as it was."""
-    lights = [e for e in lights if isinstance(e, str) and e.startswith("light.")][:12]
-    if not lights:
+def _restore(e: str, st: dict | None):
+    attrs = (st or {}).get("attributes") or {}
+    if not st or st.get("state") != "on":
+        ha_svc.call_service("light", "turn_off", e)
         return
-    before = {}
-    for e in lights:
+    extra = {"brightness": attrs.get("brightness") or 255}
+    if attrs.get("color_mode") == "color_temp" and attrs.get("color_temp_kelvin"):
+        extra["color_temp_kelvin"] = attrs["color_temp_kelvin"]
+    elif attrs.get("rgb_color"):
+        extra["rgb_color"] = list(attrs["rgb_color"])[:3]
+    ha_svc.call_service("light", "turn_on", e, extra)
+
+
+def _flash_one(e: str, a: list, b: list, rounds: int):
+    """One light, on its own thread. Fast lights (Zigbee) blink between the two colours. Slow or cloud lights
+    (Govee and the like drop or rate-limit rapid commands) just turn the team colour, hold it, and go back."""
+    try:
+        st = None if ha_svc.demo_mode() else ha_svc._request(f"/api/states/{e}")
+    except Exception:
+        st = None
+    total = rounds * 2 * 0.7
+    t0 = time.time()
+    try:
+        r = ha_svc.call_service("light", "turn_on", e, {"rgb_color": a, "brightness": 255})
+        name = (e + " " + str(((st or {}).get("attributes") or {}).get("friendly_name", ""))).lower()
+        slow = (not r.get("ok")) or time.time() - t0 > 0.45 or "govee" in name
+        _S["flash"][e] = ("held" if slow else "blinked") if r.get("ok") else ("failed: " + str(r.get("reason", "")))
+        if slow:
+            time.sleep(max(2.5, total - (time.time() - t0)))
+        else:
+            for i in range(1, rounds * 2):
+                time.sleep(0.7)
+                ha_svc.call_service("light", "turn_on", e, {"rgb_color": a if i % 2 == 0 else b, "brightness": 255})
+            time.sleep(0.7)
+    finally:
         try:
-            st = ha_svc._request(f"/api/states/{e}") if not ha_svc.demo_mode() else None
+            _restore(e, st)
         except Exception:
-            st = None
-        before[e] = st
+            pass
+
+
+def flash(lights: list, color: str, alt: str, rounds: int = 3):
+    """Team colours on the chosen lights, then each one back exactly as it was. Lights run side by side so a slow one
+    never holds up the others."""
+    lights = [e for e in lights if isinstance(e, str) and e.startswith("light.")][:12]
     a, b = _rgb(color), _rgb(alt)
     if sum(b) < 90:                               # a black second colour would just look like "off"
         b = [255, 255, 255]
-    try:
-        for i in range(rounds * 2):
-            for e in lights:
-                ha_svc.call_service("light", "turn_on", e, {"rgb_color": a if i % 2 == 0 else b, "brightness": 255, "transition": 0})
-            time.sleep(0.7)
-    finally:
-        for e, st in before.items():
-            try:
-                attrs = (st or {}).get("attributes") or {}
-                if not st or st.get("state") != "on":
-                    ha_svc.call_service("light", "turn_off", e)
-                    continue
-                extra = {"brightness": attrs.get("brightness") or 255}
-                mode = attrs.get("color_mode")
-                if mode == "color_temp" and attrs.get("color_temp_kelvin"):
-                    extra["color_temp_kelvin"] = attrs["color_temp_kelvin"]
-                elif attrs.get("rgb_color"):
-                    extra["rgb_color"] = list(attrs["rgb_color"])[:3]
-                ha_svc.call_service("light", "turn_on", e, extra)
-            except Exception:
-                pass
+    _S["flash"] = {}
+    ts = [threading.Thread(target=_flash_one, args=(e, a, b, rounds), daemon=True) for e in lights]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(30)
 
 
 def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False):
@@ -245,7 +263,8 @@ def check(games: list, s: dict):
 def status() -> dict:
     """For the wall chip + phone: our games today (live first)."""
     order = {"in": 0, "pre": 1, "post": 2}
-    return {"games": sorted(_S["games"], key=lambda g: (order.get(g["state"], 3), g["start"])), "error": _S["error"]}
+    return {"games": sorted(_S["games"], key=lambda g: (order.get(g["state"], 3), g["start"])), "error": _S["error"],
+            "flash": _S["flash"]}
 
 
 def test(s: dict | None = None) -> dict:

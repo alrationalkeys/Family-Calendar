@@ -1858,7 +1858,9 @@ function setupGameDay(){
     if(cur.some(x=>x.league===t.league&&x.id===t.id)){ toast("Already added"); return; }
     cur.push(t); FH.save({teams:cur}).then(()=>{ gdRender(); toast("Added "+t.name); }); };
   $("#gd-test").onclick=async()=>{ const r=await post("/api/games/test",{}).then(r=>r.json()).catch(()=>null);
-    $("#gd-msg").textContent=!r?"Couldn't reach FamilyHub.":r.ok?"Sent. The wall and the lights should celebrate within half a minute.":(r.reason||"Didn't work."); };
+    $("#gd-msg").textContent=!r?"Couldn't reach FamilyHub.":r.ok?"Sent. The lights go now; the wall cheers within half a minute.":(r.reason||"Didn't work.");
+    if(r&&r.ok) setTimeout(async()=>{ const g=await fetch("/api/games").then(r=>r.json()).catch(()=>null), f=(g&&g.flash)||{}, bad=Object.keys(f).filter(k=>String(f[k]).startsWith("failed"));
+      if(bad.length) $("#gd-msg").textContent="Home Assistant refused: "+bad.map(k=>k.replace("light.","")+" ("+f[k].slice(8)+")").join(", "); }, 9000); };
 }
 function loadSettingsUI(){
   setupVoiceHistory();

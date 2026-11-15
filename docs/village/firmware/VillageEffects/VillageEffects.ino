@@ -34,7 +34,7 @@
 // ======================= EDIT THESE =========================
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
-const char* FIRMWARE_VERSION = "A-2026.11.02d";
+const char* FIRMWARE_VERSION = "A-2026.11.16a";
 
 const char* MY_NAME     = "village-fx";      // this board  -> http://village-fx.local
 const char* LIGHTS_NAME = "village-lights";  // WLED: Config > WiFi Setup > mDNS address
@@ -98,6 +98,8 @@ Field FIELDS[] = {
   {"sRach",  "Sound: Rachell's song",           &S.sndRachell, 0, 255, false, "Main speaker sounds (file numbers, 0 = silent)"},
   {"sStat",  "Sound: train at the station",     &S.sndStation, 0, 255, false, "Main speaker sounds (file numbers, 0 = silent)"},
   {"whSec",  "Train waits for the whistle (seconds, 0 = no wait)", &S.whistleSecs, 0, 30, false, "Main speaker sounds (file numbers, 0 = silent)"},
+  {"sndChk", "Check each sound really started, and try once more if not", &S.sndCheck, 0, 1, true, "Main speaker sounds (file numbers, 0 = silent)"},
+  {"depSnd", "Play the train-button sound every time the train leaves the station", &S.departSound, 0, 1, true, "Main speaker sounds (file numbers, 0 = silent)"},
   {"ambOn",  "Random extras while awake (1 = on)", &S.ambOn, 0, 1, true, "Random extras (reindeer, Santa, sleigh bells)"},
   {"ambF",   "Extras: first file number",       &S.ambFirst, 1, 255, false, "Random extras (reindeer, Santa, sleigh bells)"},
   {"ambL",   "Extras: last file number",        &S.ambLast, 1, 255, false, "Random extras (reindeer, Santa, sleigh bells)"},
@@ -153,6 +155,7 @@ unsigned long nextSleighAt = 0, nextMistAt = 0, nextWindowAt = 0, nextAmbAt = 0,
 bool manualOverride = false;
 
 IPAddress lightsIP, trainIP;
+bool netReady = false;      // clock, names, WiFi upload and board messages are set up (done when WiFi first connects)
 
 Motor rink   = { PIN_RINK, 0, 0, 0 };
 Motor sleigh = { PIN_SLEIGH, 0, 0, 0 };
@@ -251,6 +254,7 @@ void setLightsPreset(int preset, int transitionTenths = 30) {
   if (preset <= 0 || WiFi.status() != WL_CONNECTED) return;
   if (!resolve(LIGHTS_NAME, LIGHTS_IP_OVERRIDE, lightsIP)) return;
   HTTPClient http;
+  http.setConnectTimeout(700);     // lights unplugged: give up fast instead of freezing buttons + sleigh for 5 s
   http.setTimeout(1500);
   http.begin(String("http://") + lightsIP.toString() + "/json/state");
   http.addHeader("Content-Type", "application/json");
@@ -275,10 +279,17 @@ void trainAfterWhistle(int laps) {
   }
 }
 
+// When THIS board starts the train it has already made its own sound (whistle / wake music), so the first
+// "I'm leaving" message from the train board for that run is not answered with another one.
+bool expectDepart = false;
+unsigned long expectDepartUntil = 0;
+
 void trainGo(int laps) {
   if (laps <= 0 || WiFi.status() != WL_CONNECTED) return;
   if (!resolve(TRAIN_NAME, TRAIN_IP_OVERRIDE, trainIP)) return;
+  expectDepart = true; expectDepartUntil = millis() + 40000UL;
   HTTPClient http;
+  http.setConnectTimeout(700);
   http.setTimeout(1500);
   http.begin(String("http://") + trainIP.toString() + "/go?laps=" + laps);
   int code = http.GET();
@@ -324,12 +335,36 @@ void updateTrainHub() {
 }
 
 // ========================= SOUND ============================
+int checkFile = 0; unsigned long checkAt = 0; bool checkPending = false, checkWorks = true;
 void play(int n) {
   if (n <= 0) return;
   if (!soundOK) { logln(String("(main sound not ready) would play ") + n); return; }
   dfplayer.playMp3Folder(n);
   lastMainPlayAt = millis();
   logln(String("Main speaker: ") + n);
+  checkFile = n; checkAt = millis() + 450; checkPending = true;
+}
+
+// About half a second after a sound is sent, ask the player whether it is really playing; if it says it is
+// stopped, send the sound once more. (Sound players now and then miss a command, e.g. when a relay clicks.)
+// Skipped while the sleigh is flying so the home magnet is never missed, and switched off for good if the
+// player doesn't answer status questions at all.
+void updateSoundCheck() {
+  if (!checkPending || (long)(millis() - checkAt) < 0) return;
+  checkPending = false;
+  if (!S.sndCheck || !soundOK || !checkWorks || sleighState != SL_HOME) return;
+  int st = dfplayer.readState();
+  static int noAnswer = 0;
+  if (st < 0) {                                  // no usable answer this time; after 3 in a row stop asking
+    if (++noAnswer >= 3) { checkWorks = false; logln("Sound check: the player doesn't answer, check turned off"); }
+    return;
+  }
+  noAnswer = 0;
+  if ((st & 0xFF) == 0) {                       // 0 = stopped, 1 = playing, 2 = paused
+    logln(String("Main speaker: ") + checkFile + " didn't start, trying again");
+    dfplayer.playMp3Folder(checkFile);
+    lastMainPlayAt = millis();
+  }
 }
 
 void play2(int n) {
@@ -387,7 +422,8 @@ void updateMist() {
 bool villageOpen() {
   if (manualOverride) return true;
   struct tm t;
-  if (!getLocalTime(&t, 0)) return true;   // no clock yet: assume open
+  if (!getLocalTime(&t, 0)) return millis() > 300000UL;   // no clock yet: stay closed for 5 min (router still starting
+                                                          // after a power cut), then assume open so it works without WiFi
   if (S.openHour == S.closeHour) return true;
   if (S.openHour < S.closeHour) return t.tm_hour >= S.openHour && t.tm_hour < S.closeHour;
   return t.tm_hour >= S.openHour || t.tm_hour < S.closeHour;
@@ -505,9 +541,10 @@ void updateMode() {
   if (open && mode == MODE_CLOSED) { enterMode(MODE_SLEEPY); return; }
   if (mode == MODE_AWAKE) {
     if (now - lastMotionAt > (unsigned long)S.awakeMin * 60000UL) { enterMode(MODE_SLEEPY); return; }
-    if ((long)(now - nextSleighAt) >= 0) { play(S.sndWake); sleighFly(); nextSleighAt = now + random(150, 260) * 1000UL; }
+    bool quiet = now - lastMainPlayAt > 20000UL;       // never cut off the whistle / station call / another sound
+    if ((long)(now - nextSleighAt) >= 0) { if (quiet) play(S.sndWake); sleighFly(); nextSleighAt = now + random(150, 260) * 1000UL; }
     if ((long)(now - nextMistAt) >= 0)   { mistChimney(MIST_PUFF_SECONDS); nextMistAt = now + random(70, 140) * 1000UL; }
-    if ((long)(now - nextWindowAt) >= 0) { if (random(3) == 0) play(S.sndHoho); nextWindowAt = now + random(50, 110) * 1000UL; }
+    if ((long)(now - nextWindowAt) >= 0) { if (random(3) == 0 && now - lastMainPlayAt > 20000UL) play(S.sndHoho); nextWindowAt = now + random(50, 110) * 1000UL; }
     // random extras: only when nothing has played on the main speaker for 20 s, so they never cut a sound off
     if (S.ambOn && (long)(now - nextAmbAt) >= 0) {
       if (now - lastMainPlayAt > 20000UL) {
@@ -622,6 +659,10 @@ void doCommand(const String& c) {
   else if (c == "lampson") { lampsForced = true; lampsForcedOn = true; }
   else if (c == "lampsoff") { lampsForced = true; lampsForcedOn = false; }
   else if (c == "lampsauto") lampsForced = false;
+  else if (c == "manualon" || c == "manualoff") {     // explicit versions (FamilyHub): never flips the wrong way
+    bool want = (c == "manualon");
+    if ((S.manual != 0) != want) doCommand("manual");
+  }
   else if (c == "manual") {
     S.manual = !S.manual; saveSettings();
     logln(S.manual ? "MANUAL MODE on: nothing happens on its own" : "AUTOMATIC mode on");
@@ -631,6 +672,7 @@ void doCommand(const String& c) {
   else if (c.startsWith("snd2_")) play2(c.substring(5).toInt());
   else if (c.startsWith("snd")) play(c.substring(3).toInt());
   else if (c == "station") {
+    expectDepart = false;
     if (mode != MODE_TREE_SHOW && mode != MODE_RACHELL) play(S.sndStation);   // don't cut off a show's song
     mistStation(STATION_MIST_SECONDS);
   }
@@ -713,8 +755,19 @@ void trainQuiet(int secs) {
   disc.endPacket();
 }
 
+// The train board says it is leaving. If this board didn't start that run (train page, FamilyHub lap buttons, or
+// the next lap after waiting at the platform), make the train-button sound so every departure is heard.
+void trainDeparted() {
+  if (expectDepart && (long)(millis() - expectDepartUntil) < 0) { expectDepart = false; return; }
+  expectDepart = false;
+  if (!S.departSound || S.sndWhistle <= 0) return;
+  if (mode == MODE_TREE_SHOW || mode == MODE_RACHELL) return;       // never over a show's song
+  if (millis() - lastMainPlayAt < 4000UL) return;                   // something just started: let it finish
+  play(S.sndWhistle);
+}
+
 void updateDiscovery() {
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED || !netReady) return;
   if ((long)(millis() - nextAnnounce) >= 0) {
     nextAnnounce = millis() + 5000;
     disc.beginPacket(IPAddress(255, 255, 255, 255), DISC_PORT);
@@ -730,6 +783,9 @@ void updateDiscovery() {
     } else if (!strcmp(buf, "TSTATION")) {      // the train just stopped at the station
       static unsigned long lastStation = 0;
       if (millis() - lastStation > 3000) { lastStation = millis(); doCommand("station"); }
+    } else if (!strcmp(buf, "TDEPART")) {       // the train is pulling out of the station
+      static unsigned long lastDepart = 0;
+      if (millis() - lastDepart > 3000) { lastDepart = millis(); trainDeparted(); }
     } else if (!strcmp(buf, TRAIN_NAME)) {
       IPAddress from = disc.remoteIP();
       static IPAddress announced;                 // only log when the address is new, not every 5 s
@@ -750,6 +806,20 @@ void setupOTA() {
   ArduinoOTA.onError([](ota_error_t e) { logln(String("WiFi upload error ") + (int)e); });
   ArduinoOTA.begin();
   logln(String("WiFi upload ready: ") + MY_NAME + " at " + WiFi.localIP().toString());
+}
+
+// Clock, names, WiFi upload and board-to-board messages need WiFi. They used to be set up only if WiFi answered in
+// the first 10 s after power-on; after a power cut the router is slower than that, so the board ran with no clock
+// (= "always open") until someone restarted it. Now they start whenever WiFi first connects.
+void netUp() {
+  if (netReady || WiFi.status() != WL_CONNECTED) return;
+  netReady = true;
+  logln(String("WiFi: connected, IP ") + WiFi.localIP().toString());
+  MDNS.begin(MY_NAME);
+  MDNS.addService("http", "tcp", 80);
+  configTzTime(TIMEZONE, "pool.ntp.org", "time.nist.gov");
+  setupOTA();
+  setupDiscovery();
 }
 
 void setup() {
@@ -786,14 +856,9 @@ void setup() {
   WiFi.setSleep(false);   // keep WiFi fully awake: steadier pages and WiFi uploads
   Serial.print("WiFi: connecting");
   for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) { delay(250); Serial.print("."); }
-  if (WiFi.status() == WL_CONNECTED) {
-    logln(String("\nWiFi: connected, IP ") + WiFi.localIP().toString());
-    MDNS.begin(MY_NAME);
-    MDNS.addService("http", "tcp", 80);
-    configTzTime(TIMEZONE, "pool.ntp.org", "time.nist.gov");
-  } else logln("\nWiFi: NOT connected (check name/password; it keeps trying)");
-  setupOTA();
-  setupDiscovery();
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) netUp();
+  else logln("WiFi: NOT connected yet (check name/password; it keeps trying, and finishes setting up when it connects)");
   setupWeb();
   logln(String("Firmware version ") + FIRMWARE_VERSION);
   randomSeed(esp_random());
@@ -805,8 +870,10 @@ void setup() {
 // ========================== LOOP ============================
 unsigned long lastWifiCheck = 0;
 void loop() {
-  ArduinoOTA.handle();
+  if (!netReady) netUp();
+  if (netReady) ArduinoOTA.handle();
   updateDiscovery();
+  updateSoundCheck();
   if (pendingTrainLaps > 0 && (long)(millis() - pendingTrainAt) >= 0) { int l = pendingTrainLaps; pendingTrainLaps = 0; trainGo(l); }
   server.handleClient();
   readSerial();

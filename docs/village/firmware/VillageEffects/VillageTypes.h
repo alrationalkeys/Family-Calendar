@@ -15,6 +15,8 @@ struct Settings {
   int treeSecs = 60, rachellSecs = 90;
   // which sound file plays for each event (mp3 folder number)
   int sndWake = 1, sndWhistle = 2, sndHoho = 3, sndTree = 4, sndRachell = 5, sndStation = 6;
+  int sndCheck = 1;        // 1 = ask the sound player if each sound really started; send it once more if not
+  int departSound = 1;     // 1 = play the train-button sound whenever the train leaves the station (not only on the button)
   int whistleSecs = 4;     // train waits this long after the whistle starts (set to the whistle clip length; 0 = no wait)
   // random extras while awake (reindeer, Santa landing, sleigh bells...)
   int ambOn = 1;          // 1 = on

@@ -36,7 +36,7 @@
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
 #include "TrainPage.h"      // the phone page (HTML)
-const char* FIRMWARE_VERSION = "B-2026.11.15a";
+const char* FIRMWARE_VERSION = "B-2026.11.16a";
 
 const char* MY_NAME = "village-train";   // this board -> http://village-train.local
 const char* FX_NAME = "village-fx";      // Board A (bell + station mist)
@@ -111,6 +111,7 @@ int connectTries = 0;
 
 WebServer server(80);
 IPAddress fxIP;
+bool netReady = false;     // names, WiFi upload and board messages are set up (done when WiFi first connects)
 WiFiUDP disc;              // discovery + sending log lines to Board A
 const int DISC_PORT = 4210;
 
@@ -166,16 +167,34 @@ void trackPower(bool on) {
 
 void setState(State s) { state = s; stateAt = millis(); logln(String("Train: ") + stateName(s) + "  laps left " + lapsLeft); }
 
-// tell Board A the train is at the station (bell + mist): one quick network message
-void tellFxStation() {
+// Tell Board A something happened ("TSTATION" = stopped at the platform, "TDEPART" = pulling out).
+// One small network message, sent right away and then three more times over the next 1.2 s. The old code sent two
+// copies 5 ms apart, at the very moment this board was also talking to the engine over Bluetooth (bell / whistle);
+// WiFi and Bluetooth share one radio here, so both copies could be lost together and the village stayed silent.
+// Board A ignores repeats that arrive within 3 s.
+const char* fxMsg = nullptr;
+int fxMsgLeft = 0;
+unsigned long fxMsgAt = 0;
+const int FX_MSG_GAPS[] = { 0, 150, 400, 650 };     // ms between the copies
+void sendFxMsg() {
+  if (!fxMsg || WiFi.status() != WL_CONNECTED || fxIP == IPAddress(0, 0, 0, 0)) return;
+  disc.beginPacket(fxIP, DISC_PORT); disc.print(fxMsg); disc.endPacket();
+}
+void tellFx(const char* msg) {
   if (WiFi.status() != WL_CONNECTED) return;
   if (strlen(FX_IP_OVERRIDE)) fxIP.fromString(FX_IP_OVERRIDE);
   if (fxIP == IPAddress(0, 0, 0, 0)) fxIP = MDNS.queryHost(FX_NAME, 1500);
-  if (fxIP == IPAddress(0, 0, 0, 0)) { logln("Board A not found (bell/mist skipped)"); return; }
-  for (int i = 0; i < 2; i++) {          // sent twice in case one gets lost; Board A ignores the repeat
-    disc.beginPacket(fxIP, DISC_PORT); disc.print("TSTATION"); disc.endPacket(); delay(5);
-  }
+  if (fxIP == IPAddress(0, 0, 0, 0)) { logln("Board A not found (village sound skipped)"); return; }
+  fxMsg = msg; fxMsgLeft = 3; fxMsgAt = millis() + FX_MSG_GAPS[1];
+  sendFxMsg();
 }
+void updateFxMsg() {
+  if (fxMsgLeft <= 0 || (long)(millis() - fxMsgAt) < 0) return;
+  sendFxMsg();
+  fxMsgLeft--;
+  if (fxMsgLeft > 0) fxMsgAt = millis() + FX_MSG_GAPS[4 - fxMsgLeft];
+}
+void tellFxStation() { tellFx("TSTATION"); }
 
 // ---- commands ----
 bool ducked() { return duckUntil && (long)(millis() - duckUntil) < 0; }
@@ -197,6 +216,7 @@ void depart() {
     if (setWhistle) toot(1200);
     targetSpeed = setSpeed;
   }
+  tellFx("TDEPART");          // Board A makes the leaving sound unless it started this run itself
   setState(ST_DEPARTING);
 }
 
@@ -533,7 +553,7 @@ void readSerial() {
 unsigned long nextAnnounce = 0;
 void setupDiscovery() { if (WiFi.status() == WL_CONNECTED) disc.begin(DISC_PORT); }
 void updateDiscovery() {
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED || !netReady) return;
   if ((long)(millis() - nextAnnounce) >= 0) {
     nextAnnounce = millis() + 5000;
     disc.beginPacket(IPAddress(255, 255, 255, 255), DISC_PORT);
@@ -571,6 +591,18 @@ void setupOTA() {
   logln(String("WiFi upload ready: ") + MY_NAME + " at " + WiFi.localIP().toString());
 }
 
+// Names, WiFi upload and board-to-board messages need WiFi. They used to be set up only if WiFi answered in the
+// first 10 s after power-on; after a power cut the router is slower than that. Now they start whenever WiFi connects.
+void netUp() {
+  if (netReady || WiFi.status() != WL_CONNECTED) return;
+  netReady = true;
+  logln(String("WiFi: connected, IP ") + WiFi.localIP().toString());
+  MDNS.begin(MY_NAME);
+  MDNS.addService("http", "tcp", 80);
+  setupOTA();
+  setupDiscovery();
+}
+
 void setup() {
   pinMode(PIN_RELAY, OUTPUT);
   digitalWrite(PIN_RELAY, !RELAY_ON);          // track OFF first thing
@@ -592,13 +624,9 @@ void setup() {
   WiFi.setSleep(false);   // keep WiFi fully awake: steadier pages and WiFi uploads
   Serial.print("WiFi: connecting");
   for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) { delay(250); Serial.print("."); }
-  if (WiFi.status() == WL_CONNECTED) {
-    logln(String("\nWiFi: connected, IP ") + WiFi.localIP().toString());
-    MDNS.begin(MY_NAME);
-    MDNS.addService("http", "tcp", 80);
-  } else logln("\nWiFi: NOT connected (it keeps trying)");
-  setupOTA();
-  setupDiscovery();
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) netUp();
+  else logln("WiFi: NOT connected yet (it keeps trying, and finishes setting up when it connects)");
   setupWeb();
   logln(String("Firmware version ") + FIRMWARE_VERSION);
   printHelp();
@@ -606,8 +634,10 @@ void setup() {
 
 unsigned long lastWifiCheck = 0;
 void loop() {
-  ArduinoOTA.handle();
+  if (!netReady) netUp();
+  if (netReady) ArduinoOTA.handle();
   updateDiscovery();
+  updateFxMsg();
   server.handleClient();
   readSerial();
   update();

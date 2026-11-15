@@ -206,6 +206,7 @@ tree|rachell|carol|train|stop|laps1|laps3|wake|sleep|rinkon|rinkoff). Tile on th
 boards answer. Voice: "start/stop the train", "tree show", "Rachell's show", "carolers", "village to sleep/wake" (+ a
 `village` tool for the AI). Good night / Leaving (`settings.villageWithHouse`) = sleep + manual mode + WLED off; FamilyHub
 flips it back to automatic 06:00–16:00 or on I'm home, only if it was the one that paused it (settings key `village_paused`).
+Firmware A-/B-2026.11.16a (repeat-sent TSTATION/TDEPART, sound check, net setup on WiFi connect, `manualon`/`manualoff`; see docs/village/README §8b).
 Board IPs in `settings.villageFx` / `villageTrain` (private IPs only). Village is finished and
 snow-covered: **never flash firmware unless Alex asks**; real `secrets.h` never goes in the repo. Board A runs its own
 schedule (open 16:00–23:00) + motion wake, so HA/FamilyHub should complement it, not fight it. `manual`/`override` toggle.

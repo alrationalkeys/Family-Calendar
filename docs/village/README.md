@@ -16,8 +16,8 @@ This folder is everything built for Alex and Rachell's Department 56 North Pole 
 |---|---|
 | `home_assistant/packages/north_pole_village.yaml` | HA package: `rest_command`s, scripts (one per button), REST status sensors, two `input_number` helpers. Drop into `<config>/packages/`. |
 | `home_assistant/dashboards/north_pole_village_card.yaml` | A Lovelace card (manual card YAML) with every button and status. |
-| `firmware/VillageEffects/` | Board A source (Arduino). Version **A-2026.11.02d**. |
-| `firmware/VillageTrain/` | Board B source (Arduino). Version **B-2026.11.01d**. |
+| `firmware/VillageEffects/` | Board A source (Arduino). Version **A-2026.11.16a**. |
+| `firmware/VillageTrain/` | Board B source (Arduino). Version **B-2026.11.16a**. |
 | `firmware/secrets.h.example` | Template. The real `secrets.h` (WiFi + OTA password) is deliberately **not** included. Never add it to any repo or zip. |
 | `docs/` | Build Book, wiring diagrams, software and printing guide, extras, track plan, Rachell's menu, parts inventory (PDFs). |
 | `cad/` | Python CAD scripts (manifold3d + trimesh, helper `vlib.py`) and all STL print files. `sleigh_3d_v6.html` is a Three.js model of the (on-hold) sleigh loop. |
@@ -86,7 +86,7 @@ Sleigh: home (magnet seen)
 Rink speed: 170/255   Street lamps: on
 Main sound: ready   Carolers sound: ready
 Lights: 192.168.1.133   Train: 192.168.1.121
-Code version: A-2026.11.02d
+Code version: A-2026.11.16a
 ```
 
 ## 4. Board B HTTP API (village-train)
@@ -108,7 +108,7 @@ Laps left: 0   laps done since power-up: 12
 Sensor 1 (in): clear   Sensor 2 (out): clear
 Control: Bluetooth - connected to LC-0-1-6491-E335   speed 0/31   track power ON
 Crossing: clear   sensor: clear
-Code version: B-2026.11.01d
+Code version: B-2026.11.16a
 ```
 
 ## 5. WLED (village-lights)
@@ -164,6 +164,32 @@ Board B: relay 26, station IR in 34 / out 35, signal green 25 / red 27, crossing
 - Board A is at ~58%.
 - Each folder needs its own `secrets.h` (see the example). Never put the real one in a zip, repo, or chat.
 - Version strings are `FIRMWARE_VERSION` near the top of each `.ino`. Bump them on any change.
+
+## 8b. What changed in A-2026.11.16a / B-2026.11.16a (Nov 16, 2026 — upload BOTH boards)
+Asked for by Alex after "half the time the train starts or stops with no all-aboard / ho-ho-ho".
+
+- **Train messages get through.** Board B used to send "at the station" twice, 5 ms apart, at the same instant it was
+  talking to the engine over Bluetooth (same radio). Now each message goes out 4 times over ~1.2 s (Board A ignores
+  repeats inside 3 s).
+- **A sound on every departure.** Board B now also says `TDEPART` whenever it pulls out. Board A plays the train-button
+  sound for departures it didn't start itself (train page, FamilyHub lap buttons, the next lap after waiting at the
+  platform). Runs Board A started (button, wake, Rachell's show) keep their own sound and are not doubled.
+  Settings page: "Play the train-button sound every time the train leaves the station".
+- **Sound check.** ~0.5 s after a main-speaker sound is sent, Board A asks the player if it is playing and sends the
+  sound once more if not (skipped while the sleigh flies; turns itself off if the player never answers).
+  Settings page: "Check each sound really started". Log line: `Main speaker: N didn't start, trying again`.
+- **Window (ho-ho) and sleigh sounds wait for 20 s of quiet**, like the random extras, so they can't cut off the
+  whistle or the station call.
+- **Power cuts.** Clock, .local names, WiFi upload and board-to-board messages are now set up whenever WiFi first
+  connects (before: only if WiFi answered within 10 s of power-on, so after an outage the village had no clock and
+  ran as "always open"). With no clock, Board A stays closed for the first 5 minutes, then assumes open.
+- **No more 5 s freezes** when the lights or the train board is unplugged (700 ms connect timeout).
+- New Board A commands `manualon` / `manualoff` (explicit; `manual` still toggles).
+- Checked here by compiling both sketches against the ESP32 Arduino core 3.0.7 headers (syntax + types). Not run on
+  hardware: watch the Live log on the first evening.
+
+**If a sound is still missing**, the Live log tells which side: a `Main speaker: N` line with no sound = the player or
+speaker (wiring/power); no line at all = the message never arrived.
 
 ## 9. Current state and what's on hold
 

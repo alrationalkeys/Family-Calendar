@@ -1,9 +1,10 @@
+import re
 """AI endpoints — natural language in, structured data + auto-save."""
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from ..services import ai_parse, ai_route, ai_vision, voice_cmd, speech
+from ..services import ai_parse, ai_route, ai_vision, voice_cmd, speech, cloud_voice
 from ..db import get_db
 
 router = APIRouter()
@@ -85,17 +86,47 @@ async def transcribe(audio: UploadFile = File(...)):
 
 @router.post("/tts")
 def tts(req: TextReq):
-    """Text -> audio/wav (Piper). 503 if no voice is installed; the wall then
-    falls back to speechSynthesis."""
+    """Text -> audio. The ElevenLabs voice when one is picked (mp3), else Piper (wav). 503 if neither is there;
+    the wall then falls back to speechSynthesis."""
+    text = req.text[:600]
+    if cloud_voice.ready():
+        mp3 = cloud_voice.speak(text)
+        if mp3:
+            return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
     if not speech.tts_available():
         raise HTTPException(503, "text-to-speech not installed (run setup/install-voice.sh)")
     try:
-        wav = speech.synthesize(req.text[:600])
+        wav = speech.synthesize(text)
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(500, f"tts failed: {e!r}")
     return Response(content=wav, media_type="audio/wav", headers={"Cache-Control": "no-store"})
+
+
+class VoiceTestReq(BaseModel):
+    voice_id: str
+    text: str = ""
+
+
+@router.get("/voice/cloud")
+def voice_cloud():
+    """ElevenLabs: key present, the account's voices, credits used this month."""
+    return cloud_voice.info()
+
+
+@router.post("/voice/cloud/test")
+def voice_cloud_test(req: VoiceTestReq):
+    """Play one sentence in a voice (uses a few credits the first time; cached after)."""
+    if not re.fullmatch(r"[A-Za-z0-9]{8,40}", req.voice_id or ""):
+        raise HTTPException(400, "bad voice id")
+    try:
+        mp3 = cloud_voice.speak((req.text or "Hello! This is how I sound on the wall.")[:200], req.voice_id, strict=True)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    if not mp3:
+        raise HTTPException(503, "Add ELEVENLABS_API_KEY to .env on the wall first")
+    return Response(content=mp3, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
 @router.post("/parse")

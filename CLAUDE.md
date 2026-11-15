@@ -139,6 +139,10 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - AI cost (`services/ai_cost.py`, table `ai_usage`): every Claude call is recorded with tokens, web searches and an approximate
   dollar cost at list prices (`PRICES`); `GET /api/ai/cost` = today / 7 days / month / total + by feature. Voice history entries
   show the cost of each question; phone Settings > Advanced > Voice shows the totals. Counts only from Nov 16, 2026 on.
+- Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when
+  settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every
+  sentence cached in models/tts_cache; any failure / out of credits falls back to Piper. `GET /api/ai/voice/cloud` (voices, credits),
+  `POST /api/ai/voice/cloud/test`. Picker: phone Settings > Advanced > Voice.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

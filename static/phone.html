@@ -725,6 +725,7 @@
     <details class="more sub"><summary>Voice</summary>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
     <label class="chk"><input type="checkbox" id="set-kbd"> FamilyHub's own on-screen keyboard on the wall</label>
+    <div id="cv-box" style="margin:10px 0"></div>
     <div class="hint" style="margin:10px 0 4px"><b>Try a command</b> — typed here, it runs exactly like saying it to the wall.</div>
     <div class="srow"><input id="vh-try" placeholder="add dentist Friday at 3" style="width:70%; margin:0"><button class="tool" type="button" id="vh-go" style="margin:0">Run</button></div>
     <div id="vh-out" class="hint" style="min-height:1em"></div>
@@ -1776,6 +1777,30 @@ async function loadAiCost(){
     ${(c.by_feature||[]).map(f=>`<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${E(f.label)} <small style="opacity:.6">\u00d7${f.n}${f.searches?` \u00b7 ${f.searches} web search${f.searches==1?"":"es"}`:""}</small></span><b>${m(f.cost)}</b></div>`).join("")||"<small>Nothing yet. Ask the wall something.</small>"}
     <small style="opacity:.65;display:block;margin-top:6px">${c.since?`Counted since ${E(c.since)} (${c.calls} AI requests). `:""}Estimates from token counts at list prices; the exact bill is on the Anthropic Console under Cost.</small>`;
 }
+async function loadCloudVoice(){
+  const box=$("#cv-box"); if(!box) return;
+  let c=null; try{ c=await fetch("/api/ai/voice/cloud").then(r=>r.json()); }catch(e){}
+  if(!c){ box.innerHTML=""; return; }
+  const E=FHHome.esc, s=FH.get();
+  if(!c.key){ box.innerHTML=`<div class="hint"><b>The wall's voice</b> — using the built-in voice. For a nicer one (and Santa at Christmas), make a free ElevenLabs account, create an API key, and add <code>ELEVENLABS_API_KEY=…</code> to the <code>.env</code> file on the wall, then restart FamilyHub.</div>`; return; }
+  const opts=sel=>`<option value="">Built-in voice</option>`+c.voices.map(v=>`<option value="${E(v.id)}"${v.id===sel?" selected":""}>${E(v.name)}${v.kind&&v.kind!=="premade"?" ("+E(v.kind)+")":""}</option>`).join("");
+  const left=c.limit!=null?`${Math.max(0,c.limit-c.used).toLocaleString()} of ${c.limit.toLocaleString()} credits left this month${c.resets?` (resets ${new Date(c.resets*1000).toLocaleDateString([], {month:"short",day:"numeric"})})`:""}.`:"";
+  box.innerHTML=`<div class="hint" style="margin:0 0 4px"><b>The wall's voice</b></div>
+    <div class="srow"><span>Everyday</span><span style="display:flex;gap:6px;width:62%"><select id="cv-day" style="margin:0;flex:1;min-width:0">${opts(s.cloudVoiceId)}</select><button class="tool" type="button" data-cvt="cv-day" style="margin:0">▶</button></span></div>
+    <div class="srow"><span>🎅 Christmas</span><span style="display:flex;gap:6px;width:62%"><select id="cv-santa" style="margin:0;flex:1;min-width:0">${opts(s.santaVoiceId)}</select><button class="tool" type="button" data-cvt="cv-santa" style="margin:0">▶</button></span></div>
+    <label class="chk"><input type="checkbox" id="cv-on"${s.santaVoice!==false?" checked":""}> Use the Christmas voice from the day after Thanksgiving to Christmas Day${c.santa_now?" (now)":""}</label>
+    <div class="hint" id="cv-msg">${E(c.error||"")}${c.error?"<br>":""}${left} When the credits run out, or the internet is down, the wall uses the built-in voice. Voices listed are the ones in your ElevenLabs account (add more under Voices there).</div>`;
+  $("#cv-day").onchange=e=>{ FH.save({cloudVoiceId:e.target.value}); };
+  $("#cv-santa").onchange=e=>{ FH.save({santaVoiceId:e.target.value}); };
+  $("#cv-on").onchange=e=>{ FH.save({santaVoice:e.target.checked}); };
+  box.querySelectorAll("[data-cvt]").forEach(b=>b.onclick=async()=>{
+    const id=$("#"+b.dataset.cvt).value, msg=$("#cv-msg"); if(!id){ msg.textContent="That's the built-in voice. Pick one from the list to hear it."; return; }
+    const text=b.dataset.cvt==="cv-santa"?"Ho ho ho! Merry Christmas! The washer is done.":"Good morning! Here's what's happening today.";
+    b.disabled=true;
+    try{ const r=await post("/api/ai/voice/cloud/test",{voice_id:id,text}); if(!r.ok){ const j=await r.json().catch(()=>({})); msg.textContent=j.detail||"That voice didn't work."; } else { const u=URL.createObjectURL(await r.blob()); const a=new Audio(u); a.onended=()=>URL.revokeObjectURL(u); a.play().catch(()=>{}); } }
+    catch(e){ msg.textContent="Couldn't reach FamilyHub."; }
+    b.disabled=false; });
+}
 function setupVoiceHistory(){
   const go=$("#vh-go"); if(!go||go._wired) return; go._wired=true;
   const run=async()=>{ const t=$("#vh-try").value.trim(); if(!t) return; $("#vh-out").textContent="…";
@@ -1785,7 +1810,7 @@ function setupVoiceHistory(){
   go.onclick=run; $("#vh-try").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
   $("#vh-refresh").onclick=()=>{ loadVoiceHistory(); loadAiCost(); };
   $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
-  const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); } });
+  const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); loadCloudVoice(); } });
 }
 function loadSettingsUI(){
   setupVoiceHistory();

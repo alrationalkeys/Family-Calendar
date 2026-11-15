@@ -145,7 +145,8 @@ def synthesize(text: str) -> bytes:
 
 
 def status() -> dict:
-    return {"stt": stt_available(), "tts": tts_available(),
+    from . import cloud_voice
+    return {"stt": stt_available(), "tts": tts_available() or bool(cloud_voice.voice_id()),
             "stt_model": STT_MODEL, "voice": os.path.basename(PIPER_VOICE)}
 
 

@@ -202,8 +202,11 @@
   .hg-switch button{border:0; background:transparent; color:var(--ink-dim); font:inherit; font-size:15px; padding:8px 16px; border-radius:999px; cursor:pointer}
   .hg-switch button.active{background:var(--panel); color:var(--ink); font-weight:600}
   .hg-on{font-weight:500; color:var(--now); font-size:13px; margin-left:6px; text-transform:none; letter-spacing:0}
-  .tile{position:relative} .t-adj{position:absolute; top:6px; right:6px; width:34px; height:34px; border-radius:50%; border:0;
-    background:var(--panel2); color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center}
+  .tile{position:relative} .t-adj{position:absolute; top:6px; right:6px; width:44px; height:44px; border-radius:50%; border:2px solid rgba(255,255,255,.85);
+    background:var(--panel2); color:var(--ink); font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.35); padding:0}
+  .t-adj.col{background:conic-gradient(#ff4d4d,#ffb84d,#fff04d,#5dff4d,#4dd2ff,#6a4dff,#ff4dd8,#ff4d4d)}
+  .t-adj.col span{width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 0 0 2px rgba(0,0,0,.25)}
   .pin-card .pin-sub{color:var(--ink-dim); font-size:13px; margin-bottom:12px}
   .pin-dots{letter-spacing:10px; font-size:26px; height:30px; margin-bottom:12px}
   .pin-keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
@@ -2659,7 +2662,7 @@ function renderTilesView(body,h){
     const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
     const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
     // every light gets the ◐/🎨 button; a light that can only switch says so in the pop-up instead of hiding it
-    const adj = t.domain==="light" ? '<button class="t-adj" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color">'+(t.color?'\u{1F3A8}':'\u25D0')+'</button>' : '';
+    const adj = t.domain==="light" ? '<button class="t-adj'+(t.color?' col':'')+'" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color" title="Brightness and color"><span>'+(t.color?'':'\u2600\uFE0F')+'</span></button>' : '';
     return '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+adj+
       '<div class="t-ico">'+haIcon(t)+'</div>'+
       '<div class="t-name">'+esc(t.name)+'</div>'+
@@ -2707,6 +2710,7 @@ function renderTilesView(body,h){
   bindVillage(body);
   body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
   body.querySelectorAll("[data-hg]").forEach(b=>{ b.onclick=()=>{ homeGroup=b.dataset.hg; try{ localStorage.setItem("fh_home_group", homeGroup); }catch(e){} body.dataset.sig=""; renderTilesView(body, lastHome); }; });
+  body.querySelectorAll('.tile[data-domain="light"]').forEach(el=>{ try{ holdable(el, ()=>{ const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===el.dataset.ha); if(t) openLightPop(t); }); const m=el.querySelector(":scope > .more"); if(m) m.remove(); }catch(e){} });   // press and hold = brightness/color too
   body.querySelectorAll("[data-adj]").forEach(b=>{ b.addEventListener("pointerdown",e=>e.stopPropagation());
     b.onclick=(e)=>{ e.stopPropagation(); const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===b.dataset.adj); if(t) openLightPop(t); }; });
   body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });

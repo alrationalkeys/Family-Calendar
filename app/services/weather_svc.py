@@ -22,7 +22,32 @@ CODE = {
 }
 
 
+_WX_CACHE: dict = {}      # key -> (time, good result). 5 min fresh; the last good one is kept for 3 h if the internet blips
+
+
+def _cached(key, ttl, fetch):
+    import time
+    hit = _WX_CACHE.get(key)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    out = fetch()
+    if "error" not in out:
+        _WX_CACHE[key] = (time.time(), out)
+        return out
+    if hit and time.time() - hit[0] < 3 * 3600:
+        return hit[1]                      # keep showing the last reading rather than a blank
+    return out
+
+
 def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
+    return _cached(("now", lat, lon), 300, lambda: _get_weather(lat, lon))
+
+
+def get_forecast(lat=DEFAULT_LAT, lon=DEFAULT_LON, days=7):
+    return _cached(("days", lat, lon, days), 900, lambda: _get_forecast(lat, lon, days))
+
+
+def _get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
     url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
            "&current=temperature_2m,weather_code"
            "&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset"
@@ -48,7 +73,7 @@ def get_weather(lat=DEFAULT_LAT, lon=DEFAULT_LON):
         return {"error": str(e)}
 
 
-def get_forecast(lat=DEFAULT_LAT, lon=DEFAULT_LON, days=7):
+def _get_forecast(lat=DEFAULT_LAT, lon=DEFAULT_LON, days=7):
     """Multi-day forecast keyed by date -> {high, low, desc, icon}.
     Used to show per-day weather on the week/day calendar views."""
     days = max(1, min(days, 16))

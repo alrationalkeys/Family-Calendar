@@ -55,3 +55,6 @@ measure how long it lasts -> 4. print and build the other 5.
   slip collar (O-ring friction clutch): strong enough for the motor to turn the wand, slips when twisted by hand so
   the gearbox is never forced. After a hand twist the position is unknown, so the next command first runs to the
   closed stop (the encoder sees it stop turning) and counts from there.
+- **Gauge result (Nov 15):** the wand does not go through the 10 hole and slides freely through the 11 -> wand is about
+  10.5-11 mm. `wand-collar-test.stl` is the next test print: a split ring (11.2 mm open, one M3 x 12 screw + nut) to
+  prove a printed collar can grip this wand before the motor pod is designed around it.

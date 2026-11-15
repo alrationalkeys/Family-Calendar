@@ -69,13 +69,23 @@ async def transcribe(audio: UploadFile = File(...)):
         # Whisper is slow CPU work: run it on a worker thread. Calling it straight from this async route froze the
         # whole server for the length of the transcription, so the wall's other requests timed out ("offline").
         from starlette.concurrency import run_in_threadpool
-        text = await run_in_threadpool(lambda: speech.transcribe(data, suffix, voice_cmd.stt_prompt()))
+        tm = {}
+
+        def work():
+            w0 = time.time()
+            tm["wait"] = w0 - t0                      # waiting for a free worker
+            prompt = voice_cmd.stt_prompt()
+            tm["words"] = time.time() - w0            # building the word list (asks HA; cached 10 min)
+            return speech.transcribe(data, suffix, prompt)
+        text = await run_in_threadpool(work)
+        slow = "; ".join(f"{k} {v:.1f} s" for k, v in tm.items() if v >= 1.0)
         if not text:
             voice_cmd.log_voice("", f"(heard nothing in a {len(data) // 1024} KB clip, {time.time() - t0:.1f} s)", "heard")
         if text:
             c = speech.last_clip or {}
             voice_cmd.log_voice(text, f"(turned the speech into text in {time.time() - t0:.1f} s"
-                                + (f"; recording was {c.get('secs')} s long, {c.get('speech')} s of it speech" if c else "") + ")", "heard")
+                                + (f"; recording was {c.get('secs')} s long, {c.get('speech')} s of it speech" if c else "")
+                                + (f"; of that: {slow}" if slow else "") + ")", "heard")
         return {"text": text, "secs": round(time.time() - t0, 2)}
     except Exception as e:
         import traceback, sys
@@ -105,7 +115,7 @@ def tts(req: TextReq):
 
 
 class VoiceTestReq(BaseModel):
-    voice_id: str
+    voice_id: str = ""
     text: str = ""
 
 
@@ -118,6 +128,11 @@ def voice_cloud():
 @router.post("/voice/cloud/test")
 def voice_cloud_test(req: VoiceTestReq):
     """Play one sentence in a voice (uses a few credits the first time; cached after)."""
+    if not req.voice_id:                               # the built-in (Piper) voice
+        if not speech.tts_available():
+            raise HTTPException(503, "The built-in voice isn't installed (setup/install-voice.sh)")
+        return Response(content=speech.synthesize((req.text or "Hello! This is the built-in voice.")[:200]),
+                        media_type="audio/wav", headers={"Cache-Control": "no-store"})
     if not re.fullmatch(r"[A-Za-z0-9]{8,40}", req.voice_id or ""):
         raise HTTPException(400, "bad voice id")
     try:

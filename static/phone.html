@@ -1785,7 +1785,8 @@ async function loadCloudVoice(){
   if(!c.key){ box.innerHTML=`<div class="hint"><b>The wall's voice</b> — using the built-in voice. For a nicer one (and Santa at Christmas), make a free ElevenLabs account, create an API key, and add <code>ELEVENLABS_API_KEY=…</code> to the <code>.env</code> file on the wall, then restart FamilyHub.</div>`; return; }
   const opts=sel=>`<option value="">Built-in voice</option>`+c.voices.map(v=>`<option value="${E(v.id)}"${v.id===sel?" selected":""}>${E(v.name)}${v.kind&&v.kind!=="premade"?" ("+E(v.kind)+")":""}</option>`).join("");
   const left=c.limit!=null?`${Math.max(0,c.limit-c.used).toLocaleString()} of ${c.limit.toLocaleString()} credits left this month${c.resets?` (resets ${new Date(c.resets*1000).toLocaleDateString([], {month:"short",day:"numeric"})})`:""}.`:"";
-  box.innerHTML=`<div class="hint" style="margin:0 0 4px"><b>The wall's voice</b></div>
+  const none=!c.voices.length?`<div class="hint" style="color:#c0392b;margin:0 0 6px">No ElevenLabs voices came back${c.voices_error?": "+E(c.voices_error):""}. Most often the API key isn't allowed to read voices: on elevenlabs.io open API Keys, edit the key, set <b>Voices</b> to Read and <b>Text to Speech</b> to Access. Then come back here.</div>`:"";
+  box.innerHTML=`<div class="hint" style="margin:0 0 4px"><b>The wall's voice</b></div>${none}
     <div class="srow"><span>Everyday</span><span style="display:flex;gap:6px;width:62%"><select id="cv-day" style="margin:0;flex:1;min-width:0">${opts(s.cloudVoiceId)}</select><button class="tool" type="button" data-cvt="cv-day" style="margin:0;flex:0 0 46px;width:46px">▶</button></span></div>
     <div class="srow"><span>🎅 Christmas</span><span style="display:flex;gap:6px;width:62%"><select id="cv-santa" style="margin:0;flex:1;min-width:0">${opts(s.santaVoiceId)}</select><button class="tool" type="button" data-cvt="cv-santa" style="margin:0;flex:0 0 46px;width:46px">▶</button></span></div>
     <label class="chk"><input type="checkbox" id="cv-on"${s.santaVoice!==false?" checked":""}> Use the Christmas voice from the day after Thanksgiving to Christmas Day${c.santa_now?" (now)":""}</label>
@@ -1794,8 +1795,8 @@ async function loadCloudVoice(){
   $("#cv-santa").onchange=e=>{ FH.save({santaVoiceId:e.target.value}); };
   $("#cv-on").onchange=e=>{ FH.save({santaVoice:e.target.checked}); };
   box.querySelectorAll("[data-cvt]").forEach(b=>b.onclick=async()=>{
-    const id=$("#"+b.dataset.cvt).value, msg=$("#cv-msg"); if(!id){ msg.textContent="That's the built-in voice. Pick one from the list to hear it."; return; }
-    const text=b.dataset.cvt==="cv-santa"?"Ho ho ho! Merry Christmas! The washer is done.":"Good morning! Here's what's happening today.";
+    const id=$("#"+b.dataset.cvt).value, msg=$("#cv-msg");
+    const text=(b.dataset.cvt==="cv-santa"&&id)?"Ho ho ho! Merry Christmas! The washer is done.":"Good morning! Here's what's happening today.";
     b.disabled=true;
     try{ const r=await post("/api/ai/voice/cloud/test",{voice_id:id,text}); if(!r.ok){ const j=await r.json().catch(()=>({})); msg.textContent=j.detail||"That voice didn't work."; } else { const u=URL.createObjectURL(await r.blob()); const a=new Audio(u); a.onended=()=>URL.revokeObjectURL(u); a.play().catch(()=>{}); } }
     catch(e){ msg.textContent="Couldn't reach FamilyHub."; }

@@ -65,12 +65,22 @@ def warm():
     def go():
         try:
             import io
+            import random
+            import struct
             import wave
+            # one second of soft noise, run WITHOUT the silence filter, so the whole pipeline (decoder included) has
+            # run once before the first real question. Pure silence was filtered out and warmed only the loading.
+            rnd = random.Random(1)
             buf = io.BytesIO()
             with wave.open(buf, "wb") as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
-                w.writeframes(b"\x00\x00" * 8000)
-            transcribe(buf.getvalue(), ".wav")
+                w.writeframes(b"".join(struct.pack("<h", rnd.randint(-900, 900)) for _ in range(16000)))
+            transcribe(buf.getvalue(), ".wav", vad=False)
+            try:
+                from . import voice_cmd
+                voice_cmd.stt_prompt()
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -80,7 +90,7 @@ def warm():
 last_clip: dict = {}       # {"secs": clip length, "speech": seconds of it that were speech} for the voice log
 
 
-def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
+def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "", vad: bool = True) -> str:
     """Bytes of any container PyAV can read (webm/opus from MediaRecorder, wav, ogg)."""
     if not audio:
         return ""
@@ -91,7 +101,7 @@ def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
     try:
         # temperature=0.0: ONE decoding pass. The default is a ladder of six temperatures, and on a noisy kitchen clip
         # Whisper re-decodes the whole thing at each rung when it isn't confident, multiplying the wait.
-        segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=True,
+        segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=vad,
                                            vad_parameters={"min_silence_duration_ms": 500},
                                            condition_on_previous_text=False, without_timestamps=True,
                                            temperature=0.0, initial_prompt=prompt or None)

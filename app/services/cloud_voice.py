@@ -135,7 +135,7 @@ def info() -> dict:
                                   key=lambda v: v["name"].lower())
             _S["voices_at"] = now
         except Exception as e:
-            out["error"] = out["error"] or _why(e)
+            out["voices_error"] = _why(e)
     out["voices"] = _S["voices"] or []
     if _S["sub"] is None or now - _S["sub_at"] > 120:
         try:

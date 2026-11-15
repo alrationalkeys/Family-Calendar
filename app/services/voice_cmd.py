@@ -620,8 +620,21 @@ def voice_log() -> list:
         return []
 
 
+_STT_PROMPT = {"at": 0.0, "text": ""}
+
+
 def stt_prompt() -> str:
-    """Words Whisper should expect on this wall: the family's names, the devices, the list words.
+    """Words Whisper should expect on this wall (kept 10 minutes: building it asks Home Assistant for every device,
+    and that wait used to sit in front of every single transcription)."""
+    import time as _t
+    if _STT_PROMPT["text"] and _t.time() - _STT_PROMPT["at"] < 600:
+        return _STT_PROMPT["text"]
+    _STT_PROMPT.update(at=_t.time(), text=_stt_prompt())
+    return _STT_PROMPT["text"]
+
+
+def _stt_prompt() -> str:
+    """The family's names, the devices, the list words.
     (Whisper's initial_prompt nudges spelling toward these, e.g. 'Rachell' not 'Rachel', 'chore' not 'shore'.)"""
     names = []
     try:
@@ -816,7 +829,12 @@ def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
         return {"ok": True, "say": f"Running {scene['name']}.", "refresh": True}
 
     # questions about a device: "is the garage door open?", "did I lock the front door?" -> just answer
-    if q:
+    # Only for questions about a state ("is ... on", "did I lock ..."), never "how many days until Christmas" just
+    # because a device has Christmas in its name.
+    state_q = q and (re.match(r"^(?:is|are|did|does|do|was|were|has|have)\b", tl)
+                     or re.search(r"\b(on|off|open|opened|closed|shut|locked|unlocked|running|playing|status|state)\b", tl)) \
+        and not re.match(r"^(?:how (?:many|much|long|far|old)|when|who|why)\b", tl)
+    if state_q:
         dev = _match(w, tiles, {"cover", "lock", "light", "switch", "binary_sensor", "media_player"})
         if dev:
             return {"ok": True, "say": f"The {dev['name']} is {FHSTATE.get(dev['state'], dev['state'])}."}

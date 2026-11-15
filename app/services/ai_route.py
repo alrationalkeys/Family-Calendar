@@ -43,6 +43,11 @@ def route_text(text: str, model: str | None = None) -> Dict:
         system=SYSTEM.format(today=date.today().isoformat()),
         messages=[{"role": "user", "content": text}],
     )
+    try:
+        from . import ai_cost
+        ai_cost.record("quick-add", resp)
+    except Exception:
+        pass
     raw = "".join(b.text for b in resp.content if b.type == "text").strip()
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:

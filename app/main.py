@@ -71,6 +71,11 @@ async def lifespan(app: FastAPI):
     try:
         from .services import watch as _watch
         _watch.start()
+        try:
+            from .services import speech as _speech
+            _speech.warm()                  # first spoken question shouldn't pay for loading the speech model
+        except Exception:
+            pass
     except Exception:
         pass
 

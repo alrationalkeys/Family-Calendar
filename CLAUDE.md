@@ -131,11 +131,14 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   (no-AI-key events with date/time parsing, "we need X", list read-back, check-off, thermostats w/ peak guard).
   Every command + empty transcription is logged: `GET/DELETE /api/ai/voice/log` (phone Settings > Advanced > Voice,
   which also has a "Try a command" box). Whisper gets an `initial_prompt` of names/devices (`voice_cmd.stt_prompt`),
-  beam 5 (`FAMILYHUB_STT_BEAM`). Device on/off only fires on command phrasing; scenes need their whole name.
+  beam 2 (`FAMILYHUB_STT_BEAM`; model warmed at startup by `speech.warm()`). Device on/off only fires on command phrasing; scenes need their whole name.
 - Voice AI timing (`voice_agent.run`): one streamed call per step, no SDK retries, 55 s total budget (`BUDGET_S`), then a spoken
   "took too long"; an unreachable API falls back to the rules WITHOUT re-asking the old `_ai_answer`. Web search max 4, prompt says
   always search for recent facts. `FAMILYHUB_VOICE_MODEL` overrides the model for spoken requests only. Voice log entries carry
   `took` (seconds · model · searches) and a line per transcription with its seconds.
+- AI cost (`services/ai_cost.py`, table `ai_usage`): every Claude call is recorded with tokens, web searches and an approximate
+  dollar cost at list prices (`PRICES`); `GET /api/ai/cost` = today / 7 days / month / total + by feature. Voice history entries
+  show the cost of each question; phone Settings > Advanced > Voice shows the totals. Counts only from Nov 16, 2026 on.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

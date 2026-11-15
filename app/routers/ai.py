@@ -45,6 +45,13 @@ def voice_log_clear():
     return {"ok": True}
 
 
+@router.get("/cost")
+def ai_cost_summary():
+    """Approximate spend on the AI features since tracking began (today / 7 days / this month / total, by feature)."""
+    from ..services import ai_cost
+    return ai_cost.summary()
+
+
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """Audio clip (webm/opus from MediaRecorder, or wav) -> {text}."""

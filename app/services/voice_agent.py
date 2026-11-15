@@ -360,6 +360,8 @@ def run(text: str, tiles: list) -> dict | None:
     t0 = _time.time()
     deadline = t0 + BUDGET_S                         # the wall gives up at 75 s; answer (or say so) before that
     slow = "That one took me too long to look up. Try asking it again, or a little more specifically."
+    from . import ai_cost
+    spent = [0.0, 0]                                  # dollars, web searches for this one spoken request
 
     def call():
         """One model call, streamed. Streaming keeps bytes flowing, so a web search that takes 40 s isn't cut off by a
@@ -370,7 +372,10 @@ def run(text: str, tiles: list) -> dict | None:
             for _ev in stream:
                 if _time.time() > deadline:
                     raise TimeoutError
-            return stream.get_final_message()
+            msg = stream.get_final_message()
+        spent[0] += ai_cost.record("voice", msg)
+        spent[1] += (getattr(getattr(msg.usage, "server_tool_use", None), "web_search_requests", 0) or 0)
+        return msg
 
     try:
         resp = None
@@ -400,16 +405,11 @@ def run(text: str, tiles: list) -> dict | None:
         texts = [b.text for b in resp.content if getattr(b, "type", "") == "text" and b.text.strip()]
         say = re.sub(r"https?://\S+", "", (texts[-1] if texts else "")).strip()
         out["say"] = say or ("Done." if out.get("refresh") or out.get("timer") else "I'm not sure.")
-        try:
-            u = resp.usage
-            out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1),
-                         "searches": getattr(getattr(u, "server_tool_use", None), "web_search_requests", 0) or 0}
-        except Exception:
-            pass
+        out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1), "searches": spent[1], "cost": spent[0]}
         return out
     except (TimeoutError, anthropic.APITimeoutError):
         out["say"] = "That's done." if (out.get("refresh") or out.get("timer")) else slow
-        out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1), "timed_out": True}
+        out["ai"] = {"model": mdl, "secs": round(_time.time() - t0, 1), "timed_out": True, "searches": spent[1], "cost": spent[0]}
         return out
     except anthropic.APIConnectionError:
         if out.get("refresh") or out.get("timer"):

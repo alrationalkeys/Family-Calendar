@@ -728,6 +728,7 @@
     <div class="hint" style="margin:10px 0 4px"><b>Try a command</b> — typed here, it runs exactly like saying it to the wall.</div>
     <div class="srow"><input id="vh-try" placeholder="add dentist Friday at 3" style="width:70%; margin:0"><button class="tool" type="button" id="vh-go" style="margin:0">Run</button></div>
     <div id="vh-out" class="hint" style="min-height:1em"></div>
+    <div id="ai-cost" class="hint" style="margin:12px 0; padding:10px; border:1px solid rgba(127,127,127,.25); border-radius:12px"></div>
     <div class="hint" style="margin:10px 0 4px"><b>Voice history</b> — what the wall heard and what it did. Screenshot this if it gets something wrong.</div>
     <div id="vh-list" style="max-height:340px; overflow:auto; font-size:.86rem"></div>
     <div class="srow"><button class="tool" type="button" id="vh-refresh" style="margin:6px 0">Refresh</button><button class="tool" type="button" id="vh-clear" style="margin:6px 0">Clear</button></div>
@@ -1763,6 +1764,18 @@ async function loadVoiceHistory(){
     row.append(when,heard,reply); box.append(row);
   }
 }
+async function loadAiCost(){
+  const box=$("#ai-cost"); if(!box) return;
+  let c=null; try{ c=await fetch("/api/ai/cost").then(r=>r.json()); }catch(e){}
+  if(!c){ box.textContent="Couldn't load the AI cost."; return; }
+  const E=FHHome.esc, m=d=>d>=0.995?"$"+d.toFixed(2):(d*100<0.05?(d?"under 0.1\u00a2":"0\u00a2"):(d*100).toFixed(d*100<10?1:0)+"\u00a2");
+  box.innerHTML=`<b>What the AI has cost (approximate)</b>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0;text-align:center">
+      ${[["Today",c.today],["7 days",c.week],["This month",c.month],["Total",c.total]].map(([l,v])=>`<div style="background:rgba(127,127,127,.12);border-radius:10px;padding:8px 2px"><div style="font-size:17px;font-weight:700">${m(v)}</div><small>${l}</small></div>`).join("")}
+    </div>
+    ${(c.by_feature||[]).map(f=>`<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${E(f.label)} <small style="opacity:.6">\u00d7${f.n}${f.searches?` \u00b7 ${f.searches} web search${f.searches==1?"":"es"}`:""}</small></span><b>${m(f.cost)}</b></div>`).join("")||"<small>Nothing yet. Ask the wall something.</small>"}
+    <small style="opacity:.65;display:block;margin-top:6px">${c.since?`Counted since ${E(c.since)} (${c.calls} AI requests). `:""}Estimates from token counts at list prices; the exact bill is on the Anthropic Console under Cost.</small>`;
+}
 function setupVoiceHistory(){
   const go=$("#vh-go"); if(!go||go._wired) return; go._wired=true;
   const run=async()=>{ const t=$("#vh-try").value.trim(); if(!t) return; $("#vh-out").textContent="…";
@@ -1770,9 +1783,9 @@ function setupVoiceHistory(){
     catch(e){ $("#vh-out").textContent="Couldn't reach FamilyHub."; }
     loadVoiceHistory(); };
   go.onclick=run; $("#vh-try").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
-  $("#vh-refresh").onclick=loadVoiceHistory;
+  $("#vh-refresh").onclick=()=>{ loadVoiceHistory(); loadAiCost(); };
   $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
-  const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open) loadVoiceHistory(); });
+  const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); } });
 }
 function loadSettingsUI(){
   setupVoiceHistory();

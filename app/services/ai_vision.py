@@ -39,6 +39,11 @@ def extract_events_from_image(image_b64: str, media_type: str = "image/jpeg",
             ],
         }],
     )
+    try:
+        from . import ai_cost
+        ai_cost.record("vision", resp)
+    except Exception:
+        pass
     raw = "".join(b.text for b in resp.content if b.type == "text").strip()
     raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:

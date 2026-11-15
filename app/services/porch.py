@@ -62,6 +62,11 @@ def _ask(cam: str):
                 {"type": "image", "source": {"type": "base64", "media_type": ctype.split(";")[0],
                                              "data": base64.b64encode(data).decode()}},
                 {"type": "text", "text": _PROMPT}]}])
+        try:
+            from . import ai_cost
+            ai_cost.record("package", resp)
+        except Exception:
+            pass
         raw = "".join(b.text for b in resp.content if b.type == "text")
         m = re.search(r"\{.*\}", raw, re.S)
         j = json.loads(m.group(0)) if m else {}

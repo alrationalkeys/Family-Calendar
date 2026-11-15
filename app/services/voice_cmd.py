@@ -555,6 +555,8 @@ def _ai_answer(text):
             kwargs["tools"] = [{"type": "web_search_20260209", "name": "web_search",
                                 "max_uses": 2, "user_location": _HOME_LOCATION}]
         resp = client.messages.create(**kwargs)
+        from . import ai_cost
+        ai_cost.record("voice", resp)
         # a search turn can pause; let it finish (bounded)
         for _ in range(2):
             if resp.stop_reason != "pause_turn":
@@ -562,6 +564,7 @@ def _ai_answer(text):
             kwargs["messages"] = kwargs["messages"] + [{"role": "assistant", "content": resp.content},
                                                        {"role": "user", "content": "Continue."}]
             resp = client.messages.create(**kwargs)
+            ai_cost.record("voice", resp)
         # the spoken answer is the text AFTER any searching (earlier text blocks are "let me look that up")
         texts = [b.text for b in resp.content if b.type == "text" and b.text.strip()]
         answer = (texts[-1] if texts else "").strip()
@@ -586,6 +589,9 @@ def interpret(text: str) -> dict:
     if ai:
         note += f" · {ai.get('model', '')}" + (f" · {ai['searches']} web search{'es' if ai['searches'] != 1 else ''}" if ai.get("searches") else "") \
                 + (" · ran out of time" if ai.get("timed_out") else "")
+        if ai.get("cost"):
+            from . import ai_cost
+            note += " · " + ai_cost.cents(ai["cost"])
     log_voice(text, r.get("say") or ("(spoke the briefing)" if r.get("briefing") else ""), took=note)
     return r
 

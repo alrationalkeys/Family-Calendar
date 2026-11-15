@@ -53,7 +53,28 @@ def _stt_model():
 # Whisper's favourite hallucinations on a clip of silence / room noise
 _GHOSTS = {"you", "thank you", "thanks", "thank you.", "thanks for watching", "thanks for watching!", "bye",
            "thank you for watching", "so", "okay", "the end", "."}
-BEAM = int(os.environ.get("FAMILYHUB_STT_BEAM", "5"))
+BEAM = int(os.environ.get("FAMILYHUB_STT_BEAM", "2"))     # 5 was noticeably slower on the wall's i3 for little gain
+
+
+def warm():
+    """Load the speech model (and its voice-activity filter) once at startup, in the background, by transcribing
+    half a second of silence. Without this the first question after every restart waited 10-15 s for the load."""
+    if not stt_available():
+        return
+
+    def go():
+        try:
+            import io
+            import wave
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+                w.writeframes(b"\x00\x00" * 8000)
+            transcribe(buf.getvalue(), ".wav")
+        except Exception:
+            pass
+
+    threading.Thread(target=go, daemon=True, name="stt-warm").start()
 
 
 def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
@@ -67,7 +88,7 @@ def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "") -> str:
     try:
         segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=True,
                                            vad_parameters={"min_silence_duration_ms": 700},
-                                           condition_on_previous_text=False,
+                                           condition_on_previous_text=False, without_timestamps=True,
                                            initial_prompt=prompt or None)
         text = " ".join(s.text.strip() for s in segments if (s.no_speech_prob or 0) < 0.8).strip()
         return "" if text.lower().strip(" .!") in {g.strip(" .!") for g in _GHOSTS} else text

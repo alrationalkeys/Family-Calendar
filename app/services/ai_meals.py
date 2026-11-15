@@ -78,6 +78,11 @@ def plan(days: int = 7, prefs: str = "", start: str | None = None) -> dict:
             resp = client.messages.create(model=_model(), max_tokens=1800,
                                           system=SYSTEM.format(today=date.today().isoformat()),
                                           messages=[{"role": "user", "content": user}])
+            try:
+                from . import ai_cost
+                ai_cost.record("meals", resp)
+            except Exception:
+                pass
             raw = "".join(b.text for b in resp.content if b.type == "text").strip()
             raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             parsed = json.loads(raw)

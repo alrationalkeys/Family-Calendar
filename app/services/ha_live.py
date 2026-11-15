@@ -100,6 +100,8 @@ async def _run_once(ws_url: str, token: str):
         await ws.send(json.dumps({"id": 2, "type": "subscribe_events", "event_type": "state_changed"}))
         # routines made in FamilyHub fire a "familyhub" event to make the wall speak
         await ws.send(json.dumps({"id": 3, "type": "subscribe_events", "event_type": "familyhub"}))
+        # buttons on FamilyHub's phone notifications ("Close it" on the garage-left-open push)
+        await ws.send(json.dumps({"id": 4, "type": "subscribe_events", "event_type": "mobile_app_notification_action"}))
         while True:
             msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=90))
             if msg.get("id") == 1 and msg.get("type") == "result":
@@ -112,6 +114,12 @@ async def _run_once(ws_url: str, token: str):
                 if _cond:
                     async with _cond:
                         _cond.notify_all()
+            elif msg.get("type") == "event" and (msg.get("event") or {}).get("event_type") == "mobile_app_notification_action":
+                try:
+                    from . import garage_watch
+                    garage_watch.on_action((msg.get("event") or {}).get("data") or {})
+                except Exception:
+                    pass
             elif msg.get("type") == "event" and (msg.get("event") or {}).get("event_type") == "familyhub":
                 _on_familyhub((msg.get("event") or {}).get("data") or {})
             elif msg.get("type") == "event":

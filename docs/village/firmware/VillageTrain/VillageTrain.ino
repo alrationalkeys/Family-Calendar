@@ -36,7 +36,7 @@
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
 #include "TrainPage.h"      // the phone page (HTML)
-const char* FIRMWARE_VERSION = "B-2026.11.01d";
+const char* FIRMWARE_VERSION = "B-2026.11.15a";
 
 const char* MY_NAME = "village-train";   // this board -> http://village-train.local
 const char* FX_NAME = "village-fx";      // Board A (bell + station mist)
@@ -50,6 +50,8 @@ int  MAX_RUN_MINUTES     = 10;     // safety: power off if the train has run thi
 int  SENSOR_IGNORE_MS    = 5000;   // after a sensor fires, ignore it this long (the cars pass by)
 int  DEPART_TIMEOUT_MS   = 8000;   // if sensor 2 never fires after leaving, carry on anyway
 int  DEPART_CLEAR_MS     = 12000;  // after leaving the station, ignore sensor 1 this long (the cars roll past it)
+int  SENSOR_REARM_MS     = 3000;   // a sensor only counts the train again after it has been clear this long
+                                   // (the gaps between cars are much shorter, so a long train counts once)
 
 // Railroad crossing (set CROSSING_ENABLED = false if you don't build it)
 bool CROSSING_ENABLED     = true;
@@ -255,9 +257,12 @@ bool sensorActive(int pin) {
   return sStable[pin];
 }
 
+unsigned long sClearSince[40];
 bool sensorEdge(int pin, bool& last, unsigned long& ignoreUntil) {
   bool active = sensorActive(pin);
-  bool edge = active && !last && (long)(millis() - ignoreUntil) >= 0;
+  if (!active && last) sClearSince[pin] = millis();          // the last car just went past
+  bool edge = active && !last && (long)(millis() - ignoreUntil) >= 0
+              && millis() - sClearSince[pin] >= (unsigned long)SENSOR_REARM_MS;   // a gap between cars doesn't count
   last = active;
   if (edge) ignoreUntil = millis() + SENSOR_IGNORE_MS;
   return edge;

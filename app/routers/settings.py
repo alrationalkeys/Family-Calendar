@@ -42,6 +42,7 @@ DEFAULTS = {
     "laundryNudgeMin": 30,            # clothes still in it this long after done -> one nudge (0 = off)
     "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
     "rainCheck": True,                # push if rain is coming and the garage or a window is open
+    "garageAlert": True, "garageOpenMin": 15, "garageOpenDayMin": 0, "garageRemindMin": 30,   # garage left open -> push with a Close button
     "undoMinutes": 30,               # ticked to-dos/chores stay crossed out this long; tap again to bring one back
     "xmasMotion": True, "xmasMotionMin": 5, "xmasMotionUntil": "01:00",   # outside Christmas lights back on for walkers after dark
     "xmasFlash": True,                # doorbell after dark blinks the outside Christmas lights

@@ -574,6 +574,8 @@
     <label class="chk"><input type="checkbox" id="al-laundry"> Laundry: "done in 10 min", "done" (phones always; the wall also says it except 9:30 PM–7:30 AM), and a nudge if clothes sit 30 min</label>
     <div style="display:flex; gap:6px; margin:2px 0 10px 30px"><button class="tool" id="al-ld-test" style="margin:0">Send a test</button><button class="tool" id="al-ld-log" style="margin:0">What it saw</button></div>
     <div id="al-ld-out" class="hint" style="margin:0 0 10px 30px; white-space:pre-wrap; display:none"></div>
+    <label class="chk"><input type="checkbox" id="al-gar"> Garage left open after dark for <input type="number" id="al-gar-min" min="1" max="120" style="width:60px; display:inline-block; margin:0 4px"> min: tell us, with a "Close it" button</label>
+    <label class="chk" style="margin-left:30px">In the daytime, after <input type="number" id="al-gar-day" min="0" max="600" step="15" style="width:64px; display:inline-block; margin:0 4px"> min (0 = don't) · remind every <input type="number" id="al-gar-rem" min="10" max="240" step="10" style="width:64px; display:inline-block; margin:0 4px"> min</label>
     <div class="hint" style="margin:10px 0 4px">🎄 Outside Christmas lights (Nov 10 – Jan 15)<span id="al-xmas-plug"></span></div>
     <label class="chk" style="display:block">The plug they're on: <select id="al-xm-plug" style="max-width:100%; margin-top:4px"><option value="">Find it by name</option></select></label>
     <label class="chk"><input type="checkbox" id="al-xm-motion"> After the lights go off, someone walking up turns them back on for <input type="number" id="al-xm-min" min="1" max="30" style="width:60px; display:inline-block; margin:0 4px"> min (until <input type="time" id="al-xm-until" style="width:110px; display:inline-block; margin:0 4px">)</label>
@@ -1779,6 +1781,7 @@ function loadSettingsUI(){
       if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
     bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);
     { const sel=$("#al-xm-plug"); if(sel&&!sel._wired){ sel._wired=true;

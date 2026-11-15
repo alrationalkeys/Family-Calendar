@@ -51,3 +51,7 @@ measure how long it lasts -> 4. print and build the other 5.
   open headrail (hidden by the valance); solar panel on the glass at the top; thin wires between.
 - Still needed: gap headrail-front to valance-back, how far the valance hangs below the headrail, wand top diameter
   (gauge), and keep-the-wand vs replace-the-wand.
+- **Decision: keep the wand** (manual twisting must still work). So the pod grips the top of the wand through a
+  slip collar (O-ring friction clutch): strong enough for the motor to turn the wand, slips when twisted by hand so
+  the gearbox is never forced. After a hand twist the position is unknown, so the next command first runs to the
+  closed stop (the encoder sees it stop turning) and counts from there.

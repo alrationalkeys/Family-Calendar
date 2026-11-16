@@ -31,7 +31,26 @@ LEAGUES = {                                    # key -> (ESPN path, label, extra
     "cbb": ("basketball/mens-college-basketball", "College basketball", "groups=50&limit=400"),
     "mlb": ("baseball/mlb", "MLB", ""),
     "nhl": ("hockey/nhl", "NHL", ""),
+    "epl": ("soccer/eng.1", "Soccer: Premier League", ""),
+    "laliga": ("soccer/esp.1", "Soccer: La Liga", ""),
+    "bundesliga": ("soccer/ger.1", "Soccer: Bundesliga", ""),
+    "seriea": ("soccer/ita.1", "Soccer: Serie A", ""),
+    "ligue1": ("soccer/fra.1", "Soccer: Ligue 1", ""),
+    "intl": ("soccer/fifa.world", "Soccer: national teams", ""),
 }
+SOCCER = {"epl", "laliga", "bundesliga", "seriea", "ligue1", "intl"}
+_EURO = ["soccer/uefa.champions", "soccer/uefa.europa"]
+EXTRA = {                                      # other competitions the same teams play in (same team ids on ESPN)
+    "epl": _EURO + ["soccer/eng.fa", "soccer/eng.league_cup"],
+    "laliga": _EURO + ["soccer/esp.copa_del_rey"],
+    "bundesliga": _EURO + ["soccer/ger.dfb_pokal"],
+    "seriea": _EURO + ["soccer/ita.coppa_italia"],
+    "ligue1": _EURO + ["soccer/fra.coupe_de_france"],
+    "intl": ["soccer/fifa.friendly", "soccer/uefa.nations", "soccer/uefa.euro", "soccer/conmebol.america",
+             "soccer/concacaf.nations.league", "soccer/concacaf.gold", "soccer/fifa.worldq.uefa",
+             "soccer/fifa.worldq.conmebol", "soccer/fifa.worldq.concacaf"],
+}
+_BOARD: dict = {}                              # scoreboard path -> {"at", "games"} (each path refreshed only as often as it needs)
 _S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": []}
 
 
@@ -80,7 +99,30 @@ def _mine(s: dict) -> list:
     return [t for t in (s.get("teams") or []) if isinstance(t, dict) and t.get("league") in LEAGUES and t.get("id")]
 
 
-def _parse(league: str, d: dict, mine: dict) -> list:
+def _scorer(comp: dict, tid: str) -> str:
+    """Soccer: the scoreboard lists each goal. -> 'Bukayo Saka in the 23rd minute' for our team's latest, or ''."""
+    last = None
+    for d in comp.get("details") or []:
+        if d.get("scoringPlay") and str((d.get("team") or {}).get("id") or "") == tid:
+            last = d
+    if not last:
+        return ""
+    who = ", ".join(a.get("displayName") or a.get("fullName") or "" for a in (last.get("athletesInvolved") or [])[:1]).strip()
+    kind = str((last.get("type") or {}).get("text") or "").lower()
+    when = str((last.get("clock") or {}).get("displayValue") or "").replace("'", "").strip()
+    m = re.match(r"(\d+)", when)
+    minute = ""
+    if m:
+        n = int(m.group(1))
+        minute = f" in the {n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')} minute"
+    if "own" in kind:
+        return "An own goal" + minute
+    if not who:
+        return ""
+    return ("Penalty scored by " if "penalty" in kind else "Scored by ") + who + minute
+
+
+def _parse(league: str, d: dict, mine: dict, path: str = "") -> list:
     """Scoreboard JSON -> our games: {key, league, team, opp, us, them, state pre|in|post, detail, start, won}."""
     out = []
     for ev in d.get("events") or []:
@@ -101,29 +143,60 @@ def _parse(league: str, d: dict, mine: dict) -> list:
                 except (TypeError, ValueError):
                     return 0
             out.append({"key": f"{league}:{ev.get('id')}:{tid}", "event": str(ev.get("id") or ""), "league": league, "team": mine[tid],
+                        "path": path or LEAGUES[league][0],
                         "opp": (o.get("team") or {}).get("shortDisplayName") or (o.get("team") or {}).get("displayName") or "?",
                         "opp_abbr": (o.get("team") or {}).get("abbreviation") or "",
                         "us": pts(c), "them": pts(o), "home": c.get("homeAway") == "home",
                         "state": st.get("state") or "pre", "detail": st.get("shortDetail") or st.get("detail") or "",
+                        "scorer": _scorer(comp, tid) if league in SOCCER else "",
                         "start": ev.get("date") or "", "won": bool(c.get("winner")) if st.get("state") == "post" else None})
     return out
+
+
+def _due(path: str, primary: bool) -> bool:
+    """A scoreboard is re-read every 20 s while one of our games on it is live, every minute in the hour before one,
+    every 5 min otherwise; the extra cups/competitions only every 15 min while they have nothing of ours."""
+    hit = _BOARD.get(path)
+    if not hit:
+        return True
+    age = time.time() - hit["at"]
+    games = hit["games"]
+    if any(g["state"] == "in" for g in games):
+        return age >= 18
+    hour = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H")
+    if any(g["state"] == "pre" and g["start"][:13] == hour for g in games):
+        return age >= 55
+    return age >= (290 if primary or games else 890)
 
 
 def fetch(s: dict | None = None) -> list:
     s = s if s is not None else _settings()
     mine = _mine(s)
-    games = []
+    games, live_paths = [], set()
     for league in sorted({t["league"] for t in mine}):
         path, _label, q = LEAGUES[league]
-        d = _get(f"{API}/{path}/scoreboard" + (f"?{q}" if q else ""))
-        games += _parse(league, d, {str(t["id"]): t for t in mine if t["league"] == league})
+        ours = {str(t["id"]): t for t in mine if t["league"] == league}
+        for pth in [path] + EXTRA.get(league, []):
+            key = f"{league}|{pth}"
+            live_paths.add(key)
+            if _due(key, pth == path):
+                try:
+                    d = _get(f"{API}/{pth}/scoreboard" + (f"?{q}" if q else ""))
+                    _BOARD[key] = {"at": time.time(), "games": _parse(league, d, ours, pth)}
+                except Exception:
+                    if pth == path:
+                        raise
+                    _BOARD[key] = {"at": time.time(), "games": []}        # a cup with no page this season
+            games += [g for g in _BOARD[key]["games"] if str(g["team"].get("id")) in ours]
+    for k in [k for k in _BOARD if k not in live_paths]:
+        _BOARD.pop(k, None)
     return games
 
 
 def _what(league: str, gained: int) -> str:
     if league in ("nfl", "cfb"):
         return {1: "Extra point", 2: "Two points", 3: "Field goal", 6: "Touchdown", 7: "Touchdown", 8: "Touchdown"}.get(gained, "Score")
-    if league == "nhl":
+    if league == "nhl" or league in SOCCER:
         return "Goal"
     if league == "mlb":
         return "Run scored" if gained == 1 else f"{gained} runs"
@@ -247,9 +320,11 @@ def play_words(league: str, text: str) -> str:
 
 def describe(g: dict) -> str:
     """Who scored and how, from the game's scoring plays. "" when ESPN doesn't have the play yet (never an older one)."""
+    if g.get("league") in SOCCER:                 # already on the scoreboard, read with the score itself
+        return g.get("scorer") or ""
     if not g.get("event") or g.get("league") not in LEAGUES:
         return ""
-    d = _get(f"{API}/{LEAGUES[g['league']][0]}/summary?event={g['event']}")
+    d = _get(f"{API}/{g.get('path') or LEAGUES[g['league']][0]}/summary?event={g['event']}")
     plays = [p for p in (d.get("scoringPlays") or []) if str((p.get("team") or {}).get("id") or "") == str(g["team"].get("id"))]
     if not plays:
         return ""
@@ -346,26 +421,22 @@ def test(s: dict | None = None) -> dict:
         return {"ok": False, "reason": "Pick a team first"}
     t = mine[0]
     g = {"team": t, "us": 7, "them": 0, "opp": "the other guys", "league": t["league"]}
-    celebrate(g, f"🎉 Touchdown, {t['name']}!", f"Touchdown, {t['name']}! This is a test.", {**s, "gameDelay": 0}, force=True)
+    what = _what(t["league"], 6)
+    celebrate(g, f"🎉 {what}, {t['name']}!", f"{what}, {t['name']}! This is a test.", {**s, "gameDelay": 0}, force=True)
     return {"ok": True}
 
 
 def _loop():
     time.sleep(45)
     while True:
-        wait = 300
+        wait = 120
         try:
             s = _settings()
             if _mine(s):
                 games = fetch(s)
                 _S.update(games=games, at=time.time(), error="")
                 check(games, s)
-                if any(g["state"] == "in" for g in games):
-                    wait = 20
-                else:                                          # a game about to start: look more often
-                    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-                    soon = [g for g in games if g["state"] == "pre" and g["start"][:13] == now[:13]]
-                    wait = 60 if soon else 300
+                wait = 20 if any(g["state"] == "in" for g in games) else 60     # each scoreboard paces itself (_due)
             else:
                 _S["games"] = []
         except Exception as e:

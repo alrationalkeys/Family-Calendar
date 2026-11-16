@@ -148,6 +148,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   The spoken line adds who/how (settings.gamePlays): `describe()` reads the game's `scoringPlays` from ESPN's summary after the
   delay, `play_words()` turns "X 12 Yd pass from Y (Z Kick)" into "12-yard touchdown pass to X from Y"; never an older play.
   Phone Settings > Game day.
+- Monthly house report (`services/house_report.py`): one line per day kept in settings row `house_days` (heat/cool/peak minutes
+  from the timeline just after midnight, catching up 9 days; washer/dryer loads bumped by laundry.py) because HA keeps ~10 days.
+  1st of the month 09:00 -> push of last month (settings.monthlyReport); `GET /api/ha/report?month=YYYY-MM`; phone Settings > Alerts.
 - Peak + dryer: `watch._peak_dryer` (settings.peakDryer): dryer running during peak -> wall announcement + push, once a day.
 - Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when
   settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every

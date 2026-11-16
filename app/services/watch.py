@@ -267,6 +267,8 @@ def _loop():
                 _peak_tick(s)
                 _night_tick(s, now)
                 _weekly_tick(s, now)
+                from . import house_report
+                house_report.tick(s, now, _push)
                 from . import laundry
                 laundry.tick()
                 from . import xmas

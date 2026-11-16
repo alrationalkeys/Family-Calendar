@@ -135,6 +135,9 @@ def on_state(eid: str, old: dict | None, new: dict | None):
             return
         _last[mach] = time.time()
         _done_at[mach] = time.time(); _nudged.discard(mach); _soon.discard(mach)
+        if mach in ("washer", "dryer"):
+            from . import house_report
+            house_report.bump(mach)                       # loads per month, for the monthly report
         s = _settings()
         if s.get("laundryAlerts", True) is False:
             return

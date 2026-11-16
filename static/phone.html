@@ -570,6 +570,9 @@
     <label class="chk"><input type="checkbox" id="al-peak"> Peak alert: tell us if heat or AC is still on 3 minutes into peak hours</label>
     <label class="chk"><input type="checkbox" id="al-peakdry"> Peak alert: tell us (and say it on the wall) if the dryer is running during peak hours</label>
     <label class="chk"><input type="checkbox" id="al-week"> Sunday 6 PM: a short note with heat/AC hours, any peak use and low batteries</label>
+    <label class="chk"><input type="checkbox" id="al-month"> 1st of the month, 9 AM: last month's house report (heat/AC hours vs the month before, peak slip-ups, laundry loads, AI cost)</label>
+    <div class="two" style="margin:4px 0 6px"><button class="tool" type="button" id="al-month-now" style="margin:0">This month so far</button><button class="tool" type="button" id="al-month-prev" style="margin:0">Last month</button></div>
+    <div class="hint" id="al-month-out" style="white-space:pre-line; margin-top:0"></div>
     <label class="chk"><input type="checkbox" id="al-wx"> Weather warnings (hurricane, tropical storm, tornado, flood, severe storms): banner on the wall + a push</label>
     <label class="chk"><input type="checkbox" id="al-rain"> Rain check: tell us if rain is coming and the garage or a window is open</label>
     <label class="chk"><input type="checkbox" id="al-laundry"> Laundry: "done in 10 min", "done" (phones always; the wall also says it except 9:30 PM–7:30 AM), and a nudge if clothes sit 30 min</label>
@@ -1869,7 +1872,11 @@ function loadSettingsUI(){
       if(document.activeElement!==el){ if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??""; }   // always show what's saved now
       if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
-    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#al-month","monthlyReport");
+    { const show=async prev=>{ const out=$("#al-month-out"); out.textContent="…"; const d=new Date(); if(prev) d.setDate(0);
+        const m=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        try{ const r=await fetch("/api/ha/report?month="+m).then(x=>x.json()); out.textContent=r.name+"\n"+r.lines.join("\n"); }catch(e){ out.textContent="Couldn't load the report."; } };
+      const a=$("#al-month-now"), b=$("#al-month-prev"); if(a&&!a._wired){ a._wired=true; a.onclick=()=>show(false); b.onclick=()=>show(true); } } bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);

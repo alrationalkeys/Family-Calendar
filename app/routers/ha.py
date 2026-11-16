@@ -189,6 +189,13 @@ def night_check():
     return {"issues": watch.night_report()}
 
 
+@router.get("/report")
+def house_report(month: str | None = None):
+    """The monthly house report (default: this month so far). ?month=YYYY-MM for another one."""
+    from ..services import house_report as hr
+    return hr.report(month)
+
+
 @router.get("/timeline/week")
 def timeline_week():
     from ..services import watch

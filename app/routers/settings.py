@@ -43,7 +43,7 @@ DEFAULTS = {
     "wxAlerts": True,                 # NWS warnings: wall banner + push for severe / storms
     "rainCheck": True,                # push if rain is coming and the garage or a window is open
     "cloudVoiceId": "", "santaVoiceId": "", "santaVoice": True,   # ElevenLabs voices (key in .env); "" = local Piper voice
-    "teams": [], "gameLights": [], "gameFlash": True, "gameSpeak": True, "gameChip": True, "gameDelay": 15,   # game day (services/gameday.py)
+    "teams": [], "gameLights": [], "gameFlash": True, "gameSpeak": True, "gameChip": True, "gameDelay": 15, "gamePlays": True,   # game day (services/gameday.py)
     "peakDryer": True,                     # dryer started during peak hours -> tell us
     "garageAlert": True, "garageOpenMin": 15, "garageOpenDayMin": 0, "garageRemindMin": 30,   # garage left open -> push with a Close button
     "undoMinutes": 30,               # ticked to-dos/chores stay crossed out this long; tap again to bring one back

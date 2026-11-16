@@ -14,6 +14,7 @@ asleep (after Good night, or 23:30-08:00): nothing at all happens then.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 import urllib.parse
@@ -31,7 +32,7 @@ LEAGUES = {                                    # key -> (ESPN path, label, extra
     "mlb": ("baseball/mlb", "MLB", ""),
     "nhl": ("hockey/nhl", "NHL", ""),
 }
-_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}}
+_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": []}
 
 
 def _settings() -> dict:
@@ -99,7 +100,7 @@ def _parse(league: str, d: dict, mine: dict) -> list:
                     return int(x.get("score") or 0)
                 except (TypeError, ValueError):
                     return 0
-            out.append({"key": f"{league}:{ev.get('id')}:{tid}", "league": league, "team": mine[tid],
+            out.append({"key": f"{league}:{ev.get('id')}:{tid}", "event": str(ev.get("id") or ""), "league": league, "team": mine[tid],
                         "opp": (o.get("team") or {}).get("shortDisplayName") or (o.get("team") or {}).get("displayName") or "?",
                         "opp_abbr": (o.get("team") or {}).get("abbreviation") or "",
                         "us": pts(c), "them": pts(o), "home": c.get("homeAway") == "home",
@@ -213,7 +214,60 @@ def flash(lights: list, color: str, alt: str, rounds: int = 3):
         t.join(30)
 
 
-def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force: bool = False):
+_YD = r"(\d+)\s*(?:Yds?|Yards?|yd|yds)\.?"
+
+
+def play_words(league: str, text: str) -> str:
+    """ESPN's scoring-play line -> something nice to say.
+    'CeeDee Lamb 12 Yd pass from Dak Prescott (Brandon Aubrey Kick)' -> '12-yard touchdown pass to CeeDee Lamb from Dak Prescott'."""
+    t = re.sub(r"\s*\([^)]*\)\s*$", "", str(text or "")).strip()        # drop "(Kicker Kick)" / "(410 feet)"
+    if not t:
+        return ""
+    if league in ("nfl", "cfb"):
+        m = re.match(rf"(.+?)\s+{_YD}\s+pass from\s+(.+)$", t, re.I)
+        if m:
+            return f"{m.group(2)}-yard touchdown pass to {m.group(1)} from {m.group(3)}"
+        m = re.match(rf"(.+?)\s+{_YD}\s+(?:run|rush)\b", t, re.I)
+        if m:
+            return f"{m.group(2)}-yard rushing touchdown by {m.group(1)}"
+        m = re.match(rf"(.+?)\s+{_YD}\s+field goal\b", t, re.I)
+        if m:
+            return f"{m.group(2)}-yard field goal by {m.group(1)}"
+        m = re.match(rf"(.+?)\s+{_YD}\s+(interception|fumble|kickoff|punt|blocked punt|blocked field goal|missed field goal)\s+(?:return|recovery)\b", t, re.I)
+        if m:
+            return f"{m.group(2)}-yard {m.group(3).lower()} return for a touchdown by {m.group(1)}"
+        return re.sub(_YD, r"\1-yard", t)
+    if league == "nhl":
+        m = re.match(r"(.+?)\s*\(\d+\)", t) or re.match(r"([^,\-]+)", t)
+        who = (m.group(1) if m else t).strip()
+        a = re.search(r"assists?:\s*(.+)$", t, re.I)
+        return f"Goal by {who}" + (f", assisted by {a.group(1).strip()}" if a and "unassisted" not in a.group(1).lower() else "")
+    return re.sub(r"\s*\([^)]*\)", "", t).rstrip(".")
+
+
+def describe(g: dict) -> str:
+    """Who scored and how, from the game's scoring plays. "" when ESPN doesn't have the play yet (never an older one)."""
+    if not g.get("event") or g.get("league") not in LEAGUES:
+        return ""
+    d = _get(f"{API}/{LEAGUES[g['league']][0]}/summary?event={g['event']}")
+    plays = [p for p in (d.get("scoringPlays") or []) if str((p.get("team") or {}).get("id") or "") == str(g["team"].get("id"))]
+    if not plays:
+        return ""
+    p = plays[-1]
+    try:
+        after = int(p.get("homeScore" if g.get("home") else "awayScore"))
+    except (TypeError, ValueError):
+        return ""
+    if after < g["us"] or str(p.get("id")) in _S["told"]:        # still the previous score, or already announced
+        return ""
+    _S["told"].append(str(p.get("id")))
+    del _S["told"][:-200]
+    return play_words(g["league"], p.get("text") or "")
+
+
+def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force: bool = False, tail: str = ""):
+    """body = the cheer ("Touchdown, Jets!"), tail = the score line. The play itself (who / how) is looked up after
+    the delay and goes in between."""
     t = g["team"]
     delay = max(0, min(180, int(s.get("gameDelay", 15) or 0)))
 
@@ -221,6 +275,19 @@ def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force:
         time.sleep(delay)
         if _asleep() and not force:               # the Test button always fires
             return
+        nonlocal body
+        if tail:
+            how = ""
+            if s.get("gamePlays", True):
+                for attempt in range(2):
+                    try:
+                        how = describe(g)
+                    except Exception:
+                        how = ""
+                    if how or attempt:
+                        break
+                    time.sleep(5)                     # the play shows up a few seconds after the score does
+            body = " ".join(x for x in (body, (how[:1].upper() + how[1:] + ".") if how else "", tail) if x)
         if s.get("gameSpeak", True):
             try:
                 _say(title, body, t.get("color") or "#3b82f6")
@@ -252,7 +319,7 @@ def check(games: list, s: dict):
         if gained > 0 and g["state"] in ("in", "post") and g["league"] not in ("nba", "cbb"):   # basketball scores non-stop
             what = _what(g["league"], gained)
             if not (g["league"] in ("nfl", "cfb") and gained in (1, 2)):                        # extra points: no party
-                celebrate(g, f"🎉 {what}, {name}!", f"{what}, {name}! {_line(g)}.", s)
+                celebrate(g, f"🎉 {what}, {name}!", f"{what}, {name}!", s, tail=f"{_line(g)}.")
         if g["state"] == "post" and prev["state"] == "in":
             if g["won"] or (g["won"] is None and g["us"] > g["them"]):
                 celebrate(g, f"🏆 {name} win!", f"{name} win! Final score: {_line(g)}.", s, big=True)

@@ -597,6 +597,7 @@
     <button class="tool" type="button" id="gd-add" style="margin:6px 0 12px">+ Add this team</button>
     <label class="chk"><input type="checkbox" id="gd-chip"> Show the live score on the wall</label>
     <label class="chk"><input type="checkbox" id="gd-speak"> Say it on the wall when they score or win</label>
+    <label class="chk" style="margin-left:30px"><input type="checkbox" id="gd-plays"> Say who scored and how ("12-yard touchdown pass to…")</label>
     <label class="chk"><input type="checkbox" id="gd-flash"> Flash these lights in the team's colors:</label>
     <div id="gd-lights" style="margin:2px 0 8px 30px"></div>
     <label class="chk">Wait <input type="number" id="gd-delay" min="0" max="180" step="5" style="width:64px; display:inline-block; margin:0 4px"> seconds first, so it doesn't beat the TV (streaming runs behind)</label>
@@ -1868,7 +1869,7 @@ function loadSettingsUI(){
       if(document.activeElement!==el){ if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??""; }   // always show what's saved now
       if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
-    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);

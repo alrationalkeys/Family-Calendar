@@ -144,6 +144,8 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   5 min otherwise). Our team's score goes up -> after settings.gameDelay s (15, no spoilers) a notification kind `score:#colour`
   (wall: colour burst + confetti + spoken) and settings.gameLights flash team colours then restore. Football skips 1-2 pt gains,
   basketball only the win. Nothing after Good night / 23:30-08:00. Live score sits in the wall's calendar status bar (gameChip).
+  The spoken line adds who/how (settings.gamePlays): `describe()` reads the game's `scoringPlays` from ESPN's summary after the
+  delay, `play_words()` turns "X 12 Yd pass from Y (Z Kick)" into "12-yard touchdown pass to X from Y"; never an older play.
   Phone Settings > Game day.
 - Peak + dryer: `watch._peak_dryer` (settings.peakDryer): dryer running during peak -> wall announcement + push, once a day.
 - Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when

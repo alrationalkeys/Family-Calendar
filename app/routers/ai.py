@@ -114,6 +114,13 @@ def tts(req: TextReq):
     return Response(content=wav, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
+@router.post("/voice/note")
+def voice_note(req: TextReq):
+    """The wall reports a speech problem (audio blocked, no voice) into the voice history."""
+    voice_cmd.log_voice("", "(" + req.text[:300] + ")", "wall")
+    return {"ok": True}
+
+
 class VoiceTestReq(BaseModel):
     voice_id: str = ""
     text: str = ""

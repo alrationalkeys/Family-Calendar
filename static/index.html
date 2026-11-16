@@ -2253,7 +2253,9 @@ $("#ev-del").onclick=async()=>{
 };
 
 /* ---- notifications (reminders + digest) ---- */
+let _notifBusy=false;
 async function checkNotifications(){
+  if(_notifBusy) return; _notifBusy=true;      // never show the same one twice when two checks overlap
   try{
     const r = await fetch("/api/notifications/due").then(r=>r.json());
     for(const n of (r.notifications||[])){
@@ -2261,6 +2263,7 @@ async function checkNotifications(){
       await fetch(`/api/notifications/${n.id}/seen`,{method:"POST"}).catch(()=>{});
     }
   }catch(e){}
+  finally{ _notifBusy=false; }
 }
 /* Game day: a burst of the team's colour around the screen + confetti, and a small live-score chip. */
 function scoreBurst(color){
@@ -2877,6 +2880,7 @@ FHHome.camera=(eid,name)=>openCamera(eid,name);
       if(lastV!==null && d.version!==lastV){
         if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome();
         if(curPage==="calendar") loadHomeStatus();
+        if(!window._notifSoon) window._notifSoon=setTimeout(()=>{ window._notifSoon=0; checkNotifications(); }, 2000);   // a score / announcement lands now, not at the next 30 s poll
         if($("#remote").classList.contains("on") && typeof refreshRemote==="function") refreshRemote();
       }
       lastV=d.version; };

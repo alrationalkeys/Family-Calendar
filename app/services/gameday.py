@@ -145,6 +145,11 @@ def _say(title: str, body: str, color: str):
     with get_db() as conn:
         conn.execute("INSERT INTO notifications (title, body, kind, at) VALUES (?,?,?,?)",
                      (title, body, f"score:{color}", datetime.now().isoformat()))
+    try:
+        from . import ha_live
+        ha_live.bump()                      # the wall picks it up right away over its live stream
+    except Exception:
+        pass
 
 
 def _rgb(c: str) -> list:
@@ -208,13 +213,13 @@ def flash(lights: list, color: str, alt: str, rounds: int = 3):
         t.join(30)
 
 
-def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False):
+def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force: bool = False):
     t = g["team"]
-    delay = max(0, min(180, int(s.get("gameDelay", 30) or 0)))
+    delay = max(0, min(180, int(s.get("gameDelay", 15) or 0)))
 
     def go():
         time.sleep(delay)
-        if _asleep():
+        if _asleep() and not force:               # the Test button always fires
             return
         if s.get("gameSpeak", True):
             try:
@@ -274,7 +279,7 @@ def test(s: dict | None = None) -> dict:
         return {"ok": False, "reason": "Pick a team first"}
     t = mine[0]
     g = {"team": t, "us": 7, "them": 0, "opp": "the other guys", "league": t["league"]}
-    celebrate(g, f"🎉 Touchdown, {t['name']}!", f"Touchdown, {t['name']}! This is a test.", {**s, "gameDelay": 0})
+    celebrate(g, f"🎉 Touchdown, {t['name']}!", f"Touchdown, {t['name']}! This is a test.", {**s, "gameDelay": 0}, force=True)
     return {"ok": True}
 
 

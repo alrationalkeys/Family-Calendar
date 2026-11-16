@@ -141,7 +141,7 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   show the cost of each question; phone Settings > Advanced > Voice shows the totals. Counts only from Nov 16, 2026 on.
 - Game day (`services/gameday.py`, own thread; `routers/games.py`: `GET /api/games`, `/leagues`, `/teams?league=`, `POST /test`):
   settings.teams [{league nfl|cfb|nba|cbb|mlb|nhl, id, name, short, abbr, color, alt}] from ESPN's public scoreboard (20 s while live,
-  5 min otherwise). Our team's score goes up -> after settings.gameDelay s (30, no spoilers) a notification kind `score:#colour`
+  5 min otherwise). Our team's score goes up -> after settings.gameDelay s (15, no spoilers) a notification kind `score:#colour`
   (wall: colour burst + confetti + spoken) and settings.gameLights flash team colours then restore. Football skips 1-2 pt gains,
   basketball only the win. Nothing after Good night / 23:30-08:00. Live score sits in the wall's calendar status bar (gameChip).
   Phone Settings > Game day.

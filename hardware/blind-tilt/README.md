@@ -58,3 +58,6 @@ measure how long it lasts -> 4. print and build the other 5.
 - **Gauge result (Nov 15):** the wand does not go through the 10 hole and slides freely through the 11 -> wand is about
   10.5-11 mm. `wand-collar-test.stl` is the next test print: a split ring (11.2 mm open, one M3 x 12 screw + nut) to
   prove a printed collar can grip this wand before the motor pod is designed around it.
+- **Collar test result (Nov 16):** the one-piece split ring did not grip: the ears closed but the ring was too stiff to
+  squeeze, so the wand slid. `wand-clamp-v2.stl` replaces it: two half-shells pulled onto the wand by an M3 x 16 screw
+  and nut on each side (fits 10.2-11.4 mm), with small grip ribs inside. The motor pod's collar will use this shape.

@@ -85,7 +85,10 @@ async def transcribe(audio: UploadFile = File(...)):
             c = speech.last_clip or {}
             voice_cmd.log_voice(text, f"(turned the speech into text in {time.time() - t0:.1f} s"
                                 + (f"; recording was {c.get('secs')} s long, {c.get('speech')} s of it speech" if c else "")
-                                + (f"; of that: {slow}" if slow else "") + ")", "heard")
+                                + (f"; of that: {slow}" if slow else "")
+                                + (f"; {c.get('name')} model took {c.get('model')} s, reading the clip {c.get('prep')} s; "
+                                   f"{c.get('cores')} cores, computer load {c.get('load')}" if c.get("model") is not None and time.time() - t0 >= 3 else "")
+                                + ")", "heard")
         return {"text": text, "secs": round(time.time() - t0, 2)}
     except Exception as e:
         import traceback, sys

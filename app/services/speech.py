@@ -46,13 +46,17 @@ def _stt_model():
     with _lock:
         if _stt is None:
             from faster_whisper import WhisperModel
-            _stt = WhisperModel(STT_MODEL, device="cpu", compute_type="int8")
+            _stt = WhisperModel(STT_MODEL, device="cpu", compute_type="int8", cpu_threads=THREADS)
         return _stt
 
 
 # Whisper's favourite hallucinations on a clip of silence / room noise
 _GHOSTS = {"you", "thank you", "thanks", "thank you.", "thanks for watching", "thanks for watching!", "bye",
            "thank you for watching", "so", "okay", "the end", "."}
+THREADS = int(os.environ.get("FAMILYHUB_STT_THREADS", "0") or 0) or (os.cpu_count() or 4)   # all cores (the library's own default stops at 4)
+# Whisper always works on a 30-second window, however short the clip. FAMILYHUB_STT_CHUNK=10 makes that window 10 s
+# (about 3x less work for a spoken command). Off unless set: try it, and unset it if the words get worse.
+CHUNK = int(os.environ.get("FAMILYHUB_STT_CHUNK", "0") or 0)
 BEAM = int(os.environ.get("FAMILYHUB_STT_BEAM", "2"))     # 5 was noticeably slower on the wall's i3 for little gain
 
 
@@ -101,14 +105,25 @@ def transcribe(audio: bytes, suffix: str = ".webm", prompt: str = "", vad: bool 
     try:
         # temperature=0.0: ONE decoding pass. The default is a ladder of six temperatures, and on a noisy kitchen clip
         # Whisper re-decodes the whole thing at each rung when it isn't confident, multiplying the wait.
+        import time as _t
+        t0 = _t.time()
+        extra = {"chunk_length": CHUNK} if CHUNK else {}
         segments, _info = model.transcribe(path, language="en", beam_size=BEAM, vad_filter=vad,
                                            vad_parameters={"min_silence_duration_ms": 500},
                                            condition_on_previous_text=False, without_timestamps=True,
-                                           temperature=0.0, initial_prompt=prompt or None)
-        text = " ".join(s.text.strip() for s in segments if (s.no_speech_prob or 0) < 0.8).strip()
+                                           temperature=0.0, initial_prompt=prompt or None, max_new_tokens=96, **extra)
+        t1 = _t.time()                                    # reading the clip + the silence filter happen above
+        text = " ".join(s.text.strip() for s in segments if (s.no_speech_prob or 0) < 0.8).strip()   # the model itself runs here
+        t2 = _t.time()
         global last_clip
         try:
-            last_clip = {"secs": round(float(_info.duration), 1), "speech": round(float(getattr(_info, "duration_after_vad", _info.duration)), 1)}
+            load = os.getloadavg()[0]
+        except (OSError, AttributeError):
+            load = 0.0
+        try:
+            last_clip = {"secs": round(float(_info.duration), 1), "speech": round(float(getattr(_info, "duration_after_vad", _info.duration)), 1),
+                         "prep": round(t1 - t0, 1), "model": round(t2 - t1, 1), "cores": os.cpu_count() or 0, "threads": THREADS,
+                         "load": round(load, 1), "name": STT_MODEL, "chunk": CHUNK}
         except Exception:
             last_clip = {}
         return "" if text.lower().strip(" .!") in {g.strip(" .!") for g in _GHOSTS} else text

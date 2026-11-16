@@ -131,7 +131,8 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   (no-AI-key events with date/time parsing, "we need X", list read-back, check-off, thermostats w/ peak guard).
   Every command + empty transcription is logged: `GET/DELETE /api/ai/voice/log` (phone Settings > Advanced > Voice,
   which also has a "Try a command" box). Whisper gets an `initial_prompt` of names/devices (`voice_cmd.stt_prompt`),
-  beam 2 (`FAMILYHUB_STT_BEAM`; model warmed at startup by `speech.warm()`). Device on/off only fires on command phrasing; scenes need their whole name.
+  beam 2 (`FAMILYHUB_STT_BEAM`; model warmed at startup by `speech.warm()`; `FAMILYHUB_STT_THREADS` default all cores; `FAMILYHUB_STT_CHUNK`
+  = seconds of audio window, unset = Whisper's 30; a transcription over 3 s logs model/prep seconds, cores and load). Device on/off only fires on command phrasing; scenes need their whole name.
 - Voice AI timing (`voice_agent.run`): one streamed call per step, no SDK retries, 55 s total budget (`BUDGET_S`), then a spoken
   "took too long"; an unreachable API falls back to the rules WITHOUT re-asking the old `_ai_answer`. Web search max 4, prompt says
   always search for recent facts. `FAMILYHUB_VOICE_MODEL` overrides the model for spoken requests only. Voice log entries carry

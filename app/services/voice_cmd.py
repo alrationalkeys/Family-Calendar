@@ -674,6 +674,68 @@ def _village_cmd(low: str):
     return None
 
 
+def _holiday(name: str, year: int):
+    d = datetime.date
+    if name == "christmas":
+        return d(year, 12, 25)
+    if name == "christmas eve":
+        return d(year, 12, 24)
+    if name == "new year":
+        return d(year, 1, 1)
+    if name == "new year's eve":
+        return d(year, 12, 31)
+    if name == "halloween":
+        return d(year, 10, 31)
+    if name == "valentine":
+        return d(year, 2, 14)
+    if name == "july 4":
+        return d(year, 7, 4)
+    if name == "thanksgiving":
+        first = d(year, 11, 1)
+        return first + datetime.timedelta(days=(3 - first.weekday()) % 7 + 21)
+    if name == "easter":                               # anonymous Gregorian algorithm
+        a, b, c = year % 19, year // 100, year % 100
+        dd, e = b // 4, b % 4
+        g = (8 * b + 13) // 25
+        h = (19 * a + b - dd - g + 15) % 30
+        i, k = c // 4, c % 4
+        m = (a + 11 * h) // 319
+        r = (2 * e + 2 * i - h - k + m + 32) % 7
+        mo = (h - m + r + 90) // 25
+        return d(year, mo, (h - m + r + mo + 19) % 32)
+    return None
+
+
+_HOLIDAYS = [(r"christmas eve", "christmas eve", "Christmas Eve"), (r"christmas|xmas", "christmas", "Christmas"),
+             (r"thanksgiving", "thanksgiving", "Thanksgiving"), (r"new year'?s? eve", "new year's eve", "New Year's Eve"),
+             (r"new year'?s?(?: day)?", "new year", "New Year's Day"), (r"halloween", "halloween", "Halloween"),
+             (r"valentine'?s?(?: day)?", "valentine", "Valentine's Day"), (r"easter", "easter", "Easter"),
+             (r"(?:the )?(?:fourth|4th) of july|july (?:fourth|4th)|independence day", "july 4", "the Fourth of July")]
+
+
+def _days_until(t: str) -> str:
+    """'how many days until Christmas' / 'days till Thanksgiving' / 'how long until Easter' -> the answer, no AI needed."""
+    m = re.match(r"^(?:how (?:many|long)\s+)?(?:(?:more\s+)?days?|sleeps|weeks?|long)?\s*(?:are there\s+|is it\s+|do we have\s+)?(?:left\s+)?(?:un)?(?:til|till|to|before)\s+(.+?)[\s?.!]*$", t.strip(), flags=re.I)
+    if not m or not re.match(r"^(?:how|days?|sleeps|weeks?)\b", t.strip(), flags=re.I):
+        return ""
+    what = m.group(1).strip().lower()
+    for pat, key, label in _HOLIDAYS:
+        if re.fullmatch(pat, what):
+            today = datetime.date.today()
+            day = _holiday(key, today.year)
+            if day < today:
+                day = _holiday(key, today.year + 1)
+            n = (day - today).days
+            label = label[:1].upper() + label[1:]
+            when = f"{day.strftime('%A, %B')} {day.day}"
+            if n == 0:
+                return f"{label} is today!"
+            if n == 1:
+                return f"{label} is tomorrow, {when}."
+            return f"{label} is {n} days away, on {when}."
+    return ""
+
+
 def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
     """Instant rules for the obvious commands; with an Anthropic key everything else (lists, calendar,
     check-offs, thermostats, questions) goes to voice_agent, which understands loose phrasing and acts with tools.
@@ -684,6 +746,9 @@ def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
     t = re.sub(r"^(?:hey|ok|okay|hi|yo)?\s*(?:" + re.escape(name) + r"|family\s*hub|hub|wall|screen)\s*[,!.]?\s*", "", t, flags=re.I).strip() or t
     if not t:
         return {"ok": False, "say": "I didn't catch that."}
+    said = _days_until(t)
+    if said:                                     # instant: no AI round trip for a calendar sum
+        return {"ok": True, "say": said}
     w = _words(t)
     tiles = _tiles()
 

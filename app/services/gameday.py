@@ -52,7 +52,7 @@ EXTRA = {                                      # other competitions the same tea
 }
 _FLASH_LOCK = threading.Lock()
 _BOARD: dict = {}                              # scoreboard path -> {"at", "games"} (each path refreshed only as often as it needs)
-_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": []}
+_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": [], "pub": {}}
 
 
 def _settings() -> dict:
@@ -490,8 +490,30 @@ def check(games: list, s: dict):
 def status() -> dict:
     """For the wall chip + phone: our games today (live first)."""
     order = {"in": 0, "pre": 1, "post": 2}
-    return {"games": sorted(_S["games"], key=lambda g: (order.get(g["state"], 3), g["start"])), "error": _S["error"],
-            "flash": _S["flash"]}
+    try:
+        delay = max(0, min(180, int(_settings().get("gameDelay", 15) or 0)))
+    except (TypeError, ValueError):
+        delay = 15
+    return {"games": sorted((_held(g, delay) for g in _S["games"]), key=lambda g: (order.get(g["state"], 3), g["start"])),
+            "error": _S["error"], "flash": _S["flash"]}
+
+
+def _held(g: dict, delay: int) -> dict:
+    """The score as the wall may show it: a change is held back for the same delay as the cheer, so the chip in the
+    status bar never beats the TV either."""
+    now = time.time()
+    p = _S["pub"].get(g["key"])
+    if p is None or not delay:
+        p = _S["pub"][g["key"]] = {"us": g["us"], "them": g["them"], "state": g["state"], "detail": g["detail"], "next": None, "at": now}
+    cur = {"us": g["us"], "them": g["them"], "state": g["state"], "detail": g["detail"]}
+    if (p["us"], p["them"], p["state"]) != (cur["us"], cur["them"], cur["state"]):
+        if p["next"] != (cur["us"], cur["them"], cur["state"]):
+            p["next"], p["at"] = (cur["us"], cur["them"], cur["state"]), now
+        if now - p["at"] >= delay:
+            p.update(cur, next=None)
+    else:
+        p.update(detail=cur["detail"], next=None)
+    return {**g, "us": p["us"], "them": p["them"], "state": p["state"], "detail": p["detail"]}
 
 
 def test(s: dict | None = None) -> dict:
@@ -516,6 +538,14 @@ def _loop():
                 games = fetch(s)
                 _S.update(games=games, at=time.time(), error="")
                 check(games, s)
+                try:                                          # start the "hold the score back" clock now, not at the wall's next look
+                    d = max(0, min(180, int(s.get("gameDelay", 15) or 0)))
+                    for g in games:
+                        _held(g, d)
+                    for k in [k for k in _S["pub"] if k not in {g["key"] for g in games}]:
+                        _S["pub"].pop(k, None)
+                except Exception:
+                    pass
                 wait = 20 if any(g["state"] == "in" for g in games) else 60     # each scoreboard paces itself (_due)
             else:
                 _S["games"] = []

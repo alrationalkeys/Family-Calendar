@@ -233,3 +233,22 @@ def test_dryer_peak_alert_does_not_depend_on_the_thermostat_alert(monkeypatch):
     monkeypatch.setattr(watch, "_states", lambda: [])
     watch._peak_tick({"peakAlerts": False, "peakDryer": True})
     assert called == [1]
+
+
+def test_colours_are_hex_or_dropped():
+    from app.services.color import clean, resolve, DEFAULT_COLOR
+    assert clean("#4f86c6") == "#4f86c6" and clean('red"><img src=x onerror=1>') is None
+    assert resolve('x" onmouseover="1', None, "#112233") == "#112233" and resolve(None, None, None) == DEFAULT_COLOR
+
+
+def test_score_chip_waits_as_long_as_the_cheer(monkeypatch):
+    from app.services import gameday as g
+    now = [1000.0]
+    monkeypatch.setattr(g.time, "time", lambda: now[0])
+    g._S["pub"].clear()
+    game = {"key": "k", "us": 7, "them": 0, "state": "in", "detail": "Q1"}
+    assert g._held(game, 15)["us"] == 7
+    game = {**game, "us": 14}
+    assert g._held(game, 15)["us"] == 7            # just scored: the chip still shows the old score
+    now[0] += 10; assert g._held(game, 15)["us"] == 7
+    now[0] += 6;  assert g._held(game, 15)["us"] == 14

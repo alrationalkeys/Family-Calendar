@@ -987,7 +987,7 @@ async function loadCloudVoice(){
   if(!c){ box.innerHTML=""; return; }
   const E=FHHome.esc, s=FH.get();
   if(!c.key){ box.innerHTML=`<div class="hint"><b>The wall's voice</b> — using the built-in voice. For a nicer one (and Santa at Christmas), make a free ElevenLabs account, create an API key, and add <code>ELEVENLABS_API_KEY=…</code> to the <code>.env</code> file on the wall, then restart FamilyHub.</div>`; return; }
-  const opts=sel=>`<option value="">Built-in voice</option>`+c.voices.map(v=>`<option value="${E(v.id)}"${v.id===sel?" selected":""}>${E(v.name)}${v.kind&&v.kind!=="premade"?" ("+E(v.kind)+")":""}</option>`).join("");
+  const opts=sel=>`<option value="">Built-in voice</option>`+(sel&&!c.voices.some(v=>v.id===sel)?`<option value="${E(sel)}" selected>(a voice that is no longer in your account)</option>`:"")+c.voices.map(v=>`<option value="${E(v.id)}"${v.id===sel?" selected":""}>${E(v.name)}${v.kind&&v.kind!=="premade"?" ("+E(v.kind)+")":""}</option>`).join("");
   const left=c.limit!=null?`${Math.max(0,c.limit-c.used).toLocaleString()} of ${c.limit.toLocaleString()} credits left this month${c.resets?` (resets ${new Date(c.resets*1000).toLocaleDateString([], {month:"short",day:"numeric"})})`:""}.`:"";
   const none=!c.voices.length?`<div class="hint" style="color:#c0392b;margin:0 0 6px">No ElevenLabs voices came back${c.voices_error?": "+E(c.voices_error):""}. Most often the API key isn't allowed to read voices: on elevenlabs.io open API Keys, edit the key, set <b>Voices</b> to Read and <b>Text to Speech</b> to Access. Then come back here.</div>`:"";
   box.innerHTML=`<div class="hint" style="margin:0 0 4px"><b>The wall's voice</b></div>${none}
@@ -1002,7 +1002,8 @@ async function loadCloudVoice(){
     const id=$("#"+b.dataset.cvt).value, msg=$("#cv-msg");
     const text=(b.dataset.cvt==="cv-santa"&&id)?"Ho ho ho! Merry Christmas! The washer is done.":"Good morning! Here's what's happening today.";
     b.disabled=true;
-    try{ const r=await post("/api/ai/voice/cloud/test",{voice_id:id,text}); if(!r.ok){ const j=await r.json().catch(()=>({})); msg.textContent=j.detail||"That voice didn't work."; } else { const u=URL.createObjectURL(await r.blob()); const a=new Audio(u); a.onended=()=>URL.revokeObjectURL(u); a.play().catch(()=>{}); } }
+    const player=new Audio();                                  // made in the tap itself, or iPhones refuse to play it later
+    try{ const r=await post("/api/ai/voice/cloud/test",{voice_id:id,text}); if(!r.ok){ const j=await r.json().catch(()=>({})); msg.textContent=j.detail||"That voice didn't work."; } else { const u=URL.createObjectURL(await r.blob()); player.src=u; player.onended=()=>URL.revokeObjectURL(u); player.play().catch(()=>{ msg.textContent="Your phone blocked the sound. Tap \u25B6 once more."; }); } }
     catch(e){ msg.textContent="Couldn't reach FamilyHub."; }
     b.disabled=false; });
 }
@@ -1036,19 +1037,21 @@ async function setupTvLights(){
   const ls=$("#tvb-light"), ts=$("#tvb-tv");
   if(document.activeElement!==ls) ls.innerHTML=lights.length?lights.map(t=>`<option value="${E(t.entity_id)}">${E(t.name)}</option>`).join(""):`<option value="">No lights found</option>`;
   if(document.activeElement!==ts) ts.innerHTML=tvs.length?tvs.map(t=>`<option value="${E(t.entity_id)}">${E(t.name)}</option>`).join(""):`<option value="">No TVs found</option>`;
-  const save=list=>FH.save({tvBacklights:list}).then(()=>{ toast("Saved"); setupTvLights(); });
+  const save=(list,redraw)=>FH.save({tvBacklights:list}).then(()=>{ toast("Saved"); if(redraw) setupTvLights(); });   // a field edit must not rebuild the list under your finger
   const cur=()=>(FH.get().tvBacklights||[]).map(p=>({follow:true,dim:true,play:30,idle:70,...p}));
   const list=cur();
   box.innerHTML=list.length?list.map((p,i)=>`<div style="border:1px solid rgba(127,127,127,.25);border-radius:12px;padding:8px 10px;margin:0 0 8px">
       <div class="srow" style="margin:0"><b>${E(nm(p.light))}</b><span style="opacity:.7">behind ${E(nm(p.tv))}</span><button class="tool" type="button" data-tvx="${i}" style="margin:0">Remove</button></div>
       <label class="chk"><input type="checkbox" data-tvk="follow" data-i="${i}"${p.follow?" checked":""}> Turn on and off with the TV</label>
-      <label class="chk"><input type="checkbox" data-tvk="dim" data-i="${i}"${p.dim?" checked":""}> Dim to <input type="number" data-tvk="play" data-i="${i}" value="${+p.play||30}" min="1" max="100" style="width:58px;display:inline-block;margin:0 4px">% while something is playing, <input type="number" data-tvk="idle" data-i="${i}" value="${+p.idle||70}" min="1" max="100" style="width:58px;display:inline-block;margin:0 4px">% when paused or on the menu</label>
+      <label class="chk"><input type="checkbox" data-tvk="dim" data-i="${i}"${p.dim?" checked":""}> Dim for what's on the screen:</label>
+      <div class="srow" style="margin:0 0 0 30px"><span>While something is playing</span><span><input type="number" data-tvk="play" data-i="${i}" value="${+p.play||30}" min="1" max="100" style="width:64px;display:inline-block;margin:0 4px 0 0">%</span></div>
+      <div class="srow" style="margin:0 0 0 30px"><span>Paused or on the menu</span><span><input type="number" data-tvk="idle" data-i="${i}" value="${+p.idle||70}" min="1" max="100" style="width:64px;display:inline-block;margin:0 4px 0 0">%</span></div>
     </div>`).join(""):`<div class="hint" style="margin-top:0">No backlights paired yet.</div>`;
-  box.querySelectorAll("[data-tvx]").forEach(b=>b.onclick=()=>{ const l=cur(); l.splice(+b.dataset.tvx,1); save(l); });
+  box.querySelectorAll("[data-tvx]").forEach(b=>b.onclick=()=>{ const l=cur(); l.splice(+b.dataset.tvx,1); save(l,true); });
   box.querySelectorAll("[data-tvk]").forEach(c=>c.onchange=()=>{ const l=cur(), p=l[+c.dataset.i]; if(!p) return; p[c.dataset.tvk]=c.type==="checkbox"?c.checked:Math.max(1,Math.min(100,+c.value||1)); save(l); });
   const add=$("#tvb-add"); if(!add._wired){ add._wired=true; add.onclick=()=>{ if(!ls.value||!ts.value) return; const l=cur();
     if(l.some(p=>p.light===ls.value)){ toast("That light is already paired"); return; }
-    l.push({light:ls.value, tv:ts.value, follow:true, dim:true, play:30, idle:70}); save(l); }; }
+    l.push({light:ls.value, tv:ts.value, follow:true, dim:true, play:30, idle:70}); save(l,true); }; }
 }
 function gdRender(){
   const E=FHHome.esc, S=FH.get(), box=$("#gd-teams"); if(!box) return;
@@ -1071,12 +1074,15 @@ function setupGameDay(){
   const lg=$("#gd-league"); if(!lg||lg._wired) return; lg._wired=true;
   let list=[];
   const E=FHHome.esc, tm=$("#gd-team");
-  const load=async()=>{ tm.innerHTML=`<option value="">Loading…</option>`;
-    try{ const r=await fetch("/api/games/teams?league="+encodeURIComponent(lg.value)); if(!r.ok) throw 0; list=await r.json(); tm.innerHTML=list.map((t,i)=>`<option value="${i}">${E(t.name)}</option>`).join(""); }
-    catch(e){ list=[]; tm.innerHTML=`<option value="">Couldn't load teams</option>`; } };
+  let ask=0;
+  const load=async()=>{ const mine=++ask; list=[]; tm.innerHTML=`<option value="">Loading…</option>`;
+    try{ const r=await fetch("/api/games/teams?league="+encodeURIComponent(lg.value)); if(!r.ok) throw 0; const got=await r.json();
+      if(mine!==ask) return;                                   // a newer league was picked meanwhile
+      list=got; tm.innerHTML=list.map((t,i)=>`<option value="${i}">${E(t.name)}</option>`).join(""); }
+    catch(e){ if(mine===ask){ list=[]; tm.innerHTML=`<option value="">Couldn't load teams</option>`; } } };
   fetch("/api/games/leagues").then(r=>r.json()).then(ls=>{ lg.innerHTML=ls.map(l=>`<option value="${E(l.key)}">${E(l.label)}</option>`).join(""); load(); }).catch(()=>{});
   lg.onchange=load;
-  $("#gd-add").onclick=()=>{ const t=list[+tm.value]; if(!t) return; const cur=(FH.get().teams||[]).slice();
+  $("#gd-add").onclick=()=>{ if(tm.value==="") return; const t=list[+tm.value]; if(!t) return; const cur=(FH.get().teams||[]).slice();
     if(cur.some(x=>x.league===t.league&&x.id===t.id)){ toast("Already added"); return; }
     cur.push(t); FH.save({teams:cur}).then(()=>{ gdRender(); toast("Added "+t.name); }); };
   $("#gd-test").onclick=async()=>{ const r=await post("/api/games/test",{}).then(r=>r.json()).catch(()=>null);

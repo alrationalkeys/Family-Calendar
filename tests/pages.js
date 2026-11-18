@@ -32,7 +32,16 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   }
   // a score celebration is shown and spoken
   await w.evaluate(() => { window._said = []; const o = sayAloud; sayAloud = s => { window._said.push(s); }; showNotification({ title: 'Goal', body: 'Goal, Testers! Testers 1, Others 0.', kind: 'score:#115740' }); });
+  await w.waitForTimeout(300);
   ok(await w.evaluate(() => window._said.length === 1), 'wall: a score is spoken');
+  // text from outside (email subjects, device names, ESPN) must show as text, never run as markup
+  await w.evaluate(() => { window._pwned = 0; banner('<img src=x onerror="window._pwned=1">', '<b>bold?</b>'); });
+  await w.waitForTimeout(300);
+  ok(await w.evaluate(() => window._pwned === 0 && document.querySelector('#fh-banner b') === null), 'wall: banner text is escaped');
+  // a one-day all-day event whose end equals its start (holidays, birthdays) belongs in the Today box
+  await w.evaluate(() => { const d = dateStr(new Date()); cache.events = [{ id: 'h1', title: 'Test Holiday', start: d, end: d, all_day: true }]; FH.get().sideBox2 = 'today'; renderTodayBox(); });
+  ok((await w.locator('#groceries').innerText()).includes('Test Holiday'), 'wall: Today box shows a one-day holiday');
+  await w.evaluate(() => { FH.get().sideBox2 = 'groceries'; });
   ok(werr.length === 0, 'wall: no script errors' + (werr.length ? ' -> ' + werr.slice(0, 3).join(' | ') : ''));
 
   // ---------------- the phone ----------------

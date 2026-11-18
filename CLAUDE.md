@@ -301,6 +301,14 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
 - Vision + weather couldn't be tested against live APIs in the build sandbox (no network);
   they have error guards and degrade gracefully, but first real run should verify them.
 
+## Audit notes (Nov 18, 2026: second audit, all findings fixed)
+- Anything shown with innerHTML goes through esc(): `banner()` escapes title and body (email subjects, device names, ESPN text).
+  Colours are validated server-side (`color.clean`, #hex only).
+- Notifications are spoken through `sayNext` (a queue); only voice-assistant replies call `sayAloud` directly and interrupt.
+- Game day: one light celebration at a time (`_FLASH_LOCK`); the status-bar score is held back by gameDelay too (`_held`).
+- Each house-watch check runs in its own try (`watch.TICK_ERRORS`, shown in diagnostics).
+- Diagnostics never list device_tracker / person / zone / geocoded entities; IPs and URL passwords are blanked.
+
 ## Conventions
 - Keep the no-build-step frontend (no React/bundler) — simplicity is the point.
 - Never commit secrets: `credentials.json`, `token.json`, `.env`, `ANTHROPIC_API_KEY`.

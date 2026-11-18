@@ -94,8 +94,8 @@ function renderAgenda(){
 function evColor(ev){ return ev.color || "#4f86c6"; }
 /* To-dos and chores with a due date ride the calendar as all-day chips (chores default to today).
    They're pseudo-events: id "todo:5" / "chore:9", task={kind,id}, and tapping one checks it off. */
-function taskEvents(){
-  if(FH.get().calendarTasks===false || !cache.dash) return [];
+function taskEvents(force){
+  if((FH.get().calendarTasks===false && !force) || !cache.dash) return [];
   const today=dateStr(new Date()); const out=[];
   (cache.dash.todos||[]).forEach(t=>{ const due=(t.just_done&&t.was_due)||t.due_date; if(due) out.push({id:"todo:"+t.id, title:t.title, start:due, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!(t.done||t.just_done)}); });
   (cache.dash.chores||[]).forEach(c=>{ const due=(c.just_done&&c.was_due)||c.due_date, d=due||today; if(d>=today || due) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:due||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!(c.done||c.just_done)}); });
@@ -444,7 +444,7 @@ function renderTodayBox(box){
   box=box||$("#groceries"); if(!box) return; slot2Header();
   const now=new Date(), key=dateStr(now), d0=new Date(now); d0.setHours(0,0,0,0); const d1=new Date(d0); d1.setDate(d1.getDate()+1);
   const rows=[];
-  calItems().forEach(e=>{
+  cache.events.concat(taskEvents(true)).forEach(e=>{      // to-dos and chores always belong in this box, whatever the calendar shows
     const st=evStart(e); if(!st||isNaN(st)) return;
     if(e.task){
       const due=String(e.start).slice(0,10);
@@ -454,6 +454,8 @@ function renderTodayBox(box){
     }
     let en=null;
     if(e.end){ en=/^\d{4}-\d{2}-\d{2}$/.test(e.end)?evStart({start:e.end}):new Date(e.end); }
+    // holidays, birthdays and some calendar feeds send a one-day event with end = start: that still covers its own day
+    if(en && !isNaN(en) && en<=st && (e.all_day || /^\d{4}-\d{2}-\d{2}$/.test(String(e.end)))){ en=new Date(st); en.setHours(0,0,0,0); en.setDate(en.getDate()+1); }
     const covers = st<d1 && (en&&!isNaN(en) ? en>d0 : st>=d0);
     if(!covers) return;
     const allDay=e.all_day || st<d0;                       // a multi-day event that began earlier reads as all day
@@ -497,7 +499,7 @@ function renderTodos(todos, box){
     const row=document.createElement("div"); row.className="list-row"+((t.done||t.just_done)?" done":"");
     if(t.just_done) row.title="Checked off. Tap again to bring it back";
     const who=whoNames(t);
-    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who)}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(t.color||'#4f86c6')}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who)}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
     row.onclick=async()=>{ const r=await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"}).then(x=>x.json()).catch(()=>({}));
       if(r.undone) banner("\u21A9\uFE0F Back on the list", t.title); load(); resetSleep(); };
     holdable(row, ()=>itemMenu("todo", t));
@@ -512,7 +514,7 @@ function renderGroceries(items, box){
   if(!items.length){box.innerHTML='<div class="empty">List is empty</div>';return;}
   items.forEach(g=>{
     const row=document.createElement("div"); row.className="list-row"+(g.got?" done":"");
-    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${g.color||'#4f86c6'}"></span><div class="label">${esc(g.item)}</div>${g.qty?`<div class="qty">${esc(g.qty)}</div>`:""}`;
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(g.color||'#4f86c6')}"></span><div class="label">${esc(g.item)}</div>${g.qty?`<div class="qty">${esc(g.qty)}</div>`:""}`;
     row.onclick=async()=>{await fetch(`/api/groceries/${g.id}/toggle`,{method:"POST"});load();resetSleep();};
     holdable(row, ()=>itemMenu("grocery", g));
     box.appendChild(row);
@@ -1120,18 +1122,24 @@ $("#ev-del").onclick=async()=>{
 };
 
 /* ---- notifications (reminders + digest) ---- */
-let _notifBusy=false;
+let _notifBusy=0;
+function fetchT(url, opts, ms){ const c=new AbortController(), t=setTimeout(()=>c.abort(), ms||15000); return fetch(url,{...(opts||{}), signal:c.signal}).finally(()=>clearTimeout(t)); }
 async function checkNotifications(){
-  if(_notifBusy) return; _notifBusy=true;      // never show the same one twice when two checks overlap
+  if(_notifBusy && Date.now()-_notifBusy<45000) return;      // never show the same one twice when two checks overlap
+  _notifBusy=Date.now();                                     // (a check stuck longer than 45 s no longer blocks the rest)
   try{
-    const r = await fetch("/api/notifications/due").then(r=>r.json());
+    const r = await fetchT("/api/notifications/due").then(r=>r.json());
     for(const n of (r.notifications||[])){
       showNotification(n);
-      await fetch(`/api/notifications/${n.id}/seen`,{method:"POST"}).catch(()=>{});
+      await fetchT(`/api/notifications/${n.id}/seen`,{method:"POST"}).catch(()=>{});
     }
   }catch(e){}
-  finally{ _notifBusy=false; }
+  finally{ _notifBusy=0; }
 }
+/* Notifications that arrive together are spoken one after another (a score and a reminder, a touchdown and the win).
+   Voice-assistant replies still interrupt, by calling sayAloud directly. */
+let _sayQ=Promise.resolve();
+function sayNext(t){ if(!t) return; _sayQ=_sayQ.then(()=>sayAloud(t)).catch(()=>{}); }
 /* Game day: a burst of the team's colour around the screen + confetti, and a small live-score chip. */
 function scoreBurst(color){
   if(!/^#[0-9a-f]{6}$/i.test(color)) color="#e9a23b";
@@ -1168,12 +1176,12 @@ function showNotification(n){
   // and say it — announcements from a phone, reminders, "events found in email"
   const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
   // a score has its own switches (phone Settings > Game day), so it never depends on "the wall says reminders out loud"
-  if(String(n.kind||"").startsWith("score:")){ scoreBurst(n.kind.slice(6)); wallNote("the wall showed the score celebration and is saying: "+clean(n.body||n.title)); if(n.body) sayAloud(clean(n.body)); wake(); return; }
+  if(String(n.kind||"").startsWith("score:")){ scoreBurst(n.kind.slice(6)); wallNote("the wall showed the score celebration and is saying: "+clean(n.body||n.title)); if(n.body) sayNext(clean(n.body)); wake(); return; }
   if(FH.get().speakAlerts!==false){
     if(n.kind==="doorbell"||n.kind==="motion") return;      // handled live via the SSE ring
-    if(n.kind==="announce") sayAloud(clean(n.body||n.title));
-    else if(n.kind==="reminder") sayAloud("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
-    else if(n.kind==="mail") sayAloud(clean(n.title)+". Approve it on your phone.");
+    if(n.kind==="announce") sayNext(clean(n.body||n.title));
+    else if(n.kind==="reminder") sayNext("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
+    else if(n.kind==="mail") sayNext(clean(n.title)+". Approve it on your phone.");
     wake();
   }
 }
@@ -1201,7 +1209,8 @@ function banner(title, body){
   if(!b){ b=document.createElement("div"); b.id="fh-banner";
     b.style.cssText="position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--now);color:#1a1205;padding:14px 22px;border-radius:12px;font-weight:600;z-index:80;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:80vw;text-align:center;transition:opacity .4s";
     document.body.appendChild(b); }
-  b.innerHTML = `${title}${body?`<div style="font-weight:400;font-size:13px;margin-top:4px;white-space:pre-line">${body}</div>`:""}`;
+  // title and body are plain text from many places (email subjects, device names, ESPN, to-do titles): always escaped
+  b.innerHTML = `${esc(title)}${body?`<div style="font-weight:400;font-size:13px;margin-top:4px;white-space:pre-line">${esc(body)}</div>`:""}`;
   b.style.opacity="1";
   clearTimeout(b._t); b._t=setTimeout(()=>{ b.style.opacity="0"; }, 12000);
 }
@@ -2119,6 +2128,7 @@ window.addEventListener("skin:newyear", e=>{ if(FH.get().speakAlerts!==false) sa
 let _sayGen=0;
 async function sayAloud(s){
   if(!s) return;
+  if(!voiceCaps.tts && Date.now()-(sayAloud._capsAt||0)>60000){ sayAloud._capsAt=Date.now(); await loadVoiceCaps(); }   // the server may not have been up yet when the page loaded
   if(!voiceCaps.tts){ wallNote("the wall has no voice installed, so it used the browser's (often silent)"); browserSpeak(s); return; }
   // Speak sentence by sentence: the first sentence starts as soon as IT is ready while the next ones are being made,
   // instead of waiting for the whole answer to be turned into audio first.

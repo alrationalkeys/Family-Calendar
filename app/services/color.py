@@ -7,8 +7,17 @@ Order: explicit item color -> category color -> person color -> default.
 from ..db import DEFAULT_COLOR
 
 
+_HEX = __import__("re").compile(r"^#[0-9a-fA-F]{3,8}$")
+
+
+def clean(c):
+    """A colour the pages can drop straight into a style attribute, or None. Only #hex is ever stored by the pickers."""
+    c = str(c or "").strip()
+    return c if _HEX.match(c) else None
+
+
 def resolve(item_color=None, category_color=None, person_color=None):
-    return item_color or category_color or person_color or DEFAULT_COLOR
+    return clean(item_color) or clean(category_color) or clean(person_color) or DEFAULT_COLOR
 
 
 def build_lookups(conn):

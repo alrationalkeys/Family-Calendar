@@ -637,6 +637,7 @@
     <div class="hint" style="margin-top:0">Boxes on the right side of the wall's calendar:</div>
     <label class="chk"><input type="checkbox" data-panel="todos"> To-do list</label>
     <label class="chk"><input type="checkbox" data-panel="groceries"> Groceries</label>
+    <label class="chk" style="margin-left:30px"><input type="checkbox" id="set-todo2"> Show a second to-do list in the Groceries box instead (groceries stay on the Lists page)</label>
     <label class="chk"><input type="checkbox" data-panel="meals"> Today's meals</label>
     <label class="chk"><input type="checkbox" data-panel="scoreboard"> Chore stars scoreboard</label>
     <hr>
@@ -1872,7 +1873,7 @@ function loadSettingsUI(){
       if(document.activeElement!==el){ if(el.type==="checkbox") el.checked=S[key]!==false; else el.value=S[key]??""; }   // always show what's saved now
       if(el._wired) return; el._wired=true;
       el.onchange=()=>{ FH.save({[key]: el.type==="checkbox"?el.checked:(fmt?fmt(el.value):el.value)}); toast("Saved"); }; };
-    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); bind("#al-month","monthlyReport");
+    bind("#al-night","nightCheck"); bind("#al-night-t","nightCheckTime"); bind("#al-peak","peakAlerts"); bind("#al-peakdry","peakDryer"); { const c=$("#set-todo2"); if(c){ if(document.activeElement!==c) c.checked=!!FH.get().secondTodo; if(!c._wired){ c._wired=true; c.onchange=()=>{ FH.save({secondTodo:c.checked}); toast("Saved"); }; } } } bind("#al-month","monthlyReport");
     { const show=async prev=>{ const out=$("#al-month-out"); out.textContent="…"; const d=new Date(); if(prev) d.setDate(0);
         const m=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
         try{ const r=await fetch("/api/ha/report?month="+m).then(x=>x.json()); out.textContent=r.name+"\n"+r.lines.join("\n"); }catch(e){ out.textContent="Couldn't load the report."; } };

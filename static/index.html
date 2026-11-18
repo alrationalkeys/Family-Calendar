@@ -844,7 +844,7 @@
         <div class="card sb" id="panel-scoreboard" style="display:none"><h2 data-panel="scoreboard"><span>Scoreboard</span><span class="caret">&#9662;</span></h2><div class="body" id="scoreboard"></div></div>
         <div class="card" id="panel-todos"><h2 data-panel="todos"><span class="tl-name"><button class="tl-arrow" data-tl="-1" aria-label="Previous list">‹</button><span id="todo-list-name">To-Do</span><button class="tl-arrow" data-tl="1" aria-label="Next list">›</button></span><span class="h2r"><button class="addbtn" data-add="todo" title="Add to-do">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="todos"></div></div>
         <div class="resizer" data-above="0" data-below="1"></div>
-        <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span>Groceries</span><span class="h2r"><button class="addbtn" data-add="grocery" title="Add item">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="groceries"></div></div>
+        <div class="card" id="panel-groceries"><h2 data-panel="groceries"><span id="slot2-title">Groceries</span><span class="h2r"><button class="addbtn" id="slot2-add" data-add="grocery" title="Add item">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="groceries"></div></div>
         <div class="resizer" data-above="1" data-below="2"></div>
         <div class="card" id="panel-meals"><h2 data-panel="meals"><span>Today's Meals</span><span class="h2r"><button class="addbtn" data-add="meal" title="Add meal">+</button><span class="caret">&#9662;</span></span></h2><div class="body" id="meals"></div></div>
       </aside>
@@ -1606,13 +1606,29 @@ function todoLists(todos){
   (todos||[]).forEach(t=>{ const n=todoListOf(t); if(!names.includes(n)) names.push(n); });
   return names;
 }
-function cycleTodoList(dir){
-  const all=todoLists(lastTodos); let i=all.indexOf(todoList); i=(i<0?0:i+dir+all.length)%all.length;
-  todoList=all[i]; try{ localStorage.setItem("fh_todo_list", todoList); }catch(e){}
-  renderTodos(lastTodos); resetSleep();
+/* settings.secondTodo: the Groceries box on the calendar page becomes a second to-do box with its own list (‹ › too).
+   Groceries stay on the Lists page. */
+let todoListB=(()=>{ try{ return localStorage.getItem("fh_todo_list_b")||""; }catch(e){ return ""; } })();
+const secondTodo=()=>!!FH.get().secondTodo;
+function cycleTodoList(dir, second){
+  const all=todoLists(lastTodos); let i=all.indexOf(second?todoListB:todoList); i=(i<0?0:i+dir+all.length)%all.length;
+  if(second){ todoListB=all[i]; try{ localStorage.setItem("fh_todo_list_b", todoListB); }catch(e){} }
+  else { todoList=all[i]; try{ localStorage.setItem("fh_todo_list", todoList); }catch(e){} }
+  renderTodos(lastTodos); if(secondTodo()) renderTodos(lastTodos, $("#groceries")); resetSleep();
 }
 let lastTodos=[];
-document.addEventListener("click", e=>{ const b=e.target.closest(".tl-arrow"); if(!b) return; e.stopPropagation(); cycleTodoList(+b.dataset.tl); }, true);
+document.addEventListener("click", e=>{ const b=e.target.closest(".tl-arrow"); if(!b) return; e.stopPropagation(); cycleTodoList(+b.dataset.tl, b.dataset.box==="b"); }, true);
+function slot2Header(all){
+  const t=$("#slot2-title"), add=$("#slot2-add"); if(!t||!add) return;
+  const want=secondTodo()?"todo":"grocery";
+  if(t.dataset.mode!==want){
+    t.dataset.mode=want;
+    if(want==="todo"){ t.className="tl-name"; t.innerHTML='<button class="tl-arrow" data-box="b" data-tl="-1" aria-label="Previous list">‹</button><span id="todo-list-name-b"></span><button class="tl-arrow" data-box="b" data-tl="1" aria-label="Next list">›</button>'; add.dataset.add="todoB"; add.title="Add to-do"; }
+    else { t.className=""; t.textContent="Groceries"; add.dataset.add="grocery"; add.title="Add item"; }
+  }
+  if(want==="todo"){ const nm=$("#todo-list-name-b"); if(nm) nm.textContent=todoListB;
+    t.querySelectorAll(".tl-arrow").forEach(b=>b.style.display=(all||[]).length>1?"":"none"); }
+}
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
   if(box.id==="todos"){
@@ -1622,6 +1638,12 @@ function renderTodos(todos, box){
       nm.textContent=todoList; nm.title=all.length>1?"Tap ‹ › for your other lists":""; }
     document.querySelectorAll("#panel-todos .tl-arrow").forEach(b=>b.style.display=all.length>1?"":"none");
     todos=todos.filter(t=>todoListOf(t)===todoList);
+  }
+  if(box.id==="groceries"){                                   // the second to-do box
+    const all=todoLists(todos);
+    if(!all.includes(todoListB)) todoListB=all.find(n=>n!==todoList)||all[0];     // start on a different list than the first box
+    slot2Header(all);
+    todos=todos.filter(t=>todoListOf(t)===todoListB);
   }
   // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
   const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
@@ -1769,7 +1791,8 @@ async function load(){
     people = dash.people || [];
     if(window.Skins && Skins.pick(FH.get())!==Skins.current()) applySeasonal();   // a family birthday today -> party
     render();
-    renderTodos(dash.todos||[]); renderGroceries(dash.groceries||[]); renderMeals(dash.meals||[]);
+    renderTodos(dash.todos||[]); renderMeals(dash.meals||[]);
+    if(secondTodo()) renderTodos(dash.todos||[], $("#groceries")); else { slot2Header(); renderGroceries(dash.groceries||[]); }
     renderCountdowns(dash.countdowns||[]);
     loadScoreboard();
     refreshActivePage();
@@ -2014,7 +2037,7 @@ function startQuickAdd(kind, box){
   inp.onblur=()=>{ if(!inp.value.trim()) inp.remove(); };
 }
 document.querySelectorAll(".card .addbtn").forEach(b=>{
-  b.onclick=(e)=>{ e.stopPropagation(); if(b.dataset.add==="todo") openAdd("todo"); else startQuickAdd(b.dataset.add, b.closest(".card").querySelector(".body")); resetSleep(); };
+  b.onclick=(e)=>{ e.stopPropagation(); if(b.dataset.add==="todo") openAdd("todo"); else if(b.dataset.add==="todoB") openAdd("todo", null, null, todoListB); else startQuickAdd(b.dataset.add, b.closest(".card").querySelector(".body")); resetSleep(); };
 });
 
 /* ---- boot ---- */
@@ -2187,10 +2210,11 @@ function closeEditor(){ editing=null; modalMode="view"; $("#ev-modal").classList
 $("#add-event").onclick=()=>{ openAdd("event", cursor); resetSleep(); };
 /* Add pop-up = phone.html?embed=add in a frame, opened on the right kind with the date filled in.
    It tells us when something was saved (postMessage) so the wall refreshes and the pop-up closes. */
-function openAdd(kind, date, time){
+function openAdd(kind, date, time, list){
   const d=date instanceof Date?dateStr(date):(date||"");
   const q=new URLSearchParams({embed:"add", kind:kind||"event"}); if(d) q.set("date",d); if(time) q.set("time",time);
-  if(kind==="todo"&&todoList&&todoList!=="To-Do") q.set("list",todoList);
+  const tl=list||todoList;
+  if(kind==="todo"&&tl&&tl!=="To-Do") q.set("list",tl);
   $("#add-frame").src="/phone.html?"+q.toString();
   $("#add-ov").classList.add("on"); $("#add-box").classList.add("on"); resetSleep();
 }

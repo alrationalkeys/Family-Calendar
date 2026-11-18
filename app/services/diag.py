@@ -1,0 +1,160 @@
+"""
+"Copy diagnostics": one block of plain text about FamilyHub + Home Assistant (optionally about one device) that
+Alex pastes into a chat when something misbehaves. Read-only: it never calls a service or changes anything.
+Left out on purpose: tokens, keys, PINs, alarm codes, addresses and map positions.
+"""
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import urllib.request
+from datetime import datetime, timedelta, timezone
+
+from . import ha_svc
+
+_SECRET = re.compile(r"token|password|passwd|secret|api_?key|code$|^code|pin$|latitude|longitude|gps|address|ssid|mac|ip_address|entity_picture|access", re.I)
+_ROOT = __import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.abspath(__file__))))
+
+
+def _clean(attrs: dict) -> dict:
+    out = {}
+    for k, v in (attrs or {}).items():
+        if _SECRET.search(str(k)):
+            continue
+        s = json.dumps(v, default=str)
+        out[k] = v if len(s) <= 160 else s[:157] + "..."
+    return out
+
+
+def _git() -> str:
+    try:
+        r = subprocess.run(["git", "log", "-1", "--format=%h %cs %s"], cwd=_ROOT, capture_output=True, text=True, timeout=5)
+        return r.stdout.strip()[:90] or "?"
+    except Exception:
+        return "?"
+
+
+def _text(path: str, timeout: float = 6.0) -> str:
+    req = urllib.request.Request(ha_svc.ha_url() + path, headers={"Authorization": f"Bearer {ha_svc.ha_token()}"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def _template(t: str) -> str:
+    try:
+        req = urllib.request.Request(ha_svc.ha_url() + "/api/template", method="POST", data=json.dumps({"template": t}).encode(),
+                                     headers={"Authorization": f"Bearer {ha_svc.ha_token()}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            return r.read().decode("utf-8", "replace").strip()
+    except Exception as e:
+        return f"(n/a: {str(e)[:60]})"
+
+
+def _match(states: list, q: str) -> list:
+    words = [w for w in re.findall(r"[a-z0-9]+", q.lower()) if w not in ("the", "a", "light", "lights")] or re.findall(r"[a-z0-9]+", q.lower())
+    hits = []
+    for st in states:
+        hay = (st.get("entity_id", "") + " " + str((st.get("attributes") or {}).get("friendly_name", ""))).lower().replace("_", " ")
+        if q.lower() == st.get("entity_id") or all(w in hay for w in words):
+            hits.append(st)
+    order = {"light": 0, "switch": 1, "cover": 2, "lock": 3, "climate": 4, "media_player": 5, "camera": 6}
+    hits.sort(key=lambda s: (order.get(s["entity_id"].split(".")[0], 9), s["entity_id"]))
+    return hits
+
+
+def report(q: str = "") -> str:
+    L = [f"FamilyHub diagnostics · {datetime.now().strftime('%Y-%m-%d %H:%M')}", f"version: {_git()}"]
+    demo = ha_svc.demo_mode()
+    if demo:
+        L.append("Home Assistant: NOT connected (demo mode: HA_URL / HA_TOKEN missing or HA_DEMO=1)")
+    states = []
+    if not demo:
+        try:
+            cfg = ha_svc._request("/api/config") or {}
+            L.append(f"Home Assistant: connected, version {cfg.get('version')}, {cfg.get('time_zone')}")
+        except Exception as e:
+            L.append(f"Home Assistant: can't reach it ({str(e)[:80]})")
+        try:
+            states = ha_svc._request("/api/states", timeout=8) or []
+        except Exception as e:
+            L.append(f"states: failed ({str(e)[:80]})")
+    else:
+        states = [{"entity_id": k, "state": v["state"], "attributes": v.get("attributes", {})} for k, v in ha_svc._DEMO.items()]
+    try:
+        from . import ha_live
+        L.append(f"live link to HA: {'up' if ha_live.connected() else 'down'}")
+    except Exception:
+        pass
+
+    doms = {}
+    for st in states:
+        d = st["entity_id"].split(".")[0]
+        doms[d] = doms.get(d, 0) + 1
+    L.append("entities: " + ", ".join(f"{k} {v}" for k, v in sorted(doms.items(), key=lambda x: -x[1])[:14]))
+    dead = [str((s.get("attributes") or {}).get("friendly_name") or s["entity_id"]) for s in states
+            if s.get("state") == "unavailable" and s["entity_id"].split(".")[0] in ("light", "switch", "cover", "lock", "climate", "camera", "media_player", "alarm_control_panel")]
+    L.append(f"unavailable right now ({len(dead)}): " + (", ".join(dead[:25]) or "none"))
+
+    if q.strip():
+        hits = _match(states, q.strip())
+        L.append("")
+        L.append(f"== devices matching \"{q.strip()}\": {len(hits)} ==")
+        for st in hits[:6]:
+            eid = st["entity_id"]
+            L.append(f"- {eid} = {st.get('state')}  (changed {str(st.get('last_changed', ''))[:19]}, updated {str(st.get('last_updated', ''))[:19]})")
+            L.append("  attributes: " + json.dumps(_clean(st.get("attributes")), default=str))
+            if not demo:
+                L.append("  device: " + _template("{{ device_attr('%s','manufacturer') }} / {{ device_attr('%s','model') }} / area {{ area_name('%s') }} / via {{ device_attr('%s','identifiers') | map('first') | list }}" % (eid, eid, eid, eid)))
+                try:
+                    since = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                    log = ha_svc._request(f"/api/logbook/{since}?entity={eid}", timeout=8) or []
+                    L.append(f"  last 24 h ({len(log)} changes), newest last:")
+                    for e in log[-12:]:
+                        who = e.get("context_user_id") and "by a person" or e.get("context_event_type") or e.get("context_domain") or ""
+                        L.append(f"    {str(e.get('when', ''))[:19]}  {e.get('state', e.get('message', ''))}  {who}")
+                except Exception as e:
+                    L.append(f"  history: n/a ({str(e)[:60]})")
+        if len(hits) > 6:
+            L.append(f"  (+{len(hits) - 6} more: " + ", ".join(h["entity_id"] for h in hits[6:20]) + ")")
+        if not demo and hits:
+            try:
+                keys = {h["entity_id"].split(".", 1)[1] for h in hits[:6]} | set(re.findall(r"[a-z0-9]{4,}", q.lower()))
+                lines = [ln for ln in _text("/api/error_log").splitlines() if any(k in ln.lower() for k in keys)]
+                L.append(f"  Home Assistant log lines mentioning it ({len(lines)}):")
+                L += ["    " + _hide(ln)[:260] for ln in lines[-10:]]
+            except Exception as e:
+                L.append(f"  Home Assistant log: n/a ({str(e)[:60]}; needs an admin token)")
+
+    L.append("")
+    L.append("== FamilyHub ==")
+    try:
+        from . import gameday
+        g = gameday.status()
+        L.append(f"game day: {len(g.get('games') or [])} game(s) today, error: {g.get('error') or 'none'}; last light flash: {json.dumps(g.get('flash') or {})}")
+    except Exception:
+        pass
+    try:
+        from . import speech
+        L.append(f"speech: {json.dumps(speech.status())}; last clip: {json.dumps(speech.last_clip)}")
+    except Exception:
+        pass
+    try:
+        from . import cloud_voice
+        L.append(f"cloud voice: key {'yes' if cloud_voice._key() else 'no'}, error: {cloud_voice._S.get('error') or 'none'}")
+    except Exception:
+        pass
+    try:
+        from .voice_cmd import get_db as _db
+        with _db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='voice_log'").fetchone()
+        for e in (json.loads(row["value"]) if row else [])[:6]:
+            L.append(f"voice {e.get('at', '')[5:16]} \"{e.get('heard', '')[:60]}\" -> {e.get('reply', '')[:150]} {('[' + e['took'] + ']') if e.get('took') else ''}")
+    except Exception:
+        pass
+    return _hide("\n".join(L))
+
+
+def _hide(s: str) -> str:
+    s = re.sub(r"(?i)(bearer\s+|token[=: ]+|key[=: ]+|password[=: ]+)[A-Za-z0-9._\-]{8,}", r"\1[hidden]", s)
+    return re.sub(r"\b[A-Za-z0-9_\-]{40,}\b", "[hidden]", s)

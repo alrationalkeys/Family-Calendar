@@ -149,6 +149,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   The spoken line adds who/how (settings.gamePlays): `describe()` reads the game's `scoringPlays` from ESPN's summary after the
   delay, `play_words()` turns "X 12 Yd pass from Y (Z Kick)" into "12-yard touchdown pass to X from Y"; never an older play.
   Phone Settings > Game day.
+- Diagnostics to paste into a chat: `GET /api/ha/diag?q=<device words>` (`services/diag.py`, plain text, read-only): HA version,
+  unavailable devices, the matching entities with attributes / device + integration / last 24 h of changes / HA log lines, plus
+  game-day, speech and voice-log state. Secrets, codes and locations are stripped. Phone Settings > Advanced > Diagnostics.
 - Monthly house report (`services/house_report.py`): one line per day kept in settings row `house_days` (heat/cool/peak minutes
   from the timeline just after midnight, catching up 9 days; washer/dryer loads bumped by laundry.py) because HA keeps ~10 days.
   1st of the month 09:00 -> push of last month (settings.monthlyReport); `GET /api/ha/report?month=YYYY-MM`; phone Settings > Alerts.

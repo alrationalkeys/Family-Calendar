@@ -189,6 +189,14 @@ def night_check():
     return {"issues": watch.night_report()}
 
 
+@router.get("/diag")
+def diagnostics(q: str = ""):
+    """Plain-text diagnostics to paste into a chat (optionally about one device). Read-only; no secrets."""
+    from fastapi.responses import PlainTextResponse
+    from ..services import diag
+    return PlainTextResponse(diag.report(q[:80]))
+
+
 @router.get("/report")
 def house_report(month: str | None = None):
     """The monthly house report (default: this month so far). ?month=YYYY-MM for another one."""

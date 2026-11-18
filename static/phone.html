@@ -755,6 +755,13 @@
     <div id="vh-list" style="max-height:340px; overflow:auto; font-size:.86rem"></div>
     <div class="srow"><button class="tool" type="button" id="vh-refresh" style="margin:6px 0">Refresh</button><button class="tool" type="button" id="vh-clear" style="margin:6px 0">Clear</button></div>
     </details>
+    <details class="more sub"><summary>Diagnostics (to send to Claude)</summary>
+    <div class="hint" style="margin-top:0">Gathers what FamilyHub and Home Assistant know into text you can paste into a chat. It only reads; nothing in the house changes. Passwords, keys, codes and locations are left out.</div>
+    <div class="srow"><input id="dg-q" placeholder="A device name (optional), e.g. back porch" style="width:100%; margin:0"></div>
+    <div class="two"><button class="tool" type="button" id="dg-go" style="margin:6px 0">Gather</button><button class="tool" type="button" id="dg-copy" style="margin:6px 0">Copy</button></div>
+    <textarea id="dg-out" readonly rows="10" style="width:100%; font:12px ui-monospace,monospace; white-space:pre; overflow:auto" placeholder="Tap Gather"></textarea>
+    <div class="hint" id="dg-msg"></div>
+    </details>
     <details class="more sub"><summary>Display details</summary>
     <div class="srow"><span>Font</span>
       <select id="set-font"><option value="inter">Default</option><option value="serif">Serif</option><option value="rounded">Rounded</option><option value="mono">Mono</option></select>
@@ -1823,7 +1830,18 @@ async function loadCloudVoice(){
     catch(e){ msg.textContent="Couldn't reach FamilyHub."; }
     b.disabled=false; });
 }
+function setupDiag(){
+  const go=$("#dg-go"); if(!go||go._wired) return; go._wired=true;
+  const out=$("#dg-out"), msg=$("#dg-msg");
+  const run=async()=>{ msg.textContent="Gathering\u2026"; try{ out.value=await fetch("/api/ha/diag?q="+encodeURIComponent($("#dg-q").value.trim())).then(r=>r.text()); msg.textContent="Ready. Tap Copy, then paste it into the chat."; }catch(e){ msg.textContent="Couldn't reach FamilyHub."; } };
+  go.onclick=run; $("#dg-q").addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+  $("#dg-copy").onclick=async()=>{ if(!out.value){ await run(); }
+    let ok=false; try{ await navigator.clipboard.writeText(out.value); ok=true; }catch(e){}
+    if(!ok){ try{ out.removeAttribute("readonly"); out.focus(); out.select(); out.setSelectionRange(0, out.value.length); ok=document.execCommand("copy"); out.setAttribute("readonly",""); }catch(e){} }
+    msg.textContent=ok?"Copied. Paste it into the chat.":"Couldn't copy automatically: press and hold in the box, Select All, Copy."; };
+}
 function setupVoiceHistory(){
+  setupDiag();
   const go=$("#vh-go"); if(!go||go._wired) return; go._wired=true;
   const run=async()=>{ const t=$("#vh-try").value.trim(); if(!t) return; $("#vh-out").textContent="…";
     try{ const r=await post("/api/ai/command",{text:t}).then(r=>r.json()); $("#vh-out").textContent="→ "+(r.say||(r.briefing?"(the wall reads the briefing)":"done")); $("#vh-try").value=""; }

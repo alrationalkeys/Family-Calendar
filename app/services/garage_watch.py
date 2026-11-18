@@ -61,9 +61,14 @@ def tick(settings: dict, states: list):
         _S["open_since"].clear()
         return
     now = time.time()
-    night_min = max(1, int(settings.get("garageOpenMin") or 15))
-    day_min = max(0, int(settings.get("garageOpenDayMin") or 0))
-    again = max(10, int(settings.get("garageRemindMin") or 30))
+    def num(key, default):
+        try:
+            return int(float(settings.get(key) or default))
+        except (TypeError, ValueError):
+            return default
+    night_min = max(1, num("garageOpenMin", 15))
+    day_min = max(0, num("garageOpenDayMin", 0))
+    again = max(10, num("garageRemindMin", 30))
     dark = _dark(states)
     for st in _covers(states):
         eid = st["entity_id"]

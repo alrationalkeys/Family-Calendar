@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta
 from . import ha_svc
 from ..db import get_db
 
+TICK_ERRORS: dict = {}      # check name -> last error (shown in the diagnostics)
 _SENT: dict = {}            # dedupe key -> day it was sent
 _PEAK_SEEN: dict = {}       # climate id -> first time seen on during this peak
 
@@ -119,11 +120,13 @@ def _peak_log(add: dict | None = None) -> list:
 
 
 def _peak_tick(s: dict):
-    if not s.get("peakAlerts", True) or not ha_svc.peak_now():
+    peak = ha_svc.peak_now()
+    if peak:
+        _peak_dryer(s)                        # has its own switch (peakDryer), independent of the thermostat alert
+    if not s.get("peakAlerts", True) or not peak:
         _PEAK_SEEN.clear()
         return
     now = time.time()
-    _peak_dryer(s)
     for st in _states():
         eid = st.get("entity_id", "")
         if not eid.startswith("climate."):
@@ -264,22 +267,21 @@ def _loop():
         try:
             if not ha_svc.demo_mode() and ha_svc.ha_url():
                 s, now = _settings(), datetime.now()
-                _peak_tick(s)
-                _night_tick(s, now)
-                _weekly_tick(s, now)
-                from . import house_report
-                house_report.tick(s, now, _push)
-                from . import laundry
-                laundry.tick()
-                from . import xmas
-                xmas.tick()
-                from . import garage_watch
-                garage_watch.tick(s, _states())
-                from . import offline_watch
-                offline_watch.tick(s, _states(), _push)
-                from . import wx_alerts
-                wx_alerts.tick(_push, s)
-                wx_alerts.rain_tick(_push, s, _rain_openings)
+                from . import house_report, laundry, xmas, garage_watch, offline_watch, wx_alerts
+                # each check on its own: one that keeps failing (a bad setting, say) must not silence the others
+                for name, job in (("peak", lambda: _peak_tick(s)), ("night", lambda: _night_tick(s, now)),
+                                  ("weekly", lambda: _weekly_tick(s, now)),
+                                  ("report", lambda: house_report.tick(s, now, _push_tag)),
+                                  ("laundry", laundry.tick), ("xmas", xmas.tick),
+                                  ("garage", lambda: garage_watch.tick(s, _states())),
+                                  ("offline", lambda: offline_watch.tick(s, _states(), _push)),
+                                  ("weather", lambda: wx_alerts.tick(_push, s)),
+                                  ("rain", lambda: wx_alerts.rain_tick(_push, s, _rain_openings))):
+                    try:
+                        job()
+                        TICK_ERRORS.pop(name, None)
+                    except Exception as e:
+                        TICK_ERRORS[name] = f"{datetime.now().strftime('%m-%d %H:%M')} {type(e).__name__}: {str(e)[:120]}"
         except Exception:
             pass
         time.sleep(60 - datetime.now().second % 60 or 60)

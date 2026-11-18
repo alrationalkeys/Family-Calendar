@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import calendar
 import json
+import threading
 from datetime import date, datetime, timedelta
 
 from ..db import get_db
 
-_S: dict = {"recorded": None, "sent": None}
+_S: dict = {"recorded": None}
+_LOCK = threading.RLock()        # the daily catch-up and a laundry bump both rewrite the same row
 
 
 def _load() -> dict:
@@ -34,10 +36,11 @@ def _save(days: dict):
 def bump(key: str, n: int = 1):
     """Count something that happened today (a washer / dryer load)."""
     try:
-        days = _load()
-        d = days.setdefault(date.today().isoformat(), {})
-        d[key] = int(d.get(key, 0)) + n
-        _save(days)
+        with _LOCK:
+            days = _load()
+            d = days.setdefault(date.today().isoformat(), {})
+            d[key] = int(d.get(key, 0)) + n
+            _save(days)
     except Exception:
         pass
 
@@ -57,17 +60,21 @@ def record(day: date, days: dict) -> bool:
 
 def catch_up():
     """Yesterday (and up to 8 earlier days still missing, e.g. the wall was off) into the store."""
-    days = _load()
-    changed = False
+    fresh: dict = {}                               # the slow part (asking HA) happens outside the lock
+    have = _load()
     for i in range(1, 10):
         d = date.today() - timedelta(days=i)
-        if not (days.get(d.isoformat()) or {}).get("ok"):
+        if not (have.get(d.isoformat()) or {}).get("ok"):
             try:
-                changed = record(d, days) or changed
+                record(d, fresh)
             except Exception:
                 pass
-    if changed:
-        _save(days)
+    if fresh:
+        with _LOCK:
+            days = _load()                         # re-read: a laundry count may have landed meanwhile
+            for k, v in fresh.items():
+                days.setdefault(k, {}).update(v)
+            _save(days)
 
 
 def _month_of(m: str | None) -> str:
@@ -154,12 +161,26 @@ def report(month: str | None = None) -> dict:
             "peak_alerts": slips, "ai_cost": round(cost, 4), "lines": lines, "text": f"🏠 {name}: " + " ".join(lines)}
 
 
+def _sent_month(set_to: str | None = None) -> str:
+    with get_db() as conn:
+        if set_to:
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('house_report_sent', ?)", (json.dumps(set_to),))
+            return set_to
+        row = conn.execute("SELECT value FROM settings WHERE key='house_report_sent'").fetchone()
+    try:
+        return json.loads(row["value"]) if row and row["value"] else ""
+    except Exception:
+        return ""
+
+
 def tick(s: dict, now: datetime, push):
     """From the house-watch loop, every minute."""
     if _S["recorded"] != now.date() and not (now.hour == 0 and now.minute < 20):     # once a day, and once at start-up
         _S["recorded"] = now.date()
         catch_up()
-    if now.day == 1 and now.strftime("%H:%M") == "09:00" and _S["sent"] != now.date() and s.get("monthlyReport", True):
-        _S["sent"] = now.date()
+    # from 9 AM on the 1st, and for two more days if the wall was off or the push failed; remembered across restarts
+    month = _prev(now.strftime("%Y-%m"))
+    if now.day <= 3 and 9 <= now.hour < 21 and s.get("monthlyReport", True) and _sent_month() != month:
         catch_up()
-        push(report(_prev(now.strftime("%Y-%m")))["text"], "familyhub-month")
+        push(report(month)["text"], "familyhub-month")       # raises if it could not be sent: try again next minute
+        _sent_month(month)

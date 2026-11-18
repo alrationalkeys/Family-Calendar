@@ -59,7 +59,7 @@ def _ask(cam: str):
         from . import ai_model
         mdl = os.environ.get("FAMILYHUB_PACKAGE_MODEL") or "claude-haiku-5-5"
         resp = ai_model.create(
-            client, model=mdl, max_tokens=1024, **ai_model.effort(mdl, "low"),   # room to think, then one line of JSON
+            client, model=mdl, max_tokens=4000, **ai_model.effort(mdl, "low"),   # room to think, then one line of JSON
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": ctype.split(";")[0],
                                              "data": base64.b64encode(data).decode()}},
@@ -71,7 +71,11 @@ def _ask(cam: str):
             pass
         raw = "".join(b.text for b in resp.content if b.type == "text")
         m = re.search(r"\{.*\}", raw, re.S)
-        j = json.loads(m.group(0)) if m else {}
+        if not m or getattr(resp, "stop_reason", "") in ("max_tokens", "refusal"):
+            return None, ""                   # no answer is "couldn't tell", never "no package"
+        j = json.loads(m.group(0))
+        if "package" not in j:
+            return None, ""
         return bool(j.get("package")), str(j.get("what") or "")[:80]
     except Exception:
         return None, ""

@@ -13,7 +13,10 @@ from datetime import datetime, timedelta, timezone
 
 from . import ha_svc
 
-_SECRET = re.compile(r"token|password|passwd|secret|api_?key|code$|^code|pin$|latitude|longitude|gps|address|ssid|mac|ip_address|entity_picture|access", re.I)
+_SECRET = re.compile(r"token|password|passwd|secret|api_?key|code$|^code|pin$|latitude|longitude|gps|address|ssid|mac|ip_address|entity_picture|access"
+                     r"|location|street|locality|postal|thoroughfare|country|zip|host|url|user|email|phone_number", re.I)
+# whole entities that say where people are or how the network is laid out: never listed, whatever was typed
+_PRIVATE = re.compile(r"^(device_tracker|person|zone)\.|geocoded|location|ssid|bssid|_ip\b|ip_address|wifi_connection|latitude|longitude", re.I)
 _ROOT = __import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.dirname(__import__("os").path.abspath(__file__))))
 
 
@@ -63,6 +66,8 @@ def _match(states: list, q: str) -> list:
     words = [w for w in re.findall(r"[a-z0-9]+", q.lower()) if w not in ("the", "a", "light", "lights")] or re.findall(r"[a-z0-9]+", q.lower())
     hits = []
     for st in states:
+        if _PRIVATE.search(st.get("entity_id", "")) or "latitude" in (st.get("attributes") or {}):
+            continue
         hay = (st.get("entity_id", "") + " " + str((st.get("attributes") or {}).get("friendly_name", ""))).lower().replace("_", " ")
         if q.lower() == st.get("entity_id") or all(w in hay for w in words):
             hits.append(st)
@@ -137,6 +142,11 @@ def report(q: str = "") -> str:
     L.append("")
     L.append("== FamilyHub ==")
     try:
+        from . import watch
+        L.append("house checks failing: " + (json.dumps(watch.TICK_ERRORS) if watch.TICK_ERRORS else "none"))
+    except Exception:
+        pass
+    try:
         from . import gameday
         g = gameday.status()
         L.append(f"game day: {len(g.get('games') or [])} game(s) today, error: {g.get('error') or 'none'}; last light flash: {json.dumps(g.get('flash') or {})}")
@@ -165,4 +175,6 @@ def report(q: str = "") -> str:
 
 def _hide(s: str) -> str:
     s = re.sub(r"(?i)(bearer\s+|token[=: ]+|key[=: ]+|password[=: ]+)[A-Za-z0-9._\-]{8,}", r"\1[hidden]", s)
+    s = re.sub(r"://[^/\s:@]+:[^/\s@]+@", "://[hidden]@", s)                      # user:password@ inside a URL
+    s = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[ip]", s)                        # network addresses
     return re.sub(r"\b[A-Za-z0-9_\-]{40,}\b", "[hidden]", s)

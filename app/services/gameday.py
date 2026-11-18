@@ -50,6 +50,7 @@ EXTRA = {                                      # other competitions the same tea
              "soccer/concacaf.nations.league", "soccer/concacaf.gold", "soccer/fifa.worldq.uefa",
              "soccer/fifa.worldq.conmebol", "soccer/fifa.worldq.concacaf"],
 }
+_FLASH_LOCK = threading.Lock()
 _BOARD: dict = {}                              # scoreboard path -> {"at", "games"} (each path refreshed only as often as it needs)
 _S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": []}
 
@@ -99,14 +100,12 @@ def _mine(s: dict) -> list:
     return [t for t in (s.get("teams") or []) if isinstance(t, dict) and t.get("league") in LEAGUES and t.get("id")]
 
 
-def _scorer(comp: dict, tid: str) -> str:
+def _scorer(comp: dict, tid: str, us: int | None = None) -> str:
     """Soccer: the scoreboard lists each goal. -> 'Bukayo Saka in the 23rd minute' for our team's latest, or ''."""
-    last = None
-    for d in comp.get("details") or []:
-        if d.get("scoringPlay") and str((d.get("team") or {}).get("id") or "") == tid:
-            last = d
-    if not last:
-        return ""
+    ours = [d for d in comp.get("details") or [] if d.get("scoringPlay") and str((d.get("team") or {}).get("id") or "") == tid]
+    if not ours or (us is not None and len(ours) != us):
+        return ""                 # the goal list hasn't caught up with the score yet: say nothing rather than name the last goal
+    last = ours[-1]
     who = ", ".join(a.get("displayName") or a.get("fullName") or "" for a in (last.get("athletesInvolved") or [])[:1]).strip()
     kind = str((last.get("type") or {}).get("text") or "").lower()
     when = str((last.get("clock") or {}).get("displayValue") or "").replace("'", "").strip()
@@ -148,8 +147,8 @@ def _parse(league: str, d: dict, mine: dict, path: str = "") -> list:
                         "opp_abbr": (o.get("team") or {}).get("abbreviation") or "",
                         "us": pts(c), "them": pts(o), "home": c.get("homeAway") == "home",
                         "state": st.get("state") or "pre", "detail": st.get("shortDetail") or st.get("detail") or "",
-                        "scorer": _scorer(comp, tid) if league in SOCCER else "",
-                        "start": ev.get("date") or "", "won": bool(c.get("winner")) if st.get("state") == "post" else None})
+                        "scorer": _scorer(comp, tid, pts(c)) if league in SOCCER else "",
+                        "start": ev.get("date") or "", "won": (bool(c.get("winner")) or pts(c) > pts(o)) if st.get("state") == "post" else None})
     return out
 
 
@@ -163,10 +162,20 @@ def _due(path: str, primary: bool) -> bool:
     games = hit["games"]
     if any(g["state"] == "in" for g in games):
         return age >= 18
-    hour = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H")
-    if any(g["state"] == "pre" and g["start"][:13] == hour for g in games):
+    if hit.get("retry"):
+        return age >= hit["retry"]                       # the last read failed: try again soon, keeping what we had
+    if any(g["state"] == "pre" and _starts_within(g, 3600) for g in games):
         return age >= 55
     return age >= (290 if primary or games else 890)
+
+
+def _starts_within(g: dict, secs: int) -> bool:
+    """Kick-off is within `secs` from now, or already past and the game still says 'pre' (ESPN times are UTC)."""
+    try:
+        start = datetime.fromisoformat(str(g.get("start", "")).replace("Z", "+00:00"))
+        return (start - datetime.now(timezone.utc)).total_seconds() <= secs
+    except ValueError:
+        return False
 
 
 def fetch(s: dict | None = None) -> list:
@@ -183,10 +192,13 @@ def fetch(s: dict | None = None) -> list:
                 try:
                     d = _get(f"{API}/{pth}/scoreboard" + (f"?{q}" if q else ""))
                     _BOARD[key] = {"at": time.time(), "games": _parse(league, d, ours, pth)}
-                except Exception:
+                except Exception as e:
                     if pth == path:
                         raise
-                    _BOARD[key] = {"at": time.time(), "games": []}        # a cup with no page this season
+                    if getattr(e, "code", None) in (400, 404):
+                        _BOARD[key] = {"at": time.time(), "games": []}    # a cup with no page this season
+                    else:                                                 # a blip: keep the games we knew, retry in a minute
+                        _BOARD[key] = {"at": time.time(), "games": (_BOARD.get(key) or {}).get("games", []), "retry": 60}
             games += [g for g in _BOARD[key]["games"] if str(g["team"].get("id")) in ours]
     for k in [k for k in _BOARD if k not in live_paths]:
         _BOARD.pop(k, None)
@@ -332,14 +344,19 @@ def flash(lights: list, color: str, alt: str, rounds: int = 3):
     a, b = _rgb(color), _rgb(alt)
     if sum(b) < 90:                               # a black second colour would just look like "off"
         b = [255, 255, 255]
-    _S["flash"] = {}
-    _S["flashing"] = set(lights)
-    ts = [threading.Thread(target=_flash_one, args=(e, a, b, rounds), daemon=True) for e in lights]
-    for t in ts:
-        t.start()
-    for t in ts:
-        t.join(45)
-    _S["flashing"] = set()
+    # one celebration at a time: a second one starting mid-flash would read the team colour as "how it was" and
+    # leave the lights stuck that way
+    with _FLASH_LOCK:
+        _S["flash"] = {}
+        _S["flashing"] = set(lights)
+        try:
+            ts = [threading.Thread(target=_flash_one, args=(e, a, b, rounds), daemon=True) for e in lights]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join(45)
+        finally:
+            _S["flashing"] = set()
 
 
 _YD = r"(\d+)\s*(?:Yds?|Yards?|yd|yds)\.?"
@@ -441,17 +458,25 @@ def check(games: list, s: dict):
     seen = _S["last"]
     for g in games:
         prev = seen.get(g["key"])
-        seen[g["key"]] = {"us": g["us"], "state": g["state"], "at": time.time()}
+        # A score that dips (a blank or corrected feed) must not re-arm a celebration when it comes back: remember the
+        # highest score, and only accept a lower one after it has held for three looks (a real correction).
+        best, low = g["us"], 0
+        if prev and g["us"] < prev["us"]:
+            low = prev.get("low", 0) + 1
+            best = prev["us"] if low < 3 else g["us"]
+        seen[g["key"]] = {"us": best, "state": g["state"], "at": time.time(), "low": low if best != g["us"] else 0}
         if not prev:
             continue
         name = _name(g)
         gained = g["us"] - prev["us"]
-        if gained > 0 and g["state"] in ("in", "post") and g["league"] not in ("nba", "cbb"):   # basketball scores non-stop
+        ended = g["state"] == "post" and prev["state"] == "in"
+        won = ended and g["won"]
+        if gained > 0 and not won and g["state"] in ("in", "post") and g["league"] not in ("nba", "cbb"):   # basketball scores non-stop; a walk-off gets the win cheer only
             what = _what(g["league"], gained)
             if not (g["league"] in ("nfl", "cfb") and gained in (1, 2)):                        # extra points: no party
                 celebrate(g, f"🎉 {what}, {name}!", f"{what}, {name}!", s, tail=f"{_line(g)}.")
-        if g["state"] == "post" and prev["state"] == "in":
-            if g["won"] or (g["won"] is None and g["us"] > g["them"]):
+        if ended:
+            if won:
                 celebrate(g, f"🏆 {name} win!", f"{name} win! Final score: {_line(g)}.", s, big=True)
             elif s.get("gameSpeak", True) and not _asleep():
                 try:

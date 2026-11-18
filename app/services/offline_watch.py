@@ -17,8 +17,9 @@ from datetime import datetime
 
 from . import ha_svc
 
-_S: dict = {"down": {}, "told": {}, "armed_at": 0.0, "was_armed": False}
+_S: dict = {"down": {}, "told": {}, "armed_at": 0.0, "was_armed": None, "panel_back": 0.0}
 _GRACE = 100            # seconds unavailable before it counts
+_RESTART_GRACE = 420    # after the panel itself was unavailable (Home Assistant restarting), cameras get longer to return
 
 
 def _name(st: dict) -> str:
@@ -52,15 +53,23 @@ def tick(settings: dict, states: list, push):
     # the panel itself going dark hides the armed state: trust what we saw in the last 15 minutes
     armed = now - _S["armed_at"] < 900 and (any(str(s.get("state", "")).startswith("armed") for s in panels)
                                             or all(s.get("state") in ("unavailable", "unknown") for s in panels))
-    just_armed = armed and not _S["was_armed"]
+    first = _S["was_armed"] is None                     # FamilyHub just started: learn the state, don't announce it
+    just_armed = armed and _S["was_armed"] is False
     _S["was_armed"] = armed
+    if any(s.get("state") in ("unavailable", "unknown") for s in panels):
+        _S["panel_back"] = now                          # HA or the alarm link is restarting
+    grace = _RESTART_GRACE if now - _S["panel_back"] < _RESTART_GRACE else _GRACE
 
     fresh, back = [], []
     for st in _watched(states):
         eid = st["entity_id"]
         if st.get("state") == "unavailable":
+            new_here = eid not in _S["down"]
             since = _S["down"].setdefault(eid, now)
-            if armed and eid not in _S["told"] and (now - since >= _GRACE or just_armed):
+            if first and new_here:
+                _S["told"][eid] = since                 # already offline when FamilyHub started: not news
+                continue
+            if armed and eid not in _S["told"] and (now - since >= grace or just_armed):
                 _S["told"][eid] = since
                 fresh.append((st, since, just_armed and now - since >= _GRACE))
         else:

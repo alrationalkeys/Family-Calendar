@@ -17,7 +17,8 @@ import time
 
 from . import ha_svc
 
-_OFF = {"off", "standby", "unavailable", "unknown", ""}
+_OFF = {"off", "standby", ""}
+_GONE = {"unavailable", "unknown"}                     # a missed poll or an HA restart, not "the TV was switched off"
 _PLAYING = {"playing", "buffering"}
 _S: dict = {"last": {}}
 
@@ -60,7 +61,7 @@ def want(pair: dict, tv_state: str, light_on: bool) -> tuple | None:
 
 def _apply(pair: dict, tv_state: str):
     time.sleep(1.2)                                    # a Roku flips through states when an app starts: take the last one
-    if _S["last"].get(pair["tv"]) != tv_state:
+    if _S["last"].get(pair["tv"]) != _mode(tv_state):
         return
     try:
         from . import gameday
@@ -85,10 +86,12 @@ def on_state(eid: str, old: dict | None, new: dict | None):
     if not eid.startswith("media_player.") or not new:
         return
     state = str(new.get("state") or "")
-    if old and _mode(old.get("state")) == _mode(state) and _S["last"].get(eid) is not None:
-        _S["last"][eid] = state
+    if state.lower() in _GONE:
+        return                                         # dropped off for a moment: leave the strip as it is
+    mode = _mode(state)
+    if _S["last"].get(eid) == mode:
         return                                         # same kind of state (e.g. idle -> home): nothing to change
-    _S["last"][eid] = state
+    _S["last"][eid] = mode                             # compare by kind, so off -> idle -> home in a second still fires once
     for p in pairs():
         if p["tv"] == eid:
             threading.Thread(target=_apply, args=(p, state), daemon=True, name="tv-backlight").start()

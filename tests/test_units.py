@@ -143,3 +143,93 @@ def test_garage_watch_can_only_close():
     from app.services import garage_watch
     src = inspect.getsource(garage_watch)
     assert "close_cover" in src and "open_cover" not in src
+
+
+# ---- from the second audit (Nov 18) ---------------------------------------------------------------
+
+def test_two_celebrations_in_a_row_leave_the_light_as_it_was(monkeypatch):
+    """Overlapping flashes used to read the team colour as 'how it was' and leave the light stuck on."""
+    import threading
+    from app.services import gameday as g, ha_svc
+    state = {"state": "off", "attributes": {}}
+    lock = threading.Lock()
+
+    def call(dom, svc, e, extra=None):
+        with lock:
+            state["state"] = "on" if svc == "turn_on" else "off"
+        return {"ok": True}
+    monkeypatch.setattr(ha_svc, "demo_mode", lambda: False)
+    monkeypatch.setattr(ha_svc, "_request", lambda *a, **k: dict(state))
+    monkeypatch.setattr(ha_svc, "call_service", call)
+    monkeypatch.setattr(g, "_via", lambda e: "zha")
+    real_sleep = g.time.sleep
+    monkeypatch.setattr(g.time, "sleep", lambda s: real_sleep(0.01))
+    ts = [threading.Thread(target=g.flash, args=(["light.kitchen"], "#ff0000", "#ffffff", 2)) for _ in range(2)]
+    for t in ts: t.start()
+    for t in ts: t.join(20)
+    assert state["state"] == "off"
+
+
+def test_score_glitch_does_not_celebrate_twice(monkeypatch):
+    from app.services import gameday as g
+    jets = {"league": "nfl", "id": "20", "name": "New York Jets", "short": "Jets"}
+    calls = []
+    monkeypatch.setattr(g, "celebrate", lambda gm, title, *a, **k: calls.append(title))
+    monkeypatch.setattr(g, "_asleep", lambda: False)
+    monkeypatch.setattr(g, "_say", lambda *a: None)
+    g._S["last"].clear()
+    for us in (21, 21, 0, 21, 21):                     # the feed blanks for one look, then comes back
+        g.check(g._parse("nfl", _board(us, 7, "in"), {"20": jets}), {"teams": [jets]})
+    assert calls == []
+
+
+def test_walk_off_score_gets_one_celebration(monkeypatch):
+    from app.services import gameday as g
+    jets = {"league": "nfl", "id": "20", "name": "New York Jets", "short": "Jets"}
+    calls = []
+    monkeypatch.setattr(g, "celebrate", lambda gm, title, *a, **k: calls.append(title))
+    monkeypatch.setattr(g, "_asleep", lambda: False)
+    monkeypatch.setattr(g, "_say", lambda *a: None)
+    g._S["last"].clear()
+    g.check(g._parse("nfl", _board(14, 17, "in"), {"20": jets}), {"teams": [jets]})
+    g.check(g._parse("nfl", _board(20, 17, "post"), {"20": jets}), {"teams": [jets]})
+    assert calls == ["🏆 Jets win!"]
+
+
+def test_soccer_scorer_is_not_named_from_an_older_goal():
+    from app.services.gameday import _scorer
+    comp = {"details": [{"scoringPlay": True, "team": {"id": "359"}, "clock": {"displayValue": "23'"}, "type": {"text": "Goal"},
+                         "athletesInvolved": [{"displayName": "Bukayo Saka"}]}]}
+    assert "Saka" in _scorer(comp, "359", 1)
+    assert _scorer(comp, "359", 2) == ""               # score says 2, the list still has 1 goal
+
+
+def test_tv_backlight_fires_once_through_a_quick_state_flip(monkeypatch):
+    from app.services import tv_backlight as t
+    started = []
+    monkeypatch.setattr(t, "pairs", lambda s=None: [{"light": "light.tv", "tv": "media_player.tv", "follow": True, "dim": True, "play": 30, "idle": 70}])
+    monkeypatch.setattr(t.threading, "Thread", lambda target, args, **k: type("T", (), {"start": lambda self: started.append(args[1])})())
+    t._S["last"].clear()
+    for old, new in [("standby", "idle"), ("idle", "home"), ("home", "unavailable"), ("unavailable", "home"), ("home", "playing")]:
+        t.on_state("media_player.tv", {"state": old}, {"state": new})
+    assert started == ["idle", "playing"]              # power-on fires once; the drop-out and return change nothing
+
+
+def test_diagnostics_never_list_where_people_are():
+    from app.services import diag
+    states = [{"entity_id": "sensor.alex_phone_geocoded_location", "state": "12 Some Street", "attributes": {"Location": [1.0, 2.0], "friendly_name": "Alex phone location"}},
+              {"entity_id": "device_tracker.alex_phone", "state": "home", "attributes": {"latitude": 1, "friendly_name": "Alex phone"}},
+              {"entity_id": "sensor.alex_phone_battery_level", "state": "80", "attributes": {"friendly_name": "Alex phone battery"}}]
+    hits = [h["entity_id"] for h in diag._match(states, "alex phone")]
+    assert hits == ["sensor.alex_phone_battery_level"]
+    assert "hunter2" not in diag._hide("rtsp://admin:hunter2@192.168.1.50/stream") and "192.168" not in diag._hide("host 192.168.1.50")
+
+
+def test_dryer_peak_alert_does_not_depend_on_the_thermostat_alert(monkeypatch):
+    from app.services import watch
+    called = []
+    monkeypatch.setattr(watch.ha_svc, "peak_now", lambda: True)
+    monkeypatch.setattr(watch, "_peak_dryer", lambda s: called.append(1))
+    monkeypatch.setattr(watch, "_states", lambda: [])
+    watch._peak_tick({"peakAlerts": False, "peakDryer": True})
+    assert called == [1]

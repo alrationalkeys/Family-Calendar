@@ -561,8 +561,7 @@ def _ai_answer(text):
         for _ in range(2):
             if resp.stop_reason != "pause_turn":
                 break
-            kwargs["messages"] = kwargs["messages"] + [{"role": "assistant", "content": resp.content},
-                                                       {"role": "user", "content": "Continue."}]
+            kwargs["messages"] = kwargs["messages"] + [{"role": "assistant", "content": resp.content}]   # resend as is: the API picks the paused turn back up
             resp = client.messages.create(**kwargs)
             ai_cost.record("voice", resp)
         # the spoken answer is the text AFTER any searching (earlier text blocks are "let me look that up")

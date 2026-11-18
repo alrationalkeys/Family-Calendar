@@ -89,7 +89,13 @@ def speak(text: str, vid: str | None = None, strict: bool = False) -> bytes | No
     path = os.path.join(CACHE_DIR, name)
     try:
         with open(path, "rb") as f:
-            return f.read()
+            data = f.read()
+        if data:
+            try:
+                os.utime(path)                 # used just now: keep it when old clips are cleared out
+            except OSError:
+                pass
+            return data
     except OSError:
         pass
     if not strict and time.time() < _S["down_until"]:
@@ -110,8 +116,10 @@ def speak(text: str, vid: str | None = None, strict: bool = False) -> bytes | No
     _S["sub_at"] = 0.0
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(path, "wb") as f:
+        tmp = path + ".part"
+        with open(tmp, "wb") as f:
             f.write(audio)
+        os.replace(tmp, path)                  # never leave half a clip behind if the power goes
         files = sorted((os.path.join(CACHE_DIR, n) for n in os.listdir(CACHE_DIR)), key=os.path.getmtime)
         for old in files[:-CACHE_MAX]:
             os.unlink(old)

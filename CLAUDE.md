@@ -274,6 +274,9 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
   installer `setup/install-kiosk.sh`; walkthrough `docs/first-boot.md`. Screen-off uses
   `xset dpms` (set in `.env` by the installer). `familyhub.service` is a template
   (`__USER__`/`__HOME__`) with `EnvironmentFile=.env`.
+- Network watchdog for the wall PC: `setup/install-net-watchdog.sh` (Wi-Fi power saving off + a 2-minute systemd timer that
+  pings the router and cycles networking / restarts NetworkManager when it's gone; never reboots; `journalctl -t familyhub-net`).
+  Added Nov 18 after the wall's Wi-Fi dropped and stayed down until a power cycle. Spectrum router can't reserve addresses.
 - Home Assistant OS on a **second C3**, headless: `docs/home-assistant-setup.md` (HAOS x86
   install, IQ Panel via qolsysgw, Roku, openWakeWord/Whisper/Piper, Wyoming satellite via
   `setup/install-satellite.sh` on the screen box).

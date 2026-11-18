@@ -34,7 +34,7 @@
 // ======================= EDIT THESE =========================
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
-const char* FIRMWARE_VERSION = "A-2026.11.16a";
+const char* FIRMWARE_VERSION = "A-2026.11.18a";
 
 const char* MY_NAME     = "village-fx";      // this board  -> http://village-fx.local
 const char* LIGHTS_NAME = "village-lights";  // WLED: Config > WiFi Setup > mDNS address
@@ -86,8 +86,10 @@ Field FIELDS[] = {
   {"awake",  "Stay awake after last motion (minutes)", &S.awakeMin, 1, 60, false, "Village"},
   {"vol",    "Main speaker volume (0-30)",      &S.volume, 0, 30, false, "Village"},
   {"rink",   "Rink speed (0-255)",              &S.rinkSpeed, 0, 255, false, "Village"},
+  {"rinkMx", "Rink turns itself off after (minutes, 0 = never)", &S.rinkMaxMin, 0, 240, false, "Village"},
   {"sleigh", "Sleigh speed (0-255)",            &S.sleighSpeed, 0, 255, false, "Village"},
   {"wLaps",  "Train laps when village wakes",   &S.wakeLaps, 0, 20, false, "Village"},
+  {"trAuto", "Train also runs on its own (village wakes, Rachell's show)", &S.trainAuto, 0, 1, true, "Village"},
   {"bLaps",  "Train laps for the train button", &S.buttonLaps, 1, 20, false, "Village"},
   {"treeS",  "Tree show length (seconds)",      &S.treeSecs, 10, 600, false, "Shows"},
   {"rachS",  "Rachell's show length (seconds)", &S.rachellSecs, 10, 600, false, "Shows"},
@@ -383,7 +385,8 @@ void updateMotor(Motor& m) {
   m.lastStep = millis();
   motorWrite(m, m.current + (m.target > m.current ? 1 : -1));
 }
-void rinkOn()  { rink.target = S.rinkSpeed; logln("Rink on"); }
+unsigned long rinkOnAt = 0;
+void rinkOn()  { rink.target = S.rinkSpeed; rinkOnAt = millis(); logln("Rink on"); }
 void rinkOff() { rink.target = 0; logln("Rink off"); }
 
 // ========================= SLEIGH ===========================
@@ -487,7 +490,7 @@ void enterMode(Mode m) {
       setLightsPreset(S.psEvening, 40);
       play(S.sndWake);
       rinkOn(); sleighFly(); mistChimney(MIST_PUFF_SECONDS);
-      trainGo(S.wakeLaps);
+      if (S.trainAuto) trainGo(S.wakeLaps);   // off by default: the train only runs when someone asks
       if (S.cWithWake) carolersSing("wake");
       nextSleighAt = millis() + random(120, 200) * 1000UL;
       nextMistAt   = millis() + random(60, 120) * 1000UL;
@@ -505,7 +508,7 @@ void enterMode(Mode m) {
       play(S.sndRachell);
       trainQuiet(S.rachellSecs);
       rinkOn(); sleighFly(); mistChimney(MIST_PUFF_SECONDS);
-      trainGo(1);
+      if (S.trainAuto) trainGo(1);
       if (S.cWithRach) carolersSing("rachell");
       showEndsAt = millis() + S.rachellSecs * 1000UL;
       break;
@@ -528,7 +531,12 @@ void updateMode() {
   if (mode == MODE_TREE_SHOW || mode == MODE_RACHELL) {
     if ((long)(now - showEndsAt) >= 0) {
       Mode back = modeAfterShow;
-      if (S.manual) { logln("Show finished"); enterMode(back == MODE_CLOSED ? MODE_CLOSED : MODE_SLEEPY); return; }
+      if (S.manual) {            // manual mode: back to the normal (Evening) look, rink off, train un-quieted
+        logln("Show finished");
+        carolLightsOn = false; rinkOff(); trainQuiet(0);
+        lastMotionAt = now; setLightsPreset(S.psEvening, 30); mode = MODE_AWAKE; logln("Mode: awake");
+        return;
+      }
       if (!open) back = MODE_CLOSED;
       else if (back == MODE_CLOSED) back = MODE_SLEEPY;
       if (back == MODE_AWAKE) { lastMotionAt = now; setLightsPreset(S.psEvening, 30); mode = MODE_AWAKE; logln("Mode: awake"); }
@@ -882,6 +890,9 @@ void loop() {
   updateCarolers();
   updateLamps();
   updateTrainHub();
+  if (rink.target > 0 && S.rinkMaxMin > 0 && millis() - rinkOnAt > (unsigned long)S.rinkMaxMin * 60000UL) {
+    rinkOff(); logln("Rink safety timer: turned off");
+  }
   updateMotor(rink);
   updateMotor(sleigh);
   updateSleigh();

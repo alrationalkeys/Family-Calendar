@@ -204,3 +204,9 @@ speaker (wiring/power); no line at all = the message never arrived.
 3. Add the WLED integration; fix the two WLED entity ids in the dashboard card.
 4. Add the dashboard card.
 5. Optional: a "Village" tile on the family calendar display that calls the same scripts, and automations (examples at the bottom of the package). Board A already runs its own schedule (open 16:00 to 23:00) and motion wake in automatic mode, so HA automations should complement it, not fight it.
+
+### 8c. Board A firmware A-2026.11.18a (Nov 18)
+A-2026.11.16a plus three changes Alex made on the board's own copy: a rink safety timer (setting "Rink turns itself off
+after", default 10 min), "Train also runs on its own" (off by default: the train runs only from its button, the phone or
+FamilyHub), and in manual mode a show ends back on the Evening look instead of sleepy. Board B stays on B-2026.11.16a
+(no changes). The departure and station sounds need BOTH boards on the 16a-or-later code.

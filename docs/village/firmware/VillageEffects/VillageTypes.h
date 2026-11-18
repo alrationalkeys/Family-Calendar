@@ -11,7 +11,9 @@ struct Settings {
   int openHour = 16, closeHour = 23, awakeMin = 8;
   int volume = 20;
   int rinkSpeed = 170, sleighSpeed = 230;
+  int rinkMaxMin = 10;     // rink turns itself off after this many minutes (0 = no limit)
   int wakeLaps = 2, buttonLaps = 2;
+  int trainAuto = 0;       // 0 = train only runs from its button or the phone; 1 = also on wake and in Rachell's show
   int treeSecs = 60, rachellSecs = 90;
   // which sound file plays for each event (mp3 folder number)
   int sndWake = 1, sndWhistle = 2, sndHoho = 3, sndTree = 4, sndRachell = 5, sndStation = 6;

@@ -106,25 +106,51 @@ def on_alarm(new_state: str | None, old_state: str | None = None):
 
 
 def _poll_alarm():
-    """Fallback when the live link isn't running: read the panel at most every 30 s."""
-    if time.time() - _state["alarm_checked"] < 30:
+    """Every 30 s, read what the alarm panel says RIGHT NOW and act on it, whether or not the live link is up.
+    The live link only reports changes as they happen: a disarm that happened while the link was reconnecting was
+    never seen, and the wall stayed dark all day (Nov 18). Reading the current state catches up on anything missed."""
+    now = time.time()
+    if now - _state["alarm_checked"] < 30:
         return
+    _state["alarm_checked"] = now
+    st = None
     try:
-        from . import ha_live
-        if ha_live.connected():          # the live link already calls on_alarm on every change
-            return
+        from . import ha_live, ha_svc
+        for x in ha_live.states() or []:
+            eid = x.get("entity_id", "")
+            if eid.startswith("alarm_control_panel.") and not ha_svc.is_blink(eid, x.get("attributes") or {}):
+                st = x.get("state")
+                break
+        if st is None and not ha_live.connected():
+            for g in ha_svc.get_home().get("groups", []):
+                for t in g.get("tiles", []):
+                    if t.get("domain") == "alarm_control_panel":
+                        st = t.get("state")
+                        break
     except Exception:
-        pass
-    _state["alarm_checked"] = time.time()
-    try:
-        from . import ha_svc
-        for g in ha_svc.get_home().get("groups", []):
-            for t in g.get("tiles", []):
-                if t.get("domain") == "alarm_control_panel":
-                    on_alarm(t.get("state"))
-                    return
-    except Exception:
-        pass
+        st = None
+    if st and st not in ("unavailable", "unknown"):
+        _state["alarm_seen"] = now
+        on_alarm(st)
+    _sleep_failsafe(now)
+
+
+SLEEP_BLIND_S = 20 * 60        # how long the alarm may be unreadable in the daytime before the wall stops waiting for it
+SLEEP_MAX_S = 16 * 3600        # no night lasts longer than this
+
+
+def _sleep_failsafe(now: float):
+    """Night mode ends when the alarm is disarmed. If the wall can't SEE the alarm (Home Assistant unreachable), it
+    must not sit dark forever waiting for a disarm it will never hear about: in the daytime, 20 minutes without a
+    reading is enough to give up and light the wall. A hard 16-hour limit covers everything else."""
+    if not _state["sleep_mode"]:
+        return
+    since = _state["sleep_since"] or now
+    blind = now - max(_state.get("alarm_seen") or 0.0, since)
+    daytime = not _stay_counts_as_bedtime()
+    if now - since > SLEEP_MAX_S or (daytime and blind > SLEEP_BLIND_S):
+        _state["failsafe"] = time.strftime("%m-%d %H:%M") + (" (16 h limit)" if now - since > SLEEP_MAX_S else " (couldn't read the alarm)")
+        exit_sleep("failsafe")
 
 
 def get_config():
@@ -231,5 +257,6 @@ def state(cfg=None):
         "night": _in_night_window(now, cfg) if cfg.get("enabled") else False,
         "dim_only": bool(cfg.get("dim_only")),
         "sleep_mode": _state["sleep_mode"],
+        "sleep_failsafe": _state.get("failsafe"),
         "config": cfg,
     }

@@ -252,3 +252,31 @@ def test_score_chip_waits_as_long_as_the_cheer(monkeypatch):
     assert g._held(game, 15)["us"] == 7            # just scored: the chip still shows the old score
     now[0] += 10; assert g._held(game, 15)["us"] == 7
     now[0] += 6;  assert g._held(game, 15)["us"] == 14
+
+
+def test_night_mode_ends_when_a_missed_disarm_is_read_back(monkeypatch):
+    """Nov 18: the disarm happened while the live link was down, and the wall stayed dark all day."""
+    from app.services import display_svc as d, ha_live
+    monkeypatch.setattr(d, "_run", lambda cmd: True)
+    monkeypatch.setattr(d, "_sleep_settings", lambda: (True, {"armed_night", "armed_home"}))
+    d._state.update(sleep_mode=False, alarm=None, alarm_checked=0.0, sleep_since=None)
+    monkeypatch.setattr(ha_live, "states", lambda: [{"entity_id": "alarm_control_panel.iq", "state": "armed_night", "attributes": {}}])
+    d.on_alarm("armed_night")
+    assert d._state["sleep_mode"]
+    monkeypatch.setattr(ha_live, "states", lambda: [{"entity_id": "alarm_control_panel.iq", "state": "disarmed", "attributes": {}}])
+    d._state["alarm_checked"] = 0.0
+    d._poll_alarm()                                   # no change event ever arrived; the current state says disarmed
+    assert not d._state["sleep_mode"]
+
+
+def test_night_mode_gives_up_in_the_daytime_when_the_alarm_cannot_be_read(monkeypatch):
+    from app.services import display_svc as d, ha_live
+    monkeypatch.setattr(d, "_run", lambda cmd: True)
+    monkeypatch.setattr(ha_live, "states", lambda: None)
+    monkeypatch.setattr(ha_live, "connected", lambda: True)
+    d._state.update(sleep_mode=True, sleep_since=d.time.time() - 3 * 3600, alarm="armed_night", alarm_seen=d.time.time() - 3 * 3600, alarm_checked=0.0)
+    monkeypatch.setattr(d, "_stay_counts_as_bedtime", lambda now=None: True)      # still night: stay dark
+    d._poll_alarm(); assert d._state["sleep_mode"]
+    monkeypatch.setattr(d, "_stay_counts_as_bedtime", lambda now=None: False)     # daytime and blind for hours: light up
+    d._state["alarm_checked"] = 0.0
+    d._poll_alarm(); assert not d._state["sleep_mode"]

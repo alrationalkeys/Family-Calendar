@@ -147,6 +147,13 @@ def report(q: str = "") -> str:
     except Exception:
         pass
     try:
+        from . import display_svc
+        d = display_svc.state()
+        L.append(f"screen: {'on' if d.get('on') else 'OFF'}, night mode (dark until disarm): {d.get('sleep_mode')}, in the night window: {d.get('night')}, "
+                 f"alarm as the wall sees it: {display_svc._state.get('alarm')}, night mode ended by the safety net: {d.get('sleep_failsafe') or 'no'}")
+    except Exception:
+        pass
+    try:
         from . import gameday
         g = gameday.status()
         L.append(f"game day: {len(g.get('games') or [])} game(s) today, error: {g.get('error') or 'none'}; last light flash: {json.dumps(g.get('flash') or {})}")

@@ -301,7 +301,10 @@ def _states_to_tiles(states) -> list:
             continue          # Blink: just the cameras (no arm/disarm, motion, battery or temperature tiles)
         if _CATEGORY.get(eid) in ("config", "diagnostic"):
             continue          # device settings (e.g. a motion sensor's "LED indicator" switch), not devices
-        tiles.append(_tile(eid, s.get("state", ""), attrs))
+        try:
+            tiles.append(_tile(eid, s.get("state", ""), attrs))
+        except Exception:
+            continue          # one odd device must never take the whole Home page down
     return tiles
 
 
@@ -735,8 +738,12 @@ def get_home() -> dict:
         reason = "bad token (401)" if e.code == 401 else f"HA error {e.code}"
         return {"connected": False, "demo": False, "groups": [], "reason": reason}
     except Exception as e:
+        # say what actually went wrong: "timed out" (HA busy or slow), "refused" / "no route" (wrong address, HA off),
+        # or a code error on our side. The plain "can't reach" hid all three behind one message.
+        why = str(getattr(e, "reason", "") or e)[:80] or type(e).__name__
+        kind = "Home Assistant didn't answer in time" if "timed out" in why.lower() else "can't reach Home Assistant"
         return {"connected": False, "demo": False, "groups": [],
-                "reason": "can't reach Home Assistant"}
+                "reason": f"{kind} ({why}) at {ha_url()}"}
 
 
 def _demo_toggle(entity_id: str, service: str):

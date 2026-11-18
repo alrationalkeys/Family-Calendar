@@ -58,23 +58,28 @@ def record(day: date, days: dict) -> bool:
     return True
 
 
-def catch_up():
-    """Yesterday (and up to 8 earlier days still missing, e.g. the wall was off) into the store."""
+def catch_up(limit: int = 9) -> int:
+    """Yesterday (and up to 8 earlier days still missing, e.g. the wall was off) into the store. A day of history is a
+    heavy question for Home Assistant, so the minute-by-minute loop asks for ONE day at a time (limit=1)."""
     fresh: dict = {}                               # the slow part (asking HA) happens outside the lock
     have = _load()
     for i in range(1, 10):
         d = date.today() - timedelta(days=i)
-        if not (have.get(d.isoformat()) or {}).get("ok"):
+        if not (have.get(d.isoformat()) or {}).get("ok") and d.isoformat() not in _S.setdefault("tried", set()):
+            _S["tried"].add(d.isoformat())         # a day HA no longer has is asked for once, not every minute
             try:
                 record(d, fresh)
             except Exception:
                 pass
+            if len(_S["tried"]) and limit <= 1:
+                break
     if fresh:
         with _LOCK:
             days = _load()                         # re-read: a laundry count may have landed meanwhile
             for k, v in fresh.items():
                 days.setdefault(k, {}).update(v)
             _save(days)
+    return len(fresh)
 
 
 def _month_of(m: str | None) -> str:
@@ -175,12 +180,15 @@ def _sent_month(set_to: str | None = None) -> str:
 
 def tick(s: dict, now: datetime, push):
     """From the house-watch loop, every minute."""
-    if _S["recorded"] != now.date() and not (now.hour == 0 and now.minute < 20):     # once a day, and once at start-up
-        _S["recorded"] = now.date()
-        catch_up()
+    # one missing day per minute, starting five minutes after start-up, never all nine at once: that many history
+    # questions in a row made Home Assistant too slow to answer the wall (Nov 18)
+    _S["ticks"] = _S.get("ticks", 0) + 1
+    if _S.get("day") != now.date():
+        _S["day"], _S["tried"] = now.date(), set()
+    if _S["ticks"] > 5 and not (now.hour == 0 and now.minute < 20) and len(_S.get("tried", ())) < 9:
+        catch_up(limit=1)
     # from 9 AM on the 1st, and for two more days if the wall was off or the push failed; remembered across restarts
     month = _prev(now.strftime("%Y-%m"))
     if now.day <= 3 and 9 <= now.hour < 21 and s.get("monthlyReport", True) and _sent_month() != month:
-        catch_up()
         push(report(month)["text"], "familyhub-month")       # raises if it could not be sent: try again next minute
         _sent_month(month)

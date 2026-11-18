@@ -30,7 +30,7 @@ DEFAULTS = {
     "homeLayout": [],                # custom floor-plan rooms; [] = built-in sample
     "villageFx": "192.168.1.200",     # Christmas village Board A (effects hub) — docs/village/README.md
     "villageTrain": "192.168.1.121",  # Board B (train)
-    "villageWithHouse": True,
+    "villageWithHouse": True, "villageAuto": True, "villageOpenLights": [],
     "nightCheck": True,               # push at nightCheckTime if a door is unlocked/open or the alarm isn't set
     "nightCheckTime": "22:30",
     "peakAlerts": True,               # push if heat/AC is still on 3 min into peak hours

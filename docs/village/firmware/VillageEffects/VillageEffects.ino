@@ -34,7 +34,7 @@
 // ======================= EDIT THESE =========================
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
-const char* FIRMWARE_VERSION = "A-2026.11.18a";
+const char* FIRMWARE_VERSION = "A-2026.11.18b";
 
 const char* MY_NAME     = "village-fx";      // this board  -> http://village-fx.local
 const char* LIGHTS_NAME = "village-lights";  // WLED: Config > WiFi Setup > mDNS address
@@ -81,8 +81,9 @@ Settings S;
 
 Field FIELDS[] = {
   {"manual", "MANUAL MODE: nothing happens on its own (testing)", &S.manual, 0, 1, true, "Village"},
-  {"openH",  "Village opens at (hour, 0-23)",   &S.openHour, 0, 23, false, "Village"},
-  {"closeH", "Village closes at (hour, 0-23)",  &S.closeHour, 0, 23, false, "Village"},
+  {"follow", "Open when the outside lights come on, close at bedtime (FamilyHub tells it)", &S.followHub, 0, 1, true, "Village"},
+  {"openH",  "Village opens at (hour, 0-23; only when the box above is off)", &S.openHour, 0, 23, false, "Village"},
+  {"closeH", "Village closes at (hour, 0-23; the latest it stays open either way)", &S.closeHour, 0, 23, false, "Village"},
   {"awake",  "Stay awake after last motion (minutes)", &S.awakeMin, 1, 60, false, "Village"},
   {"vol",    "Main speaker volume (0-30)",      &S.volume, 0, 30, false, "Village"},
   {"rink",   "Rink speed (0-255)",              &S.rinkSpeed, 0, 255, false, "Village"},
@@ -422,9 +423,25 @@ void updateMist() {
 }
 
 // ======================== CLOCK =============================
+// FamilyHub mode (followHub): FamilyHub says "open" when the outside lights come on and "close" at bedtime. Closing
+// time still applies as the latest it stays open, so a missed "close" can't leave it waking up all night (the dogs).
+// The open/closed choice is saved, so a power cut doesn't change it.
+bool extOpen = false;
+void saveExt() { Preferences p; p.begin("village", false); p.putBool("extOpen", extOpen); p.end(); }
+void loadExt() { Preferences p; p.begin("village", true); extOpen = p.getBool("extOpen", false); p.end(); }
+bool pastClosing(int h) {                  // between closing time and 6 AM
+  if (S.closeHour >= 6) return h >= S.closeHour || h < 6;
+  return h >= S.closeHour && h < 6;
+}
 bool villageOpen() {
   if (manualOverride) return true;
   struct tm t;
+  if (S.followHub) {
+    if (getLocalTime(&t, 0) && pastClosing(t.tm_hour) && extOpen) {
+      extOpen = false; saveExt(); logln("Closing time: closed until FamilyHub opens it tomorrow");
+    }
+    return extOpen;
+  }
   if (!getLocalTime(&t, 0)) return millis() > 300000UL;   // no clock yet: stay closed for 5 min (router still starting
                                                           // after a power cut), then assume open so it works without WiFi
   if (S.openHour == S.closeHour) return true;
@@ -605,7 +622,8 @@ String statusText() {
   if (getLocalTime(&t, 0)) strftime(clock, sizeof(clock), "%a %I:%M %p", &t);
   String s = String(S.manual ? "MANUAL MODE: nothing happens unless you tap it\n" : "AUTOMATIC: runs on its own\n");
   s += String("Mode: ") + modeName(mode) + (manualOverride ? " (ignoring clock)" : "") + "\n";
-  s += String("Time: ") + clock + "  |  open " + S.openHour + ":00 to " + S.closeHour + ":00\n";
+  if (S.followHub) s += String("Time: ") + clock + "  |  follows FamilyHub: " + (extOpen ? "open" : "closed") + " (latest " + S.closeHour + ":00)\n";
+  else s += String("Time: ") + clock + "  |  open " + S.openHour + ":00 to " + S.closeHour + ":00\n";
   s += String("Motion: ") + (pir1Last ? "1 " : "") + (pir2Last ? "2 " : "") + (pir3Last ? "3(carolers)" : "") + "\n";
   s += String("Sleigh: ") + (sleighState == SL_HOME ? "home" : "flying") + (sleighAtHome() ? " (magnet seen)" : "") + "\n";
   s += String("Rink speed: ") + rink.current + "/255   Street lamps: " + (digitalRead(PIN_LAMPS) ? "on" : "off") + "\n";
@@ -653,7 +671,20 @@ void handleSave() {
 void doCommand(const String& c) {
   if (c.startsWith("play:")) play(c.substring(5).toInt());          // test one main-speaker file, e.g. play:7
   else if (c.startsWith("light:")) setLightsPreset(c.substring(6).toInt(), 10);   // test one WLED preset, e.g. light:4
-  else if (c == "wake") { lastMotionAt = millis(); if (mode != MODE_AWAKE) enterMode(MODE_AWAKE); }
+  else if (c == "open") {                // FamilyHub: the outside lights came on
+    extOpen = true; saveExt(); logln("Opened by FamilyHub (outside lights on)");
+    if (mode == MODE_CLOSED) enterMode(MODE_SLEEPY);
+  }
+  else if (c == "close") {               // FamilyHub / Home Assistant: bedtime. Lights off, rink off, train stopped
+    extOpen = false; saveExt(); pendingTrainLaps = 0; pendingTrainCmd = "/stop";
+    logln("Closed for the night");
+    enterMode(MODE_CLOSED);
+  }
+  else if (c == "wake") {
+    struct tm t;
+    if (S.followHub && !extOpen && !(getLocalTime(&t, 0) && pastClosing(t.tm_hour))) { extOpen = true; saveExt(); }   // someone asked: open
+    lastMotionAt = millis(); if (mode != MODE_AWAKE) enterMode(MODE_AWAKE);
+  }
   else if (c == "sleep") enterMode(villageOpen() ? MODE_SLEEPY : MODE_CLOSED);
   else if (c == "tree") startShow(MODE_TREE_SHOW);
   else if (c == "rachell") startShow(MODE_RACHELL);
@@ -835,6 +866,7 @@ void setup() {
   delay(300);
   logln("\n\nNorth Pole Village - Board A (effects) starting");
   loadSettings();
+  loadExt();
 
   pinMode(PIN_PIR1, INPUT); pinMode(PIN_PIR2, INPUT); pinMode(PIN_PIR3, INPUT_PULLDOWN);
   pinMode(PIN_BTN_TREE, INPUT_PULLUP); pinMode(PIN_BTN_TRAIN, INPUT_PULLUP);

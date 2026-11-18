@@ -8,6 +8,7 @@
 struct Settings {
   // village
   int manual = 1;         // 1 = MANUAL MODE: nothing happens on its own, only when you tell it to
+  int followHub = 1;      // 1 = open when FamilyHub says (the outside lights came on), close at bedtime; 0 = by the clock
   int openHour = 16, closeHour = 23, awakeMin = 8;
   int volume = 20;
   int rinkSpeed = 170, sleighSpeed = 230;

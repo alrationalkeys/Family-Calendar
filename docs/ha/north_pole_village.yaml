@@ -67,9 +67,15 @@ script:
   village_sleep:
     alias: "Village: go to sleep"
     icon: mdi:sleep
+    sequence:                                     # closed for the night: lights off, rink off, train stopped
+      - action: rest_command.village_fx
+        data: { cmd: close }
+  village_open:
+    alias: "Village: open for the evening"
+    icon: mdi:home-lightbulb
     sequence:
       - action: rest_command.village_fx
-        data: { cmd: sleep }
+        data: { cmd: open }
   village_tree_show:
     alias: "Village: tree show"
     icon: mdi:pine-tree

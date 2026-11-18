@@ -1029,6 +1029,19 @@ function setupVoiceHistory(){
   $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
   const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); loadCloudVoice(); } });
 }
+async function setupVillage(){
+  const E=FHHome.esc, box=$("#vl-lights"); if(!box) return;
+  const c=$("#vl-auto"); if(document.activeElement!==c) c.checked=FH.get().villageAuto!==false;
+  if(!c._wired){ c._wired=true; c.onchange=()=>{ FH.save({villageAuto:c.checked}); toast("Saved"); }; }
+  if(box._done) return;
+  let h=null; try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
+  const tiles=((h&&h.groups)||[]).flatMap(g=>g.tiles||[]).filter(t=>t.domain==="light"||t.domain==="switch");
+  if(!tiles.length){ box.innerHTML=`<div class="hint" style="margin:0">No lights found in Home Assistant.</div>`; return; }
+  box._done=true;
+  const on=new Set(FH.get().villageOpenLights||[]);
+  box.innerHTML=tiles.map(t=>`<label class="chk" style="margin:2px 0"><input type="checkbox" value="${E(t.entity_id)}"${on.has(t.entity_id)?" checked":""}> ${E(t.name)}</label>`).join("");
+  box.onchange=()=>{ FH.save({villageOpenLights:[...box.querySelectorAll("input:checked")].map(i=>i.value)}); toast("Saved"); };
+}
 async function setupTvLights(){
   const E=FHHome.esc, box=$("#tvb-list"); if(!box) return;
   let h=null; try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
@@ -1100,7 +1113,7 @@ function loadSettingsUI(){
     { const show=async prev=>{ const out=$("#al-month-out"); out.textContent="…"; const d=new Date(); if(prev) d.setDate(0);
         const m=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
         try{ const r=await fetch("/api/ha/report?month="+m).then(x=>x.json()); out.textContent=r.name+"\n"+r.lines.join("\n"); }catch(e){ out.textContent="Couldn't load the report."; } };
-      const a=$("#al-month-now"), b=$("#al-month-prev"); if(a&&!a._wired){ a._wired=true; a.onclick=()=>show(false); b.onclick=()=>show(true); } } bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); setupTvLights(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+      const a=$("#al-month-now"), b=$("#al-month-prev"); if(a&&!a._wired){ a._wired=true; a.onclick=()=>show(false); b.onclick=()=>show(true); } } bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); setupTvLights(); setupVillage(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);

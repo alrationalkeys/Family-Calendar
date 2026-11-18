@@ -210,3 +210,11 @@ A-2026.11.16a plus three changes Alex made on the board's own copy: a rink safet
 after", default 10 min), "Train also runs on its own" (off by default: the train runs only from its button, the phone or
 FamilyHub), and in manual mode a show ends back on the Evening look instead of sleepy. Board B stays on B-2026.11.16a
 (no changes). The departure and station sounds need BOTH boards on the 16a-or-later code.
+
+### 8d. A-2026.11.18b: the village follows the house (Nov 18)
+New setting "Open when the outside lights come on, close at bedtime" (on by default). FamilyHub sends `open` when the
+outside lights turn on in the evening and `close` at bedtime (Good night, the alarm set for the night, or the Home
+Assistant "Village: go to sleep" script, which now sends `close`). Closed = lights preset Off, rink off, train stopped,
+and motion can't wake it. Closing time on the settings page is still the latest it stays open. Untick the setting to go
+back to the old open/close hours. The train never starts by itself ("Train also runs on its own" is off).
+

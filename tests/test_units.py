@@ -280,3 +280,39 @@ def test_night_mode_gives_up_in_the_daytime_when_the_alarm_cannot_be_read(monkey
     monkeypatch.setattr(d, "_stay_counts_as_bedtime", lambda now=None: False)     # daytime and blind for hours: light up
     d._state["alarm_checked"] = 0.0
     d._poll_alarm(); assert not d._state["sleep_mode"]
+
+
+def test_village_follows_the_house(monkeypatch):
+    """Outside lights on in the evening -> open; bedtime -> close; once closed, the lights can't reopen it tonight."""
+    from app.services import village as v
+    sent = []
+    monkeypatch.setattr(v, "_get", lambda kind, path, timeout=2.0: sent.append(path) or "AUTOMATIC\nfollows FamilyHub: closed")
+    monkeypatch.setattr(v, "_settings", lambda: {"villageOpenLights": ["light.porch"]})
+    monkeypatch.setattr(v, "_evening_now", lambda: True)
+    monkeypatch.setattr(v, "_bedtime_now", lambda: False)
+    monkeypatch.setattr(v.threading, "Thread", lambda target, args, **k: type("T", (), {"start": lambda self: target(*args)})())
+    v._auto({"opened": None, "closed": None})
+    lit = {"state": "on", "attributes": {"friendly_name": "Porch"}}
+    v.on_state("light.kitchen", {"state": "off"}, lit, {})
+    assert sent == []                                            # not an outside light
+    v.on_state("light.porch", {"state": "off"}, lit, {})
+    assert sent == ["/cmd?do=open"]
+    v.on_state("scene.go_to_sleep", {"state": "2026-11-18T21:00:00"}, {"state": "2026-11-18T23:00:00", "attributes": {"friendly_name": "Go to sleep"}}, {})
+    assert sent[-1] == "/cmd?do=close"
+    n = len(sent)
+    v.on_state("light.porch", {"state": "off"}, lit, {})         # lights flick on again after bedtime
+    assert len(sent) == n
+    assert v.command("sleep")["ok"]                               # "sleep" goes out as close on these boards
+    assert sent[-1] == "/cmd?do=close"
+
+
+def test_village_never_starts_the_train_by_itself():
+    """The dogs: nothing automatic in FamilyHub may send the train. Only the train commands someone asks for."""
+    import inspect
+    from app.services import village as v
+    auto = inspect.getsource(v.open_for_evening) + inspect.getsource(v.close_for_night) + inspect.getsource(v.on_state) + inspect.getsource(v._catch_up)
+    assert "/go" not in auto and "do=train" not in auto and "do=wake" not in auto
+    fw = open("docs/village/firmware/VillageEffects/VillageEffects.ino").read()
+    assert fw.count("trainGo(") - fw.count("void trainGo(") == 4      # whistle-then-go, the delayed start, and the two trainAuto-gated ones
+    assert "if (S.trainAuto) trainGo(S.wakeLaps)" in fw and "if (S.trainAuto) trainGo(1)" in fw
+    assert "int trainAuto = 0;" in open("docs/village/firmware/VillageEffects/VillageTypes.h").read()

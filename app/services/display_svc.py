@@ -78,7 +78,23 @@ def enter_sleep(reason="alarm"):
         _state["sleep_mode"] = True
         _state["sleep_since"] = time.time()
         _state["last_wake"] = 0.0
+        _village_bedtime(reason)
     return tick()
+
+
+def _village_bedtime(reason: str):
+    """Bedtime for the house (alarm set for the night, or Good night) = closed for the night for the village."""
+    try:
+        from ..routers.settings import get_settings
+        s = get_settings() or {}
+        if s.get("villageWithHouse", True) is False or s.get("villageAuto", True) is False:
+            return
+        import threading
+        from . import village
+        threading.Thread(target=lambda: village._follows() and village.close_for_night("bedtime (" + str(reason) + ")"),
+                         daemon=True).start()
+    except Exception:
+        pass
 
 
 def exit_sleep(reason="morning"):

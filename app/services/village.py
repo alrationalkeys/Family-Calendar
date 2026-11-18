@@ -31,7 +31,9 @@ _lock = threading.Lock()
 # what the wall/phone/voice may ask for -> (board, path)
 COMMANDS = {
     "wake": ("fx", "/cmd?do=wake"),
-    "sleep": ("fx", "/cmd?do=sleep"),
+    "sleep": ("fx", "/cmd?do=sleep"),       # sent as "close" (lights off, train stopped) to boards that follow FamilyHub
+    "open": ("fx", "/cmd?do=open"),
+    "close": ("fx", "/cmd?do=close"),
     "tree": ("fx", "/cmd?do=tree"),
     "rachell": ("fx", "/cmd?do=rachell"),
     "carol": ("fx", "/cmd?do=carol"),
@@ -138,6 +140,9 @@ def command(name: str) -> dict:
     if name not in COMMANDS:
         return {"ok": False, "reason": "unknown village command"}
     board, path = COMMANDS[name]
+    if name == "sleep" and _follows():
+        ok = close_for_night("asked")           # "put the village to sleep" = closed for the night, not sleepy
+        return {"ok": True} if ok else {"ok": False, "reason": "the village isn't answering"}
     try:
         _get(board, path, 3.0)
     except Exception:
@@ -156,6 +161,8 @@ def pause_for_night() -> str | None:
         fx = _get("fx", "/status", 1.5)
     except Exception:
         return None
+    if "follows FamilyHub" in fx:                # A-2026.11.18b and later: one "close" does it all, no manual mode
+        return "put the village to sleep" if close_for_night("good night") else None
     try:
         _get("fx", "/cmd?do=sleep", 3.0)
         try:
@@ -190,12 +197,164 @@ def resume() -> bool:
     return True
 
 
+# ---------------------------------------------------------------- follow the house (A-2026.11.18b+)
+# Open when the outside lights come on in the evening; closed for the night at bedtime (Good night, the alarm set
+# for the night, or a Home Assistant scene / script called "go to sleep", "good night" or "bedtime"). Once closed,
+# it stays closed until the next evening, even if the outside lights are still on. settings.villageAuto (default on).
+
+_NIGHT_NAME = re.compile(r"go to sleep|good ?night|bed ?time|night ?night", re.I)
+_OUTSIDE = re.compile(r"exterior|outdoor|outside|porch|driveway|landscape|soffit|eave|front yard|back yard|yard light|flood", re.I)
+
+
+def _follows() -> bool:
+    try:
+        return "follows FamilyHub" in _get("fx", "/status", 1.5)
+    except Exception:
+        return False
+
+
+def _night() -> str:
+    """The evening this moment belongs to: 1 AM still counts as last night; a new one starts at 6 AM."""
+    return time.strftime("%Y-%m-%d", time.localtime(time.time() - 6 * 3600))
+
+
+def _auto(update: dict | None = None) -> dict:
+    with get_db() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key='village_auto'").fetchone()
+        try:
+            d = json.loads(row["value"]) if row and row["value"] else {}
+        except Exception:
+            d = {}
+        if d.get("night") != _night():
+            d = {"night": _night()}
+        if update:
+            d.update(update)
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('village_auto', ?)", (json.dumps(d),))
+    return d
+
+
+def open_lights(states: list) -> list:
+    """The outside lights that open the village: settings.villageOpenLights if picked on the phone, else the
+    nightly outdoor lights list (outdoor_lights.yaml), else lights/plugs named like outside lights. Never the
+    Christmas display plug (it blinks for walk-ups) or the village itself."""
+    s = _settings()
+    pick = [e for e in (s.get("villageOpenLights") or []) if isinstance(e, str)]
+    if pick:
+        return pick
+    for st in states:
+        if st.get("entity_id") == "input_text.fh_outdoor_night_lights":
+            ids = [x.strip() for x in str(st.get("state") or "").split(",") if x.strip().startswith(("light.", "switch."))]
+            if ids:
+                return ids
+    xplug = ""
+    try:
+        from . import xmas
+        xplug = xmas.plug({x["entity_id"]: x for x in states}) or ""
+    except Exception:
+        pass
+    out = []
+    for st in states:
+        eid = st.get("entity_id", "")
+        name = eid + " " + str((st.get("attributes") or {}).get("friendly_name", ""))
+        if eid.split(".")[0] in ("light", "switch") and _OUTSIDE.search(name) and not re.search(r"village|christmas|xmas", name, re.I) and eid != xplug:
+            out.append(eid)
+    return out
+
+
+def _evening_now() -> bool:
+    h = time.localtime().tm_hour
+    return h >= 15 or h < 2
+
+
+def _bedtime_now() -> bool:
+    try:
+        from . import display_svc
+        return bool(display_svc._state.get("sleep_mode"))
+    except Exception:
+        return False
+
+
+def open_for_evening(why: str) -> bool:
+    if _settings().get("villageAuto", True) is False:
+        return False
+    a = _auto()
+    if a.get("closed") or a.get("opened") or not _evening_now() or _bedtime_now():
+        return False
+    try:
+        _get("fx", "/cmd?do=open", 3.0)
+    except Exception:
+        return False
+    _auto({"opened": time.strftime("%H:%M"), "why_open": why})
+    with _lock:
+        _cache["at"] = 0.0
+    return True
+
+
+def close_for_night(why: str) -> bool:
+    try:
+        _get("fx", "/cmd?do=close", 3.0)          # lights off, rink off, train stopped (the board does it all)
+    except Exception:
+        return False
+    _auto({"closed": time.strftime("%H:%M"), "why_closed": why})
+    with _lock:
+        _cache["at"] = 0.0
+    return True
+
+
+def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
+    """From ha_live: outside lights coming on, or a bedtime scene / script being run in Home Assistant."""
+    if not new or _settings().get("villageAuto", True) is False:
+        return
+    dom = eid.split(".", 1)[0]
+    name = eid.replace("_", " ") + " " + str((new.get("attributes") or {}).get("friendly_name", ""))
+    try:
+        if dom in ("scene", "script") and _NIGHT_NAME.search(name):
+            ran = (dom == "scene" and old is not None and new.get("state") != (old or {}).get("state")
+                   and new.get("state") not in ("unavailable", "unknown")) or (dom == "script" and new.get("state") == "on")
+            if ran and _settings().get("villageWithHouse", True) is not False:
+                threading.Thread(target=close_for_night, args=("Home Assistant: " + name.strip(),), daemon=True).start()
+            return
+        if dom in ("light", "switch") and new.get("state") == "on" and (old or {}).get("state") == "off":
+            try:
+                from . import gameday
+                if eid in (gameday._S.get("flashing") or ()):
+                    return                           # a touchdown flash, not the evening
+            except Exception:
+                pass
+            if eid in open_lights(list(states.values()) if isinstance(states, dict) else states):
+                threading.Thread(target=open_for_evening, args=("outside lights on",), daemon=True).start()
+    except Exception:
+        pass
+
+
+def _catch_up():
+    """Every 5 minutes: outside lights already on in the evening and not opened yet (FamilyHub was restarted, or the
+    lights came on while the link was down) -> open. Never after bedtime."""
+    if _settings().get("villageAuto", True) is False or not _evening_now() or _bedtime_now():
+        return
+    a = _auto()
+    if a.get("opened") or a.get("closed"):
+        return
+    try:
+        from . import ha_live
+        states = ha_live.states() or []
+    except Exception:
+        return
+    on = {x["entity_id"] for x in states if x.get("state") == "on"}
+    if any(e in on for e in open_lights(states)) and _follows():
+        open_for_evening("outside lights already on")
+
+
 def _morning_loop():
     while True:
         time.sleep(300)
         try:
             if 6 <= time.localtime().tm_hour < 16 and _flag():
                 resume()
+        except Exception:
+            pass
+        try:
+            _catch_up()
         except Exception:
             pass
 

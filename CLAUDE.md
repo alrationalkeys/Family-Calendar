@@ -251,7 +251,7 @@ boards answer. Voice: "start/stop the train", "tree show", "Rachell's show", "ca
 `village` tool for the AI). Good night / Leaving (`settings.villageWithHouse`) = sleep + manual mode + WLED off; FamilyHub
 flips it back to automatic 06:00–16:00 or on I'm home, only if it was the one that paused it (settings key `village_paused`).
 Firmware A-2026.11.18a / B-2026.11.16a (18a = 16a + Alex's rink safety timer, trainAuto, manual-mode show end; repeat-sent TSTATION/TDEPART, sound check, net setup on WiFi connect, `manualon`/`manualoff`; see docs/village/README §8b).
-Board IPs in `settings.villageFx` / `villageTrain` (private IPs only). Village is finished and
+Follow the house (A-2026.11.18b+, `village.open_for_evening/close_for_night/on_state/_catch_up`, settings.villageAuto, villageOpenLights): outside lights off->on in the evening (15:00-02:00) -> `/cmd?do=open`; bedtime (display_svc.enter_sleep, Good night, an HA scene/script named go to sleep / good night / bedtime, HA script village_sleep) -> `/cmd?do=close` (lights off, rink off, train stopped); closed stays closed until 6 AM (settings row village_auto). The board's closeHour is the latest it stays open. The TRAIN NEVER RUNS ON ITS OWN (Alex's dogs): trainAuto=0, and nothing automatic in FamilyHub sends /go or do=train. Board IPs in `settings.villageFx` / `villageTrain` (private IPs only). Village is finished and
 snow-covered: **never flash firmware unless Alex asks**; real `secrets.h` never goes in the repo. Board A runs its own
 schedule (open 16:00–23:00) + motion wake, so HA/FamilyHub should complement it, not fight it. `manual`/`override` toggle.
 

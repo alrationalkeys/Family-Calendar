@@ -275,6 +275,8 @@ def _loop():
                 xmas.tick()
                 from . import garage_watch
                 garage_watch.tick(s, _states())
+                from . import offline_watch
+                offline_watch.tick(s, _states(), _push)
                 from . import wx_alerts
                 wx_alerts.tick(_push, s)
                 wx_alerts.rain_tick(_push, s, _rain_openings)

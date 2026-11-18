@@ -157,6 +157,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Monthly house report (`services/house_report.py`): one line per day kept in settings row `house_days` (heat/cool/peak minutes
   from the timeline just after midnight, catching up 9 days; washer/dryer loads bumped by laundry.py) because HA keeps ~10 days.
   1st of the month 09:00 -> push of last month (settings.monthlyReport); `GET /api/ha/report?month=YYYY-MM`; phone Settings > Alerts.
+- Offline while armed (`services/offline_watch.py`, house-watch tick, settings.offlineAlert): a camera (not Blink) or the alarm panel
+  unavailable ~2 min while armed -> one push per outage (grouped when several drop together), heads-up when arming with one already
+  offline, "back online" push. Tell-only.
 - Peak + dryer: `watch._peak_dryer` (settings.peakDryer): dryer running during peak -> wall announcement + push, once a day.
 - Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when
   settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every

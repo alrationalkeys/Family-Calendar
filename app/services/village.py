@@ -66,9 +66,58 @@ def _host(kind: str) -> str:
     return DEFAULT_FX if kind == "fx" else DEFAULT_TRAIN
 
 
-def _get(kind: str, path: str, timeout: float = 2.0) -> str:
-    with urllib.request.urlopen(f"http://{_host(kind)}{path}", timeout=timeout) as r:
+# Spectrum's router can't reserve addresses, so a board can come back on a new one after a power blip. When the
+# saved address stops answering FamilyHub finds the board again: the train from Board A's /links (Board A hears the
+# train's own announcements), Board A from its village-fx.local name. The found address is remembered until it fails.
+_found: dict = {}
+_FIND_NAMES = {"fx": "village-fx.local", "train": "village-train.local"}
+
+
+def _private(ip: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
+
+
+def _fetch(host: str, path: str, timeout: float) -> str:
+    with urllib.request.urlopen(f"http://{host}{path}", timeout=timeout) as r:
         return r.read(4096).decode("utf-8", "replace")
+
+
+def _find(kind: str) -> str | None:
+    """Where the board is now, or None. Only private LAN addresses."""
+    cand = []
+    if kind == "train":
+        try:
+            lines = _get("fx", "/links", 1.5).splitlines()
+            if len(lines) > 1 and _private(lines[1].strip()):
+                cand.append(lines[1].strip())
+        except Exception:
+            pass
+    try:
+        import socket
+        ip = socket.gethostbyname(_FIND_NAMES[kind])
+        if _private(ip):
+            cand.append(ip)
+    except Exception:
+        pass
+    return cand[0] if cand else None
+
+
+def _get(kind: str, path: str, timeout: float = 2.0) -> str:
+    saved = _host(kind)
+    host = _found.get(kind) or saved
+    try:
+        return _fetch(host, path, timeout)
+    except Exception:
+        _found.pop(kind, None)
+        new = _find(kind)
+        if not new or new == host:
+            raise
+        out = _fetch(new, path, timeout)
+        _found[kind] = new
+        return out
 
 
 def _flag(value=None):

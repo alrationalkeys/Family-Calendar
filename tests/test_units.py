@@ -316,3 +316,27 @@ def test_village_never_starts_the_train_by_itself():
     assert fw.count("trainGo(") - fw.count("void trainGo(") == 4      # whistle-then-go, the delayed start, and the two trainAuto-gated ones
     assert "if (S.trainAuto) trainGo(S.wakeLaps)" in fw and "if (S.trainAuto) trainGo(1)" in fw
     assert "int trainAuto = 0;" in open("docs/village/firmware/VillageEffects/VillageTypes.h").read()
+
+
+def test_village_finds_a_board_that_moved(monkeypatch):
+    """The router gave the train board a new address: FamilyHub asks Board A where it is and remembers it."""
+    from app.services import village
+    village._found.clear()
+    calls = []
+
+    def fake_fetch(host, path, timeout):
+        calls.append((host, path))
+        if host == village.DEFAULT_FX and path == "/links":
+            return "192.168.1.134\n192.168.1.122"
+        if host == "192.168.1.122":
+            return "train ok"
+        raise OSError("no answer")
+
+    monkeypatch.setattr(village, "_fetch", fake_fetch)
+    monkeypatch.setattr(village, "_settings", lambda: {})
+    assert village._get("train", "/status") == "train ok"
+    assert village._found["train"] == "192.168.1.122"
+    calls.clear()
+    assert village._get("train", "/status") == "train ok"        # straight to the remembered address
+    assert calls == [("192.168.1.122", "/status")]
+    village._found.clear()

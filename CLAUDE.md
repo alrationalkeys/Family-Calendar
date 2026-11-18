@@ -183,8 +183,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   (20:00) one "🌙 Before bed" push covering tonight→9 AM; nothing pushes 20:00–07:00 otherwise; plug unavailable 3+ min → GFCI push (+ back
   online). Hooked into ha_live + the house-watch tick; phone Settings > Alerts.
 - Birthdays: `settings.birthdays` [{name, date MM-DD|YYYY-MM-DD}] for relatives (phone Settings > Family > Birthdays) + people.birthday; Skins.birthdayPeople merges both (Birthday skin with their name), `/api/calendar/events` adds "🎂 Name's birthday (turns N)" all-day items.
-- To-do lists: `todos.list_name` (NULL = main "To-Do"; iCloud items use ext_list), `settings.todoLists` = extra list names (phone Settings > To-do lists, add/reorder/remove → items move to To-Do via `POST /api/todos/{id}/list`). Wall To-Do box header ‹ › cycles lists (remembered per screen in localStorage fh_todo_list); + adds to the shown list. settings.secondTodo
-  turns the calendar page's Groceries box into a second to-do box with its own list (fh_todo_list_b); groceries stay on the Lists page.
+- To-do lists: `todos.list_name` (NULL = main "To-Do"; iCloud items use ext_list), `settings.todoLists` = extra list names (phone Settings > To-do lists, add/reorder/remove → items move to To-Do via `POST /api/todos/{id}/list`). Wall To-Do box header ‹ › cycles lists (remembered per screen in localStorage fh_todo_list); + adds to the shown list. settings.sideBox2
+  (groceries | today | todo) picks what the calendar page's middle box shows: Groceries, Today (`renderTodayBox`: today's events,
+  to-dos/chores due today, overdue to-dos) or a second to-do box with its own list (fh_todo_list_b). Groceries stay on the Lists page.
 - Wall Home tiles: "By room" (default; FHHome.resolveRooms/roomFor like the phone; cameras first, scenes last, sensors hidden)
   or "By type" (HA groups); choice in localStorage fh_home_group. Every light tile has the ◐/🎨 button; a switch-only light
   says so in the pop-up (tile.modes = HA supported_color_modes).

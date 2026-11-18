@@ -1609,7 +1609,8 @@ function todoLists(todos){
 /* settings.secondTodo: the Groceries box on the calendar page becomes a second to-do box with its own list (‹ › too).
    Groceries stay on the Lists page. */
 let todoListB=(()=>{ try{ return localStorage.getItem("fh_todo_list_b")||""; }catch(e){ return ""; } })();
-const secondTodo=()=>!!FH.get().secondTodo;
+const slot2Mode=()=>{ const s=FH.get(); return ["today","todo","groceries"].includes(s.sideBox2)?s.sideBox2:(s.secondTodo?"todo":"groceries"); };
+const secondTodo=()=>slot2Mode()==="todo";
 function cycleTodoList(dir, second){
   const all=todoLists(lastTodos); let i=all.indexOf(second?todoListB:todoList); i=(i<0?0:i+dir+all.length)%all.length;
   if(second){ todoListB=all[i]; try{ localStorage.setItem("fh_todo_list_b", todoListB); }catch(e){} }
@@ -1620,14 +1621,50 @@ let lastTodos=[];
 document.addEventListener("click", e=>{ const b=e.target.closest(".tl-arrow"); if(!b) return; e.stopPropagation(); cycleTodoList(+b.dataset.tl, b.dataset.box==="b"); }, true);
 function slot2Header(all){
   const t=$("#slot2-title"), add=$("#slot2-add"); if(!t||!add) return;
-  const want=secondTodo()?"todo":"grocery";
+  const want=slot2Mode();
   if(t.dataset.mode!==want){
     t.dataset.mode=want;
     if(want==="todo"){ t.className="tl-name"; t.innerHTML='<button class="tl-arrow" data-box="b" data-tl="-1" aria-label="Previous list">‹</button><span id="todo-list-name-b"></span><button class="tl-arrow" data-box="b" data-tl="1" aria-label="Next list">›</button>'; add.dataset.add="todoB"; add.title="Add to-do"; }
+    else if(want==="today"){ t.className=""; t.textContent="Today"; add.dataset.add="today"; add.title="Add something today"; }
     else { t.className=""; t.textContent="Groceries"; add.dataset.add="grocery"; add.title="Add item"; }
   }
   if(want==="todo"){ const nm=$("#todo-list-name-b"); if(nm) nm.textContent=todoListB;
     t.querySelectorAll(".tl-arrow").forEach(b=>b.style.display=(all||[]).length>1?"":"none"); }
+  if(want==="today") t.textContent="Today \u00b7 "+new Date().toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+}
+/* settings.sideBox2 = "today": everything on today in one box: events (all-day first, then by time; ones that are over
+   are dimmed), to-dos and chores due today, and to-dos that are overdue. Tap a row = same as on the calendar. */
+function renderTodayBox(box){
+  box=box||$("#groceries"); if(!box) return; slot2Header();
+  const now=new Date(), key=dateStr(now), d0=new Date(now); d0.setHours(0,0,0,0); const d1=new Date(d0); d1.setDate(d1.getDate()+1);
+  const rows=[];
+  calItems().forEach(e=>{
+    const st=evStart(e); if(!st||isNaN(st)) return;
+    if(e.task){
+      const due=String(e.start).slice(0,10);
+      if(due===key) rows.push({e, sort:1e15, label:e.done?"\u2611":"\u2610"});
+      else if(due<key && !e.done && e.task.kind==="todo") rows.push({e, sort:1e15+1, label:"\u2610", note:"overdue"});
+      return;
+    }
+    let en=null;
+    if(e.end){ en=/^\d{4}-\d{2}-\d{2}$/.test(e.end)?evStart({start:e.end}):new Date(e.end); }
+    const covers = st<d1 && (en&&!isNaN(en) ? en>d0 : st>=d0);
+    if(!covers) return;
+    const allDay=e.all_day || st<d0;                       // a multi-day event that began earlier reads as all day
+    rows.push({e, sort:allDay?0:st.getTime(), label:allDay?"All day":st.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}),
+               past: !allDay && (en&&!isNaN(en)?en:new Date(st.getTime()+3600000))<now});
+  });
+  rows.sort((a,b)=>a.sort-b.sort);
+  box.innerHTML="";
+  if(!rows.length){ box.innerHTML='<div class="empty">Nothing on today</div>'; return; }
+  rows.forEach(r=>{ const e=r.e;
+    const row=document.createElement("div"); row.className="agenda-ev"+(e.task?" task":"")+(e.done?" done":"");
+    row.style.cssText="padding:9px 4px; gap:10px"+(r.past?"; opacity:.5":"");
+    row.innerHTML=`<span class="agenda-time" style="width:64px">${r.label}</span><span class="agenda-dot" style="background:${esc(evColor(e))}"></span>`
+      +`<span class="agenda-title" style="font-size:15px">${esc(e.title)}</span>`
+      +(e.task?`<span class="agenda-time" style="width:auto;font-size:12px;margin-left:auto">${r.note||(e.task.kind==="chore"?"chore":"to-do")}</span>`:"");
+    row.onclick=()=>{ openItem(e,row); resetSleep(); };
+    box.appendChild(row); });
 }
 function renderTodos(todos, box){
   box=box||$("#todos"); if(!box) return; box.innerHTML="";
@@ -1792,7 +1829,7 @@ async function load(){
     if(window.Skins && Skins.pick(FH.get())!==Skins.current()) applySeasonal();   // a family birthday today -> party
     render();
     renderTodos(dash.todos||[]); renderMeals(dash.meals||[]);
-    if(secondTodo()) renderTodos(dash.todos||[], $("#groceries")); else { slot2Header(); renderGroceries(dash.groceries||[]); }
+    if(secondTodo()) renderTodos(dash.todos||[], $("#groceries")); else if(slot2Mode()==="today") renderTodayBox(); else { slot2Header(); renderGroceries(dash.groceries||[]); }
     renderCountdowns(dash.countdowns||[]);
     loadScoreboard();
     refreshActivePage();
@@ -2037,7 +2074,7 @@ function startQuickAdd(kind, box){
   inp.onblur=()=>{ if(!inp.value.trim()) inp.remove(); };
 }
 document.querySelectorAll(".card .addbtn").forEach(b=>{
-  b.onclick=(e)=>{ e.stopPropagation(); if(b.dataset.add==="todo") openAdd("todo"); else if(b.dataset.add==="todoB") openAdd("todo", null, null, todoListB); else startQuickAdd(b.dataset.add, b.closest(".card").querySelector(".body")); resetSleep(); };
+  b.onclick=(e)=>{ e.stopPropagation(); if(b.dataset.add==="todo") openAdd("todo"); else if(b.dataset.add==="todoB") openAdd("todo", null, null, todoListB); else if(b.dataset.add==="today") openAdd("event", new Date()); else startQuickAdd(b.dataset.add, b.closest(".card").querySelector(".body")); resetSleep(); };
 });
 
 /* ---- boot ---- */

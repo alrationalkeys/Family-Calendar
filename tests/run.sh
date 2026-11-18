@@ -11,6 +11,12 @@ fail=0
 echo "== 1/2 server tests =="
 "$PY" -m pytest tests -q || fail=1
 
+echo; echo "== script syntax =="
+if command -v node >/dev/null; then
+  for f in static/*.js; do node --check "$f" || fail=1; done
+  [ $fail -eq 0 ] && echo "all page scripts parse"
+else echo "skipped: no Node here"; fi
+
 echo; echo "== 2/2 browser tests =="
 if ! node -e "require('playwright')" 2>/dev/null; then
   echo "skipped: Node with Playwright isn't installed here"

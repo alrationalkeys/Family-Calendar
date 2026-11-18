@@ -1,0 +1,2411 @@
+const $ = s => document.querySelector(s);
+// Default view by screen: phones open on Agenda (easiest to read), the wall opens
+// on Week. Either can switch tabs; this is just the initial default each load.
+let view = (window.matchMedia && window.matchMedia("(max-width:760px)").matches) ? "agenda" : "week";
+let cursor = new Date();              // the date the calendar is centered on
+let cache = {events:[], dash:null};
+let people = [];   // family members, from the dashboard feed
+let forecast = {}; // date 'YYYY-MM-DD' -> {high, low, icon, desc}
+let START_HOUR = 6, END_HOUR = 20;   // default visible window (where the grid opens), overridden by settings
+const GRID_H0 = 0, GRID_H1 = 24;     // the grid itself always covers the whole day; scroll/pinch to see the rest
+let tgScroll = null;                 // remembered scroll position so the 10 s refresh doesn't yank it back
+let HOURPX = 46;                     // zoom level (hour-row height), from settings
+const ZOOM_MIN = 26, ZOOM_MAX = 120;
+function syncHours(){
+  const s = FH.get();
+  let a = parseInt(s.dayStart, 10); if(isNaN(a)) a = 6;
+  let b = parseInt(s.dayEnd, 10);   if(isNaN(b)) b = 20;
+  a = Math.min(Math.max(a, 0), 23);
+  b = Math.min(Math.max(b, a + 1), 24);   // end always after start
+  START_HOUR = a; END_HOUR = b;
+  let z = parseInt(s.hourPx, 10); if(isNaN(z)) z = 46;
+  HOURPX = Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX);
+}
+function zoom(dir){
+  HOURPX = Math.min(Math.max(HOURPX + dir*10, ZOOM_MIN), ZOOM_MAX);
+  FH.save({hourPx:HOURPX}); render();
+}
+/* local calendar date as YYYY-MM-DD (toISOString() would flip to tomorrow after 7pm EST) */
+function localISODate(d){ d=d||new Date(); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function evStart(ev){ // local Date; date-only all-day strings parsed in local tz (no UTC shift)
+  const s=ev.start; if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+  return new Date(s);
+}
+
+function tick(){
+  const n=new Date();
+  const hm=n.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  $("#clock").textContent=hm; $("#sclock").textContent=hm;
+  $("#date").firstChild.textContent=n.toLocaleDateString([],{month:"long",day:"numeric"});
+  $("#dow").textContent=n.toLocaleDateString([],{weekday:"long",year:"numeric"});
+  $("#sdate").textContent=n.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
+  placeNow();
+  updateHeroPhase();
+}
+
+document.querySelectorAll(".tabs button").forEach(b=>{
+  b.onclick=()=>{ setActive(b.dataset.v); view=b.dataset.v; render(); resetSleep(); };
+});
+function setActive(v){ document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.v===v)); }
+
+function render(){
+  syncHours();
+  updatePeriod();
+  if(view==="day") renderGrid([new Date(cursor)]);
+  else if(view==="week") renderGrid(weekDays(cursor));
+  else if(view==="agenda") renderAgenda();
+  else renderMonth();
+}
+function renderAgenda(){
+  const body=$("#calbody");
+  const wrap=document.createElement("div"); wrap.className="agenda";
+  // agenda follows the same week as the Week view, so the header shows its dates
+  const start=weekStart(cursor);
+  const horizon=new Date(start); horizon.setDate(horizon.getDate()+7);
+  const evs=calItems().map(e=>({e,s:evStart(e)}))
+    .filter(x=>x.s && !isNaN(x.s) && x.s>=start && x.s<horizon)
+    .sort((a,b)=> (a.s-b.s) || ((a.e.all_day?0:1)-(b.e.all_day?0:1)));
+  if(!evs.length){
+    wrap.innerHTML='<div class="empty" style="padding:22px 14px">Nothing scheduled this week. Tap &rsaquo; for next week.</div>';
+    body.innerHTML=""; body.appendChild(wrap); return;
+  }
+  let lastKey=""; const todayKey=new Date().toDateString();
+  evs.forEach(({e,s})=>{
+    const key=s.toDateString();
+    if(key!==lastKey){
+      lastKey=key;
+      const isToday=key===todayKey;
+      const hd=document.createElement("div"); hd.className="agenda-day"+(isToday?" today":"");
+      hd.textContent = isToday ? "Today" : s.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
+      wrap.appendChild(hd);
+    }
+    const row=document.createElement("div"); row.className="agenda-ev"+(e.task?" task":"")+(e.done?" done":"");
+    const time = e.task ? (e.done?"\u2611":"\u2610") : e.all_day ? "All day" : s.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    row.innerHTML=`<span class="agenda-time">${time}</span>`
+      +`<span class="agenda-dot" style="background:${esc(evColor(e))}"></span>`
+      +`<span class="agenda-title">${esc(e.title)}</span>${e.task?`<span class="agenda-time" style="width:auto;font-size:12px;margin-left:auto">${e.task.kind==="chore"?"chore":"to-do"}</span>`:""}`;
+    row.onclick=()=>{ openItem(e,row); resetSleep(); };
+    wrap.appendChild(row);
+  });
+  body.innerHTML=""; body.appendChild(wrap);
+}
+function evColor(ev){ return ev.color || "#4f86c6"; }
+/* To-dos and chores with a due date ride the calendar as all-day chips (chores default to today).
+   They're pseudo-events: id "todo:5" / "chore:9", task={kind,id}, and tapping one checks it off. */
+function taskEvents(){
+  if(FH.get().calendarTasks===false || !cache.dash) return [];
+  const today=dateStr(new Date()); const out=[];
+  (cache.dash.todos||[]).forEach(t=>{ const due=(t.just_done&&t.was_due)||t.due_date; if(due) out.push({id:"todo:"+t.id, title:t.title, start:due, all_day:true, color:t.color, task:{kind:"todo",id:t.id}, done:!!(t.done||t.just_done)}); });
+  (cache.dash.chores||[]).forEach(c=>{ const due=(c.just_done&&c.was_due)||c.due_date, d=due||today; if(d>=today || due) out.push({id:"chore:"+c.id, title:(c.stars?"\u2B50 ":"")+c.title, start:due||today, all_day:true, color:c.color, task:{kind:"chore",id:c.id}, done:!!(c.done||c.just_done)}); });
+  return out;
+}
+function calItems(){ return cache.events.concat(taskEvents()); }
+async function toggleTask(ev, el){
+  if(el){ el.classList.toggle("done"); }
+  try{ await fetch(`/api/${ev.task.kind==="todo"?"todos":"chores"}/${ev.task.id}/toggle`,{method:"POST"}); }catch(e){}
+  if(ev.task.kind==="chore" && el && !el.classList.contains("done")===false) try{ celebrate(el); }catch(e){}
+  setTimeout(load, 400);
+}
+function openItem(ev, el){
+  if(!ev.task) return openEditor(ev);
+  // a chore / to-do on the calendar opens its menu (Mark done, Edit, Skip, Delete…) instead of ticking it straight away
+  const list=ev.task.kind==="todo"?(cache.dash&&cache.dash.todos):(cache.dash&&cache.dash.chores);
+  const item=(list||[]).find(x=>x.id===ev.task.id);
+  if(item) itemMenu(ev.task.kind, item, {markDone:()=>toggleTask(ev, el), done:!!ev.done}); else toggleTask(ev, el);
+}
+function weekDays(d){ const s=weekStart(d); return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;}); }
+function hourLabel(h){ const hh=h%24; return (hh%12||12)+(hh<12?'am':'pm'); }
+
+function renderGrid(daysArr){
+  const body=$("#calbody"); const cols=daysArr.length; const hrs=GRID_H1-GRID_H0;
+  let head='<div class="cnr"></div>';
+  daysArr.forEach(d=>{
+    const wx=forecast[dateStr(d)];
+    const wxhtml = wx ? `<div class="dwx">${wx.icon} ${wx.high}°/${wx.low}°</div>` : "";
+    head+=`<div class="dcol${sameDay(d,new Date())?' today':''}" data-iso="${d.toISOString()}">`
+        +`<div class="dn">${d.toLocaleDateString([],{weekday:'short'})}</div>`
+        +`<div class="dd">${d.getDate()}</div>${wxhtml}</div>`;
+  });
+  let allday='<div class="lbl">all-day</div>';
+  daysArr.forEach(d=>{
+    let cell='';
+    calItems().filter(e=>e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
+      cell+=`<div class="adev${ev.task?' task':''}${ev.done?' done':''}" data-id="${encodeURIComponent(ev.id||'')}" style="--accent:${evColor(ev)}">${esc(ev.title)}</div>`;
+    });
+    allday+=`<div class="adcol">${cell}</div>`;
+  });
+  let gut=''; for(let h=GRID_H0;h<GRID_H1;h++) gut+=`<div class="gh">${hourLabel(h)}</div>`;
+  let dayCols=''; daysArr.forEach((d,i)=> dayCols+=`<div class="tg-day" data-col="${i}"></div>`);
+  body.innerHTML=
+    `<div class="tg" style="--cols:${cols};--hpx:${HOURPX}px">`
+    +`<div class="tg-head">${head}</div>`
+    +`<div class="tg-allday">${allday}</div>`
+    +`<div class="tg-body"><div class="tg-cols" id="tgcols" style="height:${hrs*HOURPX}px">`
+    +`<div class="tg-gut">${gut}</div>${dayCols}</div></div></div>`;
+  // place timed events into each day column
+  daysArr.forEach((d,i)=>{
+    const col=body.querySelector(`.tg-day[data-col="${i}"]`);
+    // tap an empty slot to create an event at that hour
+    col.onclick=(e)=>{ if(e.target!==col) return;
+      const y=e.clientY-col.getBoundingClientRect().top;
+      const hour=Math.min(GRID_H1-1, Math.max(GRID_H0, GRID_H0+Math.floor(y/HOURPX)));
+      openAdd("event", d, `${pad(hour)}:00`); resetSleep();
+    };
+    cache.events.filter(e=>!e.all_day && sameDay(evStart(e),d)).forEach(ev=>{
+      const sdt=evStart(ev); if(!sdt||isNaN(sdt))return;
+      const sh=sdt.getHours()+sdt.getMinutes()/60; if(sh>=GRID_H1)return;
+      const edt=ev.end?new Date(ev.end):null;
+      const dur=(edt&&!isNaN(edt))?Math.max((edt-sdt)/3600000,0.25):1;
+      const top=Math.max(0,sh-GRID_H0)*HOURPX;
+      const h=Math.max(19,Math.min(dur,GRID_H1-Math.max(sh,GRID_H0))*HOURPX);
+      const el=document.createElement("div"); el.className="tg-ev"; el.style.setProperty("--accent",evColor(ev));
+      el.style.top=top+"px"; el.style.height=h+"px"; el.title=ev.title;
+      el.innerHTML=`<span class="evt">${esc(ev.title)}</span><span class="tm">${sdt.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}</span>`;
+      el.onclick=(e)=>{e.stopPropagation();openEditor(ev);};
+      col.appendChild(el);
+    });
+  });
+  // all-day chips clickable
+  body.querySelectorAll(".adev").forEach(el=>{
+    el.onclick=(e)=>{ e.stopPropagation(); const id=decodeURIComponent(el.dataset.id);
+      const ev=calItems().find(x=>String(x.id||'')===id && x.all_day); if(ev)openItem(ev,el); };
+  });
+  // day header → jump into that day
+  body.querySelectorAll(".dcol").forEach(el=>{
+    el.onclick=()=>{ cursor=new Date(el.dataset.iso); view="day"; setActive("day"); render(); };
+  });
+  // current-time line, only when the visible range includes today
+  if(daysArr.some(d=>sameDay(d,new Date()))){
+    const line=document.createElement("div"); line.className="tg-now"; line.style.left="54px"; line.style.right="0";
+    $("#tgcols").appendChild(line); placeNow();
+  }
+  // The grid holds all 24 h; open it at the household's day-start (settings) and keep
+  // whatever the user scrolled to across the 10 s refreshes. Drag up/down to see the rest.
+  const tb=body.querySelector(".tg-body");
+  if(tb){
+    if(tgScroll===null) tgScroll=Math.max(0,(START_HOUR-GRID_H0))*HOURPX;
+    tb.scrollTop=tgScroll;
+    tb.addEventListener("scroll", ()=>{ tgScroll=tb.scrollTop; }, {passive:true});
+  }
+}
+function placeNow(){
+  const cols=$("#tgcols"); if(!cols)return; const line=cols.querySelector(".tg-now"); if(!line)return;
+  const n=new Date(); const h=n.getHours()+n.getMinutes()/60;
+  line.style.display=""; line.style.top=((h-GRID_H0)*HOURPX)+"px";
+}
+
+function renderMonth(){
+  const body=$("#calbody");
+  body.innerHTML='<div class="month"><div class="mdow"></div><div class="mgrid" id="mgrid"></div></div>';
+  const dow=body.querySelector(".mdow");
+  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(d=>{const s=document.createElement("span");s.textContent=d;dow.appendChild(s);});
+  const grid=$("#mgrid"); const ref=new Date(cursor);
+  const first=new Date(ref.getFullYear(),ref.getMonth(),1);
+  const gridStart=new Date(first); gridStart.setDate(1-first.getDay());
+  for(let i=0;i<42;i++){
+    const d=new Date(gridStart); d.setDate(gridStart.getDate()+i);
+    const cell=document.createElement("div");
+    cell.className="mcell"+(d.getMonth()!==ref.getMonth()?" dim":"")+(sameDay(d,new Date())?" today":"");
+    cell.innerHTML=`<div class="num">${d.getDate()}</div>`;
+    const evbox=document.createElement("div"); evbox.className="mevs";
+    const dayEvs=calItems().filter(e=>sameDay(evStart(e),d))
+      .sort((a,b)=>(a.all_day?0:1)-(b.all_day?0:1) || (a.start||"").localeCompare(b.start||""));
+    dayEvs.slice(0,3).forEach(ev=>{
+      const chip=document.createElement("div"); chip.className="mev"+(ev.task?" task":"")+(ev.done?" done":""); chip.style.setProperty("--accent",evColor(ev));
+      chip.title=ev.title;
+      const sdt=evStart(ev); const tm=(!ev.all_day && sdt && !isNaN(sdt)) ? sdt.toLocaleTimeString([],{hour:"numeric"}) : "";
+      chip.innerHTML=`${tm?`<span class="mt">${tm}</span>`:""}${esc(ev.title)}`;
+      chip.onclick=(e)=>{ e.stopPropagation(); openItem(ev,chip); };
+      evbox.appendChild(chip);
+    });
+    if(dayEvs.length>3){const m=document.createElement("div");m.className="mmore";m.textContent=`+${dayEvs.length-3} more`;evbox.appendChild(m);}
+    cell.appendChild(evbox);
+    cell.onclick=()=>{ cursor=new Date(d); view="day"; setActive("day"); render(); };
+    grid.appendChild(cell);
+  }
+}
+
+function weekRangeLabel(d){
+  const ds=weekDays(d), a=ds[0], b=ds[6];
+  const m1=a.toLocaleDateString([],{month:"short"}), m2=b.toLocaleDateString([],{month:"short"});
+  return (m1===m2) ? `${m1} ${a.getDate()} – ${b.getDate()}` : `${m1} ${a.getDate()} – ${m2} ${b.getDate()}`;
+}
+function updatePeriod(){
+  const p=$("#period"); if(!p)return;
+  if(view==="day"){ p.textContent=cursor.toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"}); }
+  else if(view==="week" || view==="agenda"){ p.textContent = weekRangeLabel(cursor); }
+  else { p.textContent=cursor.toLocaleDateString([],{month:"long",year:"numeric"}); }
+}
+function navStep(dir){
+  const c=new Date(cursor);
+  if(view==="day") c.setDate(c.getDate()+dir);
+  else if(view==="week") c.setDate(c.getDate()+7*dir);
+  else if(view==="agenda") c.setDate(c.getDate()+7*dir);
+  else c.setMonth(c.getMonth()+dir);
+  cursor=c; render();
+}
+$("#nav-prev").onclick=()=>{ navStep(-1); resetSleep(); };
+$("#nav-next").onclick=()=>{ navStep(1); resetSleep(); };
+$("#nav-today").onclick=()=>{ cursor=new Date(); render(); resetSleep(); };
+$("#zoom-in").onclick=()=>{ zoom(1); resetSleep(); };
+$("#zoom-out").onclick=()=>{ zoom(-1); resetSleep(); };
+
+/* swipe left/right on the calendar to change week/month/day; pinch to zoom */
+(function enableTouch(){
+  const el=$("#calbody"); if(!el) return;
+  let x0=null,y0=null,pinch0=null,px0=null;
+  el.addEventListener("touchstart",e=>{
+    if(e.touches.length===2){ pinch0=dist(e.touches); px0=HOURPX; x0=null; }
+    else { const t=e.changedTouches[0]; x0=t.clientX; y0=t.clientY; }
+  },{passive:true});
+  el.addEventListener("touchmove",e=>{
+    if(pinch0!==null && e.touches.length===2){
+      const f=dist(e.touches)/pinch0;
+      HOURPX=Math.min(Math.max(Math.round(px0*f),ZOOM_MIN),ZOOM_MAX); render();
+    }
+  },{passive:true});
+  el.addEventListener("touchend",e=>{
+    if(pinch0!==null){ pinch0=null; FH.save({hourPx:HOURPX}); resetSleep(); return; }
+    if(x0===null) return;
+    const t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5){ navStep(dx<0?1:-1); resetSleep(); }
+    x0=y0=null;
+  },{passive:true});
+  function dist(t){ return Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY); }
+})();
+
+/* drag the handles between side panels to resize them */
+(function enablePanelResize(){
+  document.querySelectorAll(".resizer").forEach(rz=>{
+    const ai=+rz.dataset.above, bi=+rz.dataset.below;
+    const cards=[$("#panel-todos"),$("#panel-groceries"),$("#panel-meals")];
+    let y0,fa0,fb0,h;
+    const down=(e)=>{
+      e.preventDefault(); rz.classList.add("drag");
+      const p=e.touches?e.touches[0]:e; y0=p.clientY; h=$(".side").clientHeight;
+      const sz=panelSizes(); fa0=sz[ai]; fb0=sz[bi];
+      window.addEventListener("pointermove",move); window.addEventListener("pointerup",up);
+    };
+    const move=(e)=>{
+      const p=e.touches?e.touches[0]:e; const dPx=p.clientY-y0;
+      const dFlex=(dPx/h)*(fa0+fb0);            // convert pixels to flex units
+      let fa=Math.max(0.25, fa0+dFlex), fb=Math.max(0.25, fb0-dFlex);
+      const sz=panelSizes(); sz[ai]=fa; sz[bi]=fb; applyPanelSizes(sz);
+    };
+    const up=()=>{
+      rz.classList.remove("drag");
+      window.removeEventListener("pointermove",move); window.removeEventListener("pointerup",up);
+      FH.save({panelSizes:panelSizes()}); resetSleep();
+    };
+    rz.addEventListener("pointerdown",down);
+  });
+})();
+function panelSizes(){
+  const cards=[$("#panel-todos"),$("#panel-groceries"),$("#panel-meals")];
+  return cards.map(c=>parseFloat(c.style.flexGrow)|| (FH.get().panelSizes||[1.1,1.1,.9])[cards.indexOf(c)] || 1);
+}
+function applyPanelSizes(sz){
+  const cards=[$("#panel-todos"),$("#panel-groceries"),$("#panel-meals")];
+  cards.forEach((c,i)=>{ c.style.flexGrow=sz[i]; c.style.flexShrink=1; c.style.flexBasis="0"; });
+}
+
+/* ---- item menu: delete / stop repeating / skip, for chores, to-dos and groceries ----
+   Opened by pressing and holding a row (or its ⋯). Edits start from the item as stored (GET), so the
+   colour chain (item -> category -> person) isn't overwritten with the dashboard's resolved colour. */
+function itemMenu(kind, item, opts){
+  opts=opts||{};
+  resetSleep();
+  let ov=$("#im-ov");
+  if(!ov){ ov=document.createElement("div"); ov.id="im-ov"; ov.innerHTML='<div id="im-box" role="dialog" aria-modal="true"></div>'; document.body.appendChild(ov);
+    let downOnBackdrop=false;
+    ov.addEventListener("pointerdown", e=>{ downOnBackdrop = e.target===ov && Date.now()-(+ov.dataset.opened||0) > 400; });
+    ov.addEventListener("click", e=>{ if(e.target===ov && downOnBackdrop) ov.classList.remove("on"); downOnBackdrop=false; }); }
+  ov.dataset.opened=String(Date.now());
+  const box=$("#im-box"), title=item.title||item.item||"", rec=item.recurrence;
+  const api={chore:"chores", todo:"todos", grocery:"groceries"}[kind];
+  const recTxt=rec?({daily:"every day", weekly:"every week", monthly:"every month"}[String(rec).split(";")[0]]||"on a schedule"):"";
+  box.innerHTML=`<h3>${esc(title)}</h3><div class="sub">${kind==="grocery"?"Grocery":kind==="chore"?"Chore":"To-do"}${recTxt?" · repeats "+recTxt:""}${item.due_date?" · due "+esc(item.due_date.slice(5)):""}</div>
+    ${opts.markDone?`<button data-a="markdone" style="background:var(--now); color:#fff">${opts.done?"\u21A9 Mark not done":"\u2713 Mark done"}</button>`:""}
+    ${kind!=="grocery"?`<button data-a="edit">\u270F\uFE0F Edit</button>`:""}
+    ${rec?`<button data-a="skip">Skip this one (move to the next date)</button><button data-a="stop">Stop repeating (keep this one)</button>`:""}
+    <button data-a="del" class="danger">${rec?"Delete it (all future ones too)":"Delete"}</button>
+    <button data-a="x" class="plain">Cancel</button>`;
+  ov.classList.add("on");
+  const done=()=>{ ov.classList.remove("on"); load(); };
+  box.querySelectorAll("button").forEach(b=>b.onclick=async()=>{
+    const a=b.dataset.a;
+    if(a==="x") return ov.classList.remove("on");
+    if(a==="markdone"){ ov.classList.remove("on"); return opts.markDone(); }
+    if(a==="edit") return itemEdit(kind, item);
+    if(a==="del"){
+      if(!b.dataset.sure){ b.dataset.sure="1"; b.textContent="Tap again to delete"; return; }
+      const r=await fetch(`/api/${api}/${item.id}`,{method:"DELETE"}).catch(()=>null);
+      banner(r&&r.ok?"\u{1F5D1} Deleted":"Couldn't delete it", r&&r.ok?title:"Try again in a moment"); return done();
+    }
+    if(a==="skip"){ const r=await fetch(`/api/${api}/${item.id}/toggle?skip=true`,{method:"POST"}).catch(()=>null);
+      banner(r&&r.ok?"\u23ED Skipped":"Couldn't skip it", r&&r.ok?title:"Try again in a moment"); return done(); }
+    if(a==="stop"){
+      let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
+      if(!raw){ banner("Couldn't change it", "Try again in a moment"); return; }
+      const body={title:raw.title, person_id:raw.person_id, person_ids:itemIds(raw), category_id:raw.category_id, color:raw.color, due_date:raw.due_date, recurrence:null};
+      if(kind==="chore") body.stars=raw.stars||0;
+      await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>{});
+      banner("\u{1F501} Stopped repeating", title); return done();
+    }
+  });
+}
+/* Several people on one item: ids (person_ids, falling back to person_id), joined first names, chip picker. */
+function itemIds(x){ return (x&&x.person_ids&&x.person_ids.length) ? x.person_ids : (x&&x.person_id ? [x.person_id] : []); }
+function whoNames(x){ const n=itemIds(x).map(id=>((people||[]).find(p=>p.id===id)||{}).name).filter(Boolean).map(n=>n.split(" ")[0]);
+  return n.length<=2 ? n.join(" & ") : n.slice(0,-1).join(", ")+" & "+n[n.length-1]; }
+function whoChips(id, ids){ ids=ids||[];
+  return `<div class="whochips" id="${id}">`+(people||[]).map(p=>`<button type="button" data-id="${p.id}" class="${ids.includes(p.id)?"on":""}" style="--pc:${esc(p.color||"#888")}" onclick="this.classList.toggle('on')">${esc(p.name.split(" ")[0])}</button>`).join("")+`</div>`; }
+function whoPicked(id){ const ids=[...document.querySelectorAll(`#${id} button.on`)].map(b=>+b.dataset.id); return {person_id:ids[0]||null, person_ids:ids}; }
+/* Edit a chore / to-do in place: title, who, due date, repeat (+ stars for chores). Starts from the stored item. */
+async function itemEdit(kind, item){
+  const api=kind==="chore"?"chores":"todos", box=$("#im-box");
+  let raw=null; try{ raw=(await fetch(`/api/${api}/`).then(r=>r.json())).find(x=>x.id===item.id); }catch(e){}
+  if(!raw){ banner("Couldn't open it", "Try again in a moment"); return; }
+  const rec=String(raw.recurrence||"").split(";")[0];
+  const sel=(v,o)=>o.map(([k,t])=>`<option value="${k}" ${String(v??"")===String(k)?"selected":""}>${t}</option>`).join("");
+  const fld="width:100%; box-sizing:border-box; margin-top:8px; padding:12px; font:inherit; font-size:17px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--ink)";
+  box.innerHTML=`<h3>Edit ${kind==="chore"?"chore":"to-do"}</h3>
+    <input id="ie-title" style="${fld}" value="${esc(raw.title||"")}" placeholder="Title">
+    ${whoChips("ie-who", itemIds(raw))}
+    <input id="ie-due" type="date" style="${fld}" value="${esc(raw.due_date||"")}">
+    <select id="ie-rec" style="${fld}">${sel(rec, [["","Doesn't repeat"],["daily","Every day"],["weekly","Every week"],["monthly","Every month"]])}</select>
+    ${kind==="chore"?`<select id="ie-stars" style="${fld}">${sel(raw.stars||0, [[0,"No stars"],[1,"\u2B50"],[2,"\u2B50\u2B50"],[3,"\u2B50\u2B50\u2B50"],[4,"\u2B50\u2B50\u2B50\u2B50"],[5,"\u2B50\u2B50\u2B50\u2B50\u2B50"]])}</select>`:""}
+    <button data-a="save" style="background:var(--now); color:#fff">Save</button>
+    <button data-a="x" class="plain">Cancel</button>`;
+  box.querySelector('[data-a="x"]').onclick=()=>$("#im-ov").classList.remove("on");
+  box.querySelector('[data-a="save"]').onclick=async()=>{
+    const title=$("#ie-title").value.trim(); if(!title){ $("#ie-title").focus(); return; }
+    const newRec=$("#ie-rec").value, keep=String(raw.recurrence||"").split(";").slice(1).join(";");   // keep "interval=2" etc. if the kind didn't change
+    const body={title, ...whoPicked("ie-who"), category_id:raw.category_id, color:raw.color,
+      due_date:$("#ie-due").value||null, recurrence:newRec?(newRec===rec&&keep?newRec+";"+keep:newRec):null};
+    if(kind==="chore") body.stars=+$("#ie-stars").value||0;
+    const r=await fetch(`/api/${api}/${item.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>null);
+    $("#im-ov").classList.remove("on");
+    if(r&&r.ok){ banner("\u270F\uFE0F Saved", title); load(); } else banner("Couldn't save", "Try again");
+  };
+}
+/* press-and-hold a list row -> itemMenu; a quick tap still checks it off. Adds a ⋯ button too. */
+function holdable(row, open){
+  let t=null, held=false;
+  const start=()=>{ held=false; clearTimeout(t); t=setTimeout(()=>{ held=true; if(navigator.vibrate) navigator.vibrate(20); open(); }, 550); };
+  const stop=()=>clearTimeout(t);
+  row.addEventListener("pointerdown", start); ["pointerup","pointerleave","pointercancel"].forEach(ev=>row.addEventListener(ev, stop));
+  row.addEventListener("contextmenu", e=>{ e.preventDefault(); });
+  const tap=row.onclick; row.onclick=(e)=>{ if(held){ held=false; return; } if(tap) tap(e); };
+  const m=document.createElement("button"); m.className="more"; m.textContent="⋯"; m.setAttribute("aria-label","More");
+  m.onclick=(e)=>{ e.stopPropagation(); open(); }; m.addEventListener("pointerdown", e=>e.stopPropagation());
+  row.appendChild(m);
+}
+let showLaterTodos=false;
+/* several to-do lists: "To-Do" + settings.todoLists + any iCloud Reminders list; ‹ › on the box header cycles them */
+const todoListOf=t=>t.list_name||t.ext_list||"To-Do";
+let todoList=(()=>{ try{ return localStorage.getItem("fh_todo_list")||"To-Do"; }catch(e){ return "To-Do"; } })();
+function todoLists(todos){
+  const names=["To-Do", ...((FH.get().todoLists)||[])];
+  (todos||[]).forEach(t=>{ const n=todoListOf(t); if(!names.includes(n)) names.push(n); });
+  return names;
+}
+/* settings.secondTodo: the Groceries box on the calendar page becomes a second to-do box with its own list (‹ › too).
+   Groceries stay on the Lists page. */
+let todoListB=(()=>{ try{ return localStorage.getItem("fh_todo_list_b")||""; }catch(e){ return ""; } })();
+const slot2Mode=()=>{ const s=FH.get(); return ["today","todo","groceries"].includes(s.sideBox2)?s.sideBox2:(s.secondTodo?"todo":"groceries"); };
+const secondTodo=()=>slot2Mode()==="todo";
+function cycleTodoList(dir, second){
+  const all=todoLists(lastTodos); let i=all.indexOf(second?todoListB:todoList); i=(i<0?0:i+dir+all.length)%all.length;
+  if(second){ todoListB=all[i]; try{ localStorage.setItem("fh_todo_list_b", todoListB); }catch(e){} }
+  else { todoList=all[i]; try{ localStorage.setItem("fh_todo_list", todoList); }catch(e){} }
+  renderTodos(lastTodos); if(secondTodo()) renderTodos(lastTodos, $("#groceries")); resetSleep();
+}
+let lastTodos=[];
+document.addEventListener("click", e=>{ const b=e.target.closest(".tl-arrow"); if(!b) return; e.stopPropagation(); cycleTodoList(+b.dataset.tl, b.dataset.box==="b"); }, true);
+function slot2Header(all){
+  const t=$("#slot2-title"), add=$("#slot2-add"); if(!t||!add) return;
+  const want=slot2Mode();
+  if(t.dataset.mode!==want){
+    t.dataset.mode=want;
+    if(want==="todo"){ t.className="tl-name"; t.innerHTML='<button class="tl-arrow" data-box="b" data-tl="-1" aria-label="Previous list">‹</button><span id="todo-list-name-b"></span><button class="tl-arrow" data-box="b" data-tl="1" aria-label="Next list">›</button>'; add.dataset.add="todoB"; add.title="Add to-do"; }
+    else if(want==="today"){ t.className=""; t.textContent="Today"; add.dataset.add="today"; add.title="Add something today"; }
+    else { t.className=""; t.textContent="Groceries"; add.dataset.add="grocery"; add.title="Add item"; }
+  }
+  if(want==="todo"){ const nm=$("#todo-list-name-b"); if(nm) nm.textContent=todoListB;
+    t.querySelectorAll(".tl-arrow").forEach(b=>b.style.display=(all||[]).length>1?"":"none"); }
+  if(want==="today") t.textContent="Today \u00b7 "+new Date().toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+}
+/* settings.sideBox2 = "today": everything on today in one box: events (all-day first, then by time; ones that are over
+   are dimmed), to-dos and chores due today, and to-dos that are overdue. Tap a row = same as on the calendar. */
+function renderTodayBox(box){
+  box=box||$("#groceries"); if(!box) return; slot2Header();
+  const now=new Date(), key=dateStr(now), d0=new Date(now); d0.setHours(0,0,0,0); const d1=new Date(d0); d1.setDate(d1.getDate()+1);
+  const rows=[];
+  calItems().forEach(e=>{
+    const st=evStart(e); if(!st||isNaN(st)) return;
+    if(e.task){
+      const due=String(e.start).slice(0,10);
+      if(due===key) rows.push({e, sort:1e15, label:e.done?"\u2611":"\u2610"});
+      else if(due<key && !e.done && e.task.kind==="todo") rows.push({e, sort:1e15+1, label:"\u2610", note:"overdue"});
+      return;
+    }
+    let en=null;
+    if(e.end){ en=/^\d{4}-\d{2}-\d{2}$/.test(e.end)?evStart({start:e.end}):new Date(e.end); }
+    const covers = st<d1 && (en&&!isNaN(en) ? en>d0 : st>=d0);
+    if(!covers) return;
+    const allDay=e.all_day || st<d0;                       // a multi-day event that began earlier reads as all day
+    rows.push({e, sort:allDay?0:st.getTime(), label:allDay?"All day":st.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}),
+               past: !allDay && (en&&!isNaN(en)?en:new Date(st.getTime()+3600000))<now});
+  });
+  rows.sort((a,b)=>a.sort-b.sort);
+  box.innerHTML="";
+  if(!rows.length){ box.innerHTML='<div class="empty">Nothing on today</div>'; return; }
+  rows.forEach(r=>{ const e=r.e;
+    const row=document.createElement("div"); row.className="agenda-ev"+(e.task?" task":"")+(e.done?" done":"");
+    row.style.cssText="padding:9px 4px; gap:10px"+(r.past?"; opacity:.5":"");
+    row.innerHTML=`<span class="agenda-time" style="width:64px">${r.label}</span><span class="agenda-dot" style="background:${esc(evColor(e))}"></span>`
+      +`<span class="agenda-title" style="font-size:15px">${esc(e.title)}</span>`
+      +(e.task?`<span class="agenda-time" style="width:auto;font-size:12px;margin-left:auto">${r.note||(e.task.kind==="chore"?"chore":"to-do")}</span>`:"");
+    row.onclick=()=>{ openItem(e,row); resetSleep(); };
+    box.appendChild(row); });
+}
+function renderTodos(todos, box){
+  box=box||$("#todos"); if(!box) return; box.innerHTML="";
+  if(box.id==="todos"){
+    lastTodos=todos;
+    const all=todoLists(todos); if(!all.includes(todoList)) todoList="To-Do";
+    const nm=$("#todo-list-name"); if(nm){
+      nm.textContent=todoList; nm.title=all.length>1?"Tap ‹ › for your other lists":""; }
+    document.querySelectorAll("#panel-todos .tl-arrow").forEach(b=>b.style.display=all.length>1?"":"none");
+    todos=todos.filter(t=>todoListOf(t)===todoList);
+  }
+  if(box.id==="groceries"){                                   // the second to-do box
+    const all=todoLists(todos);
+    if(!all.includes(todoListB)) todoListB=all.find(n=>n!==todoList)||all[0];     // start on a different list than the first box
+    slot2Header(all);
+    todos=todos.filter(t=>todoListOf(t)===todoListB);
+  }
+  // this week only: anything due after Saturday (e.g. a repeating to-do already rolled to next week) waits for its week
+  const wkEnd=weekStart(new Date()); wkEnd.setDate(wkEnd.getDate()+6); const endKey=dateStr(wkEnd);
+  const later=todos.filter(t=>t.due_date&&t.due_date>endKey&&!t.done&&!t.just_done).length;
+  if(!showLaterTodos) todos=todos.filter(t=>!(t.due_date&&t.due_date>endKey&&!t.done&&!t.just_done));
+  if(!todos.length){box.innerHTML='<div class="empty">Nothing to do</div>';return;}
+  todos.forEach(t=>{
+    const row=document.createElement("div"); row.className="list-row"+((t.done||t.just_done)?" done":"");
+    if(t.just_done) row.title="Checked off. Tap again to bring it back";
+    const who=whoNames(t);
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${t.color||'#4f86c6'}"></span><div class="label">${esc(t.title)}${who?` <span class="who" style="color:${t.color||'#4f86c6'}">· ${esc(who)}</span>`:""}</div>${t.ext_list?`<div class="qty" title="iCloud Reminders">\u{1F34E} ${esc(t.ext_list)}</div>`:(t.due_date?`<div class="qty">${esc(t.due_date.slice(5))}</div>`:"")}`;
+    row.onclick=async()=>{ const r=await fetch(`/api/todos/${t.id}/toggle`,{method:"POST"}).then(x=>x.json()).catch(()=>({}));
+      if(r.undone) banner("\u21A9\uFE0F Back on the list", t.title); load(); resetSleep(); };
+    holdable(row, ()=>itemMenu("todo", t));
+    box.appendChild(row);
+  });
+  if(later){ const n=document.createElement("div"); n.className="empty"; n.style.cssText="font-size:13px; cursor:pointer; padding:8px 0";
+    n.textContent=showLaterTodos?"Hide later ones":`+ ${later} later (next week or after) · tap to show`;
+    n.onclick=()=>{ showLaterTodos=!showLaterTodos; resetSleep(); load(); }; box.appendChild(n); }
+}
+function renderGroceries(items, box){
+  box=box||$("#groceries"); if(!box) return; box.innerHTML="";
+  if(!items.length){box.innerHTML='<div class="empty">List is empty</div>';return;}
+  items.forEach(g=>{
+    const row=document.createElement("div"); row.className="list-row"+(g.got?" done":"");
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${g.color||'#4f86c6'}"></span><div class="label">${esc(g.item)}</div>${g.qty?`<div class="qty">${esc(g.qty)}</div>`:""}`;
+    row.onclick=async()=>{await fetch(`/api/groceries/${g.id}/toggle`,{method:"POST"});load();resetSleep();};
+    holdable(row, ()=>itemMenu("grocery", g));
+    box.appendChild(row);
+  });
+}
+function renderChoreList(chores, box){
+  box=box||$("#chorelist"); if(!box) return; box.innerHTML="";
+  if(!chores.length){box.innerHTML='<div class="empty">No chores right now — all done! \u{1F389}</div>';return;}
+  chores.forEach(c=>{
+    const row=document.createElement("div"); row.className="list-row"+((c.done||c.just_done)?" done":"");
+    if(c.just_done) row.title="Checked off. Tap again to bring it back";
+    const stars=c.stars?`<div class="qty">${"★".repeat(Math.min(c.stars,5))}</div>`:"";
+    row.innerHTML=`<div class="box"></div><span class="dot" style="background:${esc(c.color||'#4f86c6')}"></span><div class="label">${esc(c.title)}${whoNames(c)?` <span class="who" style="color:${esc(c.color||'#4f86c6')}">· ${esc(whoNames(c))}</span>`:""}</div>${stars}`;
+    row.onclick=async()=>{ const r=await fetch(`/api/chores/${c.id}/toggle`,{method:"POST"}).then(x=>x.json()).catch(()=>({}));
+      if(r.undone) banner("\u21A9\uFE0F Back on the list", c.stars?`${c.title} · stars taken back`:c.title); else celebrate(row);
+      load(); resetSleep(); };
+    holdable(row, ()=>itemMenu("chore", c));
+    box.appendChild(row);
+  });
+}
+/* ---- routines (daily step checklists) ---- */
+function renderRoutines(list){
+  const box=$("#routines"), card=$("#routines-card"); if(!box) return;
+  list=list||[];
+  if(!list.length){ card.style.display="none"; return; }
+  card.style.display="";
+  const done=list.filter(r=>r.complete).length;
+  $("#routines-sub").textContent = done===list.length ? "All done \u{1F389}" : `${done}/${list.length} done`;
+  box.innerHTML="";
+  list.forEach(r=>{
+    const n=r.steps.length, d=r.done.length, pct=n?Math.round(d/n*100):0;
+    const el=document.createElement("div"); el.className="rt"+(r.complete?" complete":"");
+    const who = r.person ? `<span class="rt-who">${esc(r.person)}<span class="rt-av" style="background:${esc(r.color||'#4f86c6')}">${esc(r.person.slice(0,1).toUpperCase())}</span></span>` : "";
+    el.innerHTML = `<div class="rt-head"><span class="rt-emoji">${esc(r.emoji||"\u{2705}")}</span><span class="rt-name">${esc(r.name)}</span>${who}</div>`+
+      `<div class="rt-bar"><div class="rt-fill" style="width:${pct}%"></div></div>`+
+      `<div class="rt-steps">`+r.steps.map((st,i)=>{
+        const dn=r.done.includes(i);
+        return `<div class="rt-step${dn?' done':''}" data-i="${i}"><div class="box"></div><span class="rt-st">${st.emoji?esc(st.emoji)+' ':''}${esc(st.title)}</span>`+
+          (st.minutes?`<span class="rt-min" data-min="${st.minutes}" data-lbl="${esc(st.title)}">&#9201; ${st.minutes} min</span>`:"")+`</div>`;
+      }).join("")+`</div>`+
+      (r.complete?`<div class="rt-done">Done! ${r.stars?'+'+r.stars+'\u2605':''}<small>tap to reopen</small></div>`:"");
+    el.querySelectorAll(".rt-step").forEach(stp=>{
+      stp.onclick=async(e)=>{
+        resetSleep();
+        if(e.target.classList.contains("rt-min")){ startTimer(+e.target.dataset.min*60, e.target.dataset.lbl); if(FH.get().speakAlerts!==false) sayAloud(`${e.target.dataset.min} minute${+e.target.dataset.min===1?"":"s"} for ${e.target.dataset.lbl}. Go!`); return; }
+        try{
+          const res=await post(`/api/routines/${r.id}/step/${stp.dataset.i}`).then(x=>x.json());
+          if(res.complete && res.stars_earned){ celebrate(el); }
+          else if(!stp.classList.contains("done")) celebrate(stp);
+        }catch(err){}
+        load();
+      };
+    });
+    const ov=el.querySelector(".rt-done");
+    if(ov) ov.onclick=async()=>{ resetSleep(); await post(`/api/routines/${r.id}/reset`).catch(()=>{}); load(); };
+    box.appendChild(el);
+  });
+}
+function renderCountdowns(list){
+  const row=$("#countdowns"); if(!row) return;
+  list=(list||[]).filter(c=>c.days_left>=0).slice(0,8);
+  if(!list.length){ row.classList.remove("show"); row.innerHTML=""; return; }
+  row.innerHTML=list.map(c=>{
+    const n=c.days_left, txt = n===0?"Today!":n===1?"Tomorrow":`<span class="cdn">${n}</span> days`;
+    return `<div class="cd${n===0?' today':''}" style="${c.color?`border-color:${esc(c.color)}`:''}"><b>${esc(c.emoji||"\u{1F389}")}</b><span>${esc(c.title)}</span><span>${txt}</span></div>`;
+  }).join("");
+  row.classList.add("show");
+}
+function renderMeals(meals, box){
+  box=box||$("#meals"); if(!box) return; box.innerHTML="";
+  const today=localISODate();
+  const t=meals.filter(m=>m.date===today);
+  if(!t.length){box.innerHTML='<div class="empty">No meals planned</div>';return;}
+  t.forEach(m=>{
+    const row=document.createElement("div"); row.className="list-row";
+    row.innerHTML=`<span class="dot" style="background:${m.color||'#4f86c6'}"></span><div class="label">${m.title}</div><div class="qty">${m.slot}</div>`;
+    box.appendChild(row);
+  });
+}
+
+function sameDay(a,b){ if(!a)return false; const x=new Date(a),y=new Date(b);
+  return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate(); }
+function weekStart(d){ const s=new Date(d); s.setDate(d.getDate()-d.getDay()); s.setHours(0,0,0,0); return s; }
+
+/* ---- offline cache: keep working if the internet (or server) drops ----
+   Each fetch's last good JSON is saved locally; if a later fetch fails we fall
+   back to that copy and flag the display as showing cached data. */
+function cacheGet(k){ try{ const c=localStorage.getItem("fhcache:"+k); return c?JSON.parse(c):null; }catch(e){ return null; } }
+function cacheSet(k,v){ try{ localStorage.setItem("fhcache:"+k, JSON.stringify({t:Date.now(),v})); }catch(e){} }
+async function cachedFetch(url, key){
+  try{
+    const ac=new AbortController(); const to=setTimeout(()=>ac.abort(), 15000);   // a hung server must not stack up requests
+    const r=await fetch(url,{signal:ac.signal}).finally(()=>clearTimeout(to)); if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); cacheSet(key, j); return {data:j, stale:false, t:Date.now()};
+  }catch(e){
+    const c=cacheGet(key); if(c) return {data:c.v, stale:true, t:c.t};
+    throw e;
+  }
+}
+let offlineSince=null;
+function setOffline(stale, t){
+  const b=$("#offline-badge"); if(!b) return;
+  if(stale){
+    const mins=t?Math.round((Date.now()-t)/60000):0;
+    b.textContent = mins>0 ? `offline · updated ${mins<60?mins+"m":Math.round(mins/60)+"h"} ago` : "offline";
+    b.hidden=false;
+  } else { b.hidden=true; }
+}
+
+async function load(){
+  try{
+    const [dashR,calR]=await Promise.all([
+      cachedFetch("/api/dashboard","dash"),
+      cachedFetch("/api/calendar/events?days=120&back=45","events").catch(()=>({data:{events:[]},stale:true,t:0}))
+    ]);
+    const dash=dashR.data, cal=calR.data;
+    cache.dash=dash; cache.events=cal.events||[];
+    setOffline(dashR.stale || calR.stale, Math.min(dashR.t||Date.now(), calR.t||Date.now()));
+    people = dash.people || [];
+    if(window.Skins && Skins.pick(FH.get())!==Skins.current()) applySeasonal();   // a family birthday today -> party
+    render();
+    renderTodos(dash.todos||[]); renderMeals(dash.meals||[]);
+    if(secondTodo()) renderTodos(dash.todos||[], $("#groceries")); else if(slot2Mode()==="today") renderTodayBox(); else { slot2Header(); renderGroceries(dash.groceries||[]); }
+    renderCountdowns(dash.countdowns||[]);
+    loadScoreboard();
+    refreshActivePage();
+  }catch(e){console.error(e);}
+}
+
+let sleepTimer, slideTimer, photos=[], pIdx=0, asleep=false;
+// minutes idle before the slideshow and seconds per photo come from settings (phone > Settings > Photos)
+const sleepAfterMs=()=>{ const m=parseFloat(FH.get().slideshowAfter); return isNaN(m)?5*60000:m*60000; };
+const slideMs=()=>Math.max(3, parseFloat(FH.get().slideSeconds)||8)*1000;
+async function loadPhotos(){ try{ const r=await fetch("/api/photos/").then(r=>r.json()); photos=r.photos||[]; if(curPage==="photos") renderPhotosPage(); }catch(e){} }
+function goToSleep(){ if(!photos.length||sleepMode)return;
+  try{ if($("#add-box").classList.contains("on")) closeAdd(); }catch(e){}
+  try{ const im=$("#im-ov"); if(im) im.classList.remove("on"); }catch(e){}
+  try{ oskHide(); }catch(e){}
+  asleep=true; $("#sleep").classList.add("on"); document.body.classList.add("slideshow"); showSlide(); slideTimer=setInterval(showSlide,slideMs()); }
+function showSlide(){
+  const layer=$("#sleep"); layer.querySelectorAll("img").forEach(i=>i.remove());
+  const fit=(FH.get().photoFit||"fit")==="fit"; layer.classList.toggle("fit", fit);
+  const src=photos[pIdx%photos.length];
+  const img=document.createElement("img"); img.className="pic"; img.src=src;
+  img.onerror=()=>{ layer.querySelectorAll("img").forEach(i=>i.remove()); if(photos.length>1){ pIdx++; showSlide(); } };   // expired album URL -> next
+  if(fit){ const bg=document.createElement("img"); bg.className="bg"; bg.src=src; layer.prepend(bg); requestAnimationFrame(()=>bg.classList.add("show")); }
+  layer.prepend(img); requestAnimationFrame(()=>img.classList.add("show")); pIdx++;
+}
+function wake(){ if(asleep){asleep=false;$("#sleep").classList.remove("on"); document.body.classList.remove("slideshow");clearInterval(slideTimer); tgScroll=null; render();} }   // fresh look: grid back to the day-start window
+function resetSleep(){ wake(); clearTimeout(sleepTimer); const ms=sleepAfterMs(); if(ms>0) sleepTimer=setTimeout(goToSleep,ms); maybeBriefing(); }
+["click","touchstart","mousemove","keydown"].forEach(ev=>window.addEventListener(ev,resetSleep,{passive:true}));
+
+/* ---- settings drawer ---- */
+const ACCENTS = ["#e9a23b","#4f86c6","#d96b8a","#7c5cff","#5cb88a","#e0533d","#3db5c9","#1d2430"];
+
+function openSettings(){ $("#settings-drawer").classList.add("on"); $("#settings-overlay").classList.add("on"); syncSettingsUI(); }
+function closeSettings(){ $("#settings-drawer").classList.remove("on"); $("#settings-overlay").classList.remove("on"); load(); if($("#sd-all-frame").src) syncSettings(); }   // pick up anything changed on the Everything tab right away
+
+$("#gear").onclick=openSettings;
+/* "Everything" = the phone app's full settings page, embedded, so the wall and phone always offer the same options */
+$("#sd-tab-all").onclick=()=>{ $("#settings-drawer").classList.add("all"); $("#sd-tab-all").classList.add("active"); $("#sd-tab-display").classList.remove("active"); const f=$("#sd-all-frame"); if(!f.src) f.src="/phone.html?embed=settings"; };
+$("#sd-tab-display").onclick=async()=>{ $("#settings-drawer").classList.remove("all"); $("#sd-tab-display").classList.add("active"); $("#sd-tab-all").classList.remove("active"); await syncSettings(); syncSettingsUI(); };
+$("#sd-close").onclick=closeSettings;
+$("#sd-reload").onclick=()=>location.reload();
+$("#settings-overlay").onclick=closeSettings;
+
+// build accent swatches
+const accBox=$("#sd-accent");
+ACCENTS.forEach(c=>{ const s=document.createElement("div"); s.className="sw"; s.style.background=c;
+  s.dataset.c=c; s.onclick=()=>{ FH.save({accent:c}); syncSettingsUI(); }; accBox.appendChild(s); });
+
+/* ---- people management (settings) ---- */
+let npColor = ACCENTS[1];
+const npBox=$("#np-colors");
+ACCENTS.forEach((c,i)=>{ const s=document.createElement("div"); s.className="sw"+(i===1?" sel":""); s.style.background=c;
+  s.dataset.c=c; s.onclick=()=>{ npColor=c; npBox.querySelectorAll(".sw").forEach(x=>x.classList.toggle("sel",x.dataset.c===c)); };
+  npBox.appendChild(s); });
+
+let editingPersonId = null;
+async function refreshPeople(){
+  try{ people = await fetch("/api/categories/people").then(r=>r.json()); }catch(e){}
+  renderPeopleList();
+}
+function cancelPersonEdit(){
+  editingPersonId=null; $("#np-name").value=""; npColor=ACCENTS[1];
+  npBox.querySelectorAll(".sw").forEach(x=>x.classList.toggle("sel",x.dataset.c===npColor));
+  $("#np-add").textContent="Add person";
+}
+function editPerson(p){
+  editingPersonId=p.id;
+  $("#np-name").value=p.name; $("#np-name").focus();
+  npColor=p.color || ACCENTS[1];
+  npBox.querySelectorAll(".sw").forEach(x=>x.classList.toggle("sel",x.dataset.c===npColor));
+  $("#np-add").textContent="Save changes";
+}
+function renderPeopleList(){
+  const box=$("#sd-people"); if(!box) return;
+  cancelPersonEdit();
+  if(!people.length){ box.innerHTML='<div class="empty">No people yet</div>'; return; }
+  box.innerHTML="";
+  people.forEach(p=>{
+    const row=document.createElement("div"); row.className="sd-people-row";
+    row.innerHTML=`<span class="pdot" style="background:${p.color||'#888'}"></span><span class="pname">${esc(p.name)}</span><button class="pdel" title="Remove">&times;</button>`;
+    // click the name/dot to edit; the × removes
+    row.querySelector(".pname").onclick=()=>editPerson(p);
+    row.querySelector(".pdot").onclick=()=>editPerson(p);
+    row.querySelector(".pdel").onclick=async(e)=>{
+      e.stopPropagation();
+      await fetch(`/api/categories/people/${p.id}`,{method:"DELETE"}).catch(()=>{});
+      refreshPeople();
+    };
+    box.appendChild(row);
+  });
+}
+$("#np-add").onclick=async()=>{
+  const name=$("#np-name").value.trim(); if(!name) return;
+  if(editingPersonId!=null){
+    await fetch(`/api/categories/people/${editingPersonId}`,{method:"PUT",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name, color:npColor})}).catch(()=>{});
+  } else {
+    await fetch("/api/categories/people",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name, color:npColor})}).catch(()=>{});
+  }
+  refreshPeople();
+};
+
+// segmented controls (theme/font/density)
+document.querySelectorAll(".sd-seg").forEach(seg=>{
+  const key=seg.dataset.key;
+  seg.querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{ FH.save({[key]:b.dataset.val}); syncSettingsUI(); };
+  });
+});
+
+// panel + holiday checkboxes
+document.querySelectorAll("#sd-panels input").forEach(cb=>{
+  cb.onchange=()=>{ const p={...FH.get().panels,[cb.dataset.panel]:cb.checked}; FH.save({panels:p}); applyPanels(); };
+});
+document.querySelectorAll("#sd-holidays input").forEach(cb=>{
+  cb.onchange=()=>{ const h={...FH.get().holidays,[cb.dataset.hol]:cb.checked}; FH.save({holidays:h}); load(); };
+});
+let lastWeatherCode=null;
+function applySeasonal(){
+  const s=FH.get();
+  if(window.Skins){ Skins.apply(s); Seasonal.force(Skins.effect()); }
+  // live weather effects take over when enabled and we have a reading; otherwise date-based
+  if(s.weatherFx!==false && lastWeatherCode!=null)
+    Seasonal.applyWeather(lastWeatherCode, s.effects!==false, s.effectPrefs||{});
+  else
+    Seasonal.start(s.effects!==false, s.effectPrefs||{});
+}
+$("#sd-effects input").onchange=(e)=>{ FH.save({effects:e.target.checked}); applySeasonal(); };
+(function setupSkinPills(){ const box=$("#sd-skin"); if(!box) return;
+  if(window.Skins) Skins.list().forEach(k=>{ const b=document.createElement("button"); b.dataset.skin=k.key; b.textContent=k.emoji+" "+k.name; box.appendChild(b); });
+  const sync=()=>{ const cur=FH.get().skin||"auto"; box.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.skin===cur)); };
+  box.querySelectorAll("button").forEach(b=>{ b.onclick=()=>{ FH.save({skin:b.dataset.skin}); sync(); applySeasonal(); resetSleep(); }; });
+  sync(); document.addEventListener("fh-settings", sync);
+  const ct=$("#sd-caltasks"); if(ct){ ct.checked=FH.get().calendarTasks!==false; ct.onchange=()=>{ FH.save({calendarTasks:ct.checked}); render(); }; }
+  const sb=$("#sd-skin-banner"); if(sb){ sb.checked=FH.get().skinBanner!==false; sb.onchange=()=>{ FH.save({skinBanner:sb.checked}); applySeasonal(); }; }
+  const ss=$("#sd-skin-slim"); if(ss){ ss.checked=FH.get().skinSlim!==false; ss.onchange=()=>{ FH.save({skinSlim:ss.checked}); applySeasonal(); }; }
+  const sa=$("#sd-skin-art"); if(sa){ sa.checked=FH.get().skinArt!==false; sa.onchange=()=>{ FH.save({skinArt:sa.checked}); applySeasonal(); }; }
+  const su=$("#sd-skin-surprise"); if(su) su.onclick=()=>{ closeSettings(); Skins.surprise(); resetSleep(); }; })();
+$("#sd-weatherfx").onchange=(e)=>{ FH.save({weatherFx:e.target.checked}); applySeasonal(); };
+
+const FX=[{k:"snow",n:"Snow ❄️"},{k:"fireworks",n:"Fireworks 🎆"},{k:"halloween",n:"Bats & leaves 🦇"},{k:"petals",n:"Spring petals 🌸"}];
+function renderFx(){
+  const box=$("#sd-fxlist"); if(!box) return;
+  const prefs=FH.get().effectPrefs||{};
+  box.innerHTML="";
+  FX.forEach(f=>{
+    const row=document.createElement("div"); row.className="sd-fx-row";
+    row.innerHTML=`<label><input type="checkbox" ${prefs[f.k]!==false?"checked":""}> ${f.n}</label><button class="prev">Preview</button>`;
+    row.querySelector("input").onchange=(e)=>{
+      FH.save({effectPrefs:{...(FH.get().effectPrefs||{}), [f.k]:e.target.checked}}); applySeasonal();
+    };
+    row.querySelector(".prev").onclick=()=>{ closeSettings(); Seasonal.preview(f.k); resetSleep(); };
+    box.appendChild(row);
+  });
+}
+
+// day-hours selects
+function fmtHour(h){ return h===24 ? "12am" : (h%12||12)+(h<12?"am":"pm"); }
+(function buildHourSelects(){
+  const ss=$("#day-start"), es=$("#day-end");
+  for(let h=0;h<=23;h++){ const o=document.createElement("option"); o.value=h; o.textContent=fmtHour(h); ss.appendChild(o); }
+  for(let h=1;h<=24;h++){ const o=document.createElement("option"); o.value=h; o.textContent=fmtHour(h); es.appendChild(o); }
+  ss.onchange=()=>{ let a=+ss.value, b=+es.value; if(b<=a) b=a+1; FH.save({dayStart:a,dayEnd:b}); syncSettingsUI(); render(); };
+  es.onchange=()=>{ let a=+ss.value, b=+es.value; if(b<=a) a=b-1; FH.save({dayStart:a,dayEnd:b}); syncSettingsUI(); render(); };
+})();
+
+function syncSettingsUI(){
+  const s=FH.get();
+  $("#day-start").value = s.dayStart ?? 6;
+  $("#day-end").value   = s.dayEnd ?? 23;
+  document.querySelectorAll(".sd-seg").forEach(seg=>{
+    const key=seg.dataset.key;
+    seg.querySelectorAll("button").forEach(b=>b.classList.toggle("active", b.dataset.val===s[key]));
+  });
+  document.querySelectorAll("#sd-accent .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===s.accent));
+  renderPeopleList();
+  document.querySelectorAll("#sd-panels input").forEach(cb=>cb.checked=!!s.panels[cb.dataset.panel]);
+  document.querySelectorAll("#sd-holidays input").forEach(cb=>cb.checked=!!s.holidays[cb.dataset.hol]);
+  const fx=$("#sd-effects input"); if(fx) fx.checked=s.effects!==false;
+  const wfx=$("#sd-weatherfx"); if(wfx) wfx.checked=s.weatherFx!==false;
+  $("#kbd-enabled").checked = s.onscreenKbd!==false;
+  const me=$("#mic-enabled"); if(me) me.checked = s.wallMic!==false;
+  $("#hero-enabled").checked = !!s.heroEnabled;
+  $("#hero-day-url").value   = s.heroDay || "";
+  $("#hero-night-url").value = s.heroNight || "";
+  syncDispUI();
+  renderFx();
+  applyPanels();
+}
+
+function applyPanels(){
+  const p=FH.get().panels;
+  const vis=[!!p.todos,!!p.groceries,!!p.meals];
+  $("#panel-todos").style.display=vis[0]?"":"none";
+  $("#panel-groceries").style.display=vis[1]?"":"none";
+  $("#panel-meals").style.display=vis[2]?"":"none";
+  applyPanelSizes(FH.get().panelSizes || [1.1,1.1,.9]);
+  // a handle only makes sense when both the panels it sits between are visible
+  document.querySelectorAll(".resizer").forEach(rz=>{
+    rz.style.display=(vis[+rz.dataset.above] && vis[+rz.dataset.below])?"":"none";
+  });
+  $("#panel-scoreboard").style.display = p.scoreboard ? "" : "none";
+  // restore collapsed state
+  const col=FH.get().collapsed || {};
+  $("#panel-scoreboard").classList.toggle("collapsed", !!col.scoreboard);
+  $("#panel-todos").classList.toggle("collapsed", !!col.todos);
+  $("#panel-groceries").classList.toggle("collapsed", !!col.groceries);
+  $("#panel-meals").classList.toggle("collapsed", !!col.meals);
+}
+// collapse/expand a panel when its header is tapped
+document.querySelectorAll(".card h2[data-panel]").forEach(h=>{
+  h.onclick=()=>{
+    const card=h.closest(".card"); const key=h.dataset.panel;
+    const now=!card.classList.contains("collapsed");
+    card.classList.toggle("collapsed", now);
+    FH.save({collapsed:{...(FH.get().collapsed||{}), [key]:now}});
+    resetSleep();
+  };
+});
+
+// quick-add to-dos / groceries / meals straight from the wall
+// X-FH-Source: wall — so adds typed on the wall itself aren't announced back by the wall
+function post(url, body){ return fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-FH-Source":"wall"},body:JSON.stringify(body)}); }
+function startQuickAdd(kind, box){
+  const map={todo:"todos", grocery:"groceries", meal:"meals"};
+  box=box||$("#"+map[kind]); if(!box) return;
+  box.closest(".card").classList.remove("collapsed");       // make sure it's open
+  const existing=box.querySelector(".qa-input"); if(existing){ existing.focus(); return; }
+  const inp=document.createElement("input"); inp.className="qa-input";
+  inp.placeholder = kind==="grocery"?"Add item, press Enter…" : kind==="meal"?"Add tonight's meal…" : "Add a to-do…";
+  box.prepend(inp); inp.focus();
+  const submit=async()=>{
+    const v=inp.value.trim(); if(!v){ inp.remove(); return; }
+    if(kind==="todo") await post("/api/todos/",{title:v, list_name:todoList}).catch(()=>{});
+    else if(kind==="grocery") await post("/api/groceries/",{item:v}).catch(()=>{});
+    else await post("/api/meals/",{date:localISODate(), slot:"dinner", title:v}).catch(()=>{});
+    await load();
+    startQuickAdd(kind, box);   // reopen a fresh input in the same list for rapid entry
+  };
+  inp.onkeydown=(e)=>{ if(e.key==="Enter"){ e.preventDefault(); submit(); } else if(e.key==="Escape") inp.remove(); };
+  inp.onblur=()=>{ if(!inp.value.trim()) inp.remove(); };
+}
+document.querySelectorAll(".card .addbtn").forEach(b=>{
+  b.onclick=(e)=>{ e.stopPropagation(); if(b.dataset.add==="todo") openAdd("todo"); else if(b.dataset.add==="todoB") openAdd("todo", null, null, todoListB); else if(b.dataset.add==="today") openAdd("event", new Date()); else startQuickAdd(b.dataset.add, b.closest(".card").querySelector(".body")); resetSleep(); };
+});
+
+/* ---- boot ---- */
+/* ---- event editor / creator ---- */
+let editing = null, modalMode = "view";   // view | create | edit-local | edit-google | edit-icloud
+const pad = n => String(n).padStart(2,"0");
+const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+/* Length = hours (0–23) + minutes (0–55 by 5); any combination, not just presets */
+(function setupDur(){
+  const h=$("#ev-dur-h"), m=$("#ev-dur-m"); if(!h) return;
+  h.innerHTML=Array.from({length:24},(_,i)=>`<option value="${i}">${i} h</option>`).join("");
+  m.innerHTML=Array.from({length:12},(_,i)=>`<option value="${i*5}">${String(i*5).padStart(2,"0")} min</option>`).join("");
+})();
+function setDurMins(total){ total=Math.max(5,Math.round((total||60)/5)*5); $("#ev-dur-h").value=String(Math.min(23,Math.floor(total/60))); $("#ev-dur-m").value=String(total%60); }
+function getDurMins(){ return (parseInt($("#ev-dur-h").value)||0)*60+(parseInt($("#ev-dur-m").value)||0) || 5; }
+function nextDayStr(s){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+1); return dateStr(d); }
+function prevDayStr(s){ const d=new Date(s+"T00:00:00"); d.setDate(d.getDate()-1); return dateStr(d); }
+function plusMinutesLocal(start, mins){ const d=new Date(new Date(start).getTime()+mins*60000);
+  return `${dateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`; }
+
+// event color swatches (built once); chosenEvColor null = use default resolution
+let chosenEvColor = null;
+(function(){ const box=$("#ev-colors");
+  ACCENTS.forEach(c=>{ const s=document.createElement("div"); s.className="sw"; s.style.background=c; s.dataset.c=c;
+    s.onclick=()=>{ chosenEvColor = (chosenEvColor===c) ? null : c; syncEvColors(); };
+    box.appendChild(s);
+  });
+})();
+function syncEvColors(){ document.querySelectorAll("#ev-colors .sw").forEach(sw=>sw.classList.toggle("sel", sw.dataset.c===chosenEvColor)); }
+/* where a new event is written: FamilyHub / Google / a specific iCloud calendar */
+let calTargets=[{id:"local",label:"FamilyHub only (this screen)"}];
+async function loadCalTargets(){ try{ const r=await fetch("/api/sources/targets").then(r=>r.json()); if(r.targets&&r.targets.length) calTargets=r.targets; }catch(e){} }
+function fillCalOptions(){
+  const sel=$("#ev-cal"); if(!sel) return;
+  sel.innerHTML=calTargets.map(t=>`<option value="${esc(t.id)}">${esc(t.label)}</option>`).join("");
+  const want=FH.get().defaultCalendar||"";
+  sel.value = calTargets.some(t=>t.id===want) ? want : (calTargets.find(t=>t.id!=="local")||calTargets[0]).id;
+}
+function fillPersonOptions(ids){
+  $("#ev-person").outerHTML = whoChips("ev-person", ids||[]);
+  // picking a person colors the event with their color (Google has no person field)
+  $("#ev-person").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const p=people.find(x=>x.id===+b.dataset.id);
+    if(b.classList.contains("on") && p && p.color && whoPicked("ev-person").person_ids.length===1){ chosenEvColor=p.color; syncEvColors(); }
+  }));
+}
+
+// month skip buttons (built once)
+(function(){ const row=$("#ev-month-row");
+  ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].forEach((n,i)=>{
+    const b=document.createElement("button"); b.type="button"; b.dataset.m=i+1; b.textContent=n;
+    b.onclick=()=>b.classList.toggle("on"); row.appendChild(b);
+  });
+})();
+
+function updateRecurUI(){
+  const repeats=!!$("#ev-repeat").value, mode=$("#ev-endmode").value;
+  $("#ev-repeat-opts").style.display=repeats?"":"none";
+  $("#ev-interval-unit").textContent={daily:"days",weekly:"weeks",monthly:"months"}[$("#ev-repeat").value]||"";
+  $("#ev-count").style.display=(repeats&&mode==="count")?"":"none";
+  $("#ev-until").style.display=(repeats&&mode==="until")?"":"none";
+}
+function updateAllDayUI(){
+  const ad=$("#ev-allday").checked;
+  $("#ev-time").style.display=ad?"none":"";
+  $("#ev-end-date").style.display=ad?"":"none";          // all-day events can run several days (vacation)
+  $("#ev-dur-row").style.display=ad?"none":"flex";
+}
+$("#ev-repeat").onchange=updateRecurUI;
+$("#ev-endmode").onchange=updateRecurUI;
+$("#ev-allday").onchange=updateAllDayUI;
+
+function buildRecFromUI(){
+  const base=$("#ev-repeat").value; if(!base) return null;
+  let s=base;
+  const mode=$("#ev-endmode").value;
+  const iv=parseInt($("#ev-interval").value)||1; if(iv>1) s+=`;interval=${iv}`;
+  if(mode==="count") s+=`;count=${Math.max(1,parseInt($("#ev-count").value)||1)}`;
+  else if(mode==="until" && $("#ev-until").value) s+=`;until=${$("#ev-until").value}`;
+  const ex=[...document.querySelectorAll("#ev-month-row button.on")].map(b=>b.dataset.m);
+  if(ex.length) s+=`;exmonths=${ex.join(",")}`;
+  return s;
+}
+function parseRecToUI(rec){
+  $("#ev-repeat").value=""; $("#ev-endmode").value="never"; $("#ev-count").value=3; $("#ev-until").value=""; $("#ev-interval").value="1";
+  document.querySelectorAll("#ev-month-row button").forEach(b=>b.classList.remove("on"));
+  if(rec){
+    const [base,...mods]=rec.split(";");
+    $("#ev-repeat").value=base.trim();
+    mods.forEach(m=>{ const [k,v]=m.split("=");
+      if(k==="interval"){ $("#ev-interval").value=v; }
+      else if(k==="count"){ $("#ev-endmode").value="count"; $("#ev-count").value=v; }
+      else if(k==="until"){ $("#ev-endmode").value="until"; $("#ev-until").value=v; }
+      else if(k==="exmonths"){ v.split(",").forEach(mm=>{ const b=document.querySelector(`#ev-month-row button[data-m="${mm}"]`); if(b)b.classList.add("on"); }); }
+    });
+  }
+  updateRecurUI();
+}
+
+function openCreate(prefDate, prefTime){
+  modalMode="create"; editing=null;
+  $(".ev-title").textContent="New event";
+  $("#ev-name").value=""; $("#ev-loc").value=""; $("#ev-loc").disabled=false; $("#ev-loc").style.display="";
+  $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=false;
+  $("#ev-allday").checked=false;
+  const d=prefDate?new Date(prefDate):new Date();
+  $("#ev-date").value=dateStr(d);
+  $("#ev-time").value=prefTime||"09:00";
+  setDurMins(60);
+  $("#ev-desc").value=""; $("#ev-desc").disabled=false; $("#ev-desc").style.display="";
+  chosenEvColor=null; syncEvColors(); $("#ev-color-row").style.display="flex";
+  fillPersonOptions(null); $("#ev-person-row").style.display="flex";
+  fillCalOptions(); $("#ev-cal-row").style.display="flex";
+  $("#ev-recur-box").style.display=""; parseRecToUI(null);
+  updateAllDayUI();
+  $("#ev-del").style.display="none"; $("#ev-save").style.display="";
+  $("#ev-modal").classList.add("on"); $("#ev-overlay").classList.add("on");
+}
+
+function openEditor(ev){
+  // Every event opens a popup. Holidays/demo are read-only; local events are
+  // fully editable (incl. recurrence); Google/iCloud events edit title+time.
+  const isLocal = ev.source==="local";
+  const isCal = ev.source==="google" || ev.source==="caldav" || ev.source==="icloud";
+  const editable = !!ev.id && (isLocal || isCal);
+  modalMode = !editable ? "view" : isLocal ? "edit-local"
+            : (ev.source==="caldav"||ev.source==="icloud") ? "edit-icloud" : "edit-google";
+  editing = editable ? ev : null;
+  $(".ev-title").textContent = editable ? "Edit event" : (ev.title||"Event");
+  $("#ev-name").value=ev.title||""; $("#ev-loc").value=ev.location||"";
+  const d=ev.start?evStart(ev):new Date(); const valid=d&&!isNaN(d);
+  $("#ev-allday").checked=!!ev.all_day;
+  $("#ev-date").value=valid?(ev.span_start||dateStr(d)):"";
+  // last day of a multi-day all-day event (end is exclusive); blank = single day
+  $("#ev-end-date").value = (ev.all_day&&ev.span_end) ? prevDayStr(ev.span_end) : "";
+  $("#ev-time").value=(ev.all_day||!valid)?"":d.toTimeString().slice(0,5);
+  setDurMins(ev.all_day?60:Math.round((new Date(ev.end||ev.start)-evStart(ev))/60000)||60);
+  $("#ev-name").disabled=$("#ev-date").disabled=$("#ev-time").disabled=$("#ev-allday").disabled=!editable;
+  $("#ev-loc").disabled=!(editable&&modalMode==="edit-local"); $("#ev-loc").style.display=(modalMode==="edit-local"||ev.location)?"":"none";
+  $("#ev-desc").value=ev.description||""; $("#ev-desc").disabled=!editable;
+  $("#ev-desc").style.display=(editable||ev.description)?"":"none";
+  chosenEvColor = editable ? (ev.color || null) : null; syncEvColors();
+  $("#ev-color-row").style.display = editable ? "flex" : "none";
+  fillPersonOptions(itemIds(ev)); $("#ev-person-row").style.display = editable ? "flex" : "none";
+  $("#ev-cal-row").style.display="none";
+  if(modalMode==="edit-local"){ $("#ev-recur-box").style.display=""; parseRecToUI(ev.recurrence); }
+  else { $("#ev-recur-box").style.display="none"; }
+  updateAllDayUI();
+  $("#ev-del").style.display=editable?"":"none";
+  $("#ev-save").style.display=editable?"":"none";
+  // One date of a repeating event can be cancelled on its own (Thanksgiving week…):
+  // FamilyHub events via skip_dates, Google events by deleting just that occurrence.
+  // iCloud series: FamilyHub can only remove the whole series; single dates are done in the iPhone Calendar app.
+  const inst = !!ev.recurring_instance && (modalMode==="edit-local" || (modalMode==="edit-google" && !!ev.series_id));
+  $("#ev-skip").style.display = inst ? "" : "none";
+  $("#ev-del").textContent = ev.recurring_instance ? "Delete series" : "Delete";
+  $("#ev-modal").classList.add("on"); $("#ev-overlay").classList.add("on");
+}
+$("#ev-skip").onclick=async()=>{
+  if(!editing || !editing.start) return;
+  const d=dateStr(evStart(editing)), title=editing.title;
+  try{
+    if(modalMode==="edit-local") await fetch(`/api/events/${editing.id}/skip`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:d})});
+    else await fetch(`/api/calendar/events/${encodeURIComponent(editing.id)}?target=google`,{method:"DELETE"});   // Google: this occurrence only
+  }catch(e){}
+  closeEditor(); load(); banner(`Skipped ${title} on ${d} — the series continues.`);
+};
+function closeEditor(){ editing=null; modalMode="view"; $("#ev-modal").classList.remove("on"); $("#ev-overlay").classList.remove("on"); }
+
+$("#add-event").onclick=()=>{ openAdd("event", cursor); resetSleep(); };
+/* Add pop-up = phone.html?embed=add in a frame, opened on the right kind with the date filled in.
+   It tells us when something was saved (postMessage) so the wall refreshes and the pop-up closes. */
+function openAdd(kind, date, time, list){
+  const d=date instanceof Date?dateStr(date):(date||"");
+  const q=new URLSearchParams({embed:"add", kind:kind||"event"}); if(d) q.set("date",d); if(time) q.set("time",time);
+  const tl=list||todoList;
+  if(kind==="todo"&&tl&&tl!=="To-Do") q.set("list",tl);
+  $("#add-frame").src="/phone.html?"+q.toString();
+  $("#add-ov").classList.add("on"); $("#add-box").classList.add("on"); resetSleep();
+}
+function closeAdd(){ $("#add-ov").classList.remove("on"); $("#add-box").classList.remove("on"); oskHide(); setTimeout(()=>{ if(!$("#add-box").classList.contains("on")) $("#add-frame").src="about:blank"; }, 300); }
+// close on finger-up as well as click (a touch that starts while a field inside the frame has focus can lose its click)
+["#add-x","#add-cancel"].forEach(q=>{ const b=$(q); b.onclick=closeAdd; b.addEventListener("pointerup", e=>{ e.preventDefault(); closeAdd(); }); });
+$("#add-ov").onclick=closeAdd;
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && $("#add-box").classList.contains("on")) closeAdd(); });
+window.addEventListener("message", e=>{ if(e.origin!==location.origin||!e.data||e.data.fh!=="added") return;
+  load(); banner(e.data.msg||"Added"); closeAdd(); });
+$("#ev-cancel").onclick=closeEditor;
+$("#ev-overlay").onclick=closeEditor;
+
+function eventTimes(){
+  const allday=$("#ev-allday").checked;
+  const date=$("#ev-date").value || dateStr(new Date());
+  if(allday){ const last=$("#ev-end-date").value; return {start:date, end:nextDayStr(last&&last>date?last:date), all_day:true}; }
+  const time=$("#ev-time").value||"09:00";
+  const start=`${date}T${time}:00`;
+  return {start, end:plusMinutesLocal(start, getDurMins()), all_day:false};
+}
+$("#ev-save").onclick=async()=>{
+  const title=$("#ev-name").value.trim(); if(!title) return;
+  const t=eventTimes();
+  const who = whoPicked("ev-person");
+  const desc = $("#ev-desc").value.trim() || null;
+  const location = $("#ev-loc").value.trim() || null;
+  try{
+    if(modalMode==="create"){
+      // target "auto": goes to Google (with RRULE + color) if connected, else local
+      const destination=$("#ev-cal").value||"local";
+      FH.save({defaultCalendar:destination});     // remember the last-used calendar
+      const res=await fetch("/api/calendar/events",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location,
+          recurrence:buildRecFromUI(), color:chosenEvColor, ...who, target:"auto", destination})}).then(r=>r.json()).catch(()=>({}));
+      if(res.warning) banner(res.warning);
+    } else if(modalMode==="edit-local"){
+      await fetch(`/api/events/${editing.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({title, start:t.start, end:t.end, all_day:t.all_day, description:desc, location, recurrence:buildRecFromUI(),
+          ...who, category_id:editing.category_id, color:chosenEvColor})});
+    } else if(editing){
+      const target = modalMode==="edit-icloud" ? "icloud" : "google";
+      await fetch("/api/calendar/events",{method:"PUT",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({event_id:editing.id, title, start:t.start, end:t.end, description:desc, color:chosenEvColor, target})});
+    }
+  }catch(e){}
+  closeEditor(); load();
+};
+$("#ev-del").onclick=async()=>{
+  try{
+    if(modalMode==="edit-local" && editing){
+      await fetch(`/api/events/${editing.id}`,{method:"DELETE"});
+    } else if(editing && editing.id){
+      const target = modalMode==="edit-icloud" ? "icloud" : "google";
+      const id = (target==="google" && editing.series_id) ? editing.series_id : editing.id;   // whole series for Google
+      await fetch(`/api/calendar/events/${encodeURIComponent(id)}?target=${target}`,{method:"DELETE"});
+    }
+  }catch(e){}
+  closeEditor(); load();
+};
+
+/* ---- notifications (reminders + digest) ---- */
+let _notifBusy=false;
+async function checkNotifications(){
+  if(_notifBusy) return; _notifBusy=true;      // never show the same one twice when two checks overlap
+  try{
+    const r = await fetch("/api/notifications/due").then(r=>r.json());
+    for(const n of (r.notifications||[])){
+      showNotification(n);
+      await fetch(`/api/notifications/${n.id}/seen`,{method:"POST"}).catch(()=>{});
+    }
+  }catch(e){}
+  finally{ _notifBusy=false; }
+}
+/* Game day: a burst of the team's colour around the screen + confetti, and a small live-score chip. */
+function scoreBurst(color){
+  if(!/^#[0-9a-f]{6}$/i.test(color)) color="#e9a23b";
+  const o=document.createElement("div");
+  o.style.cssText=`position:fixed;inset:0;z-index:79;pointer-events:none;box-shadow:inset 0 0 0 14px ${color}, inset 0 0 140px 40px ${color};opacity:0`;
+  document.body.appendChild(o);
+  o.animate([{opacity:0},{opacity:1},{opacity:.25},{opacity:1},{opacity:.25},{opacity:1},{opacity:0}],{duration:4200,easing:"ease-in-out"}).onfinish=()=>o.remove();
+  for(let k=0;k<5;k++) setTimeout(()=>{ try{ const a=document.createElement("div"); a.style.cssText=`position:fixed;left:${15+Math.random()*70}vw;top:${20+Math.random()*50}vh;width:1px;height:1px`; document.body.appendChild(a); celebrate(a); setTimeout(()=>a.remove(),1500); }catch(e){} }, k*450);
+}
+let _gameHTML="";
+async function loadGameChip(){
+  const s=FH.get();
+  let g=null;
+  if(s.gameChip!==false && (s.teams||[]).length){ try{ const r=await fetch("/api/games").then(r=>r.json()); g=(r.games||[]).find(x=>x.state==="in")||(r.games||[]).find(x=>x.state==="post")||(r.games||[])[0]||null; }catch(e){} }
+  const was=_gameHTML;
+  if(!g) _gameHTML="";
+  else{
+    const col=/^#[0-9a-f]{6}$/i.test(g.team.color)?g.team.color:"var(--now)";
+    const dot=`<i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${col};margin-right:6px"></i>`;
+    const when=g.state==="pre"?new Date(g.start).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):g.detail;
+    _gameHTML=`<span class="hb">${dot}`+(g.state==="pre"
+      ? `${esc(g.team.abbr||g.team.name)} ${g.home?"vs":"@"} ${esc(g.opp_abbr||g.opp)} <span style="opacity:.7">· ${esc(when)}</span>`
+      : `<b>${esc(g.team.abbr||g.team.name)} ${g.us}</b> · ${esc(g.opp_abbr||g.opp)} ${g.them} <span style="opacity:.7">· ${esc(when)}</span>`)+`</span>`;
+  }
+  if(was!==_gameHTML) try{ loadHomeStatus(); }catch(e){}
+}
+setInterval(loadGameChip, 30000); setTimeout(loadGameChip, 4000);
+function showNotification(n){
+  // browser notification if permitted, else an on-screen banner
+  if("Notification" in window && Notification.permission==="granted"){
+    new Notification(n.title, {body: n.body || ""});
+  }
+  banner(n.title, n.body);
+  // and say it — announcements from a phone, reminders, "events found in email"
+  const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
+  // a score has its own switches (phone Settings > Game day), so it never depends on "the wall says reminders out loud"
+  if(String(n.kind||"").startsWith("score:")){ scoreBurst(n.kind.slice(6)); wallNote("the wall showed the score celebration and is saying: "+clean(n.body||n.title)); if(n.body) sayAloud(clean(n.body)); wake(); return; }
+  if(FH.get().speakAlerts!==false){
+    if(n.kind==="doorbell"||n.kind==="motion") return;      // handled live via the SSE ring
+    if(n.kind==="announce") sayAloud(clean(n.body||n.title));
+    else if(n.kind==="reminder") sayAloud("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
+    else if(n.kind==="mail") sayAloud(clean(n.title)+". Approve it on your phone.");
+    wake();
+  }
+}
+/* ---- morning briefing: spoken the first time someone walks up each day ---- */
+let briefingBusy=false;
+async function maybeBriefing(){
+  const s=FH.get(); if(s.morningBriefing===false || briefingBusy) return;
+  const now=new Date(); if(now.getHours()<(+s.briefingHour||6) || now.getHours()>=12) return;
+  const key=localISODate(); if(localStorage.getItem("fh_briefed")===key) return;
+  briefingBusy=true; localStorage.setItem("fh_briefed", key);
+  try{ const d=await fetch("/api/notifications/digest").then(r=>r.json());
+    banner(d.summary, (d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){}
+  briefingBusy=false;
+}
+async function sayBriefingNow(day){ resetSleep(); try{ const d=await fetch("/api/notifications/digest?day="+(day==="tomorrow"?"tomorrow":"today")).then(r=>r.json()); banner(d.summary,(d.details||[]).join("\n")); sayAloud(d.spoken); }catch(e){} }
+/* ☀️ button: tap = today, long-press (or tap again within 2 s) = tomorrow */
+(function(){ const b=$("#brief-btn"); if(!b) return; let t=null, armed=false;
+  const go=(day)=>{ b.title = day==="tomorrow" ? "Tomorrow's briefing" : "Today's briefing"; sayBriefingNow(day); };
+  b.addEventListener("pointerdown",()=>{ t=setTimeout(()=>{ t=null; go("tomorrow"); },650); });
+  b.addEventListener("pointerup",()=>{ if(t){ clearTimeout(t); t=null; if(armed){ armed=false; go("tomorrow"); } else { armed=true; setTimeout(()=>armed=false,2000); go("today"); } } });
+  b.addEventListener("pointerleave",()=>{ if(t){ clearTimeout(t); t=null; } });
+})();
+function banner(title, body){
+  let b = document.getElementById("fh-banner");
+  if(!b){ b=document.createElement("div"); b.id="fh-banner";
+    b.style.cssText="position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--now);color:#1a1205;padding:14px 22px;border-radius:12px;font-weight:600;z-index:80;box-shadow:0 6px 24px rgba(0,0,0,.3);max-width:80vw;text-align:center;transition:opacity .4s";
+    document.body.appendChild(b); }
+  b.innerHTML = `${title}${body?`<div style="font-weight:400;font-size:13px;margin-top:4px;white-space:pre-line">${body}</div>`:""}`;
+  b.style.opacity="1";
+  clearTimeout(b._t); b._t=setTimeout(()=>{ b.style.opacity="0"; }, 12000);
+}
+// ask for notification permission once
+if("Notification" in window && Notification.permission==="default"){
+  Notification.requestPermission().catch(()=>{});
+}
+
+/* ---- weather ---- */
+async function loadWeather(){
+  try{
+    const w = (await cachedFetch("/api/weather","weather")).data;
+    if (w.error || w.temp === undefined) { $("#wx").innerHTML = ""; return; }
+    $("#wx").innerHTML = `<span>${w.icon}</span><span class="t">${w.temp}°</span>`
+      + `<span class="hl">H ${w.high}°<br>L ${w.low}°</span>`;
+    if (w.sunrise || w.sunset) { heroSun = { sunrise:w.sunrise, sunset:w.sunset }; updateHeroPhase(); }
+    if (w.code !== undefined) { lastWeatherCode = w.code; applySeasonal(); }   // drive live weather effects
+  }catch(e){ $("#wx").innerHTML = ""; }
+}
+async function loadForecast(){
+  try{
+    const r = (await cachedFetch("/api/weather/forecast?days=10","forecast")).data;
+    forecast = r.days || {};
+    if($(".tg")) render();   // refresh headers with weather
+  }catch(e){}
+}
+
+/* ---- day/night hero banner ---- */
+let heroSun = { sunrise:null, sunset:null };   // ISO local times from weather
+function applyHero(){
+  const s=FH.get();
+  document.querySelector("header").classList.toggle("has-hero", !!s.heroEnabled);
+  $("#hero-day").style.backgroundImage   = s.heroDay   ? `url("${s.heroDay}")`   : "";
+  $("#hero-night").style.backgroundImage = s.heroNight ? `url("${s.heroNight}")` : "";
+  updateHeroPhase();
+}
+function nightFraction(){
+  // 0 = full day, 1 = full night, ~1h crossfade around sunrise/sunset
+  const now=new Date(); const mins=now.getHours()*60+now.getMinutes();
+  const toMin=(iso,def)=>{ if(!iso) return def; const t=iso.slice(11,16).split(":"); return (+t[0])*60+(+t[1]); };
+  const sr=toMin(heroSun.sunrise, 7*60), ss=toMin(heroSun.sunset, 19*60), fade=60;
+  if(mins < sr-fade/2) return 1;
+  if(mins < sr+fade/2) return (sr+fade/2-mins)/fade;   // dawn 1->0
+  if(mins < ss-fade/2) return 0;
+  if(mins < ss+fade/2) return (mins-(ss-fade/2))/fade; // dusk 0->1
+  return 1;
+}
+function updateHeroPhase(){
+  const s=FH.get(); if(!s.heroEnabled) return;
+  const n=nightFraction();
+  $("#hero-day").style.opacity   = 1-n;
+  $("#hero-night").style.opacity = n;
+  const day  ="linear-gradient(120deg,#7fb6f0,#bfe0ff 55%,#e9f3ff)";
+  const dusk ="linear-gradient(120deg,#2a3a63,#7a5b8c 55%,#e08a5b)";
+  const night="linear-gradient(120deg,#0b1020,#132544 55%,#1b2b4a)";
+  $("#hero-grad").style.background = n>0.6 ? night : (n>0.25 ? dusk : day);
+  // gradient only shows when no photos are set; photos cover it otherwise
+  $("#hero-grad").style.opacity = (s.heroDay || s.heroNight) ? 0 : 1;
+}
+
+/* ---- scheduled screen-off + wake ---- */
+let _reloadToken=null, sleepMode=false;
+async function loadDisplayState(){
+  try{
+    const st=await fetch("/api/display/state").then(r=>r.json());
+    $("#screenoff").classList.toggle("on", !st.on);
+    if(st.sleep_mode && !sleepMode){ sleepMode=true; if(asleep) wake(); }        // night: dark, not the photo slideshow
+    else if(!st.sleep_mode && sleepMode){ sleepMode=false; resetSleep(); }   // morning: wall back + the usual first-wake briefing
+    // phone pressed "Reload the wall" (or the server restarted after a git pull)
+    if(st.reload_token!==undefined){
+      if(_reloadToken===null) _reloadToken=st.reload_token;
+      else if(st.reload_token!==_reloadToken){ location.reload(); }
+    }
+  }catch(e){}
+}
+async function wakeDisplay(){
+  $("#screenoff").classList.remove("on");
+  try{ await fetch("/api/display/wake",{method:"POST"}); }catch(e){}
+}
+$("#screenoff").addEventListener("click", wakeDisplay);
+$("#screenoff").addEventListener("touchstart", wakeDisplay, {passive:true});
+
+/* ---- kids' scoreboard ---- */
+async function loadScoreboard(){
+  // always fetch: the side-panel card may be hidden, but the Chores page always shows it
+  try{
+    const r=await fetch("/api/chores/scoreboard").then(r=>r.json());
+    renderScoreboard(r.scoreboard||[], $("#scoreboard"));
+    renderScoreboard(r.scoreboard||[], $("#scoreboard2"));
+  }catch(e){}
+}
+function renderScoreboard(rows, el){
+  if(!el) return;
+  if(!rows.length){ el.innerHTML='<div class="empty">No chores assigned yet</div>'; return; }
+  const medal=["\u{1F947}","\u{1F948}","\u{1F949}"];
+  el.innerHTML="";
+  rows.forEach((p,i)=>{
+    const row=document.createElement("div"); row.className="sb-row";
+    const rank = i<3 ? medal[i] : (i+1);
+    const sub = `${p.done_today}/${p.total_today} today` + (p.earned_today?` · +${p.earned_today}★`:"");
+    row.innerHTML =
+      `<div class="sb-rank">${rank}</div>`+
+      `<div class="sb-av" style="background:${esc(p.color)}">${esc((p.name||"?").slice(0,1).toUpperCase())}</div>`+
+      `<div class="sb-main">`+
+        `<div class="sb-name"><span>${esc(p.name)}</span><span class="sb-stars">★ ${p.stars}</span></div>`+
+        `<div class="sb-bar"><div class="sb-fill" style="width:${p.pct}%;background:${esc(p.color)}"></div></div>`+
+        `<div class="sb-sub">${sub}</div>`+
+      `</div>`;
+    row.onclick=()=>openKidMode(p);
+    el.appendChild(row);
+  });
+}
+
+/* ---- per-person "my day" mode (tap an avatar) ---- */
+let kidTimer=null, kidPerson=null;
+function closeKidMode(){ $("#kidmode").classList.remove("on"); kidPerson=null; clearTimeout(kidTimer); }
+async function openKidMode(p){
+  resetSleep(); kidPerson=p; const km=$("#kidmode"); km.classList.add("on"); renderKidMode();
+  clearTimeout(kidTimer); kidTimer=setTimeout(closeKidMode, 120000);     // hands-off after 2 min
+}
+async function renderKidMode(){
+  const p=kidPerson; if(!p) return; const km=$("#kidmode");
+  const d=cache.dash||{}; const today=localISODate();
+  const nm=(p.name||"").toLowerCase();
+  const evs=cache.events.filter(e=>{ const st=evStart(e); return st && sameDay(st,new Date()) && (itemIds(e).includes(p.id) || String(e.title||"").toLowerCase().includes(nm)); })
+    .sort((a,b)=>evStart(a)-evStart(b));
+  const routines=(d.routines||[]).filter(r=>r.person_id===p.id);
+  const chores=(d.chores||[]).filter(c=>itemIds(c).includes(p.id));
+  let stars=0, rewards=[];
+  try{ const b=await fetch("/api/rewards/balances").then(r=>r.json()); stars=((b.balances||[]).find(x=>x.id===p.id)||{}).stars||0; }catch(e){}
+  try{ rewards=await fetch("/api/rewards/").then(r=>r.json()); }catch(e){}
+  if(kidPerson!==p) return;
+  const fmt=e=>e.all_day?"all day":evStart(e).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  let html=`<div class="km-head"><div class="km-av" style="background:${esc(p.color||'#4f86c6')}">${esc((p.name||"?").slice(0,1).toUpperCase())}</div>
+    <div><div class="km-name">${esc(p.name)}'s day</div><div class="km-sub">${new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"})}</div></div>
+    <div class="km-stars">\u2605 ${stars}</div><button class="km-x" id="km-close">Done</button></div><div class="km-grid">`;
+  html+=`<div class="km-card"><h3>Today</h3>`+(evs.length?evs.map(e=>`<div class="km-ev"><span class="t">${fmt(e)}</span><span class="dot" style="background:${esc(e.color||p.color||'#4f86c6')}"></span><span>${esc(e.title)}</span></div>`).join(""):'<div class="empty">Nothing on the calendar \u{1F389}</div>')+`</div>`;
+  routines.forEach(r=>{
+    html+=`<div class="km-card"><h3>${esc(r.emoji||"")} ${esc(r.name)}${r.complete?" \u2014 done!":""}</h3>`+r.steps.map((st,i)=>`<div class="km-big${r.done.includes(i)?' done':''}" data-rt="${r.id}" data-i="${i}"><div class="box"></div><span>${st.emoji?esc(st.emoji)+' ':''}${esc(st.title)}</span>${st.minutes?`<span class="star">\u23F1 ${st.minutes} min</span>`:""}</div>`).join("")+`</div>`;
+  });
+  html+=`<div class="km-card"><h3>Chores</h3>`+(chores.length?chores.map(c=>`<div class="km-big" data-chore="${c.id}"${c.just_done?' style="opacity:.45; text-decoration:line-through"':''}><div class="box"></div><span>${esc(c.title)}</span>${c.stars?`<span class="star">${"\u2605".repeat(Math.min(c.stars,5))}</span>`:""}</div>`).join(""):'<div class="empty">All done!</div>')+`</div>`;
+  if(rewards.length) html+=`<div class="km-card"><h3>Rewards</h3>`+rewards.map(r=>`<div class="km-rw"><span>${esc(r.name)}</span><span style="color:var(--ink-dim);font-size:13px">\u2605 ${r.cost}</span><button data-rw="${r.id}" ${stars<r.cost?'disabled':''}>Redeem</button></div>`).join("")+`</div>`;
+  html+=`</div>`;
+  km.innerHTML=html;
+  $("#km-close").onclick=closeKidMode;
+  km.querySelectorAll("[data-rt]").forEach(el=>{ el.onclick=async()=>{ resetSleep(); clearTimeout(kidTimer); kidTimer=setTimeout(closeKidMode,120000);
+    const res=await post(`/api/routines/${el.dataset.rt}/step/${el.dataset.i}`).then(x=>x.json()).catch(()=>null);
+    celebrate(el); if(res&&res.complete&&res.stars_earned&&FH.get().speakAlerts!==false) sayAloud(`${p.name}, routine done! You earned ${res.stars_earned} star${res.stars_earned===1?"":"s"}.`);
+    await load(); renderKidMode(); }; });
+  km.querySelectorAll("[data-chore]").forEach(el=>{ el.onclick=async()=>{ resetSleep(); const res=await post(`/api/chores/${el.dataset.chore}/toggle`).then(x=>x.json()).catch(()=>null);
+    celebrate(el); if(res&&res.stars_earned&&FH.get().speakAlerts!==false) sayAloud(`Nice, ${p.name}! Plus ${res.stars_earned}.`); await load(); renderKidMode(); }; });
+  km.querySelectorAll("[data-rw]").forEach(b=>{ b.onclick=async()=>{ resetSleep(); const res=await post("/api/rewards/redeem",{person_id:p.id,reward_id:+b.dataset.rw}).then(x=>x.json()).catch(()=>({}));
+    if(res.ok){ celebrate(b); if(FH.get().speakAlerts!==false) sayAloud(`${res.redeemed} for ${p.name}!`); } else banner(res.error||"Couldn't redeem"); await load(); renderKidMode(); }; });
+}
+
+/* ---- bottom-nav page switching ---- */
+let curPage = "calendar";
+function showPage(name){
+  curPage = name;
+  document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active", p.id==="page-"+name));
+  document.querySelectorAll(".bottomnav button").forEach(b=>b.classList.toggle("active", b.dataset.page===name));
+  const tabs=document.querySelector(".tabs"); if(tabs) tabs.style.visibility = (name==="calendar")?"":"hidden";
+  refreshActivePage();
+  resetSleep();
+}
+function refreshActivePage(){
+  const d = cache.dash || {};
+  if(curPage==="lists"){
+    renderGroceries(d.groceries||[], $("#groceries2"));
+    renderTodos(d.todos||[], $("#todos2"));
+  } else if(curPage==="chores"){
+    renderRoutines(d.routines||[]);
+    renderChoreList(d.chores||[], $("#chorelist"));
+    loadScoreboard();
+  } else if(curPage==="photos"){
+    renderPhotosPage();
+  } else if(curPage==="home"){
+    loadHome();
+  } else if(curPage==="calendar"){
+    render();   // recompute calendar layout now that it's visible
+    loadHomeStatus();
+  } else {
+    const bar=$("#home-statusbar"); if(bar) bar.classList.remove("show");
+  }
+}
+document.querySelectorAll(".bottomnav button").forEach(b=>{
+  b.onclick=()=>showPage(b.dataset.page);
+});
+
+function renderPhotosPage(){
+  const g=$("#photo-grid"); if(!g) return; g.innerHTML="";
+  if(!photos.length){
+    g.innerHTML='<div class="empty" style="grid-column:1/-1">No photos yet — upload them from your phone. '
+      +'They appear here and in the idle slideshow.</div>';
+    return;
+  }
+  photos.forEach(src=>{ const im=document.createElement("img"); im.src=src; im.loading="lazy"; g.appendChild(im); });
+}
+
+/* ---- Home / smart-home tab (talks to Home Assistant via /api/ha) ---- */
+/* icons / labels / floor plan live in home-shared.js (shared with the phone app) */
+const HA_ICON=FHHome.HA_ICON; const haIcon=FHHome.haIcon; const haStateLabel=FHHome.haStateLabel;
+/* leave-by countdown: /api/travel/next every 2 min; the chip re-renders with the status bar */
+let trips=[], tripsSaid={};
+async function loadTrips(){ try{ trips=(await fetch("/api/travel/next").then(r=>r.json())).trips||[]; }catch(e){} loadHomeStatus(); }
+function tripChip(){
+  const t=trips.find(x=>x.leave_at); if(!t) return "";
+  const mins=Math.round((new Date(t.leave_at)-Date.now())/60000), start=new Date(t.start);
+  if(mins>60 || Date.now()>start) return "";
+  const key=t.title+"|"+t.start;
+  if(mins<=0 && !tripsSaid[key] && FH.get().speakAlerts!==false && !asleep){ tripsSaid[key]=1; sayAloud(`Time to leave for ${t.title}. It's about ${t.minutes} minutes away${t.traffic?" with traffic":""}.`); }
+  const when=start.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const txt = mins<=0 ? `Leave now for <b>${esc(t.title)}</b>` : `Leave in <b>${mins} min</b> for ${esc(t.title)}`;
+  return `<span class="hb ${mins<=10?'warn':''}" title="${esc(t.location)}">\u{1F697} ${txt} <span style="opacity:.7">· ${t.minutes} min drive${t.traffic?"":", no traffic data"} · ${when}</span></span>`;
+}
+async function loadHomeStatus(){
+  const bar=$("#home-statusbar"); if(!bar) return;
+  if(curPage!=="calendar"){ bar.classList.remove("show"); return; }
+  let s;
+  try{ s=(await cachedFetch("/api/ha/status","hastatus")).data; }
+  catch(e){ s=null; }
+  const chip=[tripChip(),_gameHTML].filter(Boolean).join('<span class="hb-sep">·</span>');
+  if(!s || !s.connected){ if(chip){ bar.innerHTML=chip; bar.classList.add("show"); } else bar.classList.remove("show"); return; }
+  const parts=[];
+  if(chip) parts.push(chip);
+  const armed=(s.alarm||"").startsWith("armed");
+  const alarmLabel={disarmed:"Disarmed",armed_home:"Armed home",armed_away:"Armed away",
+    armed_night:"Armed night",pending:"Pending",triggered:"TRIGGERED"}[s.alarm]||s.alarm;
+  if(s.alarm) parts.push(`<span class="hb ${armed?'armed':''}">\u{1F6E1}️ <b>${esc(alarmLabel)}</b></span>`);
+  if((s.open_doors||[]).length) parts.push(`<span class="hb warn">⚠️ ${esc(s.open_doors.join(", "))} open</span>`);
+  (s.temps||[]).forEach(t=>parts.push(`<span class="hb">\u{1F321}️ ${esc(t.name)} <b>${t.value}${esc(t.unit)}</b></span>`));
+  if(s.demo) parts.push('<span class="hb" style="opacity:.55">demo</span>');
+  if(!parts.length){ bar.classList.remove("show"); return; }
+  bar.innerHTML=parts.join('<span class="hb-sep">·</span>');
+  bar.classList.add("show");
+  bar.onclick=()=>showPage("home");
+}
+/* ---- Christmas village tile (services/village.py) — only shows while the village answers ---- */
+let lastVillage=null;
+async function loadVillage(){ try{ lastVillage=await fetch("/api/village/status").then(r=>r.json()); }catch(e){ lastVillage=null; } }
+function villageCardHTML(v){
+  if(!v||!v.reachable) return "";
+  const awake=/awake|show/.test(v.mode||"");
+  const b=(d,ic,t)=>`<button class="cc-qa" data-vg="${d}">${ic} ${t}</button>`;
+  return `<div class="vg-card"><div class="vg-head"><span class="vg-t">\u{1F384} North Pole Village</span><span class="vg-s">${esc(v.said||"")}</span></div>
+    <div class="vg-btns">${b("tree","\u{1F332}","Tree show")}${b("rachell","\u{1F496}","Rachell's show")}${b("carol","\u{1F3B6}","Carolers")}
+    ${b("train","\u{1F682}","Train")}${b("stop","\u23F9\uFE0F","Stop train")}${awake?b("sleep","\u{1F319}","Sleep"):b("wake","\u2600\uFE0F","Wake up")}</div></div>`;
+}
+function bindVillage(root){
+  root.querySelectorAll("[data-vg]").forEach(btn=>{ btn.onclick=async()=>{
+    resetSleep(); const lbl=btn.textContent; btn.disabled=true; btn.textContent="…";
+    let r={}; try{ r=await post("/api/village/cmd",{do:btn.dataset.vg}).then(x=>x.json()); }catch(e){}
+    btn.disabled=false; btn.textContent=lbl;
+    if(!r.ok) banner("\u{1F384} Village", r.reason||"The village isn't answering.");
+    setTimeout(()=>loadVillage().then(()=>{ if(lastHome&&curPage==="home") renderHome(lastHome); }), 1500);
+  }; });
+}
+async function loadHome(){
+  loadPresence();
+  loadVillage().then(()=>{ if(lastHome&&curPage==="home") renderHome(lastHome); });
+  const wrap=$("#home-wrap"); if(!wrap) return;
+  let h;
+  try{ h=(await cachedFetch("/api/ha/home","ha")).data; }
+  catch(e){ h={connected:false, groups:[], reason:"can't reach FamilyHub"}; }
+  renderHome(h);
+}
+let homeView="tiles", lastHome=null;
+function renderHome(h){
+  lastHome=h;
+  const wrap=$("#home-wrap"); if(!wrap) return;
+  if(!h.connected){
+    wrap.innerHTML =
+      '<div class="page-center"><div class="ph-card"><div class="ph-ico">\u{1F3E0}</div>'+
+      '<h3>Home Assistant offline</h3>'+
+      '<p>'+esc(h.reason||"Can't reach Home Assistant")+'.<br><br>'+
+      'Set <code>HA_URL</code> and <code>HA_TOKEN</code> in <code>.env</code>, or run with '+
+      '<code>HA_DEMO=1</code> to explore with demo devices.<br><br>'+
+      'Setup: <code>docs/home-assistant-setup.md</code></p></div></div>';
+    return;
+  }
+  const views={tiles:"\u{1F3E0} Tiles", floor:"\u{1F4D0} Floor plan", iso:"\u{1F3D8}️ 3D"};
+  const nav=Object.keys(views).map(v=>
+    `<button class="hv-btn${homeView===v?' active':''}" data-hv="${v}">${views[v]}</button>`).join("");
+  // Build the shell once per view. Rebuilding it on every refresh (15 s + every HA change) emptied #home-body, so the
+  // "nothing changed, skip" check never hit: every tile was re-created and a finger already down on one lost its tap.
+  if(wrap.dataset.view!==homeView || !$("#home-body")){
+    wrap.dataset.view=homeView;
+    wrap.innerHTML=`<div class="home-view-nav">${nav}</div><div id="home-body"></div><div id="home-health" style="margin-top:14px"></div>`;
+    wrap.querySelectorAll(".hv-btn").forEach(b=>{ b.onclick=()=>{ homeView=b.dataset.hv; renderHome(lastHome); }; });
+  }
+  Promise.all([FHHome.health(), FHHome.laundry()]).then(([d,l])=>{ const el=$("#home-health"), h2=FHHome.laundryHTML(l)+FHHome.healthHTML(d); if(el&&el.dataset.sig!==h2){ el.dataset.sig=h2; el.innerHTML=h2; } });
+  const body=$("#home-body");
+  if(homeView==="floor") return renderFloorView(body,h);
+  if(homeView==="iso") return renderIsoView(body,h);
+  renderTilesView(body,h);
+}
+let homeGroup=(()=>{ try{ return localStorage.getItem("fh_home_group")||"room"; }catch(e){ return "room"; } })();
+function renderTilesView(body,h){
+  const tiles=(h.groups||[]).reduce((a,g)=>a.concat(g.tiles),[]);
+  const alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+  const locks=tiles.filter(t=>t.domain==="lock");
+  const lockedN=locks.filter(t=>t.state==="locked").length;
+  const outdoor=tiles.find(t=>t.domain==="sensor"&&t.device_class==="temperature"&&/out/i.test(t.name));
+  const power=tiles.find(t=>t.domain==="sensor"&&t.device_class==="power");
+  const energy=tiles.find(t=>t.domain==="sensor"&&t.device_class==="energy");
+  const onCount=tiles.filter(t=>t.on&&["light","switch","fan"].includes(t.domain)).length;
+  const openThings=[];
+  tiles.forEach(t=>{
+    if(t.domain==="cover"&&(t.state==="open"||t.state==="opening")) openThings.push(t.name);
+    if(t.domain==="binary_sensor"&&["door","garage_door","window"].includes(t.device_class)&&t.on) openThings.push(t.name);
+  });
+  const hr=new Date().getHours();
+  const greet=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening";
+  const dstr=new Date().toLocaleDateString([],{weekday:"long",month:"long",day:"numeric"});
+
+  const chips=[];
+  if(alarm){ const armed=alarm.state.startsWith("armed");
+    const lbl={disarmed:"Disarmed",armed_home:"Armed home",armed_away:"Armed away",armed_night:"Armed night"}[alarm.state]||alarm.state;
+    chips.push(`<span class="cc-chip ${armed?'ok':''}">\u{1F6E1}️ ${esc(lbl)}</span>`); }
+  if(locks.length) chips.push(lockedN===locks.length
+    ? '<span class="cc-chip ok">\u{1F512} All locked</span>'
+    : `<span class="cc-chip warn">\u{1F513} ${locks.length-lockedN} unlocked</span>`);
+  chips.push(openThings.length
+    ? `<span class="cc-chip warn">⚠️ ${esc(openThings.join(", "))} open</span>`
+    : '<span class="cc-chip ok">✓ All closed</span>');
+  if(outdoor) chips.push(`<span class="cc-chip">\u{1F321}️ ${esc(outdoor.state)}${esc(outdoor.unit||"")} outside</span>`);
+  if(lastPresence&&lastPresence.length){ const home=lastPresence.filter(p=>p.home).map(p=>p.name), away=lastPresence.filter(p=>!p.home).map(p=>p.name);
+    chips.push(`<span class="cc-chip ${home.length?'ok':''}">\u{1F3E0} ${home.length?esc(home.join(", "))+" home":"nobody home"}${away.length?' · '+esc(away.join(", "))+' away':''}</span>`); }
+
+  const kpis=[`<div class="cc-kpi"><div class="cc-kpi-v">${onCount}</div><div class="cc-kpi-l">on now</div></div>`];
+  if(power) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(power.state)}<small>${esc(power.unit||"W")}</small></div><div class="cc-kpi-l">power</div></div>`);
+  if(energy) kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${esc(energy.state)}<small>${esc(energy.unit||"kWh")}</small></div><div class="cc-kpi-l">today</div></div>`);
+  kpis.push(`<div class="cc-kpi"><div class="cc-kpi-v">${h.count}</div><div class="cc-kpi-l">devices</div></div>`);
+
+  const qa=['<button class="cc-qa" data-mode="goodnight">\u{1F319} Good night</button>',
+            '<button class="cc-qa" data-mode="morning">\u2600\uFE0F Good morning</button>',
+            '<button class="cc-qa" data-mode="away">\u{1F6AA} Leaving</button>',
+            '<button class="cc-qa" data-mode="welcome">\u{1F3E1} I\'m home</button>',
+            '<button class="cc-qa" data-qa="lights-off">\u{1F4A1} All lights off</button>'];
+  tiles.filter(t=>t.domain==="scene").slice(0,3).forEach(s=>
+    qa.push(`<button class="cc-qa" data-scene="${esc(s.entity_id)}">✨ ${esc(s.name)}</button>`));
+
+  let html=`<div class="cc-hero">
+    <div class="cc-hero-top">
+      <div><div class="cc-greet">${greet}</div><div class="cc-date">${esc(dstr)}</div></div>
+      ${h.demo?'<span class="cc-demo">Demo</span>':'<span class="cc-live">● Live</span>'}
+    </div>
+    <div class="cc-chips">${chips.join("")}</div>
+    <div class="cc-kpis">${kpis.join("")}</div>
+    <div class="cc-actions">${qa.join("")}</div>
+  </div>`;
+
+  if(h.spotify) html += spotifyCardHTML(h.spotify);
+  html += villageCardHTML(lastVillage);
+
+  const tileHTML=t=>{
+    if(t.domain==="camera"){
+      return '<div class="tile cam" data-ha="'+esc(t.entity_id)+'" data-domain="camera" data-name="'+esc(t.name)+'">'+
+        '<img src="'+esc(t.snapshot)+'?v=1&t='+Date.now()+'" alt="" loading="lazy"><div class="t-name">📷 '+esc(t.name)+'</div></div>';
+    }
+    const scene = t.activatable;
+    const ro = !t.toggleable && !t.activatable;   // sensors etc. = read-only
+    const cls = "tile"+(t.on?" on":"")+(scene?" scene":"")+(ro?" ro":"");
+    // every light gets the ◐/🎨 button; a light that can only switch says so in the pop-up instead of hiding it
+    const adj = t.domain==="light" ? '<button class="t-adj'+(t.color?' col':'')+'" data-adj="'+esc(t.entity_id)+'" aria-label="Brightness and color" title="Brightness and color"><span>'+(t.color?'':'\u2600\uFE0F')+'</span></button>' : '';
+    return '<div class="'+cls+'" data-ha="'+esc(t.entity_id)+'" data-domain="'+esc(t.domain)+'" data-name="'+esc(t.name)+'">'+adj+
+      '<div class="t-ico">'+haIcon(t)+'</div>'+
+      '<div class="t-name">'+esc(t.name)+'</div>'+
+      (scene?'':'<div class="t-state">'+esc(haStateLabel(t))+'</div>')+
+    '</div>';
+  };
+  const sec=(title, list)=> list.length ? '<div class="home-sec"><h3>'+title+'</h3><div class="tile-grid">'+list.map(tileHTML).join("")+'</div></div>' : '';
+  html += `<div class="hg-switch"><button data-hg="room" class="${homeGroup==="room"?"active":""}">\u{1F6AA} By room</button><button data-hg="type" class="${homeGroup==="type"?"active":""}">\u{1F4A1} By type</button></div>`;
+  if(homeGroup==="room"){
+    // like the phone: one section per room (HA Areas / the floor plan), cameras first, scenes last
+    const rooms=FHHome.resolveRooms(h)||[];
+    const hidden=t=>["sensor","binary_sensor","automation","script","alarm_control_panel"].includes(t.domain);
+    const all=tiles.filter(t=>!hidden(t));
+    const cams=all.filter(t=>t.domain==="camera"), scenes=all.filter(t=>t.domain==="scene");
+    const buckets=new Map();              // title -> tiles, in floor-plan order first
+    const dup=n=>rooms.filter(r=>r.name===n).length>1;
+    rooms.forEach(r=>{ const k=r.name+(dup(r.name)?(String(r.floor||1)==="2"?" (upstairs)":" (downstairs)"):""); if(!buckets.has(k)) buckets.set(k,{icon:"", tiles:[], r}); });
+    const order={light:0,switch:1,fan:2,climate:3,media_player:4,cover:5,lock:6};
+    all.filter(t=>t.domain!=="camera"&&t.domain!=="scene").forEach(t=>{
+      const r=FHHome.roomFor(t, rooms);
+      let k=r?(r.name+(dup(r.name)?(String(r.floor||1)==="2"?" (upstairs)":" (downstairs)"):"")):(t.area||"Other devices");
+      if(!buckets.has(k)) buckets.set(k,{tiles:[]});
+      buckets.get(k).tiles.push(t);
+    });
+    html += sec("\u{1F4F7} Cameras", cams);
+    const keys=[...buckets.keys()].filter(k=>buckets.get(k).tiles.length);
+    keys.sort((a,b)=>(a==="Other devices")-(b==="Other devices"));
+    keys.forEach(k=>{ const list=buckets.get(k).tiles.sort((a,b)=>((order[a.domain]??9)-(order[b.domain]??9))||a.name.localeCompare(b.name));
+      const on=list.filter(t=>t.on&&["light","switch","fan"].includes(t.domain)).length;
+      html += sec(esc(k)+(on?` <small class="hg-on">${on} on</small>`:""), list); });
+    html += sec("\u2728 Scenes", scenes);
+  } else {
+    (h.groups||[]).filter(g=>g.group!=="Sensors").forEach(g=>{     // door/motion/temp sensors work behind the scenes (status bar, night check, 3D), no tiles
+      html += sec(esc(g.group), g.tiles);
+    });
+  }
+  // Skip the rebuild when nothing visible changed: the 10 s refresh otherwise re-creates
+  // every tile and chip, which reads as flicker on the touch screen (and drops a tap).
+  // The album-art cache-buster is stripped from the comparison.
+  const sig = html.replace(/&t=\d+/g, "");
+  if (body.dataset.sig === sig){ body.querySelectorAll(".tile.cam img").forEach(im=>{ im.src=im.src.replace(/&t=\d+/, "&t="+Date.now()); }); return; }
+  body.dataset.sig = sig;
+  body.innerHTML = html;
+  bindSpotify(body);
+  bindVillage(body);
+  body.querySelectorAll(".tile").forEach(el=>{ el.onclick=()=>onTileTap(el); });
+  body.querySelectorAll("[data-hg]").forEach(b=>{ b.onclick=()=>{ homeGroup=b.dataset.hg; try{ localStorage.setItem("fh_home_group", homeGroup); }catch(e){} body.dataset.sig=""; renderTilesView(body, lastHome); }; });
+  body.querySelectorAll('.tile[data-domain="light"]').forEach(el=>{ try{ holdable(el, ()=>{ const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===el.dataset.ha); if(t) openLightPop(t); }); const m=el.querySelector(":scope > .more"); if(m) m.remove(); }catch(e){} });   // press and hold = brightness/color too
+  body.querySelectorAll("[data-adj]").forEach(b=>{ b.addEventListener("pointerdown",e=>e.stopPropagation());
+    b.onclick=(e)=>{ e.stopPropagation(); const t=(FHHome.tilesOf(lastHome||{})).find(x=>x.entity_id===b.dataset.adj); if(t) openLightPop(t); }; });
+  body.querySelectorAll(".cc-qa[data-scene]").forEach(b=>{ b.onclick=()=>runScene(b.dataset.scene); });
+  const lo=body.querySelector('.cc-qa[data-qa="lights-off"]'); if(lo) lo.onclick=allLightsOff;
+  body.querySelectorAll(".cc-qa[data-mode]").forEach(b=>{ b.onclick=()=>runMode(b.dataset.mode, b); });
+}
+let lastPresence=null;
+async function loadPresence(){ try{ const r=await fetch("/api/ha/presence").then(x=>x.json()); lastPresence=r.people||[]; }catch(e){} }
+/* Good night / Leaving: one tap does the rounds (lights, TVs, locks, alarm) and the wall says what it did */
+async function runMode(mode, btn, code){
+  resetSleep();
+  // I'm home = the Surety Home scene: if the alarm is armed, ask for the panel code first
+  if((mode==="welcome"||mode==="morning") && code===undefined && FH.get().welcomeNoCode!==true){
+    const tiles=lastHome?FHHome.tilesOf(lastHome):[], alarm=tiles.find(t=>t.domain==="alarm_control_panel");
+    if(alarm && /^armed|pending|arming/.test(alarm.state||"")){ openWelcomePad(btn, mode); return; }
+  }
+  const label=btn?btn.textContent:""; if(btn){ btn.disabled=true; btn.textContent="…"; }
+  let r={}; try{ r=await post("/api/ha/mode",{mode, source:"wall", code:code||null, open_garage:mode==="welcome"}).then(x=>x.json()); }catch(e){}
+  if(btn){ btn.disabled=false; btn.textContent=label; }
+  if(r.say){ banner(mode==="goodnight"?"\u{1F319} Good night":mode==="welcome"?"\u{1F3E1} Welcome home":mode==="morning"?"\u2600\uFE0F Good morning":"\u{1F6AA} Leaving", r.say); if(FH.get().speakAlerts!==false && !r.quiet) sayAloud(r.say); }
+  if(r.briefing && typeof sayBriefingNow==="function") setTimeout(()=>sayBriefingNow("today"), 1500);
+  setTimeout(loadHome, 1200);
+}
+
+/* ---- Spotify now-playing card ---- */
+function spotifyCardHTML(sp){
+  const playing=sp.state==="playing";
+  const pls=(FH.get().spotifyPlaylists||[]).slice(0,6);
+  const cur=(sp.playlist||"").toLowerCase();
+  const title=sp.title||(playing?"Playing":"Nothing playing");
+  const sub=[sp.artist, sp.album].filter(Boolean).join(" · ")||(sp.playlist?"Playlist: "+sp.playlist:"Pick a playlist or play from your phone");
+  return `<div class="sp${playing?'':' idle'}" id="spcard">
+    <div class="sp-art">${sp.art?`<img src="${esc(sp.art)}&t=${Date.now()}" alt="">`:'\u{1F3B5}'}</div>
+    <div class="sp-main">
+      <div class="sp-title">${esc(title)}</div>
+      <div class="sp-sub">${esc(sub)}${sp.demo?' · demo':''}</div>
+      <div class="sp-ctl">
+        <button class="sp-btn" data-sp="prev" title="Previous">\u23EE</button>
+        <button class="sp-btn main" data-sp="play_pause" title="Play/Pause">${playing?'\u23F8':'\u25B6'}</button>
+        <button class="sp-btn" data-sp="next" title="Next">\u23ED</button>
+        <button class="sp-btn${sp.shuffle?' on':''}" data-sp="shuffle" title="Shuffle" style="${sp.shuffle?'color:#1db954':''}">\u{1F500}</button>
+        <button class="sp-btn" data-browse="1" title="Browse your Spotify library">\u{1F4DA} Browse</button>
+        <label class="sp-vol">\u{1F50A}<input type="range" min="0" max="100" value="${Math.round((sp.volume??0.5)*100)}" data-sp="volume"></label>
+      </div>
+    </div>
+    <div class="sp-dev">
+      ${sp.sources&&sp.sources.length?`<div class="sp-sub" style="margin-bottom:4px">Play on</div><div class="sp-pl sp-devs">${sp.sources.slice(0,8).map(x=>`<button class="sp-chip${x===sp.source?' on':''}" data-src="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:''}
+      ${pls.length?`<div class="sp-pl">${pls.map(p=>`<button class="sp-chip${cur&&(p.name.toLowerCase()===cur||(p.uri||"").toLowerCase().endsWith(":"+cur))?' on':''}" data-uri="${esc(p.uri)}">${esc(p.name)}</button>`).join("")}</div>`
+        :'<div class="sp-sub">Pin playlists from the phone app → Settings</div>'}
+    </div>
+  </div>`;
+}
+function bindSpotify(body){
+  const card=body.querySelector("#spcard"); if(!card) return;
+  const send=async(action,value)=>{ resetSleep(); try{ await post("/api/ha/spotify",{action,value}); }catch(e){} setTimeout(loadHome,600); };
+  card.querySelectorAll("button[data-sp]").forEach(b=>{ b.onclick=()=>send(b.dataset.sp); });
+  const vol=card.querySelector('input[data-sp="volume"]'); if(vol) vol.onchange=()=>send("volume", String(vol.value/100));
+  card.querySelectorAll(".sp-chip[data-src]").forEach(c=>{ c.onclick=()=>send("source", c.dataset.src); });
+  card.querySelectorAll(".sp-chip[data-uri]").forEach(c=>{ c.onclick=()=>send("play", c.dataset.uri); });
+  const br=card.querySelector("button[data-browse]"); if(br) br.onclick=()=>openSpotifyBrowser();
+}
+
+/* ---- Spotify library browser (HA media browse over WebSocket, see /api/ha/spotify/browse) ---- */
+let spbStack=[];   // [{id,type,title}] breadcrumb; empty = root
+async function openSpotifyBrowser(){ spbStack=[]; $("#spbrowse").classList.add("on"); resetSleep(); await spbLoad(); }
+function closeSpotifyBrowser(){ $("#spbrowse").classList.remove("on"); }
+async function spbLoad(){
+  const cur=spbStack[spbStack.length-1]||null;
+  $("#spb-title").textContent=cur?cur.title:"Spotify";
+  $("#spb-back").style.visibility=cur?"visible":"hidden";
+  const grid=$("#spb-grid"); grid.innerHTML='<div class="spb-empty">Loading…</div>';
+  let r=null;
+  try{ r=await fetch("/api/ha/spotify/browse"+(cur?`?id=${encodeURIComponent(cur.id)}&type=${encodeURIComponent(cur.type||"")}`:"")).then(x=>x.json()); }catch(e){}
+  if(!r||!r.children||!r.children.length){ grid.innerHTML=`<div class="spb-empty">${esc((r&&r.reason)||"Nothing here")}</div>`; return; }
+  grid.innerHTML="";
+  r.children.forEach(c=>{
+    const b=document.createElement("button"); b.className="spb-item"+(c.can_play&&!c.can_expand?" play":"");
+    b.innerHTML=(c.thumb?`<img src="${esc(c.thumb)}" alt="" loading="lazy">`:`<div class="ph">${c.can_expand?"\u{1F4C1}":"\u{1F3B5}"}</div>`)+`<div class="nm">${esc(c.title||"")}</div>`;
+    b.onclick=async()=>{
+      resetSleep();
+      if(c.can_expand){ spbStack.push({id:c.id,type:c.type,title:c.title}); await spbLoad(); return; }
+      if(c.can_play){ try{ await post("/api/ha/spotify",{action:"play", value:c.id, kind:c.type||""}); }catch(e){} closeSpotifyBrowser(); setTimeout(loadHome,800); }
+    };
+    grid.appendChild(b);
+  });
+}
+$("#spb-back").onclick=async()=>{ spbStack.pop(); await spbLoad(); };
+$("#spb-close").onclick=closeSpotifyBrowser;
+$("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser(); };
+/* ---- cameras: tap a camera tile/pin, or the doorbell rings ---- */
+let lastRing=null, _camTimer=null, _camClose=null, _camEid=null, _camStream=null;
+function openCamera(eid, name, opts){
+  opts=opts||{}; _camEid=eid; resetSleep(); wake();
+  const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.remove("live"); ov.classList.add("on");
+  $("#cam-title").textContent=(opts.ring?"🔔 ":"📷 ")+(name||"Camera");
+  $("#cam-when").textContent=opts.ring?"Someone's at the door":"";
+  // snapshot first (instant), then the live WebRTC feed takes over when it connects
+  const tick=()=>{ if(_camEid!==eid||ov.classList.contains("live")) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; };
+  tick(); clearInterval(_camTimer); _camTimer=setInterval(tick, 3000);
+  $("#cam-foot").textContent="Connecting to the live feed…";
+  if(_camStream) _camStream.stop();
+  if(window.ADCStream){
+    _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st,why)=>{ if(_camEid!==eid) return;
+      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; }
+      else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · showing a fresh picture every 3 s · <a href="#" id="cam-retry" style="color:#fff;font-weight:700;display:inline-block;margin-left:8px;padding:8px 16px;border-radius:18px;background:rgba(255,255,255,.18);text-decoration:none">Try live again</a>'; const rb=$("#cam-retry"); if(rb) rb.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); _camStream._retries=0; _camStream.start(); }; }
+      else if(st==="connecting"){ ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }});
+    _camStream.start();
+  }
+  clearTimeout(_camClose); _camClose=setTimeout(closeCamera, opts.ring?90000:180000);
+}
+function closeCamera(){ $("#camov").classList.remove("on","ring","live"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
+$("#cam-close").onclick=closeCamera;
+$("#camov").onclick=(e)=>{ if(e.target.id==="camov") closeCamera(); };
+async function onRing(){
+  let r={}; try{ r=await fetch("/api/ha/doorbell").then(x=>x.json()); }catch(e){}
+  if(r.kind==="motion"){ banner("🎥 Motion", `Motion at the ${r.where||"camera"}.`); return; }   // quiet: banner only
+  if(r.camera) openCamera(r.camera, r.name||"Front door", {ring:true}); else banner("🔔 Doorbell", "Someone's at the door.");
+  beep(3);
+  if(FH.get().speakAlerts!==false && FH.get().doorbellSpeak!==false) sayAloud(`Someone's at the ${r.where||"front door"}.`);
+}
+FHHome.camera=(eid,name)=>openCamera(eid,name);
+
+/* ---- live Home Assistant updates: SSE stream of state changes ---- */
+(function liveHA(){
+  if(!("EventSource" in window)) return;
+  let es=null, lastV=null, backoff=2000;
+  const connect=()=>{
+    try{ es=new EventSource("/api/ha/events"); }catch(e){ return; }
+    es.onmessage=(m)=>{ backoff=2000; let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
+      if(d.ring!=null){ if(lastRing!==null && d.ring>lastRing) onRing(); lastRing=d.ring; }
+      if(lastV!==null && d.version!==lastV){
+        if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome();
+        if(curPage==="calendar") loadHomeStatus();
+        if(!window._notifSoon) window._notifSoon=setTimeout(()=>{ window._notifSoon=0; checkNotifications(); }, 2000);   // a score / announcement lands now, not at the next 30 s poll
+        if($("#remote").classList.contains("on") && typeof refreshRemote==="function") refreshRemote();
+      }
+      lastV=d.version; };
+    es.onerror=()=>{ try{es.close();}catch(e){} setTimeout(connect, backoff); backoff=Math.min(backoff*2, 60000); };
+  };
+  connect();
+})();
+/* keep now-playing fresh while the Home tab is open */
+setInterval(()=>{ if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome(); }, 15000);
+
+/* ---- floor-plan + 3D views: renderers in home-shared.js; the wall wires its callbacks ---- */
+const DEFAULT_LAYOUT=FHHome.DEFAULT_LAYOUT;
+const getLayout=FHHome.getLayout, layoutExtent=FHHome.layoutExtent, isCustomLayout=FHHome.isCustomLayout, resolveRooms=FHHome.resolveRooms;
+function renderFloorView(body,h){ FHHome.renderFloorView(body,h,{budget:760}); }
+function renderIsoView(body,h){
+  // live three.js house (lights/TVs follow HA, pins toggle devices); flat isometric SVG if WebGL is missing
+  if(FHHome.has3D&&FHHome.has3D()) FHHome.render3D(body,h,{id:"wall", height:Math.round(window.innerHeight*0.66), pins:true});
+  else FHHome.renderIsoView(body,h);
+}
+FHHome.toggle=(eid)=>toggleEntity(eid);
+FHHome.remote=(eid,name)=>openRemote(eid,name);
+FHHome.rerender=()=>{ renderHome(lastHome); resetSleep(); };
+async function toggleEntity(eid){ resetSleep(); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHome,400); }
+async function runScene(eid){ resetSleep(); try{ await post("/api/ha/toggle",{entity_id:eid}); }catch(e){} setTimeout(loadHome,500); }
+async function allLightsOff(){
+  resetSleep();
+  const wrap=$("#home-wrap"); if(!wrap) return;
+  const lights=[...wrap.querySelectorAll('.tile[data-domain="light"]')].map(el=>el.dataset.ha);
+  for(const eid of lights){ try{ await post("/api/ha/service",{domain:"light",service:"turn_off",entity_id:eid}); }catch(e){} }
+  setTimeout(loadHome,500);
+}
+/* tap feedback: the tile pulses while Home Assistant works, then a small pill says what happened */
+function tapToast(msg, ok){
+  let t=document.getElementById("tap-toast");
+  if(!t){ t=document.createElement("div"); t.id="tap-toast"; document.body.appendChild(t);
+    const st=document.createElement("style"); st.textContent=`#tap-toast{position:fixed; left:50%; bottom:120px; transform:translate(-50%,20px); z-index:9000; opacity:0; transition:.25s;
+      background:rgba(20,20,20,.92); color:#fff; padding:14px 22px; border-radius:999px; font-size:20px; font-weight:700; box-shadow:0 8px 30px rgba(0,0,0,.4); pointer-events:none; white-space:nowrap}
+      #tap-toast.on{opacity:1; transform:translate(-50%,0)} #tap-toast.bad{background:#b3261e}
+      .tile.busy{animation:tilepulse .8s ease-in-out infinite} @keyframes tilepulse{50%{transform:scale(.95); filter:brightness(1.35)}}
+      .tile.done{animation:tiledone .5s ease-out} @keyframes tiledone{0%{box-shadow:0 0 0 0 rgba(255,210,120,.9)} 100%{box-shadow:0 0 0 14px rgba(255,210,120,0)}}`;
+    document.head.appendChild(st); }
+  t.textContent=msg; t.classList.toggle("bad", ok===false); t.classList.add("on");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"), ok===null?6000:2200);
+}
+async function onTileTap(el){
+  resetSleep();
+  const eid=el.dataset.ha, domain=el.dataset.domain, name=el.dataset.name||"";
+  if(domain==="alarm_control_panel"){ openAlarmPad(el); return; }
+  if(domain==="media_player"){ openRemote(el.dataset.ha, el.dataset.name); return; }
+  if(domain==="camera"){ openCamera(eid, el.dataset.name); return; }
+  if(el.classList.contains("ro")) return;      // sensors: nothing to do
+  if(el.classList.contains("busy")) return;     // already working on it
+  if(navigator.vibrate) navigator.vibrate(10);
+  const scene=el.classList.contains("scene"), wasOn=el.classList.contains("on");
+  const verb=scene?"Running":domain==="lock"?(wasOn?"Unlocking":"Locking"):domain==="cover"?(wasOn?"Closing":"Opening"):(wasOn?"Turning off":"Turning on");
+  tapToast(`${verb} ${name}…`, null);
+  el.classList.add("busy");
+  if(!scene) el.classList.toggle("on");         // optimistic flip
+  try{
+    const r=await post("/api/ha/toggle",{entity_id:eid}); let j={}; try{ j=await r.json(); }catch(e){}
+    if(r.ok===false||j.ok===false) throw new Error(j.reason||"failed");
+    el.classList.remove("busy"); el.classList.add("done"); setTimeout(()=>el.classList.remove("done"),600);
+    const past=scene?"✓ "+name+" done":domain==="lock"?(wasOn?"🔓 "+name+" unlocked":"🔒 "+name+" locked"):domain==="cover"?"✓ "+name+(wasOn?" closing":" opening"):"✓ "+name+(wasOn?" off":" on");
+    tapToast(past, true);
+    setTimeout(loadHome, 400);                  // reconcile with real state
+  }catch(e){ el.classList.remove("busy"); if(!scene) el.classList.toggle("on", wasOn); tapToast("Couldn't reach "+name+". Try again", false); }
+}
+
+/* ---- light pop-up: on/off, brightness, colour wheel (FHHome.lightPanelHTML) ---- */
+function openLightPop(t){
+  resetSleep();
+  let ov=$("#lightpop");
+  if(!ov){ ov=document.createElement("div"); ov.id="lightpop"; ov.className="pinpad";
+    ov.innerHTML='<div class="pin-card lp-card"><h3 id="lp-name"></h3><div class="pin-sub" id="lp-state"></div><div id="lp-body"></div><div class="lp-btns"><button class="cc-qa" id="lp-tg"></button><button class="cc-qa" id="lp-x">Done</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click",e=>{ if(e.target===ov) closeLightPop(); }); $("#lp-x").onclick=closeLightPop; }
+  const draw=(t)=>{
+    $("#lp-name").textContent=t.name; $("#lp-state").textContent=t.on?("On"+(t.brightness!=null?" · "+t.brightness+"%":"")):"Off";
+    $("#lp-tg").textContent=t.on?"Turn off":"Turn on";
+    const body=$("#lp-body"); body.innerHTML=FHHome.lightPanelHTML(t);
+    if(!t.dimmable && !t.color && !t.whites) body.innerHTML='<div class="pin-sub" style="margin:6px 0 2px">Home Assistant says this one can only switch on and off'+
+      ((t.modes&&t.modes.length)?' ('+esc(t.modes.join(", "))+')':'')+'. Brightness and color need the LED controller itself in Home Assistant, not the switch or plug that powers it.</div>';
+    FHHome.bindLightPanel(body, t, async data=>{ resetSleep();
+      try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:t.entity_id, data}); t.on=true; $("#lp-state").textContent="On"; $("#lp-tg").textContent="Turn off"; }catch(e){} });
+  };
+  $("#lp-tg").onclick=async()=>{ try{ await post("/api/ha/toggle",{entity_id:t.entity_id}); }catch(e){} t.on=!t.on; draw(t); setTimeout(loadHome,500); };
+  draw(t); ov.classList.add("on");
+}
+function closeLightPop(){ const ov=$("#lightpop"); if(ov) ov.classList.remove("on"); setTimeout(loadHome,300); }
+
+/* ---- alarm PIN pad ---- */
+let pinBuf="", pinTile=null;
+let pinWelcome=null;
+function openWelcomePad(btn, mode){
+  pinTile=null; pinWelcome={btn, mode:mode||"welcome"}; pinBuf="";
+  $("#pin-title").textContent=mode==="morning"?"Good morning":"Welcome home";
+  $("#pin-sub").textContent=mode==="morning"?"Enter your alarm code to disarm":"Enter your alarm code to disarm and open the garage";
+  renderPinDots(); $("#pinpad").classList.add("on");
+}
+function openAlarmPad(el){
+  pinWelcome=null; pinTile=el; pinBuf="";
+  const armed = el.classList.contains("on");
+  $("#pin-title").textContent = armed ? "Disarm alarm" : "Arm alarm";
+  $("#pin-sub").textContent = armed ? "Enter your panel code" : "Arm the system (away)";
+  renderPinDots();
+  $("#pinpad").classList.add("on");
+}
+function renderPinDots(){ $("#pin-dots").textContent = "•".repeat(pinBuf.length); }
+function closePinPad(){ $("#pinpad").classList.remove("on"); pinBuf=""; pinTile=null; pinWelcome=null; }
+async function submitPin(){
+  if(pinWelcome){ const w=pinWelcome, c=pinBuf; closePinPad(); runMode(w.mode, w.btn, c||null); return; }
+  if(!pinTile){ closePinPad(); return; }
+  const armed = pinTile.classList.contains("on");
+  const action = armed ? "disarm" : "arm_away";
+  try{
+    await post("/api/ha/alarm",{action, code:pinBuf});
+    closePinPad();
+    setTimeout(loadHome, 500);
+  }catch(e){
+    $("#pin-sub").textContent = "That didn't work — try again";
+    pinBuf=""; renderPinDots();
+  }
+}
+document.querySelectorAll("#pinpad .pin-keys button").forEach(b=>{
+  b.onclick=()=>{ resetSleep();
+    const k=b.dataset.k;
+    if(k==="del") pinBuf=pinBuf.slice(0,-1);
+    else if(k==="ok") return submitPin();
+    else if(pinBuf.length<8) pinBuf+=k;
+    renderPinDots();
+  };
+});
+$("#pin-cancel").onclick=closePinPad;
+$("#pinpad").onclick=(e)=>{ if(e.target.id==="pinpad") closePinPad(); };
+
+/* ---- TV / Roku remote ---- */
+const REMOTE_APPS=["Netflix","YouTube","Hulu","Disney+","Prime Video","Spotify"];
+let remoteEid=null;
+async function openRemote(eid, name){
+  remoteEid=eid;
+  $("#remote-name").textContent=name||"TV";
+  const apps=$("#remote-apps");
+  apps.innerHTML='<div class="loading">Loading channels…</div>';
+  $("#remote").classList.add("on");
+  let info=null;
+  try{ info=await fetch("/api/ha/media_info?entity_id="+encodeURIComponent(eid)).then(r=>r.json()); }catch(e){}
+  if(remoteEid!==eid) return;                    // closed/opened another while loading
+  const list=(info&&info.sources&&info.sources.length)?info.sources:REMOTE_APPS;
+  const cur=info&&info.source;
+  apps.innerHTML="";
+  list.slice(0,12).forEach(a=>{
+    const b=document.createElement("button");
+    b.className="rbtn"+(a===cur?" cur":"");
+    b.textContent=a;
+    b.onclick=()=>sendRemote("app", a);
+    apps.appendChild(b);
+  });
+}
+function closeRemote(){ $("#remote").classList.remove("on"); remoteEid=null; }
+async function sendRemote(action, value){
+  resetSleep();
+  if(!remoteEid) return;
+  try{ await post("/api/ha/media",{entity_id:remoteEid, action, value:value||""}); }catch(e){}
+  if(action==="power") setTimeout(loadHome, 500);   // reflect on/off on the tile
+}
+document.querySelectorAll("#remote .rbtn[data-m]").forEach(b=>{
+  b.onclick=()=>sendRemote(b.dataset.m);
+});
+$("#remote-close").onclick=closeRemote;
+$("#remote").onclick=(e)=>{ if(e.target.id==="remote") closeRemote(); };
+
+/* little celebration when a chore is checked off */
+function celebrate(anchor){
+  const r=(anchor||document.body).getBoundingClientRect();
+  const cx=r.left+Math.min(r.width,160)*0.5, cy=r.top+r.height/2;
+  const colors=["#e9a23b","#3bb273","#4f86c6","#e05a9c","#f5d547"];
+  for(let i=0;i<16;i++){
+    const d=document.createElement("div"); d.className="confetti";
+    d.style.background=colors[i%colors.length];
+    d.style.left=cx+"px"; d.style.top=cy+"px";
+    document.body.appendChild(d);
+    const ang=Math.random()*Math.PI*2, dist=60+Math.random()*90;
+    d.animate(
+      [{transform:"translate(0,0) rotate(0deg)", opacity:1},
+       {transform:`translate(${Math.cos(ang)*dist}px, ${Math.sin(ang)*dist+40}px) rotate(${Math.random()*540}deg)`, opacity:0}],
+      {duration:750+Math.random()*350, easing:"cubic-bezier(.2,.7,.3,1)"}
+    ).onfinish=()=>d.remove();
+  }
+}
+
+/* ---- night screen-off settings (stored server-side via /api/display/config) ---- */
+let dispCfg = null;
+async function loadDispConfig(){
+  try{ dispCfg = await fetch("/api/display/config").then(r=>r.json()); }catch(e){ dispCfg=null; }
+  syncDispUI();
+}
+function syncDispUI(){
+  if(!dispCfg) return;
+  const en=$("#disp-enabled"), st=$("#disp-start"), nd=$("#disp-end");
+  if(en) en.checked = !!dispCfg.enabled;
+  if(st) st.value = dispCfg.off_start || "22:00";
+  if(nd) nd.value = dispCfg.off_end || "06:30";
+}
+async function saveDispConfig(patch){
+  try{ dispCfg = await fetch("/api/display/config",{method:"PUT",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify({...(dispCfg||{}),...patch})}).then(r=>r.json()); }
+  catch(e){}
+  loadDisplayState();
+}
+$("#disp-enabled").onchange=e=>saveDispConfig({enabled:e.target.checked});
+$("#disp-start").onchange =e=>saveDispConfig({off_start:e.target.value});
+$("#disp-end").onchange   =e=>saveDispConfig({off_end:e.target.value});
+$("#hero-enabled").onchange  =e=>{ FH.save({heroEnabled:e.target.checked}); applyHero(); };
+$("#hero-day-url").onchange  =e=>{ FH.save({heroDay:e.target.value.trim()}); applyHero(); };
+$("#hero-night-url").onchange=e=>{ FH.save({heroNight:e.target.value.trim()}); applyHero(); };
+$("#kbd-enabled").onchange   =e=>{ FH.save({onscreenKbd:e.target.checked}); if(!e.target.checked) oskHide(); };
+$("#mic-enabled").onchange   =e=>{ FH.save({wallMic:e.target.checked}); applyWallMic(); };
+
+/* ---- on-screen keyboard ---- */
+let oskTarget=null, oskMode="abc", oskShift=false, oskEl=null;
+const OSK_LAYOUT={
+  abc:[["q","w","e","r","t","y","u","i","o","p"],
+       ["a","s","d","f","g","h","j","k","l"],
+       ["⇧","z","x","c","v","b","n","m","⌫"],
+       ["123","space","return","⌄"]],
+  num:[["1","2","3","4","5","6","7","8","9","0"],
+       ["-","/",":",";","(",")","$","&","@"],
+       ["#",".",",","?","!","'","⌫"],
+       ["ABC","space","return","⌄"]],
+};
+function oskBuild(){
+  oskEl=document.createElement("div"); oskEl.id="osk";
+  document.body.appendChild(oskEl);
+  // keep taps from blurring the focused field
+  oskEl.addEventListener("mousedown", e=>e.preventDefault());
+  oskEl.addEventListener("touchstart", e=>{ if(e.target.classList.contains("osk-key")) e.preventDefault(); }, {passive:false});
+  oskRender();
+}
+function oskRender(){
+  if(!oskEl) return;
+  const rows=OSK_LAYOUT[oskMode];
+  oskEl.innerHTML="";
+  rows.forEach(r=>{
+    const row=document.createElement("div"); row.className="osk-row";
+    r.forEach(k=>{
+      const b=document.createElement("div"); b.className="osk-key";
+      if(k==="space"){ b.classList.add("space"); b.textContent="space"; }
+      else if(["⇧","⌫","123","ABC","return","⌄"].includes(k)){ b.classList.add("wide");
+        b.textContent = k==="return"?"return" : k==="⌄"?"⌄ hide" : k; }
+      else b.textContent = (oskShift && oskMode==="abc") ? k.toUpperCase() : k;
+      // touchstart is cancelled (keeps the text field focused), which also cancels the synthetic click on a
+      // touchscreen, so keys fire on pointerup instead
+      b.addEventListener("pointerup", e=>{ e.preventDefault(); oskPress(k); });
+      row.appendChild(b);
+    });
+    oskEl.appendChild(row);
+  });
+}
+function oskInsert(ch){
+  const t=oskTarget; if(!t) return;
+  const s=t.selectionStart, e=t.selectionEnd;
+  if(s==null){ t.value+=ch; }
+  else { t.value=t.value.slice(0,s)+ch+t.value.slice(e); try{ const p=s+ch.length; t.setSelectionRange(p,p); }catch(_){} }
+  t.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function oskDelete(){
+  const t=oskTarget; if(!t) return;
+  const s=t.selectionStart, e=t.selectionEnd;
+  if(s==null){ t.value=t.value.slice(0,-1); }
+  else if(s!==e){ t.value=t.value.slice(0,s)+t.value.slice(e); try{t.setSelectionRange(s,s);}catch(_){} }
+  else if(s>0){ t.value=t.value.slice(0,s-1)+t.value.slice(s); try{t.setSelectionRange(s-1,s-1);}catch(_){} }
+  t.dispatchEvent(new Event("input",{bubbles:true}));
+}
+function oskPress(k){
+  if(k==="⌫") oskDelete();
+  else if(k==="space") oskInsert(" ");
+  else if(k==="return"){ const t=oskTarget; if(!t) return;
+    if(t.tagName==="TEXTAREA"){ oskInsert("\n"); return; }
+    const ev=new KeyboardEvent("keydown",{key:"Enter",bubbles:true,cancelable:true}); t.dispatchEvent(ev);
+    if(!ev.defaultPrevented){ const scope=t.closest(".form,.magic,form,#ev-modal,#im-box"); const go=scope&&scope.querySelector("button.go,button.ev-save,button[data-a=save]"); if(go){ go.click(); oskHide(); } } }
+  else if(k==="⇧"){ oskShift=!oskShift; oskRender(); }
+  else if(k==="123"){ oskMode="num"; oskRender(); }
+  else if(k==="ABC"){ oskMode="abc"; oskRender(); }
+  else if(k==="⌄") oskHide();
+  else { oskInsert((oskShift&&oskMode==="abc")?k.toUpperCase():k); if(oskShift){ oskShift=false; oskRender(); } }
+}
+function oskShow(el){ if(!oskEl) oskBuild(); oskTarget=el; oskMode="abc"; oskShift=false; oskRender(); oskEl.classList.add("on"); }
+function oskHide(){ if(oskEl) oskEl.classList.remove("on"); oskTarget=null; }
+const OSK_SEL="input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]):not([type=date]):not([type=time]):not([type=file]), textarea";
+document.addEventListener("focusin", e=>{
+  if(!FH.get().onscreenKbd) return;
+  if(e.target.matches && e.target.matches(OSK_SEL)) oskShow(e.target);
+});
+// tap anywhere that isn't the keyboard or a text field -> put it away; and never leave it up for a field that's gone
+document.addEventListener("pointerdown", e=>{ if(!oskEl||!oskEl.classList.contains("on")) return;
+  if(e.target.closest&&(e.target.closest("#osk")||(e.target.matches&&e.target.matches(OSK_SEL)))) return; oskHide(); }, true);
+setInterval(()=>{ if(oskEl&&oskEl.classList.contains("on")&&(!oskTarget||!oskTarget.isConnected||!oskTarget.offsetParent)) oskHide(); }, 700);
+function oskHookFrame(fr){ const hook=()=>{ try{ const doc=fr.contentDocument; if(!doc||doc.__osk) return; doc.__osk=true;
+    ["pointerdown","keydown","input"].forEach(ev=>doc.addEventListener(ev, ()=>{ try{ resetSleep(); }catch(e){} }, {passive:true}));
+    doc.addEventListener("focusin", e=>{ if(FH.get().onscreenKbd&&e.target.matches&&e.target.matches(OSK_SEL)) oskShow(e.target); });
+    doc.addEventListener("pointerdown", e=>{ if(oskEl&&oskEl.classList.contains("on")&&!(e.target.matches&&e.target.matches(OSK_SEL))) oskHide(); }, true);
+  }catch(e){} }; fr.addEventListener("load", hook); hook(); }
+setTimeout(()=>document.querySelectorAll("iframe").forEach(oskHookFrame), 0);
+document.addEventListener("focusout", ()=>{
+  setTimeout(()=>{ let a=document.activeElement; if(a&&a.tagName==="IFRAME"){ try{ a=a.contentDocument.activeElement; }catch(e){} } if(!a || !(a.matches&&a.matches(OSK_SEL))) oskHide(); }, 150);
+});
+
+/* measure the OS scrollbar width so the calendar header/all-day row reserve the
+   same gutter as the scrolling body, keeping day columns aligned */
+(function(){
+  const d=document.createElement("div");
+  d.style.cssText="overflow:scroll;width:60px;height:60px;position:absolute;top:-9999px;visibility:hidden";
+  document.body.appendChild(d);
+  document.documentElement.style.setProperty("--sbw",(d.offsetWidth-d.clientWidth)+"px");
+  d.remove();
+})();
+
+/* ---- kitchen timers (multiple, survive a reload via localStorage) ---- */
+let timers=[]; try{ timers=JSON.parse(localStorage.getItem("fh_timers")||"[]"); }catch(e){ timers=[]; }
+function saveTimers(){ try{ localStorage.setItem("fh_timers", JSON.stringify(timers)); }catch(e){} }
+function fmtLeft(ms){ const s=Math.max(0,Math.ceil(ms/1000)), h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+  return (h?h+":":"")+String(m).padStart(h?2:1,"0")+":"+String(x).padStart(2,"0"); }
+function startTimer(seconds, label){
+  if(!seconds||seconds<=0) return;
+  timers.push({id:Date.now()+Math.random(), end:Date.now()+seconds*1000, label:label||"", total:seconds, rang:false});
+  saveTimers(); renderTimers(); resetSleep();
+}
+function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); if(!timers.some(t=>t.rang)) stopAlarm(); saveTimers(); renderTimers(); }
+function cancelAllTimers(){ timers=[]; stopAlarm(); saveTimers(); renderTimers(); }
+/* The alarm: an Alexa-style two-tone chime that keeps going (up to 60 s) until someone taps
+   the screen, hits Dismiss, or says "stop". A one-off beep is easy to miss from the next room. */
+let _alarm=null;
+function startAlarm(){
+  if(_alarm) return;
+  try{
+    _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_beepCtx, started=Date.now();
+    const ring=()=>{ const t0=ctx.currentTime;
+      [[0,988],[0.18,1319],[0.36,988],[0.54,1319]].forEach(([dt,f])=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type="triangle"; o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+        const t=t0+dt; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.7,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.18); }); };
+    ring(); _alarm=setInterval(()=>{ if(Date.now()-started>60000){ stopAlarm(); return; } ring(); }, 1400);
+    $("#timerpill").classList.add("ringing");
+  }catch(e){}
+}
+function stopAlarm(){ if(_alarm){ clearInterval(_alarm); _alarm=null; } }
+// any tap anywhere silences the ringing (the timer stays "done" until dismissed)
+document.addEventListener("pointerdown", ()=>{ if(_alarm) stopAlarm(); }, true);
+let _beepCtx=null;
+function beep(times=3){
+  try{
+    _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
+    for(let i=0;i<times;i++){
+      const o=_beepCtx.createOscillator(), g=_beepCtx.createGain();
+      o.type="sine"; o.frequency.value=880; o.connect(g); g.connect(_beepCtx.destination);
+      const t=_beepCtx.currentTime+i*0.35; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.4,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.28); o.start(t); o.stop(t+0.3);
+    }
+  }catch(e){}
+}
+/* Speech: prefer the server's local Piper voice (/api/ai/tts) — snap Chromium on the
+   wall has no speechSynthesis voices. Falls back to the browser engine if the server
+   has no voice installed. voiceCaps is filled at boot from /api/ai/voice/status. */
+let voiceCaps={stt:false,tts:false};
+let _ttsAudio=null;
+async function loadVoiceCaps(){ try{ voiceCaps=await fetch("/api/ai/voice/status").then(r=>r.json()); }catch(e){} applyWallMic(); }
+function browserSpeak(s){ try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
+window.addEventListener("skin:newyear", e=>{ if(FH.get().speakAlerts!==false) sayAloud(`Happy New Year! Welcome to ${e.detail.year}!`); try{ Seasonal.force("fireworks"); }catch(err){} });
+let _sayGen=0;
+async function sayAloud(s){
+  if(!s) return;
+  if(!voiceCaps.tts){ wallNote("the wall has no voice installed, so it used the browser's (often silent)"); browserSpeak(s); return; }
+  // Speak sentence by sentence: the first sentence starts as soon as IT is ready while the next ones are being made,
+  // instead of waiting for the whole answer to be turned into audio first.
+  const parts=(String(s).match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g)||[s]).map(x=>x.trim()).filter(Boolean);
+  const chunks=[]; for(const p of parts){ if(chunks.length && (chunks[chunks.length-1]+" "+p).length<60) chunks[chunks.length-1]+=" "+p; else chunks.push(p); }
+  const gen=++_sayGen;
+  if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} }
+  const fetchOne=t=>post("/api/ai/tts",{text:t}).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); });
+  try{
+    let next=fetchOne(chunks[0]);
+    for(let i=0;i<chunks.length;i++){
+      const blob=await next;
+      if(gen!==_sayGen) return;                                  // something newer started talking
+      next = i+1<chunks.length ? fetchOne(chunks[i+1]) : null;   // make the next sentence while this one plays
+      if(next) next.catch(()=>{});
+      const url=URL.createObjectURL(blob);
+      _ttsAudio=new Audio(url);
+      await new Promise((res,rej)=>{ _ttsAudio.onended=()=>{ URL.revokeObjectURL(url); res(); }; _ttsAudio.onerror=rej; _ttsAudio.play().catch(rej); });
+    }
+  }catch(e){ if(gen===_sayGen){ wallNote("the wall couldn't play \u201c"+String(s).slice(0,60)+"\u201d: "+(e&&(e.name||"")+" "+(e.message||e))); browserSpeak(s); } }
+}
+/* leave a line in the Voice history (phone Settings > Advanced > Voice) when speech fails, so it can be diagnosed from a photo */
+function wallNote(t){ try{ post("/api/ai/voice/note",{text:String(t).slice(0,300)}).catch(()=>{}); }catch(e){} }
+function tickTimers(){
+  const now=Date.now(); let changed=false;
+  timers.forEach(t=>{ if(!t.rang && now>=t.end){ t.rang=true; changed=true; wake(); sayAloud((t.label?t.label+" timer":"Timer")+" is done."); setTimeout(()=>{ if(timers.some(x=>x.id===t.id&&x.rang)) startAlarm(); }, 1800); } });
+  if(changed) saveTimers();
+  // header pill: soonest timer
+  const pill=$("#timerpill"), fab=$("#timerfab");
+  if(!timers.length){ pill.classList.remove("show","ringing"); fab.classList.remove("running"); return; }
+  const ringing=timers.find(t=>t.rang);
+  const next=[...timers].filter(t=>!t.rang).sort((a,b)=>a.end-b.end)[0];
+  pill.classList.add("show"); fab.classList.add("running");
+  if(ringing){ pill.classList.add("ringing"); pill.textContent="\u23F0 "+(ringing.label||"Timer")+" done"; if(now-ringing.end>120000) cancelTimer(ringing.id); }
+  else { pill.classList.remove("ringing"); pill.textContent="\u23F1 "+fmtLeft(next.end-now)+(next.label?" "+next.label:"")+(timers.length>1?" +"+(timers.length-1):""); }
+  if($("#timerov").classList.contains("on")) renderTimerList();
+}
+function renderTimerList(){
+  const l=$("#tm-list"); const now=Date.now();
+  if(!timers.length){ l.innerHTML='<div class="empty">No timers running</div>'; return; }
+  l.innerHTML=[...timers].sort((a,b)=>a.end-b.end).map(t=>
+    `<div class="tm-row${t.rang?' ringing':''}"><span class="tm-left">${t.rang?"0:00":fmtLeft(t.end-now)}</span><span class="tm-lbl">${esc(t.label||fmtLeft(t.total*1000)+" timer")}${t.rang?" \u2014 done!":""}</span>`+
+    `<button data-id="${t.id}">${t.rang?"Dismiss":"Cancel"}</button></div>`).join("");
+  l.querySelectorAll("button").forEach(b=>{ b.onclick=()=>cancelTimer(+b.dataset.id); });
+}
+function renderTimers(){ tickTimers(); renderTimerList(); }
+function openTimers(){ $("#timerov").classList.add("on"); renderTimerList(); resetSleep(); }
+function closeTimers(){ $("#timerov").classList.remove("on"); }
+(function setupTimers(){
+  const fab=$("#timerfab"); if(!fab) return;
+  fab.onclick=()=>{ const r=timers.find(t=>t.rang); if(r){ cancelTimer(r.id); return; } openTimers(); };
+  $("#timerpill").onclick=()=>{ const r=timers.find(t=>t.rang); if(r){ cancelTimer(r.id); return; } openTimers(); };
+  $("#tm-close").onclick=closeTimers;
+  $("#timerov").onclick=(e)=>{ if(e.target.id==="timerov") closeTimers(); };
+  $("#tm-presets").querySelectorAll("button").forEach(b=>{ b.onclick=()=>startTimer(+b.dataset.m*60, $("#tm-lbl").value.trim()); });
+  $("#tm-go").onclick=()=>{ const m=parseFloat($("#tm-min").value); if(m>0){ startTimer(Math.round(m*60), $("#tm-lbl").value.trim()); $("#tm-min").value=""; $("#tm-lbl").value=""; } };
+  setInterval(tickTimers, 500); tickTimers();
+})();
+
+/* ---- wall voice command (push-to-talk mic → /api/ai/command → speaks reply) ---- */
+function applyWallMic(){
+  const fab=$("#voicefab"); if(!fab) return;
+  const nm=(FH.get().assistantName||"Hub"); fab.title="Ask "+nm; const h=$("#vo-hint"); if(h) h.textContent=`Ask ${nm} anything — "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"`;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const canRecord=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+  const on = FH.get().wallMic!==false && (!!SR || (voiceCaps.stt&&canRecord));
+  fab.style.display = on ? "flex" : "none";
+}
+(function setupWallVoice(){
+  const fab=$("#voicefab"); if(!fab) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const canRecord=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+  if(!SR && !canRecord){ fab.style.display="none"; return; }
+  const show=()=>$("#voiceov").classList.add("on");
+  const hide=()=>$("#voiceov").classList.remove("on");
+  const status=(s)=>{ $("#vo-status").textContent=s; };
+  let listening=false, finalText="", stopFn=null;
+
+  async function handleText(text){
+    text=(text||"").trim();
+    if(!text){ status("Didn't catch that — tap the mic and try again, a little closer."); return; }
+    $("#vo-heard").textContent=text; status("Working…");
+    try{
+      const slow=setTimeout(()=>status("Still thinking… (looking it up)"), 8000);
+      const ac=new AbortController(), to=setTimeout(()=>ac.abort(), 75000);
+      let r;
+      try{ r=await fetch("/api/ai/command",{method:"POST",headers:{"Content-Type":"application/json","X-FH-Source":"wall"},
+        body:JSON.stringify({text}), signal:ac.signal}).then(x=>x.json()); }
+      finally{ clearTimeout(slow); clearTimeout(to); }
+      status(""); $("#vo-reply").textContent=r.say||"";
+      sayAloud(r.say);
+      if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
+      if(r.briefing){ sayBriefingNow(r.briefing); }
+      if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
+      if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
+      if(r.focus==="alarm"){ showPage("home"); }
+      clearTimeout(window._voHide); window._voHide=setTimeout(hide, Math.min(15000, 4000+((r.say||"").length*60)));
+    }catch(e){ status(e&&e.name==="AbortError"?"That took too long. Try again, or ask it a shorter way.":"Something went wrong. Try again."); }
+  }
+
+  /* --- path A: record a clip, server transcribes (Whisper on the mini PC) --- */
+  async function recordAndSend(){
+    let stream;
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); }
+    catch(e){ status("Microphone blocked — allow it in Chromium."); return; }
+    const mime=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus"].find(m=>MediaRecorder.isTypeSupported(m))||"";
+    const mr=new MediaRecorder(stream, mime?{mimeType:mime}:{});
+    const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    // simple end-of-speech: stop after ~1.3 s of quiet once we've heard something, hard cap 10 s
+    const ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaStreamSource(stream);
+    const an=ac.createAnalyser(); an.fftSize=1024; src.connect(an); const buf=new Uint8Array(an.fftSize);
+    // Adaptive: learn the room's noise floor over the first 400 ms, "speech" = 3x that
+    // (min 0.006, max 0.03 — people often start talking the instant they tap, and that must not
+    // become the "floor"). Stop ~1.7 s after speech ends (room for a pause mid-sentence); give up
+    // after 7 s of nothing; cap 12 s.
+    let heard=false, quietSince=0, peak=0, floor=0, n=0; const t0=Date.now();
+    const done=new Promise(res=>{ mr.onstop=res; });
+    const stop=()=>{ if(mr.state!=="inactive") mr.stop(); };
+    stopFn=stop;
+    const iv=setInterval(()=>{
+      an.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; }
+      const rms=Math.sqrt(sum/buf.length); const now=Date.now(); peak=Math.max(peak,rms);
+      if(now-t0<400){ floor=(floor*n+rms)/(n+1); n++; }
+      const thr=Math.max(0.006, Math.min(0.03, floor*3));
+      status("Listening… "+"▮".repeat(Math.min(12,Math.round(rms*150)))+"▯".repeat(Math.max(0,12-Math.min(12,Math.round(rms*150)))));
+      // "still talking" = above the room's floor AND not far below how loud the speech itself was. With music or a TV
+      // on, the room never drops under the floor rule alone and every recording ran to the 12 s cap.
+      const talking = rms>thr && rms > peak*0.3;
+      if(now-t0>=400 && talking){ heard=true; quietSince=0; } else if(heard){ quietSince=quietSince||now; if(now-quietSince>1100) stop(); }
+      if(now-t0>12000 || (!heard && now-t0>7000)) stop();
+    },100);
+    listening=true; fab.classList.add("listening"); mr.start(250);
+    await done; clearInterval(iv); listening=false; fab.classList.remove("listening"); stopFn=null;
+    stream.getTracks().forEach(t=>t.stop()); try{ ac.close(); }catch(e){}
+    if(peak<0.002){ status("Mic is silent — is the speaker bar the default input? (setup/audio-default.sh)"); return; }
+    status("Thinking…");
+    const blob=new Blob(chunks,{type:mime||"audio/webm"});
+    const fd=new FormData(); fd.append("audio", blob, "clip.webm");
+    try{
+      const ac2=new AbortController(), to2=setTimeout(()=>ac2.abort(), 45000);
+      const r=await fetch("/api/ai/transcribe",{method:"POST",body:fd,signal:ac2.signal}).finally(()=>clearTimeout(to2));
+      if(!r.ok) throw new Error(r.status);
+      const j=await r.json(); await handleText(j.text);
+    }catch(e){ status("Couldn't understand — try again."); }
+  }
+
+  /* --- path B: browser Web Speech API (works in Google Chrome, not snap Chromium) --- */
+  let rec=null;
+  if(SR){
+    rec=new SR(); rec.lang="en-US"; rec.interimResults=true; rec.continuous=false;
+    rec.onstart=()=>{ listening=true; fab.classList.add("listening"); };
+    rec.onerror=(e)=>{ status(e&&e.error==="not-allowed"?"Microphone blocked — allow it in Chromium.":"Couldn't hear — try again."); };
+    rec.onresult=(e)=>{ let txt=""; for(let i=0;i<e.results.length;i++) txt+=e.results[i][0].transcript;
+      $("#vo-heard").textContent=txt; if(e.results[e.results.length-1].isFinal) finalText=txt; };
+    rec.onend=()=>{ listening=false; fab.classList.remove("listening");
+      const t=(finalText||$("#vo-heard").textContent||"").trim();
+      if(!t){ status("Browser speech engine heard nothing — server voice not active (check /api/ai/voice/status)"); return; }
+      handleText(t); };
+  }
+  const useServer=()=>voiceCaps.stt&&canRecord;
+  const stopAll=()=>{ if(stopFn) stopFn(); else if(rec){ try{rec.stop();}catch(e){} } };
+
+  fab.onclick=()=>{ resetSleep(); if(listening){ stopAll(); return; }
+    clearTimeout(window._voHide);                       // a reply's auto-close must not shut the next question
+    if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")){ show(); return; }   // one question at a time
+    finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; status("Listening…"); show();
+    if(useServer()) recordAndSend(); else if(rec){ try{ rec.start(); }catch(e){} } else status("Voice isn't set up — run setup/install-voice.sh"); };
+  $("#vo-close").onclick=()=>{ stopAll(); hide(); };
+  $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
+})();
+
+/* ---- Wall volume buttons: drive the C3's system output (the speaker bar) so they work
+   for Spotify, spoken replies, timers — everything. Server does the mixer call. ---- */
+(function setupVolume(){
+  const up=$("#vol-up"), dn=$("#vol-down"), lvl=$("#vol-lvl"), toast=$("#voltoast"); if(!up) return;
+  let hideT=null;
+  function show(pct){
+    if(pct==null) return;
+    lvl.textContent=pct+"%"; $("#voltoast-bar").style.width=pct+"%"; $("#voltoast-pct").textContent=pct+"%";
+    toast.classList.add("on"); clearTimeout(hideT); hideT=setTimeout(()=>toast.classList.remove("on"),1400);
+  }
+  async function step(delta){
+    resetSleep();
+    // While Spotify is playing through the wall's own player, the volume people hear is the
+    // player's volume (the one the Spotify app shows for "FamilyHub"), so move that one.
+    // Otherwise move the C3's system output (spoken replies, timers, HA players).
+    try{
+      if(spPlayer&&spDeviceId){
+        const st=await spPlayer.getCurrentState().catch(()=>null);
+        if(st&&!st.paused){
+          // The player's volume is linear gain, which sounds "all loud, then a cliff near 20%".
+          // Step on a perceptual (squared) curve instead: level% -> gain = (level/100)^2.
+          const cur=await spPlayer.getVolume();
+          const lvl=Math.round(Math.sqrt(Math.max(0,cur))*100);
+          const nextLvl=Math.max(0,Math.min(100,lvl+delta));
+          await spPlayer.setVolume(Math.pow(nextLvl/100,2)); show(nextLvl);
+          return;
+        }
+      }
+      const r=await post("/api/display/volume",{delta}).then(r=>r.json()); show(r.percent);
+    }catch(e){}
+  }
+  up.onclick=()=>step(+8); dn.onclick=()=>step(-8);
+  // hold to repeat
+  let rep=null; const hold=(b,d)=>{ b.addEventListener("touchstart",()=>{ rep=setInterval(()=>step(d),350); },{passive:true});
+    ["touchend","touchcancel","mouseleave"].forEach(ev=>b.addEventListener(ev,()=>{ clearInterval(rep); rep=null; })); };
+  hold(up,+8); hold(dn,-8);
+  fetch("/api/display/volume").then(r=>r.json()).then(r=>{ if(r.percent!=null) lvl.textContent=r.percent+"%"; }).catch(()=>{});
+})();
+
+/* ---- Spotify Web Playback: the wall is its own, official Spotify device ("FamilyHub").
+   Spotify's SDK runs inside this page; FamilyHub hands it a token from /api/spotify/token.
+   Only active once Spotify is linked from the phone app (Settings → Spotify). ---- */
+let spPlayer=null, spDeviceId=null;
+// report what the SDK is doing so the phone app can show it (/api/spotify/player_log)
+function spLog(stage, detail){ try{ post("/api/spotify/player_log",{stage, detail:String(detail||"").slice(0,300), ua:navigator.userAgent.slice(0,120)}); }catch(e){} }
+async function setupSpotifyPlayer(){
+  let st=null; try{ st=await fetch("/api/spotify/status").then(r=>r.json()); }catch(e){ return; }
+  if(!st||!st.linked) return;
+  // the SDK needs EME/Widevine; check up front so the failure is legible
+  try{
+    await navigator.requestMediaKeySystemAccess("com.widevine.alpha",[{initDataTypes:["cenc"],audioCapabilities:[{contentType:'audio/mp4;codecs="mp4a.40.2"'}]}]);
+    spLog("drm","widevine ok");
+  }catch(e){ spLog("drm_error","Widevine not available: "+(e&&e.message)); }
+  if(!window.Spotify){
+    await new Promise(res=>{ window.onSpotifyWebPlaybackSDKReady=res; const s=document.createElement("script"); s.src="https://sdk.scdn.co/spotify-player.js"; s.onerror=()=>{ spLog("sdk_error","script failed to load"); res(); }; document.head.appendChild(s); setTimeout(res,15000); });
+  }
+  if(!window.Spotify){ spLog("sdk_error","window.Spotify missing after load"); return; }
+  spLog("sdk","loaded");
+  const name=FH.get().spotifyDeviceName||"FamilyHub";
+  // Start quiet, not full blast: settings.spotifyStartVolume is perceived loudness (like the wall's volume
+  // buttons, which step on a squared curve), so 45% -> gain 0.45^2.
+  const startGain=()=>{ const v=Number(FH.get().spotifyStartVolume); return Math.pow(Math.max(5,Math.min(100,isFinite(v)?v:45))/100,2); };
+  spPlayer=new Spotify.Player({name, volume:startGain(),
+    getOAuthToken: cb=>fetch("/api/spotify/token").then(r=>r.json()).then(j=>{ if(j.access_token) cb(j.access_token); else spLog("token_error", JSON.stringify(j)); }).catch(e=>spLog("token_error", e&&e.message))});
+  spPlayer.addListener("ready", ({device_id})=>{ spDeviceId=device_id; spLog("ready", device_id); post("/api/spotify/device",{device_id,name}).catch(()=>{}); });
+  spPlayer.addListener("not_ready", ()=>{ spDeviceId=null; spLog("not_ready",""); });
+  ["initialization_error","authentication_error","account_error","playback_error"].forEach(ev=>
+    spPlayer.addListener(ev, e=>{ console.warn("spotify player", ev, e&&e.message); spLog(ev, e&&e.message); }));
+  // Each time music starts again after a break (5+ min of nothing playing), drop back to the start
+  // volume — Spotify otherwise restores whatever it was last (often 100% when the phone hands it over).
+  let spPlaying=false, spLastPlay=0;
+  spPlayer.addListener("player_state_changed", st=>{
+    const playing=!!(st&&!st.paused), now=Date.now();
+    if(playing&&!spPlaying&&now-spLastPlay>5*60*1000){ spPlayer.setVolume(startGain()).catch(()=>{}); spLog("volume","start at "+FH.get().spotifyStartVolume+"%"); }
+    if(playing||spPlaying) spLastPlay=now;
+    spPlaying=playing;
+    if(curPage==="home") setTimeout(loadHome, 800); });
+  try{ await spPlayer.connect(); }catch(e){}
+  // the SDK drops the device after long idle periods; reconnect on a slow heartbeat
+  setInterval(async()=>{ if(!spDeviceId&&spPlayer){ try{ await spPlayer.connect(); }catch(e){} } }, 120000);
+}
+
+/* ---- boot ---- */
+(async()=>{
+  if("serviceWorker" in navigator){ navigator.serviceWorker.register("/sw.js").catch(()=>{}); }
+  await FH.load();
+  loadCalTargets();
+  applyWallMic(); loadVoiceCaps(); setupSpotifyPlayer();
+  setActive(view);   // highlight the right tab for the default (Agenda on phones, Week on the wall)
+  applyPanels();
+  applySeasonal();
+  applyHero();
+  tick(); load(); loadPhotos(); loadWeather(); loadForecast(); checkNotifications(); resetSleep();
+  loadDispConfig(); loadDisplayState(); loadHomeStatus();
+  setInterval(tick,1000); setInterval(load,10000); setInterval(loadPhotos,300000);   // 10 s: phone adds show up near-instantly
+  setInterval(loadWeather, 600000);   // weather every 10 min
+  setInterval(loadForecast, 1800000); // forecast every 30 min
+  setInterval(checkNotifications, 30000);  // reminders every 30s
+  setInterval(loadDisplayState, 20000);    // screen on/off schedule every 20s
+  setInterval(loadHomeStatus, 30000);      // smart-home status bar every 30s
+  loadTrips(); setInterval(loadTrips, 120000);   // leave-by drive times every 2 min
+  setInterval(syncSettings, 60000);        // pick up settings changed from a phone
+  scheduleNightlyReload();
+})();
+
+/* Reload the page once a night (03:45) — a kiosk Chromium that runs for months
+   slowly bloats; a fresh load also picks up any `git pull` without a reboot.
+   Timers survive it (localStorage). */
+function scheduleNightlyReload(){
+  const n=new Date(), t=new Date(n); t.setHours(3,45,0,0); if(t<=n) t.setDate(t.getDate()+1);
+  setTimeout(()=>{ if(!document.querySelector("#timerov.on,#remote.on,#pinpad.on")) location.reload(); else setTimeout(()=>location.reload(), 30*60000); }, t-n);
+}
+
+async function syncSettings(){
+  // don't clobber the wall's own settings drawer while it's open
+  if($("#settings-drawer").classList.contains("on")) return;
+  await FH.load();
+  applyPanels(); applySeasonal(); applyHero();
+}

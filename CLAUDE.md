@@ -48,8 +48,9 @@ app/
     color.py           central color resolver
     ha_svc.py          Home Assistant REST client (+ demo mode)
 static/
-  index.html           wall display
-  phone.html           phone control app (Home tab = dark command center + live 3D house)
+  index.html           wall display: markup only; styles in wall.css, script in wall.js (split out Nov 2026; one classic
+                       script per page on purpose: top-level code relies on function hoisting, so cut it further with care)
+  phone.html           phone control app (Home tab = dark command center + live 3D house): markup; phone.css + phone.js
   home-shared.js       layout (feet grid) + DEFAULT_PLAN (doors/windows), 2D floor plan, icon/state
                        helpers — shared by wall + phone. Rooms are written AS DRAWN on the D.R. Horton
                        sheet (garage left) and mirrored in code (MIRROR=true) because the house is the
@@ -72,6 +73,11 @@ Two sources: **people** and **categories**, both with colors. Every item can car
 `category_id` and/or explicit `color`. Resolution order, enforced in `services/color.py`:
 `item.color → category.color → person.color → default`. The dashboard resolves a final
 `color` field onto every item so the frontend never has to.
+
+## Checks before pushing
+`bash tests/run.sh` = pytest (`tests/test_api.py`, `tests/test_units.py`; scratch DB via FAMILYHUB_DB, HA demo devices, no keys)
++ `node --check` on every page script + browser checks of the wall and phone pages (`tests/pages.js`, Playwright).
+Never touches familyhub.db. Add a test with every bug fix.
 
 ## Run locally
 ```bash
@@ -273,7 +279,7 @@ trash pickup) via `/api/sources/ics`. Parsed by stdlib, merged into the calendar
   `setup/install-satellite.sh` on the screen box).
 - 3D-printed mount: `hardware/familyhub-mount.scad` (C3 cradle, Forzola port-hump clearance,
   optional speaker pocket); parts + print order in `hardware/README.md`.
-- Floor plan: `DEFAULT_LAYOUT` in `static/index.html` is the real house traced in feet
+- Floor plan: `DEFAULT_LAYOUT` in `static/wall.js` is the real house traced in feet
   (1 cell = 1 ft, mirrored, garage right); renderers scale adaptively via `layoutExtent()`.
 
 ## Security & ops

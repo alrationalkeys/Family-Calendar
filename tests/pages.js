@@ -52,6 +52,8 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   ok((await p.inputValue('#dg-out')).includes('FamilyHub diagnostics'), 'phone: diagnostics gather');
   await p.fill('#vh-try', 'how many days until Christmas'); await p.click('#vh-go'); await p.waitForTimeout(1500);
   ok((await p.locator('#vh-out').innerText()).includes('Christmas is'), 'phone: Try a command answers');
+  await p.click('#nav-add'); await p.waitForTimeout(300);
+  ok(!(await p.locator('body').innerText()).includes('\\u{'), 'phone: no raw \\u{...} codes showing as text');
   ok(perr.length === 0, 'phone: no script errors' + (perr.length ? ' -> ' + perr.slice(0, 3).join(' | ') : ''));
 
   await b.close();

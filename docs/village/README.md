@@ -218,3 +218,5 @@ Assistant "Village: go to sleep" script, which now sends `close`). Closed = ligh
 and motion can't wake it. Closing time on the settings page is still the latest it stays open. Untick the setting to go
 back to the old open/close hours. The train never starts by itself ("Train also runs on its own" is off).
 
+A-2026.11.18c: motion sensor 1 is off by default too (the village has no motion sensors; an empty sensor pin floats and could
+wake it by itself). A board that already saved its settings keeps its old value: untick it on the Settings page.

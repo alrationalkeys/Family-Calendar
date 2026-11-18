@@ -39,7 +39,8 @@ struct Settings {
   int cPreset = 0;        // WLED preset while they sing (0 = leave the lights alone)
   int cSecs = 60;         // how long that light preset stays on
   int cRest = 3;          // minutes before motion can start them again
-  int pir1On = 1, pir2On = 0, pir3On = 0;   // which motion sensors are actually plugged in
+  int pir1On = 0, pir2On = 0, pir3On = 0;   // which motion sensors are actually plugged in (none on Alex's village: an
+                                            // empty sensor pin floats and can wake the village by itself)
   int lampsSleepy = 1;    // street lamps on while sleepy
   int lampsAwake = 1;     // street lamps on while awake and during shows
 };

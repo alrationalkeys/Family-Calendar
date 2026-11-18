@@ -34,7 +34,7 @@
 // ======================= EDIT THESE =========================
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
-const char* FIRMWARE_VERSION = "A-2026.11.18b";
+const char* FIRMWARE_VERSION = "A-2026.11.18c";
 
 const char* MY_NAME     = "village-fx";      // this board  -> http://village-fx.local
 const char* LIGHTS_NAME = "village-lights";  // WLED: Config > WiFi Setup > mDNS address

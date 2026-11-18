@@ -231,33 +231,86 @@ def _rgb(c: str) -> list:
     return [int(c[i:i + 2], 16) for i in (0, 2, 4)]
 
 
-def _restore(e: str, st: dict | None):
-    attrs = (st or {}).get("attributes") or {}
-    if not st or st.get("state") != "on":
+# Integrations that take a quick run of colour changes without choking. Everything else (Govee, Tuya, cloud lights...)
+# gets ONE colour change, held, then put back: a burst over Wi-Fi/UDP left a Govee strip switched off (Nov 17).
+_FAST = ("zha", "mqtt", "hue", "wled", "esphome", "zwave_js", "deconz", "lifx", "zigbee")
+_VIA: dict = {}
+
+
+def _via(e: str) -> str:
+    """Which integration a light comes through ('govee_light_local', 'zha', ...). Asked once per light."""
+    if e not in _VIA:
+        try:
+            from . import diag
+            _VIA[e] = diag._template("{{ device_attr('%s','identifiers') | map('first') | join(',') }}" % e).lower()
+        except Exception:
+            _VIA[e] = ""
+        if _VIA[e].startswith("(n/a"):
+            _VIA.pop(e)
+            return ""
+    return _VIA[e]
+
+
+def _put_back(e: str, st: dict):
+    attrs = st.get("attributes") or {}
+    if st.get("state") != "on":
         ha_svc.call_service("light", "turn_off", e)
         return
     extra = {"brightness": attrs.get("brightness") or 255}
-    if attrs.get("color_mode") == "color_temp" and attrs.get("color_temp_kelvin"):
+    if attrs.get("effect") and str(attrs["effect"]).lower() not in ("none", "off", "solid"):
+        extra = {"effect": attrs["effect"]}
+    elif attrs.get("color_mode") == "color_temp" and attrs.get("color_temp_kelvin"):
         extra["color_temp_kelvin"] = attrs["color_temp_kelvin"]
     elif attrs.get("rgb_color"):
         extra["rgb_color"] = list(attrs["rgb_color"])[:3]
     ha_svc.call_service("light", "turn_on", e, extra)
 
 
+def _restore(e: str, st: dict | None):
+    """Back to how it was, and CHECK it: a light that was on must end up on, one that was off must end up off.
+    If we never learned how it was, it is left alone (never switched off on a guess)."""
+    if not st or st.get("state") not in ("on", "off"):
+        _S["flash"][e] = _S["flash"].get(e, "") + "; left as is (didn't know how it was before)"
+        return
+    want = st["state"]
+    for attempt in range(3):
+        _put_back(e, st)
+        if ha_svc.demo_mode():
+            return
+        time.sleep(3.0)
+        try:
+            now = (ha_svc._request(f"/api/states/{e}") or {}).get("state")
+        except Exception:
+            now = None
+        if now == want:
+            if attempt:
+                _S["flash"][e] = _S["flash"].get(e, "") + f"; needed {attempt + 1} tries to go back {want}"
+            return
+    _S["flash"][e] = _S["flash"].get(e, "") + f"; could NOT put it back {want}"
+
+
 def _flash_one(e: str, a: list, b: list, rounds: int):
-    """One light, on its own thread. Fast lights (Zigbee) blink between the two colours. Slow or cloud lights
-    (Govee and the like drop or rate-limit rapid commands) just turn the team colour, hold it, and go back."""
-    try:
-        st = None if ha_svc.demo_mode() else ha_svc._request(f"/api/states/{e}")
-    except Exception:
-        st = None
+    """One light, on its own thread. Zigbee-type lights blink between the two colours. Everything else just turns
+    the team colour once, holds it, and goes back."""
+    st = None
+    if not ha_svc.demo_mode():
+        for _ in range(2):                                   # knowing the starting state matters: try twice
+            try:
+                st = ha_svc._request(f"/api/states/{e}")
+                break
+            except Exception:
+                time.sleep(0.5)
+        if st is None or st.get("state") == "unavailable":
+            _S["flash"][e] = "skipped: " + ("couldn't read it" if st is None else "unavailable")
+            return
     total = rounds * 2 * 0.7
     t0 = time.time()
     try:
+        via = "" if ha_svc.demo_mode() else _via(e)
         r = ha_svc.call_service("light", "turn_on", e, {"rgb_color": a, "brightness": 255})
-        name = (e + " " + str(((st or {}).get("attributes") or {}).get("friendly_name", ""))).lower()
-        slow = (not r.get("ok")) or time.time() - t0 > 0.45 or "govee" in name
-        _S["flash"][e] = ("held" if slow else "blinked") if r.get("ok") else ("failed: " + str(r.get("reason", "")))
+        fast = ha_svc.demo_mode() or any(k in via for k in _FAST)
+        slow = (not r.get("ok")) or not fast or time.time() - t0 > 0.45
+        _S["flash"][e] = (("held" if slow else "blinked") + (f" ({via})" if via else "")) if r.get("ok") else ("failed: " + str(r.get("reason", "")))
         if slow:
             time.sleep(max(2.5, total - (time.time() - t0)))
         else:
@@ -267,7 +320,7 @@ def _flash_one(e: str, a: list, b: list, rounds: int):
             time.sleep(0.7)
     finally:
         try:
-            _restore(e, st)
+            _restore(e, st if st is not None else ({"state": "off"} if ha_svc.demo_mode() else None))
         except Exception:
             pass
 
@@ -284,7 +337,7 @@ def flash(lights: list, color: str, alt: str, rounds: int = 3):
     for t in ts:
         t.start()
     for t in ts:
-        t.join(30)
+        t.join(45)
 
 
 _YD = r"(\d+)\s*(?:Yds?|Yards?|yd|yds)\.?"

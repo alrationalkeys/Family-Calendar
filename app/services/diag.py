@@ -27,6 +27,14 @@ def _clean(attrs: dict) -> dict:
     return out
 
 
+def _local(ts) -> str:
+    """HA timestamps are UTC; show them in this computer's time so they line up with the voice log."""
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).astimezone().strftime("%m-%d %H:%M:%S")
+    except Exception:
+        return str(ts)[:19]
+
+
 def _git() -> str:
     try:
         r = subprocess.run(["git", "log", "-1", "--format=%h %cs %s"], cwd=_ROOT, capture_output=True, text=True, timeout=5)
@@ -102,7 +110,7 @@ def report(q: str = "") -> str:
         L.append(f"== devices matching \"{q.strip()}\": {len(hits)} ==")
         for st in hits[:6]:
             eid = st["entity_id"]
-            L.append(f"- {eid} = {st.get('state')}  (changed {str(st.get('last_changed', ''))[:19]}, updated {str(st.get('last_updated', ''))[:19]})")
+            L.append(f"- {eid} = {st.get('state')}  (changed {_local(st.get('last_changed'))}, updated {_local(st.get('last_updated'))})")
             L.append("  attributes: " + json.dumps(_clean(st.get("attributes")), default=str))
             if not demo:
                 L.append("  device: " + _template("{{ device_attr('%s','manufacturer') }} / {{ device_attr('%s','model') }} / area {{ area_name('%s') }} / via {{ device_attr('%s','identifiers') | map('first') | list }}" % (eid, eid, eid, eid)))
@@ -111,8 +119,8 @@ def report(q: str = "") -> str:
                     log = ha_svc._request(f"/api/logbook/{since}?entity={eid}", timeout=8) or []
                     L.append(f"  last 24 h ({len(log)} changes), newest last:")
                     for e in log[-12:]:
-                        who = e.get("context_user_id") and "by a person" or e.get("context_event_type") or e.get("context_domain") or ""
-                        L.append(f"    {str(e.get('when', ''))[:19]}  {e.get('state', e.get('message', ''))}  {who}")
+                        who = e.get("context_user_id") and "by a person or FamilyHub" or e.get("context_event_type") or e.get("context_domain") or ""
+                        L.append(f"    {_local(e.get('when'))}  {e.get('state', e.get('message', ''))}  {who}")
                 except Exception as e:
                     L.append(f"  history: n/a ({str(e)[:60]})")
         if len(hits) > 6:
@@ -124,7 +132,7 @@ def report(q: str = "") -> str:
                 L.append(f"  Home Assistant log lines mentioning it ({len(lines)}):")
                 L += ["    " + _hide(ln)[:260] for ln in lines[-10:]]
             except Exception as e:
-                L.append(f"  Home Assistant log: n/a ({str(e)[:60]}; needs an admin token)")
+                L.append(f"  Home Assistant log: not available on this Home Assistant ({str(e)[:40]})")
 
     L.append("")
     L.append("== FamilyHub ==")

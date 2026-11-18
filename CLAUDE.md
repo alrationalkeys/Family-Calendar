@@ -145,7 +145,8 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   Champions League / internationals listed in `EXTRA`; each scoreboard paces itself in `_due`; goal scorer from the scoreboard `details`), id, name, short, abbr, color, alt}] from ESPN's public scoreboard (20 s while live,
   5 min otherwise). Our team's score goes up -> after settings.gameDelay s (15, no spoilers) a notification kind `score:#colour`
   (wall: colour burst + confetti + spoken) and settings.gameLights flash team colours then restore. Football skips 1-2 pt gains,
-  basketball only the win. Nothing after Good night / 23:30-08:00. Live score sits in the wall's calendar status bar (gameChip).
+  Only lights on a known fast integration (`_FAST`: zha, mqtt, hue, wled, esphome...) blink; any other (Govee...) gets one colour, held.
+  `_restore` re-reads the light and retries until it is back on/off as it was; an unreadable light is skipped. basketball only the win. Nothing after Good night / 23:30-08:00. Live score sits in the wall's calendar status bar (gameChip).
   The spoken line adds who/how (settings.gamePlays): `describe()` reads the game's `scoringPlays` from ESPN's summary after the
   delay, `play_words()` turns "X 12 Yd pass from Y (Z Kick)" into "12-yard touchdown pass to X from Y"; never an older play.
   Phone Settings > Game day.

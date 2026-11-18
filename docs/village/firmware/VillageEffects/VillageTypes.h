@@ -23,6 +23,7 @@ struct Settings {
   int whistleSecs = 4;     // train waits this long after the whistle starts (set to the whistle clip length; 0 = no wait)
   // random extras while awake (reindeer, Santa landing, sleigh bells...)
   int ambOn = 1;          // 1 = on
+  int ambSleepy = 1;      // 1 = the random extras also play while the village is sleepy (sounds only)
   int ambFirst = 7, ambLast = 10;   // file numbers on the main SD card (random pick)
   int ambMinMin = 10, ambMaxMin = 20;   // minutes between extras (random)
   // WLED preset numbers

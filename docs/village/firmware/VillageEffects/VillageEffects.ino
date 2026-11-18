@@ -34,7 +34,7 @@
 // ======================= EDIT THESE =========================
 // WiFi name/password live in secrets.h (the "secrets.h" tab). Updates never replace that file.
 #include "secrets.h"
-const char* FIRMWARE_VERSION = "A-2026.11.18c";
+const char* FIRMWARE_VERSION = "A-2026.11.18d";
 
 const char* MY_NAME     = "village-fx";      // this board  -> http://village-fx.local
 const char* LIGHTS_NAME = "village-lights";  // WLED: Config > WiFi Setup > mDNS address
@@ -104,6 +104,7 @@ Field FIELDS[] = {
   {"sndChk", "Check each sound really started, and try once more if not", &S.sndCheck, 0, 1, true, "Main speaker sounds (file numbers, 0 = silent)"},
   {"depSnd", "Play the train-button sound every time the train leaves the station", &S.departSound, 0, 1, true, "Main speaker sounds (file numbers, 0 = silent)"},
   {"ambOn",  "Random extras while awake (1 = on)", &S.ambOn, 0, 1, true, "Random extras (reindeer, Santa, sleigh bells)"},
+  {"ambSlp", "Random extras while sleepy too (sounds only, nothing moves)", &S.ambSleepy, 0, 1, true, "Random extras (reindeer, Santa, sleigh bells)"},
   {"ambF",   "Extras: first file number",       &S.ambFirst, 1, 255, false, "Random extras (reindeer, Santa, sleigh bells)"},
   {"ambL",   "Extras: last file number",        &S.ambLast, 1, 255, false, "Random extras (reindeer, Santa, sleigh bells)"},
   {"ambMin", "Extras: shortest wait (minutes)", &S.ambMinMin, 1, 120, false, "Random extras (reindeer, Santa, sleigh bells)"},
@@ -502,7 +503,9 @@ void enterMode(Mode m) {
   logln(String("Mode: ") + modeName(m));
   switch (m) {
     case MODE_CLOSED: setLightsPreset(S.psOff, 50); rinkOff(); trainQuiet(0); break;
-    case MODE_SLEEPY: setLightsPreset(S.psSleepy, 80); rinkOff(); trainQuiet(0); break;
+    case MODE_SLEEPY: setLightsPreset(S.psSleepy, 80); rinkOff(); trainQuiet(0);
+      nextAmbAt = millis() + random(min(S.ambMinMin, S.ambMaxMin), max(S.ambMinMin, S.ambMaxMin) + 1) * 60000UL;
+      break;
     case MODE_AWAKE:
       setLightsPreset(S.psEvening, 40);
       play(S.sndWake);
@@ -579,6 +582,14 @@ void updateMode() {
       int lo = min(S.ambMinMin, S.ambMaxMin), hi = max(S.ambMinMin, S.ambMaxMin);
       nextAmbAt = now + random(lo, hi + 1) * 60000UL;
     }
+  } else if (mode == MODE_SLEEPY && S.ambOn && S.ambSleepy && (long)(now - nextAmbAt) >= 0) {
+    // sleepy extras: a sound now and then (Santa, reindeer, bells); never cuts a sound off, nothing moves
+    if (now - lastMainPlayAt > 20000UL) {
+      int lo = min(S.ambFirst, S.ambLast), hi = max(S.ambFirst, S.ambLast);
+      play(random(lo, hi + 1));
+    }
+    int lo = min(S.ambMinMin, S.ambMaxMin), hi = max(S.ambMinMin, S.ambMaxMin);
+    nextAmbAt = now + random(lo, hi + 1) * 60000UL;
   }
 }
 

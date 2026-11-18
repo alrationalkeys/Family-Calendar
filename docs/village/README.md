@@ -220,3 +220,6 @@ back to the old open/close hours. The train never starts by itself ("Train also 
 
 A-2026.11.18c: motion sensor 1 is off by default too (the village has no motion sensors; an empty sensor pin floats and could
 wake it by itself). A board that already saved its settings keeps its old value: untick it on the Settings page.
+
+A-2026.11.18d: the random extras (Santa, reindeer, sleigh bells) also play while the village is sleepy, every 10-20 min,
+sounds only (settings: "Random extras while sleepy too", on by default). They stop when the village closes.

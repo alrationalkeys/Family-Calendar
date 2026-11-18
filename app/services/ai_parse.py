@@ -30,9 +30,10 @@ def parse_text_to_events(text: str, model: str | None = None) -> List[Dict]:
     from anthropic import Anthropic
 
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    resp = client.messages.create(
-        model=model,
-        max_tokens=1024,
+    from . import ai_model
+    resp = ai_model.create(
+        client, model=model, **ai_model.effort(model, "low"),
+        max_tokens=4096,
         system=SYSTEM.format(today=date.today().isoformat()),
         messages=[{"role": "user", "content": text}],
     )

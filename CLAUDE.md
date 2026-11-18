@@ -21,7 +21,8 @@ Two interfaces:
 - **DB:** SQLite by default (`familyhub.db`, gitignored). Swap to Postgres via `DATABASE_URL`.
 - **Frontend:** plain HTML/CSS/JS, no build step. Polls the API.
 - **AI:** Anthropic API for natural-language parsing, voice Q&A (+ web search), meal plans. Needs
-  `ANTHROPIC_API_KEY`; model via `FAMILYHUB_AI_MODEL` (`services/ai_model.py`, default `claude-opus-4-8`).
+  `ANTHROPIC_API_KEY`; model via `FAMILYHUB_AI_MODEL` (`services/ai_model.py`, default `claude-opus-5-5`; its `create()` /
+  `effort()` / `web_search_tool()` helpers shape every non-voice request: thinking counts against max_tokens, so callers give room and set effort).
 
 ## Layout
 ```

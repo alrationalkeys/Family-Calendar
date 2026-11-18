@@ -27,8 +27,9 @@ def extract_events_from_image(image_b64: str, media_type: str = "image/jpeg",
     model = model or _model()
     from anthropic import Anthropic
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    resp = client.messages.create(
-        model=model, max_tokens=2048,
+    from . import ai_model
+    resp = ai_model.create(
+        client, model=model, max_tokens=8000, **ai_model.effort(model, "medium"),
         system=SYSTEM.format(today=date.today().isoformat()),
         messages=[{
             "role": "user",

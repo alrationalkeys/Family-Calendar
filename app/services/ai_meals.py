@@ -74,10 +74,11 @@ def plan(days: int = 7, prefs: str = "", start: str | None = None) -> dict:
                     f"Dates already planned (skip): {', '.join(sorted(taken)) or 'none'}.\n"
                     f"Recent meals (avoid repeating): {', '.join(recent) or 'none'}.\n"
                     f"Already on the grocery list (feel free to use): {', '.join(groceries) or 'nothing'}.")
-            from .ai_model import model as _model
-            resp = client.messages.create(model=_model(), max_tokens=1800,
-                                          system=SYSTEM.format(today=date.today().isoformat()),
-                                          messages=[{"role": "user", "content": user}])
+            from . import ai_model
+            mdl = ai_model.model()
+            resp = ai_model.create(client, model=mdl, max_tokens=8000, **ai_model.effort(mdl, "medium"),
+                                   system=SYSTEM.format(today=date.today().isoformat()),
+                                   messages=[{"role": "user", "content": user}])
             try:
                 from . import ai_cost
                 ai_cost.record("meals", resp)

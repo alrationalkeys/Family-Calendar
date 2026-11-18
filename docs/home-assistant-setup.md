@@ -162,7 +162,7 @@ Settings → Automations → *Sentence* triggers.
 **Make "Hey <Name>" answer real questions (the Alexa replacement).** HA's built-in agent
 only does device control. Add the **Anthropic** integration (Settings → Devices & Services
 → Add → *Anthropic*, paste the same `ANTHROPIC_API_KEY` FamilyHub uses, model
-`claude-opus-4-8`). Then in your `<Name>` pipeline set **Conversation agent → Claude** and
+`claude-opus-5-5`). Then in your `<Name>` pipeline set **Conversation agent → Claude** and
 turn on **"Prefer handling commands locally"** so lights/scenes stay instant and offline,
 and only open questions ("how long do I boil an egg", "help with fractions") go to Claude.
 Give it this as the prompt so it talks like a kitchen assistant, not a chatbot:

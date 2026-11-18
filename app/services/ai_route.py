@@ -38,8 +38,9 @@ def route_text(text: str, model: str | None = None) -> Dict:
     model = model or _model()
     from anthropic import Anthropic
     client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    resp = client.messages.create(
-        model=model, max_tokens=1024,
+    from . import ai_model
+    resp = ai_model.create(
+        client, model=model, max_tokens=4096, **ai_model.effort(model, "low"),
         system=SYSTEM.format(today=date.today().isoformat()),
         messages=[{"role": "user", "content": text}],
     )

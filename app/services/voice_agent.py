@@ -354,8 +354,8 @@ def run(text: str, tiles: list) -> dict | None:
     sys_blocks = [{"type": "text", "text": system[:cut], "cache_control": {"type": "ephemeral"}},
                   {"type": "text", "text": system[cut:].strip()}] if cut > 0 else system
     kw = dict(model=mdl, max_tokens=2048, system=sys_blocks, tools=tools)
-    if re.search(r"opus-4-[678]|opus-5|sonnet-5|haiku-5|fable|mythos", mdl):
-        kw["output_config"] = {"effort": "low"}       # quick, decisive turns for voice
+    from . import ai_model
+    kw.update(ai_model.effort(mdl, "low"))            # quick, decisive turns for voice
     messages = [{"role": "user", "content": text}]
     out = {"ok": True}
     import time as _time

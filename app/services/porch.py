@@ -56,8 +56,10 @@ def _ask(cam: str):
     try:
         from anthropic import Anthropic
         client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        resp = client.messages.create(
-            model=os.environ.get("FAMILYHUB_PACKAGE_MODEL") or "claude-haiku-5-5", max_tokens=120,
+        from . import ai_model
+        mdl = os.environ.get("FAMILYHUB_PACKAGE_MODEL") or "claude-haiku-5-5"
+        resp = ai_model.create(
+            client, model=mdl, max_tokens=1024, **ai_model.effort(mdl, "low"),   # room to think, then one line of JSON
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": ctype.split(";")[0],
                                              "data": base64.b64encode(data).decode()}},

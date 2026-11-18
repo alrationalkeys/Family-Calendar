@@ -548,12 +548,12 @@ def _ai_answer(text):
             f"Now: {now.strftime('%A %B %d %Y, %I:%M %p').replace(' 0', ' ')}. The family lives near "
             f"{_HOME_LOCATION['city']}, {_HOME_LOCATION['region']}.\n\n" + _family_context()
         )
-        from .ai_model import model as _model
-        kwargs = dict(model=_model(), max_tokens=400, system=system,
+        from . import ai_model
+        mdl = ai_model.model()
+        kwargs = dict(model=mdl, max_tokens=2048, system=system, **ai_model.effort(mdl, "low"),
                       messages=[{"role": "user", "content": text}])
         if web:
-            kwargs["tools"] = [{"type": "web_search_20260209", "name": "web_search",
-                                "max_uses": 2, "user_location": _HOME_LOCATION}]
+            kwargs["tools"] = [ai_model.web_search_tool(mdl, max_uses=2, user_location=_HOME_LOCATION)]
         resp = client.messages.create(**kwargs)
         from . import ai_cost
         ai_cost.record("voice", resp)

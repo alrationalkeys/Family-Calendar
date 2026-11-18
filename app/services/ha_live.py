@@ -142,6 +142,11 @@ async def _run_once(ws_url: str, token: str):
                     except Exception:
                         pass
                     try:
+                        from . import tv_backlight         # WLED strip behind a TV follows the TV
+                        tv_backlight.on_state(eid, data.get("old_state"), new)
+                    except Exception:
+                        pass
+                    try:
                         from . import xmas                 # outside Christmas display: walk-up lights, doorbell blink
                         xmas.on_state(eid, data.get("old_state"), new, _states)
                     except Exception:

@@ -333,11 +333,13 @@ def flash(lights: list, color: str, alt: str, rounds: int = 3):
     if sum(b) < 90:                               # a black second colour would just look like "off"
         b = [255, 255, 255]
     _S["flash"] = {}
+    _S["flashing"] = set(lights)
     ts = [threading.Thread(target=_flash_one, args=(e, a, b, rounds), daemon=True) for e in lights]
     for t in ts:
         t.start()
     for t in ts:
         t.join(45)
+    _S["flashing"] = set()
 
 
 _YD = r"(\d+)\s*(?:Yds?|Yards?|yd|yds)\.?"

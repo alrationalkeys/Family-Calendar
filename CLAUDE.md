@@ -157,6 +157,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Monthly house report (`services/house_report.py`): one line per day kept in settings row `house_days` (heat/cool/peak minutes
   from the timeline just after midnight, catching up 9 days; washer/dryer loads bumped by laundry.py) because HA keeps ~10 days.
   1st of the month 09:00 -> push of last month (settings.monthlyReport); `GET /api/ha/report?month=YYYY-MM`; phone Settings > Alerts.
+- TV backlights (`services/tv_backlight.py`, ha_live hook): settings.tvBacklights [{light, tv, follow, dim, play, idle}] pairs a WLED
+  light with a Roku media_player: on/off with the TV, brightness play% while playing / idle% otherwise; brightness + on/off only;
+  waits while Game day flashes that light (`gameday._S["flashing"]`). Phone Settings > TV backlights.
 - Offline while armed (`services/offline_watch.py`, house-watch tick, settings.offlineAlert): a camera (not Blink) or the alarm panel
   unavailable ~2 min while armed -> one push per outage (grouped when several drop together), heads-up when arming with one already
   offline, "back online" push. Tell-only.

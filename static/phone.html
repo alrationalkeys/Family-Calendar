@@ -609,6 +609,14 @@
     <div class="hint" id="gd-msg">Football: touchdowns and field goals. Soccer and hockey: goals. Baseball: runs. Basketball: only the win. Nothing happens after Good night or between 11:30 PM and 8 AM.</div>
   </details>
 
+  <details class="form sect fold" data-fold="tvlights">
+    <summary><span class="fi">📺</span><span class="ft"><b>TV backlights</b><small>LED strip behind a TV: on with the TV, dim for movies</small></span></summary>
+    <div id="tvb-list"></div>
+    <div class="srow" style="gap:6px"><select id="tvb-light" style="margin:0;flex:1;min-width:0"></select><select id="tvb-tv" style="margin:0;flex:1;min-width:0"></select></div>
+    <button class="tool" type="button" id="tvb-add" style="margin:6px 0 10px">+ Pair this light with this TV</button>
+    <div class="hint" id="tvb-msg">Pick the backlight and the TV it sits behind. Only brightness and on/off are changed, so the color or effect you chose stays. To flash it on a score, tick it under Game day.</div>
+  </details>
+
   <details class="form sect fold" data-fold="family">
     <summary><span class="fi">👨‍👩‍👧</span><span class="ft"><b>Family</b><small>People, colors, birthdays</small></span></summary>
     <div id="people-list"></div>
@@ -1853,6 +1861,28 @@ function setupVoiceHistory(){
   $("#vh-clear").onclick=async()=>{ await fetch("/api/ai/voice/log",{method:"DELETE"}).catch(()=>{}); loadVoiceHistory(); };
   const d=go.closest("details"); if(d) d.addEventListener("toggle",()=>{ if(d.open){ loadVoiceHistory(); loadAiCost(); loadCloudVoice(); } });
 }
+async function setupTvLights(){
+  const E=FHHome.esc, box=$("#tvb-list"); if(!box) return;
+  let h=null; try{ h=await fetch("/api/ha/home").then(r=>r.json()); }catch(e){}
+  const tiles=((h&&h.groups)||[]).flatMap(g=>g.tiles||[]), nm=id=>(tiles.find(t=>t.entity_id===id)||{}).name||id;
+  const lights=tiles.filter(t=>t.domain==="light"), tvs=tiles.filter(t=>t.domain==="media_player");
+  const ls=$("#tvb-light"), ts=$("#tvb-tv");
+  if(document.activeElement!==ls) ls.innerHTML=lights.length?lights.map(t=>`<option value="${E(t.entity_id)}">${E(t.name)}</option>`).join(""):`<option value="">No lights found</option>`;
+  if(document.activeElement!==ts) ts.innerHTML=tvs.length?tvs.map(t=>`<option value="${E(t.entity_id)}">${E(t.name)}</option>`).join(""):`<option value="">No TVs found</option>`;
+  const save=list=>FH.save({tvBacklights:list}).then(()=>{ toast("Saved"); setupTvLights(); });
+  const cur=()=>(FH.get().tvBacklights||[]).map(p=>({follow:true,dim:true,play:30,idle:70,...p}));
+  const list=cur();
+  box.innerHTML=list.length?list.map((p,i)=>`<div style="border:1px solid rgba(127,127,127,.25);border-radius:12px;padding:8px 10px;margin:0 0 8px">
+      <div class="srow" style="margin:0"><b>${E(nm(p.light))}</b><span style="opacity:.7">behind ${E(nm(p.tv))}</span><button class="tool" type="button" data-tvx="${i}" style="margin:0">Remove</button></div>
+      <label class="chk"><input type="checkbox" data-tvk="follow" data-i="${i}"${p.follow?" checked":""}> Turn on and off with the TV</label>
+      <label class="chk"><input type="checkbox" data-tvk="dim" data-i="${i}"${p.dim?" checked":""}> Dim to <input type="number" data-tvk="play" data-i="${i}" value="${+p.play||30}" min="1" max="100" style="width:58px;display:inline-block;margin:0 4px">% while something is playing, <input type="number" data-tvk="idle" data-i="${i}" value="${+p.idle||70}" min="1" max="100" style="width:58px;display:inline-block;margin:0 4px">% when paused or on the menu</label>
+    </div>`).join(""):`<div class="hint" style="margin-top:0">No backlights paired yet.</div>`;
+  box.querySelectorAll("[data-tvx]").forEach(b=>b.onclick=()=>{ const l=cur(); l.splice(+b.dataset.tvx,1); save(l); });
+  box.querySelectorAll("[data-tvk]").forEach(c=>c.onchange=()=>{ const l=cur(), p=l[+c.dataset.i]; if(!p) return; p[c.dataset.tvk]=c.type==="checkbox"?c.checked:Math.max(1,Math.min(100,+c.value||1)); save(l); });
+  const add=$("#tvb-add"); if(!add._wired){ add._wired=true; add.onclick=()=>{ if(!ls.value||!ts.value) return; const l=cur();
+    if(l.some(p=>p.light===ls.value)){ toast("That light is already paired"); return; }
+    l.push({light:ls.value, tv:ts.value, follow:true, dim:true, play:30, idle:70}); save(l); }; }
+}
 function gdRender(){
   const E=FHHome.esc, S=FH.get(), box=$("#gd-teams"); if(!box) return;
   const teams=S.teams||[];
@@ -1897,7 +1927,7 @@ function loadSettingsUI(){
     { const show=async prev=>{ const out=$("#al-month-out"); out.textContent="…"; const d=new Date(); if(prev) d.setDate(0);
         const m=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
         try{ const r=await fetch("/api/ha/report?month="+m).then(x=>x.json()); out.textContent=r.name+"\n"+r.lines.join("\n"); }catch(e){ out.textContent="Couldn't load the report."; } };
-      const a=$("#al-month-now"), b=$("#al-month-prev"); if(a&&!a._wired){ a._wired=true; a.onclick=()=>show(false); b.onclick=()=>show(true); } } bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
+      const a=$("#al-month-now"), b=$("#al-month-prev"); if(a&&!a._wired){ a._wired=true; a.onclick=()=>show(false); b.onclick=()=>show(true); } } bind("#gd-chip","gameChip"); bind("#gd-speak","gameSpeak"); bind("#gd-plays","gamePlays"); bind("#gd-flash","gameFlash"); bind("#gd-delay","gameDelay",v=>Math.max(0,+v||0)); setupGameDay(); setupTvLights(); bind("#al-week","weeklySummary"); bind("#al-wx","wxAlerts"); bind("#al-rain","rainCheck"); bind("#al-pkg","packageAlerts"); bind("#al-laundry","laundryAlerts");
     bind("#al-gar","garageAlert"); bind("#al-gar-min","garageOpenMin",v=>+v||15); bind("#al-gar-day","garageOpenDayMin",v=>+v||0); bind("#al-gar-rem","garageRemindMin",v=>+v||30);
     bind("#al-xm-motion","xmasMotion"); bind("#al-xm-min","xmasMotionMin",v=>+v||5); bind("#al-xm-until","xmasMotionUntil"); bind("#al-xm-flash","xmasFlash");
     bind("#al-xm-wind","xmasWind"); bind("#al-xm-gust","windGust",v=>+v||30); bind("#al-xm-off","xmasOffline"); bind("#al-xm-rain","xmasRain"); bind("#al-xm-eve","xmasEveningCheck"); bind("#al-xm-rem","xmasRemindHours",v=>+v||3); bind("#al-xm-rgust","rainGust",v=>+v||20);

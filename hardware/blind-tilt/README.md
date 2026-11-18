@@ -61,3 +61,7 @@ measure how long it lasts -> 4. print and build the other 5.
 - **Collar test result (Nov 16):** the one-piece split ring did not grip: the ears closed but the ring was too stiff to
   squeeze, so the wand slid. `wand-clamp-v2.stl` replaces it: two half-shells pulled onto the wand by an M3 x 16 screw
   and nut on each side (fits 10.2-11.4 mm), with small grip ribs inside. The motor pod's collar will use this shape.
+- **Firmware (Nov 18):** first version in `firmware/` (ESP32-C6, Zigbee tilt cover, stall homing, bench console). It passes a
+  syntax check against the real ESP32-C6 Zigbee headers but has NOT been built in the Arduino IDE or run on hardware.
+  Read `firmware/README.md` before wiring: it lists every hardware assumption to confirm, and two design points to decide
+  (battery mode sleeps and can miss a command; which way "open" should go).

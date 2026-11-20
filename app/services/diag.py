@@ -147,6 +147,20 @@ def report(q: str = "") -> str:
     except Exception:
         pass
     try:
+        from . import village
+        a = village._auto()
+        fol = village._follows()
+        try:
+            from . import ha_live
+            on = {x["entity_id"] for x in (ha_live.states() or []) if x.get("state") == "on"}
+            lights = village.open_lights(ha_live.states() or [])
+        except Exception:
+            on, lights = set(), []
+        L.append(f"village: board follows FamilyHub: {fol}; tonight: {json.dumps(a)}; auto on: {village._settings().get('villageAuto', True) is not False}; "
+                 f"lights that open it: {', '.join(lights) or 'NONE FOUND'} (on now: {', '.join(e for e in lights if e in on) or 'none'})")
+    except Exception as e:
+        L.append(f"village: {str(e)[:80]}")
+    try:
         from . import display_svc
         d = display_svc.state()
         L.append(f"screen: {'on' if d.get('on') else 'OFF'}, night mode (dark until disarm): {d.get('sleep_mode')}, in the night window: {d.get('night')}, "

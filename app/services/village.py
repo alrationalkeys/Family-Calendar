@@ -166,6 +166,10 @@ def status(max_age: float = 8.0) -> dict:
             pass
     data = _parse(fx, tr)
     data["said"] = _say(data)
+    try:
+        data["tonight"] = _auto()
+    except Exception:
+        pass
     with _lock:
         _cache.update(at=now, data=data)
     return data
@@ -315,6 +319,10 @@ def _evening_now() -> bool:
     return h >= 15 or h < 2
 
 
+def _daytime() -> bool:
+    return 6 <= time.localtime().tm_hour < 15
+
+
 def _bedtime_now() -> bool:
     try:
         from . import display_svc
@@ -344,7 +352,8 @@ def close_for_night(why: str) -> bool:
         _get("fx", "/cmd?do=close", 3.0)          # lights off, rink off, train stopped (the board does it all)
     except Exception:
         return False
-    _auto({"closed": time.strftime("%H:%M"), "why_closed": why})
+    if not _daytime():
+        _auto({"closed": time.strftime("%H:%M"), "why_closed": why})   # a daytime close never keeps tonight shut
     with _lock:
         _cache["at"] = 0.0
     return True
@@ -358,8 +367,12 @@ def on_state(eid: str, old: dict | None, new: dict | None, states: dict):
     name = eid.replace("_", " ") + " " + str((new.get("attributes") or {}).get("friendly_name", ""))
     try:
         if dom in ("scene", "script") and _NIGHT_NAME.search(name):
-            ran = (dom == "scene" and old is not None and new.get("state") != (old or {}).get("state")
-                   and new.get("state") not in ("unavailable", "unknown")) or (dom == "script" and new.get("state") == "on")
+            # a scene "ran" only when its timestamp changes from a real earlier one: Home Assistant restarting (or the
+            # live link reconnecting) takes it unavailable -> timestamp, which is not anyone saying good night
+            was = (old or {}).get("state")
+            ran = (dom == "scene" and old is not None and was not in (None, "", "unavailable", "unknown")
+                   and new.get("state") != was and new.get("state") not in ("unavailable", "unknown")) \
+                or (dom == "script" and new.get("state") == "on" and (old or {}).get("state") == "off")
             if ran and _settings().get("villageWithHouse", True) is not False:
                 threading.Thread(target=close_for_night, args=("Home Assistant: " + name.strip(),), daemon=True).start()
             return

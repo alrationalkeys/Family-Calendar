@@ -340,3 +340,25 @@ def test_village_finds_a_board_that_moved(monkeypatch):
     assert village._get("train", "/status") == "train ok"        # straight to the remembered address
     assert calls == [("192.168.1.122", "/status")]
     village._found.clear()
+
+
+def test_village_not_kept_shut_by_a_restart_or_a_daytime_close(monkeypatch):
+    """Home Assistant restarting makes the bedtime scene go unavailable -> timestamp: that is not good night. And a
+    close during the day (6 AM-3 PM) must not keep the village shut that evening."""
+    from app.services import village as v
+    sent = []
+    monkeypatch.setattr(v, "_get", lambda kind, path, timeout=2.0: sent.append(path) or "AUTOMATIC\nfollows FamilyHub: closed")
+    monkeypatch.setattr(v, "_settings", lambda: {"villageOpenLights": ["light.porch"]})
+    monkeypatch.setattr(v, "_bedtime_now", lambda: False)
+    monkeypatch.setattr(v.threading, "Thread", lambda target, args, **k: type("T", (), {"start": lambda self: target(*args)})())
+    v._auto({"opened": None, "closed": None})
+    scene = {"state": "2026-11-20T14:02:00", "attributes": {"friendly_name": "Go to sleep"}}
+    v.on_state("scene.go_to_sleep", {"state": "unavailable"}, scene, {})
+    assert sent == []
+    monkeypatch.setattr(v, "_evening_now", lambda: False)
+    monkeypatch.setattr(v, "_daytime", lambda: True)
+    v.close_for_night("test")
+    assert not v._auto().get("closed")
+    monkeypatch.setattr(v, "_evening_now", lambda: True)
+    v.on_state("light.porch", {"state": "off"}, {"state": "on", "attributes": {}}, {})
+    assert sent[-1] == "/cmd?do=open"

@@ -1139,7 +1139,9 @@ async function checkNotifications(){
 /* Notifications that arrive together are spoken one after another (a score and a reminder, a touchdown and the win).
    Voice-assistant replies still interrupt, by calling sayAloud directly. */
 let _sayQ=Promise.resolve();
-function sayNext(t){ if(!t) return; _sayQ=_sayQ.then(()=>sayAloud(t)).catch(()=>{}); }
+// Each queued line gets a time limit, so one line that never finishes (audio stalled, or cut off by a voice reply) can
+// never silence everything after it: that left later goals, the win and phone announcements unspoken (Nov 21).
+function sayNext(t){ if(!t) return; _sayQ=_sayQ.then(()=>Promise.race([sayAloud(t), new Promise(r=>setTimeout(r, 20000+String(t).length*150))])).catch(()=>{}); }
 /* Game day: a burst of the team's colour around the screen + confetti, and a small live-score chip. */
 function scoreBurst(color){
   if(!/^#[0-9a-f]{6}$/i.test(color)) color="#e9a23b";
@@ -1177,10 +1179,11 @@ function showNotification(n){
   const clean=s=>String(s||"").replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B50\u2705]/gu,"").trim();
   // a score has its own switches (phone Settings > Game day), so it never depends on "the wall says reminders out loud"
   if(String(n.kind||"").startsWith("score:")){ scoreBurst(n.kind.slice(6)); wallNote("the wall showed the score celebration and is saying: "+clean(n.body||n.title)); if(n.body) sayNext(clean(n.body)); wake(); return; }
+  // a phone announcement exists to be heard: it is spoken even when the wall doesn't read reminders out loud
+  if(n.kind==="announce"){ sayNext(clean(n.body||n.title)); wake(); return; }
   if(FH.get().speakAlerts!==false){
     if(n.kind==="doorbell"||n.kind==="motion") return;      // handled live via the SSE ring
-    if(n.kind==="announce") sayNext(clean(n.body||n.title));
-    else if(n.kind==="reminder") sayNext("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
+    if(n.kind==="reminder") sayNext("Reminder: "+clean(n.title).replace(/^Upcoming:\s*/i,""));
     else if(n.kind==="mail") sayNext(clean(n.title)+". Approve it on your phone.");
     wake();
   }
@@ -2121,7 +2124,7 @@ function beep(times=3){
    wall has no speechSynthesis voices. Falls back to the browser engine if the server
    has no voice installed. voiceCaps is filled at boot from /api/ai/voice/status. */
 let voiceCaps={stt:false,tts:false};
-let _ttsAudio=null;
+let _ttsAudio=null, _ttsDone=null;
 async function loadVoiceCaps(){ try{ voiceCaps=await fetch("/api/ai/voice/status").then(r=>r.json()); }catch(e){} applyWallMic(); }
 function browserSpeak(s){ try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
 window.addEventListener("skin:newyear", e=>{ if(FH.get().speakAlerts!==false) sayAloud(`Happy New Year! Welcome to ${e.detail.year}!`); try{ Seasonal.force("fireworks"); }catch(err){} });
@@ -2136,6 +2139,7 @@ async function sayAloud(s){
   const chunks=[]; for(const p of parts){ if(chunks.length && (chunks[chunks.length-1]+" "+p).length<60) chunks[chunks.length-1]+=" "+p; else chunks.push(p); }
   const gen=++_sayGen;
   if(_ttsAudio){ try{_ttsAudio.pause();}catch(e){} }
+  if(_ttsDone){ const d=_ttsDone; _ttsDone=null; d(); }        // the line we just cut off counts as finished (else it waits forever)
   const fetchOne=t=>post("/api/ai/tts",{text:t}).then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); });
   try{
     let next=fetchOne(chunks[0]);
@@ -2146,7 +2150,8 @@ async function sayAloud(s){
       if(next) next.catch(()=>{});
       const url=URL.createObjectURL(blob);
       _ttsAudio=new Audio(url);
-      await new Promise((res,rej)=>{ _ttsAudio.onended=()=>{ URL.revokeObjectURL(url); res(); }; _ttsAudio.onerror=rej; _ttsAudio.play().catch(rej); });
+      await new Promise((res,rej)=>{ _ttsDone=res; _ttsAudio.onended=()=>{ URL.revokeObjectURL(url); _ttsDone=null; res(); }; _ttsAudio.onerror=rej; _ttsAudio.play().catch(rej); });
+      if(gen!==_sayGen) return;
     }
   }catch(e){ if(gen===_sayGen){ wallNote("the wall couldn't play \u201c"+String(s).slice(0,60)+"\u201d: "+(e&&(e.name||"")+" "+(e.message||e))); browserSpeak(s); } }
 }

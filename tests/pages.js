@@ -34,6 +34,14 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.evaluate(() => { window._said = []; const o = sayAloud; sayAloud = s => { window._said.push(s); }; showNotification({ title: 'Goal', body: 'Goal, Testers! Testers 1, Others 0.', kind: 'score:#115740' }); });
   await w.waitForTimeout(300);
   ok(await w.evaluate(() => window._said.length === 1), 'wall: a score is spoken');
+  // a phone announcement is spoken even with "say reminders out loud" off, and a line that never finishes can't block the next
+  await w.evaluate(() => { window._said = []; FH.get().speakAlerts = false; let first = true;
+    sayAloud = s => { window._said.push(s); if (first) { first = false; return new Promise(() => {}); } };
+    showNotification({ title: 'Intercom', body: 'Dinner is ready', kind: 'announce' });
+    showNotification({ title: 'Goal', body: 'Goal two', kind: 'score:#115740' }); });
+  await w.waitForTimeout(800);
+  ok(await w.evaluate(() => window._said[0] === 'Dinner is ready'), 'wall: a phone announcement is spoken even with reminders muted');
+  await w.evaluate(() => { _sayQ = Promise.resolve(); FH.get().speakAlerts = true; });
   // text from outside (email subjects, device names, ESPN) must show as text, never run as markup
   await w.evaluate(() => { window._pwned = 0; banner('<img src=x onerror="window._pwned=1">', '<b>bold?</b>'); });
   await w.waitForTimeout(300);

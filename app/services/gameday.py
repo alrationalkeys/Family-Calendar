@@ -52,7 +52,36 @@ EXTRA = {                                      # other competitions the same tea
 }
 _FLASH_LOCK = threading.Lock()
 _BOARD: dict = {}                              # scoreboard path -> {"at", "games"} (each path refreshed only as often as it needs)
-_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": [], "pub": {}}
+_S: dict = {"games": [], "at": 0.0, "last": {}, "teams": {}, "error": "", "flash": {}, "told": [], "pub": {}, "log": []}
+_FRESH = 30 * 60      # a remembered score older than this (FamilyHub was off) is too old to cheer about now
+
+
+def _note(msg: str):
+    """What Game day did or skipped, newest last (phone Settings > Advanced > Diagnostics)."""
+    _S["log"].append(datetime.now().strftime("%a %H:%M ") + msg)
+    del _S["log"][:-25]
+
+
+def _load_last():
+    """Scores from before a restart, so updating the wall mid-game doesn't lose the next goal or the final."""
+    try:
+        from ..db import get_db
+        with get_db() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='gameday_last'").fetchone()
+        d = json.loads(row["value"]) if row and row["value"] else {}
+        if isinstance(d, dict):
+            _S["last"].update({k: v for k, v in d.items() if isinstance(v, dict) and k not in _S["last"]})
+    except Exception:
+        pass
+
+
+def _save_last():
+    try:
+        from ..db import get_db
+        with get_db() as conn:
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('gameday_last', ?)", (json.dumps(_S["last"]),))
+    except Exception:
+        pass
 
 
 def _settings() -> dict:
@@ -421,6 +450,7 @@ def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force:
     def go():
         time.sleep(delay)
         if _asleep() and not force:               # the Test button always fires
+            _note(f"skipped (bedtime / night mode): {title}")
             return
         nonlocal body
         if tail:
@@ -438,8 +468,9 @@ def celebrate(g: dict, title: str, body: str, s: dict, big: bool = False, force:
         if s.get("gameSpeak", True):
             try:
                 _say(title, body, t.get("color") or "#3b82f6")
-            except Exception:
-                pass
+                _note(f"announced: {body}")
+            except Exception as e:
+                _note(f"couldn't announce {title}: {str(e)[:60]}")
         if s.get("gameFlash", True):
             flash(s.get("gameLights") or [], t.get("color") or "#3b82f6", t.get("alt") or "#ffffff", 5 if big else 3)
     threading.Thread(target=go, daemon=True, name="gameday-celebrate").start()
@@ -456,8 +487,13 @@ def _line(g: dict) -> str:
 def check(games: list, s: dict):
     """Compare with the last look; celebrate what changed. The first sighting of a game never celebrates."""
     seen = _S["last"]
+    def _shape(d):                                        # what matters for saving: scores and states, not the clock
+        return json.dumps({k: (v.get("us"), v.get("state")) for k, v in d.items()}, sort_keys=True)
+    before = _shape(seen)
     for g in games:
         prev = seen.get(g["key"])
+        if prev and time.time() - prev.get("at", 0) > _FRESH:
+            prev = None                                   # FamilyHub was off a long while: just pick the game up again
         # A score that dips (a blank or corrected feed) must not re-arm a celebration when it comes back: remember the
         # highest score, and only accept a lower one after it has held for three looks (a real correction).
         best, low = g["us"], 0
@@ -481,10 +517,16 @@ def check(games: list, s: dict):
             elif s.get("gameSpeak", True) and not _asleep():
                 try:
                     _say(f"Final: {_line(g)}", "", "#555555")
+                    _note(f"announced: Final: {_line(g)}")
                 except Exception:
                     pass
+            else:
+                _note(f"final not said ({'bedtime / night mode' if _asleep() else 'speaking off'}): {_line(g)}")
     for k in [k for k, v in seen.items() if time.time() - v["at"] > 36 * 3600]:
         seen.pop(k, None)
+    if _shape(seen) != before or time.time() - _S.get("saved", 0) > 300:
+        _S["saved"] = time.time()
+        _save_last()
 
 
 def status() -> dict:
@@ -495,7 +537,7 @@ def status() -> dict:
     except (TypeError, ValueError):
         delay = 15
     return {"games": sorted((_held(g, delay) for g in _S["games"]), key=lambda g: (order.get(g["state"], 3), g["start"])),
-            "error": _S["error"], "flash": _S["flash"]}
+            "error": _S["error"], "flash": _S["flash"], "log": _S["log"][-12:]}
 
 
 def _held(g: dict, delay: int) -> dict:
@@ -529,6 +571,7 @@ def test(s: dict | None = None) -> dict:
 
 
 def _loop():
+    _load_last()
     time.sleep(45)
     while True:
         wait = 120
@@ -551,6 +594,7 @@ def _loop():
                 _S["games"] = []
         except Exception as e:
             _S["error"] = str(e)[:120]
+            _note("couldn't read the scores: " + _S["error"][:80])
         time.sleep(wait)
 
 

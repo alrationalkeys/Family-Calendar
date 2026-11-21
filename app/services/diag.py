@@ -171,6 +171,8 @@ def report(q: str = "") -> str:
         from . import gameday
         g = gameday.status()
         L.append(f"game day: {len(g.get('games') or [])} game(s) today, error: {g.get('error') or 'none'}; last light flash: {json.dumps(g.get('flash') or {})}")
+        for ln in (g.get("log") or [])[-10:]:
+            L.append("  game day: " + _hide(ln)[:200])
     except Exception:
         pass
     try:

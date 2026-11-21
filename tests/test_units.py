@@ -362,3 +362,22 @@ def test_village_not_kept_shut_by_a_restart_or_a_daytime_close(monkeypatch):
     monkeypatch.setattr(v, "_evening_now", lambda: True)
     v.on_state("light.porch", {"state": "off"}, {"state": "on", "attributes": {}}, {})
     assert sent[-1] == "/cmd?do=open"
+
+
+def test_gameday_survives_a_restart_mid_game(monkeypatch):
+    """Updating the wall during a game: the next goal and the win are still cheered (scores are kept in the db)."""
+    from app.services import gameday as gd
+    said = []
+    monkeypatch.setattr(gd, "celebrate", lambda g, title, body, s, **k: said.append(title))
+    monkeypatch.setattr(gd, "_asleep", lambda: False)
+    team = {"id": "1", "short": "Devils"}
+    g = lambda us, state, won=None: {"key": "nhl|1|ev", "league": "nhl", "team": team, "opp": "Rangers", "us": us, "them": 1,
+                                    "state": state, "won": won}
+    gd._S["last"].clear()
+    gd.check([g(1, "in")], {})
+    gd._S["last"].clear()                      # the restart: memory gone
+    gd._load_last()
+    gd.check([g(2, "in")], {})
+    gd.check([g(3, "post", True)], {})
+    assert said == ["🎉 Goal, Devils!", "🏆 Devils win!"]
+    gd._S["last"].clear()

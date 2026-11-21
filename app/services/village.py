@@ -353,7 +353,9 @@ def close_for_night(why: str) -> bool:
     except Exception:
         return False
     if not _daytime():
-        _auto({"closed": time.strftime("%H:%M"), "why_closed": why})   # a daytime close never keeps tonight shut
+        _auto({"closed": time.strftime("%H:%M"), "why_closed": why})
+    else:                                           # a daytime close never keeps tonight shut; kept only for Diagnostics
+        _auto({"day_close": time.strftime("%H:%M") + " " + why})
     with _lock:
         _cache["at"] = 0.0
     return True

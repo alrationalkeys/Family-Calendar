@@ -381,3 +381,15 @@ def test_gameday_survives_a_restart_mid_game(monkeypatch):
     gd.check([g(3, "post", True)], {})
     assert said == ["🎉 Goal, Devils!", "🏆 Devils win!"]
     gd._S["last"].clear()
+
+
+def test_routine_keeps_going_past_a_dead_light():
+    """A light with no power (tripped GFCI) must not stop the other lights in the same routine from coming on."""
+    import json as _j
+    from app.services import automations
+    cfg = automations.build({"name": "Sunset", "when": {"type": "sun", "event": "sunset"},
+                             "do": [{"type": "on", "entities": ["light.porch", "light.driveway", "switch.side_plug"]}]})
+    flat = _j.dumps(cfg)
+    assert flat.count('"continue_on_error": true') >= 3
+    for e in ("light.porch", "light.driveway", "switch.side_plug"):
+        assert f'"entity_id": "{e}"' in flat                   # each light is its own step

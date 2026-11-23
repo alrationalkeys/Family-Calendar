@@ -252,7 +252,7 @@ def list_all() -> dict:
         row = {"entity_id": s["entity_id"], "name": a.get("friendly_name") or s["entity_id"],
                "on": s.get("state") == "on", "last": a.get("last_triggered"), "about": "", "id": str(a.get("id") or "")}
         (mine if row["id"].startswith("fhu_") else other).append(row)
-    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_v4")      # bump to rebuild every saved routine once
+    upgrade = not ha_svc.demo_mode() and not _flag_get("routines_v5")      # bump to rebuild every saved routine once
     for r in mine[:40]:
         spec = _MINE.get(r["id"]) if ha_svc.demo_mode() else (get_routine(r["id"]).get("spec"))
         if upgrade and spec:
@@ -263,7 +263,7 @@ def list_all() -> dict:
         r["about"] = summary(spec, names) if spec else "Changed in Home Assistant; edit it there."
         r["editable"] = bool(spec)
     if upgrade:
-        _flag_set("routines_v4")
+        _flag_set("routines_v5")
     if other:
         groups.append({"key": "other", "title": "Made in Home Assistant", "blurb": "Routines created in the Home Assistant app.",
                        "installed": True, "status": [], "automations": other, "settings": []})
@@ -532,17 +532,27 @@ def build(spec: dict) -> dict:
         conds.append({"condition": "state", "entity_id": trig["entity_id"], "state": trig["to"]})
 
     acts = []
+
+    def each(action: str, ids: list, data: dict | None = None):
+        """One step per light, each allowed to fail: a light that's dead (tripped GFCI, unplugged, offline) used to
+        stop the whole routine, so the other lights in it never came on (Nov 23)."""
+        for i in ids:
+            st = {"action": action, "target": {"entity_id": i}, "continue_on_error": True}
+            if data:
+                st["data"] = dict(data)
+            acts.append(st)
+
     for a in spec.get("do") or []:
         k = a.get("type")
         if k in ("on", "off"):
             ids = _ids(a.get("entities"), "light", "switch", "fan", "media_player")     # garage doors: "close" only
             ids = [i for i in ids if not (i.startswith("switch.") and re.search(r"garage|opener|gate", i))]   # no relay-type openers
             if ids:
-                acts.append({"action": f"homeassistant.turn_{k}", "target": {"entity_id": ids}})
+                each(f"homeassistant.turn_{k}", ids)
         elif k == "dim":
             plugs = [i for i in _ids(a.get("entities"), "switch") if not re.search(r"garage|opener|gate", i)]
             if plugs:                      # plugs in a dim step just turn on (they can't dim)
-                acts.append({"action": "homeassistant.turn_on", "target": {"entity_id": plugs}})
+                each("homeassistant.turn_on", plugs)
             ids = _ids(a.get("entities"), "light")
             if ids:
                 pct = a.get("pct")
@@ -553,7 +563,7 @@ def build(spec: dict) -> dict:
                     rgb = a.get("rgb") or []
                     if len(rgb) == 3 and all(isinstance(x, (int, float)) for x in rgb):
                         data["rgb_color"] = [max(0, min(255, int(x))) for x in rgb]
-                acts.append({"action": "light.turn_on", "target": {"entity_id": ids}, "data": data})
+                each("light.turn_on", ids, data)
         elif k == "thermostat":
             ids = _ids(a.get("entities"), "climate")
             mode = a.get("mode") or "heat"

@@ -78,13 +78,13 @@ script:
           ids: "{{ states(list).split(',') | map('trim') | select('match', '^(light|switch)\\.') | list }}"
       - condition: template
         value_template: "{{ ids | count > 0 }}"
-      - if: "{{ turn_on }}"
-        then:
-          - action: homeassistant.turn_on
-            target: { entity_id: "{{ ids }}" }
-        else:
-          - action: homeassistant.turn_off
-            target: { entity_id: "{{ ids }}" }
+      # one light at a time, each allowed to fail: a dead one (tripped GFCI, offline) never stops the others
+      - repeat:
+          for_each: "{{ ids }}"
+          sequence:
+            - action: "{{ 'homeassistant.turn_on' if turn_on else 'homeassistant.turn_off' }}"
+              target: { entity_id: "{{ repeat.item }}" }
+              continue_on_error: true
 
 automation:
   # First start only: fill in the starting values. After that your changes are kept.

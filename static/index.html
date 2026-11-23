@@ -402,10 +402,16 @@
 /* NWS weather warnings: a strip floating over the top of every page (tap = details + storm checklist) */
 (function(){
   const el=document.createElement("div"); el.id="wx-wall";
-  el.style.cssText="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:60; width:min(720px,92vw); pointer-events:auto";
+  // z-index 54: under every pop-up (add sheet 56+, editors, pin pad), so it never covers a form's Close / Cancel.
+  // The ✕ hides that warning on this screen until a different one is issued.
+  el.style.cssText="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:54; width:min(720px,92vw); pointer-events:auto";
   document.body.appendChild(el);
+  const hidden=()=>{ try{ return localStorage.getItem("fh_wx_hidden")||""; }catch(e){ return ""; } };
   const go=async()=>{ if(!window.FHHome||!FHHome.wxAlerts) return; const a=await FHHome.wxAlerts();
-    el.innerHTML=FHHome.wxHTML((a||[]).filter(x=>x.big).slice(0,1)); };
+    const list=(a||[]).filter(x=>x.big && x.id!==hidden()).slice(0,1);
+    el.innerHTML=list.length?`<div style="position:relative">${FHHome.wxHTML(list)}<button id="wx-hide" aria-label="Hide this warning" style="position:absolute; top:-8px; right:-8px; width:34px; height:34px; border-radius:50%; border:2px solid #fff; background:#5c1310; color:#fff; font-size:16px; font-weight:800; cursor:pointer">\u2715</button></div>`:"";
+    const b=document.getElementById("wx-hide");
+    if(b) b.onclick=e=>{ e.stopPropagation(); try{ localStorage.setItem("fh_wx_hidden", list[0].id); }catch(err){} el.innerHTML=""; }; };
   setTimeout(go, 4000); setInterval(go, 300000);
 })();
 </script>

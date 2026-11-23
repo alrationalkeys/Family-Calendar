@@ -42,6 +42,12 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.waitForTimeout(800);
   ok(await w.evaluate(() => window._said[0] === 'Dinner is ready'), 'wall: a phone announcement is spoken even with reminders muted');
   await w.evaluate(() => { _sayQ = Promise.resolve(); FH.get().speakAlerts = true; });
+  // a weather warning's details open full size (the wall's 20 px checkbox style once shrank it), under no pop-up
+  const wxw = await w.evaluate(() => { FHHome.wxHTML([{ id: 'x', big: true, event: 'Coastal Flood Advisory', headline: 'h' }]);
+    const ov = document.createElement('div'); ov.id = 'fhwx-ov'; ov.innerHTML = '<div class="fhwx-box">x</div>'; document.body.appendChild(ov);
+    const wdt = ov.firstChild.getBoundingClientRect().width; ov.remove(); return wdt; });
+  ok(wxw > 300, 'wall: weather warning details open full size');
+  ok(await w.evaluate(() => +getComputedStyle(document.getElementById('wx-wall')).zIndex < +getComputedStyle(document.getElementById('add-box')).zIndex), 'wall: the warning strip sits under the add sheet');
   // text from outside (email subjects, device names, ESPN) must show as text, never run as markup
   await w.evaluate(() => { window._pwned = 0; banner('<img src=x onerror="window._pwned=1">', '<b>bold?</b>'); });
   await w.waitForTimeout(300);

@@ -399,3 +399,4 @@
 .who button{border:1.5px solid var(--pc);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font:inherit;font-size:15px;min-height:38px}
 .who button.on{background:var(--pc);color:#fff;font-weight:600}
 .who button.on::before{content:"✓ "}
+  .hm-dev, .rm-row{-webkit-touch-callout:none; -webkit-user-select:none; user-select:none}   /* press and hold opens the colour sheet */

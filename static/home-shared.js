@@ -294,6 +294,7 @@
     const dot=wh&&wh.querySelector(".fhl-dot");
     function place(rgb){ if(!rgb||!wh) return; const [h,s]=rgbHs(rgb), a=(h-90)*Math.PI/180, r=wh.clientWidth/2;
       dot.style.display=""; dot.style.left=(r+Math.cos(a)*s*r)+"px"; dot.style.top=(r+Math.sin(a)*s*r)+"px"; dot.style.background=`rgb(${rgb.join(",")})`; }
+    if(!wh) return;                     // dims only, or whites only: no colour wheel to wire up (this used to throw)
     let last=0, pend=null, down=false;
     const pick=(e)=>{ const b=wh.getBoundingClientRect(), r=b.width/2, dx=e.clientX-b.left-r, dy=e.clientY-b.top-r;
       const s=Math.min(1,Math.hypot(dx,dy)/r); let h=Math.atan2(dx,-dy)*180/Math.PI; if(h<0) h+=360;

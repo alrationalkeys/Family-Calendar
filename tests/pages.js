@@ -70,6 +70,13 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
     await p.click('#nav-' + tab); await p.waitForTimeout(700);
     ok(await p.locator('#view-' + tab).isVisible(), 'phone: opens the ' + tab + ' tab');
   }
+  // press and hold a light on the Home tab opens brightness + colour
+  await p.click('#nav-home'); await p.waitForTimeout(1500);
+  const held = await p.evaluate(async () => { const el = document.querySelector('.hm-dev[data-eid^="light."]'); if (!el) return 'no light';
+    const r = el.getBoundingClientRect(); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
+    await new Promise(res => setTimeout(res, 800)); const ov = document.getElementById('lpsheet');
+    const okk = !!ov && ov.style.display === 'flex' && ov.querySelector('#lps-body').innerHTML.length > 20; if (ov) closeLightSheet(); return okk; });
+  ok(held === true, 'phone: press and hold a light opens brightness / colour (' + held + ')');
   await p.click('#nav-settings'); await p.waitForTimeout(500);
   const folds = await p.evaluate(() => [...document.querySelectorAll('#view-settings details')].map(d => { d.open = true; d.dispatchEvent(new Event('toggle')); return 1; }).length);
   await p.waitForTimeout(2500);

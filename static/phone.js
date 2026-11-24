@@ -573,7 +573,7 @@ function rmRow(t, strip){
   let extra="";
   if(d==="light"&&t.dimmable) extra=`<div class="rm-dim"><span>🔅</span><input type="range" min="1" max="100" value="${t.on?(t.brightness||100):0}" data-dim="${id}" aria-label="${nm} brightness"><small>${t.on?(t.brightness||100)+"%":"off"}</small></div>`;
   if(d==="light"&&(t.color||t.whites)) extra+=`<button class="rm-colbtn" data-col="${id}">🎨 ${t.color?"Color":"White"}</button><div class="rm-colp" data-colp="${id}" hidden></div>`;
-  return `<div class="rm-row"><div class="rm-top"><div class="rm-ic">${FHHome.haIcon(t)}</div><div class="rm-t"><b>${nm}</b><span class="${cls}">${E(st)}</span></div>${ctl}</div>${extra}<div class="rm-eid">${id}</div></div>`;
+  return `<div class="rm-row" data-eid="${id}"><div class="rm-top"><div class="rm-ic">${FHHome.haIcon(t)}</div><div class="rm-t"><b>${nm}</b><span class="${cls}">${E(st)}</span></div>${ctl}</div>${extra}<div class="rm-eid">${id}</div></div>`;
 }
 function renderRoom(){
   if(!_rmKey||_rmBusy>Date.now()) return;
@@ -664,6 +664,7 @@ $("#rm-3d").onclick=()=>{ const k=_rmKey; if(!k) return; const r=FHHome.getLayou
   else { window.scrollTo({top:0,behavior:"smooth"}); FHHome.focus3D("hero",r); } };
 /* tap feedback: flip the button right away, buzz, say what's happening; the next poll confirms the real state */
 async function hmTap(btn, eid, domain, name){
+  if(_lpHeld){ _lpHeld=false; return; }          // that was a press-and-hold: the colour sheet opened instead
   if(navigator.vibrate) navigator.vibrate(12);
   const wasOn=btn.classList.contains("on"), st=btn.querySelector(".st");
   const verb = domain==="cover" ? (wasOn?"Closing":"Opening") : domain==="lock" ? (wasOn?"Locking":"Unlocking") : domain==="scene"||domain==="script" ? "Running" : (wasOn?"Turning off":"Turning on");
@@ -1636,3 +1637,43 @@ async function init(){
   loadCalTargets();
 }
 init();
+
+/* ---- press and hold a light (Home tab buttons or a room's list) = brightness + colour wheel, like the wall ---- */
+let _lpHeld=false, _lpT=null;
+document.addEventListener("pointerdown", e=>{
+  const el=e.target.closest('.hm-dev[data-eid^="light."], .rm-row[data-eid^="light."]'); if(!el) return;
+  if(el.classList.contains("rm-row")&&e.target.closest("label,button,input,.rm-colp")) return;   // the row's own switch / slider / colours
+  _lpHeld=false; clearTimeout(_lpT);
+  const x0=e.clientX, y0=e.clientY, cancel=()=>{ clearTimeout(_lpT); document.removeEventListener("pointerup",cancel); document.removeEventListener("pointercancel",cancel); document.removeEventListener("pointermove",mv); };
+  const mv=ev=>{ if(Math.abs(ev.clientX-x0)>10||Math.abs(ev.clientY-y0)>10) cancel(); };   // scrolling, not holding
+  document.addEventListener("pointerup",cancel); document.addEventListener("pointercancel",cancel); document.addEventListener("pointermove",mv);
+  _lpT=setTimeout(()=>{ cancel(); _lpHeld=true; setTimeout(()=>{ _lpHeld=false; }, 800); if(navigator.vibrate) navigator.vibrate(20); openLightSheet(el.dataset.eid); }, 500);
+});
+document.addEventListener("contextmenu", e=>{ if(e.target.closest('.hm-dev[data-eid^="light."], .rm-row[data-eid^="light."]')) e.preventDefault(); });
+function openLightSheet(eid){
+  const t=FHHome.tilesOf(hmLast||{}).find(x=>x.entity_id===eid); if(!t) return;
+  let ov=document.getElementById("lpsheet");
+  if(!ov){ ov=document.createElement("div"); ov.id="lpsheet";
+    ov.style.cssText="position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center";
+    ov.innerHTML='<div style="background:var(--panel,#1c1c1c);color:var(--ink,#eee);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><b id="lps-name" style="flex:1;font-size:18px"></b><button id="lps-tg" style="border:0;border-radius:12px;padding:9px 14px;font:inherit;font-weight:700;background:var(--panel2,#333);color:inherit"></button><button id="lps-x" aria-label="Close" style="border:0;border-radius:50%;width:38px;height:38px;background:var(--panel2,#333);color:inherit;font-size:16px">✕</button></div>'+
+      '<div id="lps-state" style="color:var(--ink-dim,#aaa);font-size:13px;margin-bottom:8px"></div><div id="lps-body"></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", e=>{ if(e.target===ov) closeLightSheet(); });
+    ov.querySelector("#lps-x").onclick=closeLightSheet; }
+  _rmBusy=Date.now()+600000;                       // don't redraw underneath while a colour is being picked
+  const draw=()=>{
+    ov.querySelector("#lps-name").textContent=t.name;
+    ov.querySelector("#lps-state").textContent=t.on?("On"+(t.brightness!=null?" · "+t.brightness+"%":"")):"Off";
+    ov.querySelector("#lps-tg").textContent=t.on?"Turn off":"Turn on";
+    const body=ov.querySelector("#lps-body");
+    if(!t.dimmable&&!t.color&&!t.whites){ body.innerHTML='<div style="color:var(--ink-dim,#aaa);font-size:14px;line-height:1.4">Home Assistant says this one can only switch on and off. Brightness and color need the LED controller itself in Home Assistant, not the switch or plug that powers it.</div>'; return; }
+    body.innerHTML=FHHome.lightPanelHTML(t);
+    FHHome.bindLightPanel(body, t, async data=>{ if(navigator.vibrate) navigator.vibrate(6);
+      try{ await post("/api/ha/service",{domain:"light", service:"turn_on", entity_id:eid, data}); t.on=true;
+        ov.querySelector("#lps-state").textContent="On"; ov.querySelector("#lps-tg").textContent="Turn off"; }catch(err){ toast("Couldn't reach the wall"); } });
+  };
+  ov.querySelector("#lps-tg").onclick=async()=>{ try{ await post("/api/ha/toggle",{entity_id:eid}); t.on=!t.on; draw(); }catch(err){ toast("Couldn't reach the wall"); } };
+  draw(); ov.style.display="flex";
+}
+function closeLightSheet(){ const ov=document.getElementById("lpsheet"); if(ov) ov.style.display="none"; _rmBusy=0; setTimeout(loadHM, 300); }

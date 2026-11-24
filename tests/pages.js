@@ -47,6 +47,10 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
     const ov = document.createElement('div'); ov.id = 'fhwx-ov'; ov.innerHTML = '<div class="fhwx-box">x</div>'; document.body.appendChild(ov);
     const wdt = ov.firstChild.getBoundingClientRect().width; ov.remove(); return wdt; });
   ok(wxw > 300, 'wall: weather warning details open full size');
+  // camera sound: hidden until a live feed with audio plays; a tap turns the video's sound on
+  ok(await w.evaluate(() => { const v = document.getElementById('cam-video'); const fake = { _sound: false, hasAudio: () => true, sound(on) { this._sound = on; v.muted = !on; return on; } };
+    camSound(fake, true); const b = document.getElementById('cam-snd'); const shown = b.style.display === ''; b.click();
+    const on = !v.muted; camSound(null, false); v.muted = true; return shown && on && b.style.display === 'none'; }), 'wall: camera sound button turns sound on');
   ok(await w.evaluate(() => +getComputedStyle(document.getElementById('wx-wall')).zIndex < +getComputedStyle(document.getElementById('add-box')).zIndex), 'wall: the warning strip sits under the add sheet');
   // text from outside (email subjects, device names, ESPN) must show as text, never run as markup
   await w.evaluate(() => { window._pwned = 0; banner('<img src=x onerror="window._pwned=1">', '<b>bold?</b>'); });

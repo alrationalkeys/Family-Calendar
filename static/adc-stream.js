@@ -64,7 +64,10 @@
         } else if(Date.now()-lastMove>freeze){ clearInterval(this._watch); this._connected=false; this._fail(gen,"frozen"); }
       }, 500);
     }
-    _play(){ const v=this.video; if(v&&(v.paused||v.ended)){ v.muted=true; v.playsInline=true; v.play().catch(()=>{}); } }
+    // Starts muted (browsers only autoplay silent video); sound(true) from a tap turns the camera's microphone audio on.
+    _play(){ const v=this.video; if(v&&(v.paused||v.ended)){ v.muted=!this._sound; v.playsInline=true; v.play().catch(()=>{ if(!v.muted){ v.muted=true; this._sound=false; v.play().catch(()=>{}); } }); } }
+    hasAudio(){ try{ return !!(this.video.srcObject&&this.video.srcObject.getAudioTracks().length); }catch(e){ return false; } }
+    sound(on){ this._sound=!!on; const v=this.video; if(!v) return false; v.muted=!on; if(on){ v.volume=1; v.play().catch(()=>{}); } return !v.muted; }
     _pc(cfg, gen){
       const pc=new RTCPeerConnection({iceServers:cfg.iceServers||[]}); this.pc=pc;
       pc.ontrack=(e)=>{ if(gen!==this._gen) return; if(!this.video.srcObject){ this.video.srcObject=e.streams[0]; this._watchFrames(gen); } this._play(); };

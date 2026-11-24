@@ -1719,7 +1719,7 @@ $("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser()
 /* ---- cameras: tap a camera tile/pin, or the doorbell rings ---- */
 let lastRing=null, _camTimer=null, _camClose=null, _camEid=null, _camStream=null;
 function openCamera(eid, name, opts){
-  opts=opts||{}; _camEid=eid; resetSleep(); wake();
+  opts=opts||{}; _camEid=eid; resetSleep(); wake(); camSound(null, false);
   const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.remove("live"); ov.classList.add("on");
   $("#cam-title").textContent=(opts.ring?"🔔 ":"📷 ")+(name||"Camera");
   $("#cam-when").textContent=opts.ring?"Someone's at the door":"";
@@ -1730,14 +1730,20 @@ function openCamera(eid, name, opts){
   if(_camStream) _camStream.stop();
   if(window.ADCStream){
     _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st,why)=>{ if(_camEid!==eid) return;
-      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; }
+      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live'; camSound(_camStream, true); }
       else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · showing a fresh picture every 3 s · <a href="#" id="cam-retry" style="color:#fff;font-weight:700;display:inline-block;margin-left:8px;padding:8px 16px;border-radius:18px;background:rgba(255,255,255,.18);text-decoration:none">Try live again</a>'; const rb=$("#cam-retry"); if(rb) rb.onclick=(e)=>{ e.preventDefault(); e.stopPropagation(); _camStream._retries=0; _camStream.start(); }; }
       else if(st==="connecting"){ ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed…"; } }});
     _camStream.start();
   }
   clearTimeout(_camClose); _camClose=setTimeout(closeCamera, opts.ring?90000:180000);
 }
-function closeCamera(){ $("#camov").classList.remove("on","ring","live"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
+function closeCamera(){ $("#camov").classList.remove("on","ring","live"); clearInterval(_camTimer); clearTimeout(_camClose); _camEid=null; camSound(null, false); if(_camStream){ _camStream.stop(); _camStream=null; } }
+/* camera sound: a speaker button shows once the live feed is playing and carries audio; tap = on/off (starts muted) */
+function camSound(stream, show){ const b=$("#cam-snd"); if(!b) return; if(!show||!stream){ b.style.display="none"; return; }
+  b.style.display=stream.hasAudio()?"":"none"; if(b.style.display&&!camSound._again){ camSound._again=1; setTimeout(()=>{ camSound._again=0; if(_camStream===stream) camSound(stream, true); }, 2500); }
+  b.textContent=stream._sound?"\u{1F50A}":"\u{1F507}";
+  b.onclick=(e)=>{ e.stopPropagation(); const on=stream.sound(!stream._sound); b.textContent=on?"\u{1F50A}":"\u{1F507}"; }; }
+
 $("#cam-close").onclick=closeCamera;
 $("#camov").onclick=(e)=>{ if(e.target.id==="camov") closeCamera(); };
 async function onRing(){

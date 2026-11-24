@@ -410,15 +410,21 @@ FHHome.toggle = async (eid)=>{
   setTimeout(loadHM, 350); };
 FHHome.remote = (eid,name)=>{ switchView("tv"); setTimeout(()=>openTV(eid,name), 150); };
 let _camT=null, _camEid=null, _camStream=null;
-function openCam(eid,name){ _camEid=eid; const ov=$("#camov"); $("#cam-title").textContent="📷 "+(name||"Camera"); ov.classList.remove("live"); ov.classList.add("on");
+function openCam(eid,name){ camSound(null, false); _camEid=eid; const ov=$("#camov"); $("#cam-title").textContent="📷 "+(name||"Camera"); ov.classList.remove("live"); ov.classList.add("on");
   const tick=()=>{ if(_camEid!==eid||ov.classList.contains("live")) return; $("#cam-img").src=`/api/ha/camera/${encodeURIComponent(eid)}?v=1&t=${Date.now()}`; }; tick(); clearInterval(_camT); _camT=setInterval(tick,3000);
   $("#cam-foot").textContent="Connecting to the live feed…";
   if(_camStream) _camStream.stop();
   if(window.ADCStream){ _camStream=new ADCStream($("#cam-video"), eid, {onstatus:(st)=>{ if(_camEid!==eid) return;
-      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live · tap ✕ to close'; }
+      if(st==="live"){ ov.classList.add("live"); $("#cam-foot").innerHTML='<span class="live-dot"></span>Live · tap ✕ to close'; camSound(_camStream, true); }
       else if(st==="failed"){ ov.classList.remove("live"); $("#cam-foot").innerHTML='Live view isn\u2019t answering · new picture every 3 s<br><button id="cam-retry" style="margin-top:10px;border:0;border-radius:18px;padding:8px 16px;background:rgba(255,255,255,.18);color:#fff;font:inherit;font-weight:700">Try live again</button>'; const rb=$("#cam-retry"); if(rb) rb.onclick=()=>{ if(_camStream){ _camStream._retries=0; _camStream.start(); } }; }
       else { ov.classList.remove("live"); $("#cam-foot").textContent="Connecting to the live feed… (doorbells can take a few seconds to wake)"; } }}); _camStream.start(); } }
-function closeCam(){ $("#camov").classList.remove("on","live"); clearInterval(_camT); _camEid=null; if(_camStream){ _camStream.stop(); _camStream=null; } }
+function closeCam(){ $("#camov").classList.remove("on","live"); clearInterval(_camT); _camEid=null; camSound(null, false); if(_camStream){ _camStream.stop(); _camStream=null; } }
+/* camera sound: a speaker button shows once the live feed is playing and carries audio; tap = on/off (starts muted) */
+function camSound(stream, show){ const b=$("#cam-snd"); if(!b) return; if(!show||!stream){ b.style.display="none"; return; }
+  b.style.display=stream.hasAudio()?"":"none"; if(b.style.display&&!camSound._again){ camSound._again=1; setTimeout(()=>{ camSound._again=0; if(_camStream===stream) camSound(stream, true); }, 2500); }
+  b.textContent=stream._sound?"\u{1F50A}":"\u{1F507}";
+  b.onclick=(e)=>{ e.stopPropagation(); const on=stream.sound(!stream._sound); b.textContent=on?"\u{1F50A}":"\u{1F507}"; }; }
+
 $("#cam-close").onclick=closeCam;
 FHHome.camera = (eid,name)=>openCam(eid,name);
 FHHome.rerender = ()=>{ if(hmLast) renderHM(hmLast, true); };

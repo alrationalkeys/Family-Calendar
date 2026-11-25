@@ -2265,8 +2265,11 @@ function applyWallMic(){
       finally{ clearTimeout(slow); clearTimeout(to); }
       if(r.timer && (r.timer.cancel||r.timer.query)) r.say=timerVoice(r.timer);
       status(""); $("#vo-reply").textContent=r.say||"";
-      sayAloud(r.say);
-      if(r.timer && !r.timer.cancel && !r.timer.query) startTimer(r.timer.seconds, r.timer.label);
+      const spoken=sayAloud(r.say);
+      if(r.timer && !r.timer.cancel && !r.timer.query){   // count from when it finishes saying "Timer set…" (max 10 s wait)
+        const tm=r.timer; let go=false; const begin=()=>{ if(!go){ go=true; startTimer(tm.seconds, tm.label); } };
+        Promise.resolve(spoken).catch(()=>{}).then(begin); setTimeout(begin, 10000);
+      }
       if(r.briefing){ sayBriefingNow(r.briefing); }
       if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }

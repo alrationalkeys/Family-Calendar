@@ -48,6 +48,14 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.waitForTimeout(2500);
   ok(await w.evaluate(() => timers.length === 1 && timers[0].total === 300 && /egg/i.test(timers[0].label)), 'wall: wake word + "5 minute timer for eggs" starts the Eggs timer');
   await w.evaluate(() => { cancelAllTimers(); document.getElementById('voiceov').classList.remove('on'); });
+  // a voice timer starts counting only after the wall finishes saying "Timer set…"
+  await w.evaluate(() => { cancelAllTimers(); window._done = null; sayAloud = () => new Promise(r => { window._done = r; }); });
+  await w.evaluate(b => fetch(b + '/api/ai/wake/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'set a timer for 6 seconds' }) }), base);
+  await w.waitForTimeout(2000);
+  const before = await w.evaluate(() => timers.length);
+  await w.evaluate(() => window._done && window._done()); await w.waitForTimeout(200);
+  ok(before === 0 && await w.evaluate(() => timers.length === 1 && timers[0].total === 6), 'wall: a spoken timer starts after "Timer set" is said');
+  await w.evaluate(() => { cancelAllTimers(); sayAloud = s => { (window._said = window._said || []).push(s); }; });
   // turning timers off by voice: by name, "how long left", and "stop" while one rings (handled on the wall, no server trip)
   ok(await w.evaluate(() => { cancelAllTimers(); startTimer(300, 'Chicken'); startTimer(600, 'Rice');
     const q = timerVoice({ query: true, label: 'Rice' }); const c = timerVoice({ cancel: true, label: 'Chicken' });

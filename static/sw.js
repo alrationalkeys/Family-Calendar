@@ -2,7 +2,7 @@
    Network-first so updates always come through online; falls back to the cached
    shell when offline. API calls are left alone — the app caches those itself
    (localStorage) so a dropped internet still shows the last calendar/weather. */
-const CACHE = "familyhub-v9";
+const CACHE = "familyhub-v10";
 const SHELL = ["/", "/index.html", "/wall.css", "/wall.js", "/theme.js", "/seasonal.js", "/manifest.json"];
 
 self.addEventListener("install", (e) => {

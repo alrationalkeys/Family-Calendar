@@ -68,7 +68,7 @@ const Seasonal = (() => {
   function raindrop() {
     const z = Math.random() < 0.5 ? 0 : (Math.random() < 0.65 ? 1 : 2);
     return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, z,
-      len: BIG([18, 30, 46][z] + Math.random()*14), sp: [10, 15, 21][z] + (intense?4:0) + Math.random()*5 };
+      len: BIG([13, 22, 34][z] + Math.random()*10), sp: [9, 13, 18][z] + (intense?4:0) + Math.random()*5 };
   }
   function fogblob() {
     return { x: Math.random()*canvas.width, y: canvas.height*(0.25+Math.random()*0.7),
@@ -87,7 +87,7 @@ const Seasonal = (() => {
     particles = [];
     clearInterval(fireworkTimer);   // always reset so switching modes is clean
     if (mode === "snow") for (let i=0;i<N(110);i++) particles.push(snowflake());
-    else if (mode === "rain" || mode === "thunder") { for (let i=0;i<N(300);i++) particles.push(raindrop()); splashes = []; }
+    else if (mode === "rain" || mode === "thunder") { for (let i=0;i<N(240);i++) particles.push(raindrop()); splashes = []; }
     else if (mode === "fog") for (let i=0;i<N(14);i++) particles.push(fogblob());
     else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
     else if (mode === "leaves") for (let i=0;i<N(40);i++) particles.push(leaf());
@@ -120,10 +120,10 @@ const Seasonal = (() => {
     } else if (mode === "rain" || mode === "thunder") {
       if (mode === "thunder") maybeFlash();
       const light = document.documentElement.getAttribute("data-theme")==="light";
-      const W = [1.3, 2.3, 3.4], A = light ? [.4, .6, .8] : [.42, .65, .9];
+      const W = [1.2, 1.8, 2.6], A = light ? [.32, .48, .65] : [.32, .5, .7];
       const wind = intense ? 3.2 : 2.2;
       // a stormy blue-grey cast over the whole screen
-      ctx.fillStyle = light ? "rgba(40,70,110,.07)" : "rgba(30,55,95,.16)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = light ? "rgba(40,70,110,.04)" : "rgba(30,55,95,.08)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
       // one path per depth (not one per drop): far more drops for the same processor time
       for (let z = 0; z < 3; z++) {
         ctx.strokeStyle = light ? `rgba(60,95,150,${A[z]})` : `rgba(205,225,255,${A[z]})`;
@@ -133,7 +133,7 @@ const Seasonal = (() => {
           if (p.z !== z) continue;
           p.y += p.sp; p.x += wind * (0.6 + z*0.3);
           if (p.y > canvas.height+20) {
-            if (z > 0 && splashes.length < 60 && Math.random() < 0.6) splashes.push({ x: p.x, y: canvas.height - 4 - Math.random()*10, r: 1, life: 1, z });
+            if (z > 0 && splashes.length < 40 && Math.random() < 0.4) splashes.push({ x: p.x, y: canvas.height - 4 - Math.random()*10, r: 1, life: 1, z });
             p.y = -20 - Math.random()*80; p.x = Math.random()*(canvas.width+200) - 200;
           }
           const dx = wind * (0.6 + z*0.3) * p.len / p.sp;
@@ -143,7 +143,7 @@ const Seasonal = (() => {
       }
       // little splash rings along the bottom of the screen
       ctx.lineWidth = 1.4;
-      ctx.strokeStyle = light ? "rgba(60,95,150,.6)" : "rgba(215,232,255,.7)";
+      ctx.strokeStyle = light ? "rgba(60,95,150,.45)" : "rgba(215,232,255,.5)";
       splashes = splashes.filter(sp => sp.life > 0);
       for (const sp of splashes) {
         sp.r += 0.9 + sp.z*0.5; sp.life -= 0.07;

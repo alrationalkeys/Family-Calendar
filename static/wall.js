@@ -2355,6 +2355,7 @@ function applyWallMic(){
       if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")) return;
       clearTimeout(window._voHide); finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent="";
       status("Listening…"); fab.classList.add("listening"); show();
+      if(_ttsAudio){ try{ _ttsAudio.pause(); }catch(e){} if(_ttsDone){ _ttsDone(); _ttsDone=null; } }   // stop talking so it hears you
       if(_alarm) stopAlarm(); else chime();              // a ringing timer goes quiet so it can hear you (it stays "done")
       clearTimeout(window._wakeStuck); window._wakeStuck=setTimeout(()=>{ fab.classList.remove("listening"); }, 15000);
       return;

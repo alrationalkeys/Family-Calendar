@@ -453,3 +453,5 @@ def test_voice_turns_timers_off():
     assert i("cancel all timers")["timer"]["all"] is True
     assert i("how much time is left on the chicken timer")["timer"] == {"query": True, "label": "Chicken"}
     assert i("set a timer for 5 minutes for chicken")["timer"] == {"seconds": 300, "label": "Chicken"}
+    assert i("Top the timer")["timer"]["cancel"] is True        # Whisper dropped the "s" of "stop"
+    assert "How long" in i("set a timer")["say"]

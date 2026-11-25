@@ -803,15 +803,18 @@ def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
     # kitchen timer: "set a timer for 10 minutes", "5 minute timer", "cancel the timer"
     if "timer" in w or "timers" in w:
         if w & {"left", "remaining"} or re.search(r"\bhow (much|long)\b", t.lower()):
-            return {"ok": True, "say": "", "timer": {"query": True, "label": _cancel_label(t)}}   # the wall knows its timers
+            return {"ok": True, "say": "(the wall reads its timers)", "timer": {"query": True, "label": _cancel_label(t)}}   # the wall knows its timers
         if w & {"cancel", "stop", "clear", "kill", "off", "dismiss", "end", "delete", "remove", "silence"} and not _timer_seconds(t):
-            return {"ok": True, "say": "", "timer": {"cancel": True, "all": bool(w & {"all", "every", "timers", "both"}),
+            return {"ok": True, "say": "Okay.", "timer": {"cancel": True, "all": bool(w & {"all", "every", "timers", "both"}),
                                                    "label": _cancel_label(t)}}
         secs = _timer_seconds(t)
         if secs:
             label = _timer_label(t)
             return {"ok": True, "say": f"Timer set for {_say_duration(secs)}" + (f" for {label}" if label else "") + ".",
                     "timer": {"seconds": secs, "label": label}}
+        if not w & {"set", "start", "make", "new", "add", "put", "create", "need", "want", "give"}:
+            # no duration and no "set": "Top the timer", "the timer" = Whisper dropped the "stop"
+            return {"ok": True, "say": "Okay.", "timer": {"cancel": True, "all": False, "label": None}}
         return {"ok": False, "say": "How long? Say something like: set a timer for ten minutes."}
 
     # the Christmas village: "start the train", "stop the train", "Rachell's show", "tree show",

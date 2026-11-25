@@ -48,6 +48,11 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.waitForTimeout(2500);
   ok(await w.evaluate(() => timers.length === 1 && timers[0].total === 300 && /egg/i.test(timers[0].label)), 'wall: wake word + "5 minute timer for eggs" starts the Eggs timer');
   await w.evaluate(() => { cancelAllTimers(); document.getElementById('voiceov').classList.remove('on'); });
+  // turning timers off by voice: by name, "how long left", and "stop" while one rings (handled on the wall, no server trip)
+  ok(await w.evaluate(() => { cancelAllTimers(); startTimer(300, 'Chicken'); startTimer(600, 'Rice');
+    const q = timerVoice({ query: true, label: 'Rice' }); const c = timerVoice({ cancel: true, label: 'Chicken' });
+    return /Rice has (9|10) minutes left/.test(q) && c === 'Cancelled the chicken timer.' && timers.length === 1 && timers[0].label === 'Rice'; }), 'wall: voice cancels the chicken timer by name and tells time left');
+  ok(await w.evaluate(() => { timers[0].end = Date.now() - 1000; timers[0].rang = true; startAlarm(); return timerVoice({ cancel: true }) === 'Okay.' && timers.length === 0 && !_alarm; }), 'wall: "stop" silences a ringing timer');
   // a weather warning's details open full size (the wall's 20 px checkbox style once shrank it), under no pop-up
   const wxw = await w.evaluate(() => { FHHome.wxHTML([{ id: 'x', big: true, event: 'Coastal Flood Advisory', headline: 'h' }]);
     const ov = document.createElement('div'); ov.id = 'fhwx-ov'; ov.innerHTML = '<div class="fhwx-box">x</div>'; document.body.appendChild(ov);

@@ -182,6 +182,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   box and runs `handleText` after `POST /api/ai/wake/claim` (one screen only). settings.wakeWord (hey_jarvis default |
   hey_mycroft | hey_rhasspy | alexa | a custom models/wakeword/<name>.onnx | off), wakeSensitivity low|normal|high.
   `GET /api/ai/wake`, `POST /api/ai/wake/test {text}`. Install `setup/install-wakeword.sh`. Phone Settings > Advanced > Voice.
+  Timers by voice: interpret returns timer {cancel, all, label} / {query, label}; the wall's `timerVoice()` does it (by name,
+  all, the ringing one, the only one, else asks which) and answers; "stop/okay/thanks…" while one rings is handled on the wall
+  in handleText; the wake word silences a ringing timer, and the word alone (nothing after) dismisses it.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

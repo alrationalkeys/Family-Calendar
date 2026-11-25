@@ -2096,6 +2096,34 @@ function startTimer(seconds, label){
   saveTimers(); renderTimers(); resetSleep();
 }
 function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); if(!timers.some(t=>t.rang)) stopAlarm(); saveTimers(); renderTimers(); }
+function ringingTimers(){ return timers.filter(t=>t.rang || t.end<=Date.now()); }
+/* "stop" / "cancel the chicken timer" / "cancel all timers" / "how much time is left" -> what the wall says back */
+function timerVoice(t){
+  const name=x=>x.label?`the ${x.label.toLowerCase()} timer`:"the timer";
+  const left=x=>{ const s=Math.max(0,Math.round((x.end-Date.now())/1000)), m=Math.floor(s/60), r=s%60;
+    return m>=1 ? `${m} minute${m==1?"":"s"}${m<10&&r>=15?` and ${r} seconds`:""}` : `${r} seconds`; };
+  if(t.query){
+    let run=timers.filter(x=>x.end>Date.now()); const ql=(t.label||"").toLowerCase();
+    if(ql && run.some(x=>(x.label||"").toLowerCase().includes(ql))) run=run.filter(x=>(x.label||"").toLowerCase().includes(ql));
+    if(!run.length) return ringingTimers().length?"Your timer is done.":"There are no timers running.";
+    return run.map((x,i)=>`${x.label?x.label:(run.length>1?"Timer "+(i+1):"The timer")} has ${left(x)} left`).join(". ")+".";
+  }
+  if(!timers.length){ stopAlarm(); return "There are no timers."; }
+  const ring=ringingTimers(), lbl=(t.label||"").toLowerCase();
+  let gone;
+  if(lbl){ gone=timers.filter(x=>(x.label||"").toLowerCase().includes(lbl)||lbl.includes((x.label||"~").toLowerCase()));
+    if(!gone.length) return `There's no ${lbl} timer.`; }
+  else if(t.all) gone=timers.slice();
+  else if(ring.length) gone=ring;                      // "stop the timer" while one rings = that one
+  else if(timers.length===1) gone=timers.slice();
+  else return `You have ${timers.length} timers: ${timers.map(x=>x.label||"one without a name").join(", ")}. Say which one, or all timers.`;
+  const ids=new Set(gone.map(x=>x.id)); timers=timers.filter(x=>!ids.has(x.id));
+  if(!timers.some(x=>x.rang||x.end<=Date.now())) stopAlarm();
+  saveTimers(); renderTimers();
+  const wasRinging=gone.every(x=>x.rang||x.end<=Date.now());
+  if(wasRinging) return "Okay.";
+  return gone.length>1 ? `Cancelled ${gone.length} timers.` : `Cancelled ${name(gone[0])}.`;
+}
 function cancelAllTimers(){ timers=[]; stopAlarm(); saveTimers(); renderTimers(); }
 /* The alarm: an Alexa-style two-tone chime that keeps going (up to 60 s) until someone taps
    the screen, hits Dismiss, or says "stop". A one-off beep is easy to miss from the next room. */
@@ -2222,7 +2250,12 @@ function applyWallMic(){
   async function handleText(text){
     text=(text||"").trim();
     if(!text){ status("Didn't catch that — tap the mic and try again, a little closer."); return; }
-    $("#vo-heard").textContent=text; status("Working…");
+    $("#vo-heard").textContent=text;
+    if(ringingTimers().length && /^(please )?(stop|ok(ay)?|dismiss|quiet|enough|shut (it )?(up|off)|turn (it )?off|off|thanks?( you)?|got it|i got it|done|cancel( it)?|silence)\b/i.test(text.replace(/^[^a-z]+/i,"")) && !/\b(lights?|tv|music|train|village|fan)\b/i.test(text)){
+      const say=timerVoice({cancel:true}); $("#vo-reply").textContent=say; sayAloud(say);      // "stop" while a timer rings: no trip to the server
+      clearTimeout(window._voHide); window._voHide=setTimeout(hide, 3000); return;
+    }
+    status("Working…");
     try{
       const slow=setTimeout(()=>status("Still thinking… (looking it up)"), 8000);
       const ac=new AbortController(), to=setTimeout(()=>ac.abort(), 75000);
@@ -2230,9 +2263,10 @@ function applyWallMic(){
       try{ r=await fetch("/api/ai/command",{method:"POST",headers:{"Content-Type":"application/json","X-FH-Source":"wall"},
         body:JSON.stringify({text}), signal:ac.signal}).then(x=>x.json()); }
       finally{ clearTimeout(slow); clearTimeout(to); }
+      if(r.timer && (r.timer.cancel||r.timer.query)) r.say=timerVoice(r.timer);
       status(""); $("#vo-reply").textContent=r.say||"";
       sayAloud(r.say);
-      if(r.timer){ if(r.timer.cancel) cancelAllTimers(); else startTimer(r.timer.seconds, r.timer.label); }
+      if(r.timer && !r.timer.cancel && !r.timer.query) startTimer(r.timer.seconds, r.timer.label);
       if(r.briefing){ sayBriefingNow(r.briefing); }
       if(r.person_mode){ const p=(people||[]).find(x=>x.id===r.person_mode); if(p) openKidMode(p); }
       if(r.refresh){ load(); if(curPage==="home"&&typeof loadHome==="function") loadHome(); loadHomeStatus(); }
@@ -2320,11 +2354,13 @@ function applyWallMic(){
     if(d.stage==="listening"){
       if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")) return;
       clearTimeout(window._voHide); finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent="";
-      status("Listening…"); fab.classList.add("listening"); show(); chime();
+      status("Listening…"); fab.classList.add("listening"); show();
+      if(_alarm) stopAlarm(); else chime();              // a ringing timer goes quiet so it can hear you (it stays "done")
       clearTimeout(window._wakeStuck); window._wakeStuck=setTimeout(()=>{ fab.classList.remove("listening"); }, 15000);
       return;
     }
     fab.classList.remove("listening"); clearTimeout(window._wakeStuck);
+    if(d.stage==="nothing" && ringingTimers().length){ timerVoice({cancel:true}); hide(); return; }   // just the wake word while it rang = "stop"
     if(d.stage==="nothing"){ if($("#voiceov").classList.contains("on")){ status("Didn't catch that. Say the wake word and try again."); clearTimeout(window._voHide); window._voHide=setTimeout(hide, 4000); } return; }
     if(d.stage==="heard" && d.text){
       let ok=false; try{ ok=!!(await (await post("/api/ai/wake/claim",{n:d.n})).json()).ok; }catch(e){}

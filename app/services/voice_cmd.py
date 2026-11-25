@@ -417,6 +417,16 @@ def _timer_seconds(text: str) -> int:
 _DUR_RE = r"(?:\d+(?:\.\d+)?|[a-z]+)(?:\s+and\s+a\s+half)?\s*(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)\b(?:\s+and\s+a\s+half)?"
 
 
+def _cancel_label(text: str):
+    """'cancel the chicken timer' / 'stop the timer for the eggs' -> 'chicken' / 'eggs' (None = no name given)."""
+    drop = {"cancel", "stop", "clear", "kill", "off", "dismiss", "end", "delete", "remove", "silence", "the", "my", "a", "an",
+            "timer", "timers", "for", "please", "turn", "shut", "all", "every", "both", "of", "that", "this", "it", "hey",
+            "ok", "okay", "alexa", "jarvis", "can", "you", "and", "kitchen", "now", "how", "much", "long", "left",
+            "remaining", "is", "on", "time", "there", "does", "have", "what", "s", "minutes", "are"}
+    left = [x for x in re.findall(r"[a-z]+", text.lower()) if x not in drop]
+    return " ".join(left).title() if left else None
+
+
 def _timer_label(text: str):
     """'set a timer for pasta for 8 minutes' -> 'Pasta'. Strips the duration first
     so 'for an hour and a half' never becomes a label."""
@@ -792,8 +802,11 @@ def _interpret(text: str, use_ai: bool = True, ai_down: bool = False) -> dict:
 
     # kitchen timer: "set a timer for 10 minutes", "5 minute timer", "cancel the timer"
     if "timer" in w or "timers" in w:
-        if w & {"cancel", "stop", "clear", "kill"}:
-            return {"ok": True, "say": "Timer cancelled.", "timer": {"cancel": True}}
+        if w & {"left", "remaining"} or re.search(r"\bhow (much|long)\b", t.lower()):
+            return {"ok": True, "say": "", "timer": {"query": True, "label": _cancel_label(t)}}   # the wall knows its timers
+        if w & {"cancel", "stop", "clear", "kill", "off", "dismiss", "end", "delete", "remove", "silence"} and not _timer_seconds(t):
+            return {"ok": True, "say": "", "timer": {"cancel": True, "all": bool(w & {"all", "every", "timers", "both"}),
+                                                   "label": _cancel_label(t)}}
         secs = _timer_seconds(t)
         if secs:
             label = _timer_label(t)

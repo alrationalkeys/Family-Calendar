@@ -442,3 +442,14 @@ def test_wake_word_runs_once_on_one_screen(monkeypatch):
     assert wake.event()["stage"] == "heard"
     assert wake.claim(n) is True and wake.claim(n) is False       # a second wall doesn't set a second timer
     assert wake.claim(n - 1) is False
+
+
+def test_voice_turns_timers_off():
+    """"Alexa, cancel the chicken timer" / "stop the timer" / "cancel all timers" / "how much time is left"."""
+    from app.services.voice_cmd import interpret as i
+    assert i("cancel the chicken timer")["timer"] == {"cancel": True, "all": False, "label": "Chicken"}
+    assert i("turn off the timer for the eggs")["timer"]["label"] == "Eggs"
+    assert i("stop the timer")["timer"] == {"cancel": True, "all": False, "label": None}
+    assert i("cancel all timers")["timer"]["all"] is True
+    assert i("how much time is left on the chicken timer")["timer"] == {"query": True, "label": "Chicken"}
+    assert i("set a timer for 5 minutes for chicken")["timer"] == {"seconds": 300, "label": "Chicken"}

@@ -42,6 +42,7 @@ _S: dict = {"running": False, "word": "", "error": "", "mic": "", "wakes": 0, "l
 _event: dict = {"n": 0, "stage": "", "text": "", "at": 0}
 _claimed = 0
 _lock = threading.Lock()
+_busy = threading.Lock()           # held while a command is being turned into text
 _started = False
 
 
@@ -252,6 +253,11 @@ def _prefetch_words():
 
 
 def _handle(frames, word: str, t0: float):
+    with _busy:
+        _handle_one(frames, word, t0)
+
+
+def _handle_one(frames, word: str, t0: float):
     from . import speech, voice_cmd
     if not frames:
         _publish("nothing")
@@ -317,6 +323,9 @@ def _loop():
                     w2, thr = wanted()
                     if w2 != word:
                         break
+                if score >= thr and now - last_wake > COOLDOWN and _busy.locked():
+                    last_wake = now                         # still working on the last one: don't pile a second on top
+                    continue
                 if score >= thr and now - last_wake > COOLDOWN:
                     last_wake = now
                     _S["wakes"] += 1

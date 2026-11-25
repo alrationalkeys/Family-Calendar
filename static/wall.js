@@ -2136,14 +2136,18 @@ function startAlarm(){
   try{
     _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
     const ctx=_beepCtx, started=Date.now();
-    const ring=()=>{ const t0=ctx.currentTime;
+    // after the first few rings it leaves 2 s of quiet between chimes, softer, so the wake word ("Alexa… stop") can be heard
+    let n=0;
+    const ring=()=>{ const t0=ctx.currentTime, vol=n<3?0.7:0.45; n++;
       [[0,988],[0.18,1319],[0.36,988],[0.54,1319]].forEach(([dt,f])=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type="triangle"; o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
-        const t=t0+dt; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.7,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.18); }); };
-    ring(); _alarm=setInterval(()=>{ if(Date.now()-started>60000){ stopAlarm(); return; } ring(); }, 1400);
+        const t=t0+dt; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.18); }); };
+    const loop=()=>{ if(!_alarm) return; if(Date.now()-started>60000){ stopAlarm(); return; } ring(); _alarm=setTimeout(loop, n<=3?1400:2800); };
+    ring(); _alarm=setTimeout(loop, 1400);
+    post("/api/ai/wake/ringing",{on:true}).catch(()=>{});
     $("#timerpill").classList.add("ringing");
   }catch(e){}
 }
-function stopAlarm(){ if(_alarm){ clearInterval(_alarm); _alarm=null; } }
+function stopAlarm(){ if(_alarm){ clearTimeout(_alarm); _alarm=null; post("/api/ai/wake/ringing",{on:false}).catch(()=>{}); } }
 // any tap anywhere silences the ringing (the timer stays "done" until dismissed)
 document.addEventListener("pointerdown", ()=>{ if(_alarm) stopAlarm(); }, true);
 let _beepCtx=null;

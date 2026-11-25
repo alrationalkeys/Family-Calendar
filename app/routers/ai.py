@@ -51,6 +51,18 @@ def wake_claim(req: WakeClaim):
     return {"ok": wake.claim(req.n)}
 
 
+class WakeRing(BaseModel):
+    on: bool
+
+
+@router.post("/wake/ringing")
+def wake_ringing(req: WakeRing):
+    """The wall says a timer is ringing (or stopped): the wake word listens harder over the chime meanwhile."""
+    from ..services import wake
+    wake.ringing(req.on)
+    return {"ok": True}
+
+
 @router.post("/wake/test")
 def wake_test(req: TextReq):
     """Pretend the wake word heard `text` (phone Settings > Voice > Test): the wall runs it like a real wake."""

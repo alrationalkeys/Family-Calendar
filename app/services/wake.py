@@ -44,6 +44,8 @@ _claimed = 0
 _lock = threading.Lock()
 _busy = threading.Lock()           # held while a command is being turned into text
 _started = False
+_ringing_until = 0.0              # a timer is ringing on the wall: listen harder (the chime drowns the word)
+RING_THRESH = 0.2
 
 
 # ------------------------------------------------------------------ settings ----
@@ -150,6 +152,15 @@ def claim(n: int) -> bool:
             return False
         _claimed = n
         return True
+
+
+def ringing(on: bool):
+    global _ringing_until
+    _ringing_until = time.time() + 65 if on else 0.0
+
+
+def _thr(thr: float) -> float:
+    return min(thr, RING_THRESH) if time.time() < _ringing_until else thr
 
 
 def status() -> dict:
@@ -330,10 +341,10 @@ def _loop():
                     w2, thr = wanted()
                     if w2 != word:
                         break
-                if score >= thr and now - last_wake > COOLDOWN and _busy.locked():
+                if score >= _thr(thr) and now - last_wake > COOLDOWN and _busy.locked():
                     last_wake = now                         # still working on the last one: don't pile a second on top
                     continue
-                if score >= thr and now - last_wake > COOLDOWN:
+                if score >= _thr(thr) and now - last_wake > COOLDOWN:
                     last_wake = now
                     _S["wakes"] += 1
                     _S["last_wake"] = time.strftime("%Y-%m-%d %H:%M:%S")

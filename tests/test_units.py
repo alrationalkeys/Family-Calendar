@@ -455,3 +455,11 @@ def test_voice_turns_timers_off():
     assert i("set a timer for 5 minutes for chicken")["timer"] == {"seconds": 300, "label": "Chicken"}
     assert i("Top the timer")["timer"]["cancel"] is True        # Whisper dropped the "s" of "stop"
     assert "How long" in i("set a timer")["say"]
+
+
+def test_wake_word_listens_harder_while_a_timer_rings():
+    from app.services import wake
+    wake.ringing(True)
+    assert wake._thr(0.5) == wake.RING_THRESH
+    wake.ringing(False)
+    assert wake._thr(0.5) == 0.5

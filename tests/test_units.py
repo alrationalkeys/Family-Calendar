@@ -426,10 +426,15 @@ def test_wake_word_strips_itself_and_records_until_quiet():
     rng = np.random.default_rng(1)
     quiet = lambda: rng.normal(0, 30, wake.FRAME).astype(np.int16)
     loud = lambda: rng.normal(0, 4000, wake.FRAME).astype(np.int16)
-    seq = [quiet() for _ in range(5)] + [loud() for _ in range(25)] + [quiet() for _ in range(200)]
+    seq = [quiet() for _ in range(10)] + [loud() for _ in range(25)] + [quiet() for _ in range(200)]
     it = iter(seq)
     frames = wake.record_command(lambda: next(it), floor=0.001)
-    assert 30 + 12 <= len(frames) <= 30 + 16              # stops ~1.1 s after the talking ends
+    assert 35 + 12 <= len(frames) <= 35 + 16              # stops ~1.1 s after the talking ends
+    # the wall's chime right after the word, then a pause, then the cook talks: the chime must not end the recording
+    seq = [loud() for _ in range(4)] + [quiet() for _ in range(15)] + [loud() for _ in range(25)] + [quiet() for _ in range(200)]
+    it = iter(seq)
+    frames = wake.record_command(lambda: next(it), floor=0.001)
+    assert len(frames) >= 44 + 12
     it = iter([quiet() for _ in range(200)])
     assert wake.record_command(lambda: next(it), floor=0.001) == []     # nobody said anything after the word
 

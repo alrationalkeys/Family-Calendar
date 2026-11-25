@@ -35,6 +35,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 CUSTOM_DIR = os.path.join(_ROOT, "models", "wakeword")
 BUILTIN = {"hey_jarvis": "Hey Jarvis", "hey_mycroft": "Hey Mycroft", "hey_rhasspy": "Hey Rhasspy", "alexa": "Alexa"}
 THRESH = {"low": 0.7, "normal": 0.5, "high": 0.3}
+SKIP = 9                           # first 0.7 s after the word: the wall's chime (heard by the mic) is ignored
 COOLDOWN = 2.5                     # seconds after a wake before another can fire
 
 _S: dict = {"running": False, "word": "", "error": "", "mic": "", "wakes": 0, "last_score": 0.0, "best_recent": 0.0,
@@ -226,15 +227,19 @@ def _rms(frame) -> float:
 def record_command(next_frame, floor: float) -> list:
     """Keep reading 80 ms frames until the speaker stops: ~1.1 s of quiet after speech, 6 s with no speech at all,
     12 s at most. `floor` = how loud the room was just before the wake word. Same rules as the wall's mic button."""
-    frames, heard, quiet, peak = [], False, 0, 0.0
+    frames, heard, quiet, peak, talk = [], False, 0, 0.0, 0
     thr = max(0.006, min(0.03, floor * 3))
     for i in range(int(12 / 0.08)):
         f = next_frame()
         frames.append(f)
+        if i < SKIP:                 # the wall's "listening" chime comes out of the speaker now: it is not the cook talking
+            continue
         r = _rms(f)
         peak = max(peak, r)
         if r > thr and r > peak * 0.3:
-            heard, quiet = True, 0
+            talk += 1
+            quiet = 0
+            heard = heard or talk >= 3          # a quarter second of talking, not one clank of a pan
         elif heard:
             quiet += 1
             if quiet * 0.08 >= 1.1:

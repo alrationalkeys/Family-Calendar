@@ -417,6 +417,9 @@ def test_wake_word_strips_itself_and_records_until_quiet():
     assert s("Hey Jarvis what's for dinner?", "hey_jarvis") == "What's for dinner"
     assert s("Hey Hub add milk", "hey_hub_v0.1") == "Add milk"
     assert s("Jarvis", "hey_jarvis") == ""
+    assert s("Carvus, Set a timer for 5 minutes for chicken", "hey_jarvis") == "Set a timer for 5 minutes for chicken"   # misheard name
+    assert s("Jervis turn off the lights", "hey_jarvis") == "Turn off the lights"
+    assert s("Set the table", "hey_jarvis") == "Set the table"
     assert s("Visit grandma Sunday at 2", "hey_jarvis") == "Visit grandma Sunday at 2"    # a real word is kept
     assert wake.pretty("hey_hub_v0.1") == "Hey Hub" and wake.pretty("hey_jarvis") == "Hey Jarvis"
 

@@ -107,10 +107,16 @@ def strip_wake(text: str, word: str) -> str:
     for p in parts:
         if p not in ("hey", "hi", "ok", "okay"):
             last = p
+    import difflib
     toks = (text or "").strip().split()
+    fuzzy = True                       # the name itself is often misheard ("Carvus", "Jervis"): once, as the first name-like word
     while toks:
         t = re.sub(r"[^a-z']", "", toks[0].lower())
         if not t or t in parts or (len(t) >= 2 and last.endswith(t) and last != t and len(toks) > 1):
+            toks.pop(0)
+            continue
+        if fuzzy and len(toks) > 1 and len(t) >= 3 and difflib.SequenceMatcher(None, t, last).ratio() >= 0.6:
+            fuzzy = False
             toks.pop(0)
             continue
         break
@@ -237,20 +243,37 @@ def _wav(frames) -> bytes:
     return buf.getvalue()
 
 
+def _prefetch_words():
+    try:
+        from . import voice_cmd
+        voice_cmd.stt_prompt()
+    except Exception:
+        pass
+
+
 def _handle(frames, word: str, t0: float):
     from . import speech, voice_cmd
     if not frames:
         _publish("nothing")
         voice_cmd.log_voice("", f"(heard “{pretty(word)}”, then nothing)", "heard")
         return
+    rec = time.time() - t0                       # from the wake word to the end of talking
+    t1 = time.time()
+    words = 0.0
     try:
-        text = speech.transcribe(_wav(frames), ".wav", voice_cmd.stt_prompt()) if speech.stt_available() else ""
+        prompt = voice_cmd.stt_prompt()
+        words = time.time() - t1
+        text = speech.transcribe(_wav(frames), ".wav", prompt) if speech.stt_available() else ""
     except Exception as e:
         text = ""
         _S["error"] = f"speech to text: {e!r}"[:200]
-    text = strip_wake(text, word)
+    raw, text = text, strip_wake(text, word)
     _S["last_text"] = text
-    voice_cmd.log_voice(text, f"(heard “{pretty(word)}”; turned the speech into text in {time.time() - t0:.1f} s)", "heard")
+    c = speech.last_clip or {}
+    voice_cmd.log_voice(text, f"(heard “{pretty(word)}”; recorded {rec:.1f} s ({len(frames) * 0.08:.1f} s of sound), "
+                        f"speech to text {time.time() - t1:.1f} s" + (f" (word list {words:.1f} s)" if words >= 0.5 else "")
+                        + (f"; model {c.get('model')} s, load {c.get('load')}" if c.get("model") is not None else "")
+                        + (f"; heard as “{raw}”" if raw and raw != text else "") + ")", "heard")
     _publish("heard" if text else "nothing", text)
 
 
@@ -299,6 +322,7 @@ def _loop():
                     _S["wakes"] += 1
                     _S["last_wake"] = time.strftime("%Y-%m-%d %H:%M:%S")
                     _publish("listening")
+                    threading.Thread(target=_prefetch_words, daemon=True).start()   # fetched while you talk, not after
                     floor = sorted(pre)[len(pre) // 3] if pre else 0.0     # quieter third: the wake word itself isn't room noise
                     frames = record_command(next_frame, floor)
                     if frames:

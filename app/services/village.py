@@ -423,5 +423,41 @@ def _morning_loop():
             pass
 
 
+DISC_PORT = 4210            # each board broadcasts its own name here every 5 s (that's how Board A finds the train)
+
+
+def heard(name: str, ip: str) -> bool:
+    """A board said "I'm here" from `ip`: use that address from now on (new router, new address, no setup needed)."""
+    kind = {"village-fx": "fx", "village-train": "train"}.get(str(name).strip())
+    if not kind or not _private(ip):
+        return False
+    if _found.get(kind) != ip:
+        _found[kind] = ip
+        with _lock:
+            _cache["at"] = 0.0
+    return True
+
+
+def _listen():
+    """Hear the boards' announcements, so a board on a new address (router change, power cut) is found within seconds.
+    Silently does nothing if the port can't be opened."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        s.bind(("", DISC_PORT))
+    except OSError:
+        return
+    while True:
+        try:
+            data, (ip, _port) = s.recvfrom(256)
+            heard(data.decode("utf-8", "replace"), ip)
+        except Exception:
+            time.sleep(1)
+
+
 def start():
     threading.Thread(target=_morning_loop, daemon=True, name="village-morning").start()
+    threading.Thread(target=_listen, daemon=True, name="village-listen").start()

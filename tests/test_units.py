@@ -393,3 +393,14 @@ def test_routine_keeps_going_past_a_dead_light():
     assert flat.count('"continue_on_error": true') >= 3
     for e in ("light.porch", "light.driveway", "switch.side_plug"):
         assert f'"entity_id": "{e}"' in flat                   # each light is its own step
+
+
+def test_village_learns_new_addresses_from_board_announcements():
+    """New router (Deco, 192.168.68.x): the boards' own 'I'm here' broadcasts give FamilyHub their new addresses."""
+    from app.services import village
+    village._found.clear()
+    assert village.heard("village-fx", "192.168.68.57") and village.heard("village-train", "192.168.68.58")
+    assert village._found == {"fx": "192.168.68.57", "train": "192.168.68.58"}
+    assert not village.heard("village-fx", "8.8.8.8")          # never anything outside the home network
+    assert not village.heard("somebody-else", "192.168.68.9")
+    village._found.clear()

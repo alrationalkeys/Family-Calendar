@@ -7,7 +7,7 @@
    Respects prefers-reduced-motion and a settings toggle (effects on/off).
    Lightweight: capped particle counts, pauses when the tab/display sleeps. */
 const Seasonal = (() => {
-  let canvas, ctx, raf, particles = [], mode = "none", running = false;
+  let canvas, ctx, raf, particles = [], splashes = [], mode = "none", running = false;
   let fireworkTimer = null;
   let intense = false;   // preview / "make it obvious" mode: more + bigger particles
   let forced = null;     // a holiday skin can pin the effect (snow for Christmas, leaves for Thanksgiving)
@@ -64,9 +64,11 @@ const Seasonal = (() => {
     return { x: Math.random()*canvas.width, y: Math.random()*canvas.height*0.6,
       sx: 1+Math.random()*1.5, sy: -0.3+Math.random()*0.6, flap: Math.random()*6, r: BIG(10+Math.random()*8) };
   }
+  // three depths: far drops are thin and faint, near ones long, thick and bright (so rain reads from across the room)
   function raindrop() {
-    return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height,
-      len: BIG(9+Math.random()*13), sp: (intense?11:7)+Math.random()*6, o: 0.22+Math.random()*0.3 };
+    const z = Math.random() < 0.5 ? 0 : (Math.random() < 0.65 ? 1 : 2);
+    return { x: Math.random()*canvas.width, y: Math.random()*-canvas.height, z,
+      len: BIG([18, 30, 46][z] + Math.random()*14), sp: [10, 15, 21][z] + (intense?4:0) + Math.random()*5 };
   }
   function fogblob() {
     return { x: Math.random()*canvas.width, y: canvas.height*(0.25+Math.random()*0.7),
@@ -85,7 +87,7 @@ const Seasonal = (() => {
     particles = [];
     clearInterval(fireworkTimer);   // always reset so switching modes is clean
     if (mode === "snow") for (let i=0;i<N(110);i++) particles.push(snowflake());
-    else if (mode === "rain" || mode === "thunder") for (let i=0;i<N(180);i++) particles.push(raindrop());
+    else if (mode === "rain" || mode === "thunder") { for (let i=0;i<N(300);i++) particles.push(raindrop()); splashes = []; }
     else if (mode === "fog") for (let i=0;i<N(14);i++) particles.push(fogblob());
     else if (mode === "petals") for (let i=0;i<N(60);i++) particles.push(petal());
     else if (mode === "leaves") for (let i=0;i<N(40);i++) particles.push(leaf());
@@ -102,6 +104,8 @@ const Seasonal = (() => {
 
   function step() {
     if (!running) return;
+    // the wall is listening / working out what was said: draw nothing so the speech model gets the processor
+    if (document.documentElement.classList.contains("fh-hush")) { raf = 0; setTimeout(() => { if (running && !raf) raf = requestAnimationFrame(step); }, 300); return; }
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
     if (mode === "fireworks") {
@@ -116,14 +120,37 @@ const Seasonal = (() => {
     } else if (mode === "rain" || mode === "thunder") {
       if (mode === "thunder") maybeFlash();
       const light = document.documentElement.getAttribute("data-theme")==="light";
-      ctx.strokeStyle = light ? "rgba(90,120,160,.55)" : "rgba(180,200,230,.5)";
-      ctx.lineWidth = intense ? 2 : 1.3;
-      particles.forEach(p => {
-        p.y += p.sp; p.x += 1.4;
-        if (p.y > canvas.height+20) { p.y = -20; p.x = Math.random()*canvas.width; }
-        ctx.globalAlpha = p.o;
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x-2, p.y - p.len); ctx.stroke();
-      });
+      const W = [1.3, 2.3, 3.4], A = light ? [.4, .6, .8] : [.42, .65, .9];
+      const wind = intense ? 3.2 : 2.2;
+      // a stormy blue-grey cast over the whole screen
+      ctx.fillStyle = light ? "rgba(40,70,110,.07)" : "rgba(30,55,95,.16)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // one path per depth (not one per drop): far more drops for the same processor time
+      for (let z = 0; z < 3; z++) {
+        ctx.strokeStyle = light ? `rgba(60,95,150,${A[z]})` : `rgba(205,225,255,${A[z]})`;
+        ctx.lineWidth = W[z] * (intense ? 1.3 : 1); ctx.lineCap = "round";
+        ctx.beginPath();
+        for (const p of particles) {
+          if (p.z !== z) continue;
+          p.y += p.sp; p.x += wind * (0.6 + z*0.3);
+          if (p.y > canvas.height+20) {
+            if (z > 0 && splashes.length < 60 && Math.random() < 0.6) splashes.push({ x: p.x, y: canvas.height - 4 - Math.random()*10, r: 1, life: 1, z });
+            p.y = -20 - Math.random()*80; p.x = Math.random()*(canvas.width+200) - 200;
+          }
+          const dx = wind * (0.6 + z*0.3) * p.len / p.sp;
+          ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - dx, p.y - p.len);
+        }
+        ctx.stroke();
+      }
+      // little splash rings along the bottom of the screen
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = light ? "rgba(60,95,150,.6)" : "rgba(215,232,255,.7)";
+      splashes = splashes.filter(sp => sp.life > 0);
+      for (const sp of splashes) {
+        sp.r += 0.9 + sp.z*0.5; sp.life -= 0.07;
+        ctx.globalAlpha = Math.max(0, sp.life);
+        ctx.beginPath(); ctx.ellipse(sp.x, sp.y, sp.r*1.8, sp.r*0.55, 0, Math.PI, 2*Math.PI); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
       ctx.globalAlpha = 1;
       if (flashAlpha > 0) {
         ctx.globalAlpha = flashAlpha; ctx.fillStyle = "#fff";

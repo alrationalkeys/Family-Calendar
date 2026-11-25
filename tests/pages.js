@@ -56,6 +56,9 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.evaluate(() => window._done && window._done()); await w.waitForTimeout(200);
   ok(before === 0 && await w.evaluate(() => timers.length === 1 && timers[0].total === 6), 'wall: a spoken timer starts after "Timer set" is said');
   await w.evaluate(() => { cancelAllTimers(); sayAloud = s => { (window._said = window._said || []).push(s); }; });
+  // while it listens / turns speech into text, the screen stops animating; it starts again when the words arrive
+  ok(await w.evaluate(async () => { await wallVoice.wake({ n: 999, stage: 'listening' }); const on = document.documentElement.classList.contains('fh-hush');
+    await wallVoice.wake({ n: 1000, stage: 'nothing' }); return on && !document.documentElement.classList.contains('fh-hush'); }), 'wall: animations pause while it listens, then resume');
   // turning timers off by voice: by name, "how long left", and "stop" while one rings (handled on the wall, no server trip)
   ok(await w.evaluate(() => { cancelAllTimers(); startTimer(300, 'Chicken'); startTimer(600, 'Rice');
     const q = timerVoice({ query: true, label: 'Rice' }); const c = timerVoice({ cancel: true, label: 'Chicken' });

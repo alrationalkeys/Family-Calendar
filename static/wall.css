@@ -791,3 +791,7 @@
 .whochips button,#im-box .whochips button{border:1.5px solid var(--pc);background:transparent;color:var(--ink);border-radius:999px;padding:10px 16px;font:inherit;font-size:16px;min-height:44px;margin:0;width:auto}
 .whochips button.on,#im-box .whochips button.on{background:var(--pc);color:#fff;font-weight:600}
 .whochips button.on::before{content:"\2713  "}
+
+/* hush: while the wall listens and turns speech into text, everything else stops moving (frees the processor) */
+html.fh-hush *:not(#voiceov):not(#voiceov *):not(#voicefab), html.fh-hush *::before, html.fh-hush *::after{animation-play-state:paused!important; transition:none!important}
+html.fh-hush #seasonal{visibility:hidden}

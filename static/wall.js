@@ -2096,6 +2096,9 @@ function startTimer(seconds, label){
   saveTimers(); renderTimers(); resetSleep();
 }
 function cancelTimer(id){ timers=timers.filter(t=>t.id!==id); if(!timers.some(t=>t.rang)) stopAlarm(); saveTimers(); renderTimers(); }
+/* hush the screen while the voice is busy (see wall.css); always lifted after 30 s even if something goes wrong */
+function hush(on){ const h=document.documentElement; clearTimeout(hush._t);
+  if(on){ h.classList.add("fh-hush"); hush._t=setTimeout(()=>h.classList.remove("fh-hush"), 30000); } else h.classList.remove("fh-hush"); }
 function ringingTimers(){ return timers.filter(t=>t.rang || t.end<=Date.now()); }
 /* "stop" / "cancel the chicken timer" / "cancel all timers" / "how much time is left" -> what the wall says back */
 function timerVoice(t){
@@ -2309,7 +2312,7 @@ function applyWallMic(){
       if(now-t0>=400 && talking){ heard=true; quietSince=0; } else if(heard){ quietSince=quietSince||now; if(now-quietSince>1100) stop(); }
       if(now-t0>12000 || (!heard && now-t0>7000)) stop();
     },100);
-    listening=true; fab.classList.add("listening"); mr.start(250);
+    listening=true; fab.classList.add("listening"); hush(true); mr.start(250);
     await done; clearInterval(iv); listening=false; fab.classList.remove("listening"); stopFn=null;
     stream.getTracks().forEach(t=>t.stop()); try{ ac.close(); }catch(e){}
     if(peak<0.002){ status("Mic is silent — is the speaker bar the default input? (setup/audio-default.sh)"); return; }
@@ -2320,8 +2323,9 @@ function applyWallMic(){
       const ac2=new AbortController(), to2=setTimeout(()=>ac2.abort(), 45000);
       const r=await fetch("/api/ai/transcribe",{method:"POST",body:fd,signal:ac2.signal}).finally(()=>clearTimeout(to2));
       if(!r.ok) throw new Error(r.status);
-      const j=await r.json(); await handleText(j.text);
+      const j=await r.json(); hush(false); await handleText(j.text);
     }catch(e){ status("Couldn't understand — try again."); }
+    hush(false);
   }
 
   /* --- path B: browser Web Speech API (works in Google Chrome, not snap Chromium) --- */
@@ -2357,13 +2361,13 @@ function applyWallMic(){
     if(d.stage==="listening"){
       if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")) return;
       clearTimeout(window._voHide); finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent="";
-      status("Listening…"); fab.classList.add("listening"); show();
+      status("Listening…"); fab.classList.add("listening"); show(); hush(true);
       if(_ttsAudio){ try{ _ttsAudio.pause(); }catch(e){} if(_ttsDone){ _ttsDone(); _ttsDone=null; } }   // stop talking so it hears you
       if(_alarm) stopAlarm(); else chime();              // a ringing timer goes quiet so it can hear you (it stays "done")
       clearTimeout(window._wakeStuck); window._wakeStuck=setTimeout(()=>{ fab.classList.remove("listening"); }, 15000);
       return;
     }
-    fab.classList.remove("listening"); clearTimeout(window._wakeStuck);
+    fab.classList.remove("listening"); clearTimeout(window._wakeStuck); hush(false);
     if(d.stage==="nothing" && ringingTimers().length){ timerVoice({cancel:true}); hide(); return; }   // just the wake word while it rang = "stop"
     if(d.stage==="nothing"){ if($("#voiceov").classList.contains("on")){ status("Didn't catch that. Say the wake word and try again."); clearTimeout(window._voHide); window._voHide=setTimeout(hide, 4000); } return; }
     if(d.stage==="heard" && d.text){

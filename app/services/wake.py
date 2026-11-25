@@ -303,6 +303,7 @@ def _loop():
             tail = deque(maxlen=6)                     # the last 0.5 s of sound: "Hey Jarvis set a…" said in one breath
             pending = [first]
             last_wake, checked, best = 0.0, time.time(), 0.0
+            paused = False
 
             def next_frame():
                 if pending:
@@ -311,6 +312,12 @@ def _loop():
 
             while True:
                 f = next_frame()
+                if _busy.locked():                      # the speech model is working: keep draining the mic, leave it the processor
+                    paused = True
+                    continue
+                if paused:
+                    paused = False
+                    model.reset()
                 score = float(model.predict(f)[key])
                 best = max(best, score)
                 pre.append(_rms(f))

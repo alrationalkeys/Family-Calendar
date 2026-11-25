@@ -175,6 +175,13 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
   settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every
   sentence cached in models/tts_cache; any failure / out of credits falls back to Piper. `GET /api/ai/voice/cloud` (voices, credits),
   `POST /api/ai/voice/cloud/test`. Picker: phone Settings > Advanced > Voice.
+- Hands-free wake word on the wall (`services/wake.py`, own thread): openWakeWord (ONNX, pip --no-deps: tflite-runtime has no
+  py3.12 build) listens to the default mic via parec/arecord/pw-record (PipeWire shares it with tap-to-talk; override
+  `FAMILYHUB_WAKE_MIC_CMD`). Word -> records until 1.1 s quiet (+0.5 s before the word, `strip_wake` drops it) -> Whisper ->
+  SSE `/api/ha/events` field `wake` {n, stage listening|heard|nothing, text} -> wall `wallVoice.wake` chimes, opens the voice
+  box and runs `handleText` after `POST /api/ai/wake/claim` (one screen only). settings.wakeWord (hey_jarvis default |
+  hey_mycroft | hey_rhasspy | alexa | a custom models/wakeword/<name>.onnx | off), wakeSensitivity low|normal|high.
+  `GET /api/ai/wake`, `POST /api/ai/wake/test {text}`. Install `setup/install-wakeword.sh`. Phone Settings > Advanced > Voice.
 - Local speech on the wall: `services/speech.py` (faster-whisper STT + Piper TTS, optional).
   `GET /api/ai/voice/status`, `POST /api/ai/transcribe` (multipart clip), `POST /api/ai/tts` (wav).
   The wall records with MediaRecorder when `stt` is true, else falls back to Web Speech API

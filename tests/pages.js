@@ -42,6 +42,12 @@ const ok = (cond, what) => { if (!cond) fails.push(what); console.log((cond ? ' 
   await w.waitForTimeout(800);
   ok(await w.evaluate(() => window._said[0] === 'Dinner is ready'), 'wall: a phone announcement is spoken even with reminders muted');
   await w.evaluate(() => { _sayQ = Promise.resolve(); FH.get().speakAlerts = true; });
+  // hands-free: the wake word heard "set a 5 minute timer for eggs" -> the wall opens the voice box and starts the timer
+  await w.evaluate(() => { cancelAllTimers(); sayAloud = s => { (window._said = window._said || []).push(s); }; });
+  await w.evaluate(b => fetch(b + '/api/ai/wake/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'set a 5 minute timer for eggs' }) }), base);
+  await w.waitForTimeout(2500);
+  ok(await w.evaluate(() => timers.length === 1 && timers[0].total === 300 && /egg/i.test(timers[0].label)), 'wall: wake word + "5 minute timer for eggs" starts the Eggs timer');
+  await w.evaluate(() => { cancelAllTimers(); document.getElementById('voiceov').classList.remove('on'); });
   // a weather warning's details open full size (the wall's 20 px checkbox style once shrank it), under no pop-up
   const wxw = await w.evaluate(() => { FHHome.wxHTML([{ id: 'x', big: true, event: 'Coastal Flood Advisory', headline: 'h' }]);
     const ov = document.createElement('div'); ov.id = 'fhwx-ov'; ov.innerHTML = '<div class="fhwx-box">x</div>'; document.body.appendChild(ov);

@@ -181,6 +181,14 @@ def report(q: str = "") -> str:
     except Exception:
         pass
     try:
+        from . import wake
+        w = wake.status()
+        L.append(f"wake word: installed {'yes' if w['installed'] else 'no'}, word {w['word'] or 'off'}, running {'yes' if w['running'] else 'no'}, "
+                 f"mic {w['mic'] or '-'}, wakes {w['wakes']}, last {w['last_wake'] or '-'}, score now {w['last_score']} (best in 5 s {w['best_recent']}, "
+                 f"needs {w['threshold']}), error: {w['error'] or 'none'}")
+    except Exception:
+        pass
+    try:
         from . import cloud_voice
         L.append(f"cloud voice: key {'yes' if cloud_voice._key() else 'no'}, error: {cloud_voice._S.get('error') or 'none'}")
     except Exception:

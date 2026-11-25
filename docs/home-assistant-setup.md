@@ -112,6 +112,10 @@ never leaves the server — the browser never sees it.)
 
 ## F. Hands-free voice — openWakeWord + Whisper + Piper
 
+> **Simpler, and what the wall uses now:** `bash setup/install-wakeword.sh` on the wall PC. The wall listens for
+> "Hey Jarvis" itself and runs the command exactly like its mic button (timers on screen, lists, calendar, lights).
+> No satellite or HA pipeline needed. The HA route below is only for extra rooms.
+
 Three add-ons on the HA C3 do the listening/talking; the kitchen puck is just a dumb
 mic + speaker streamed from the Screen C3. Everything stays local.
 

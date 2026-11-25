@@ -117,3 +117,16 @@ def test_game_day_test_button_needs_a_team(client):
 def test_house_report_runs_on_an_empty_month(client):
     r = client.get("/api/ha/report?month=2020-01").json()
     assert r["month"] == "2020-01" and r["lines"]
+
+
+def test_wake_word_endpoints(client):
+    """Phone Settings > Voice: the wake-word state, and Test makes the wall act as if it heard the word."""
+    w = client.get("/api/ai/wake").json()
+    assert {"installed", "running", "word", "choices"} <= set(w)
+    assert any(c["id"] == "hey_jarvis" for c in w["choices"])
+    assert client.post("/api/ai/wake/test", json={"text": "set a 5 minute timer for eggs"}).json()["ok"]
+    from app.services import wake
+    ev = wake.event()
+    assert ev["stage"] == "heard" and ev["text"] == "set a 5 minute timer for eggs"
+    assert client.post("/api/ai/wake/claim", json={"n": ev["n"]}).json()["ok"] is True
+    assert client.post("/api/ai/wake/claim", json={"n": ev["n"]}).json()["ok"] is False

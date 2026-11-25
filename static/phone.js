@@ -269,6 +269,23 @@ function num(v){ return v?parseInt(v):null; }
 // X-FH-Who: this phone's owner (Settings → "Your name on this phone") so the wall can say
 // "Rachell added …" and HA can skip pushing the add back to the person who made it.
 function whoAmI(){ try{ return localStorage.getItem("fh_who")||""; }catch(e){ return ""; } }
+/* hands-free wake word on the wall (services/wake.py) */
+async function loadWake(s){
+  const sel=$("#set-wake"), sens=$("#set-wakesens"), st=$("#wake-state"); if(!sel) return;
+  let w={}; try{ w=await fetch("/api/ai/wake").then(r=>r.json()); }catch(e){}
+  const esc=FHHome.esc; const opts=(w.choices||[{id:"hey_jarvis",name:"Hey Jarvis"}]).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  sel.innerHTML=opts+'<option value="off">Off (tap the mic)</option>';
+  sel.value=String(s.wakeWord||"hey_jarvis"); if(!sel.value) sel.value="hey_jarvis";
+  sens.value=String(s.wakeSensitivity||"normal");
+  sel.onchange=()=>{ FH.save({wakeWord:sel.value}); toast(sel.value==="off"?"Hands-free is off":"The wall will answer to “"+sel.selectedOptions[0].text+"”"); setTimeout(()=>loadWake(FH.get()),7000); };
+  sens.onchange=()=>FH.save({wakeSensitivity:sens.value});
+  st.textContent = !w.installed ? "Not installed on the wall yet: on the wall PC run  bash setup/install-wakeword.sh"
+    : w.running ? `Listening for “${w.name}” (mic: ${w.mic}). Woke ${w.wakes||0} times since the last restart${w.last_text?`; last heard “${w.last_text}”`:""}.`
+    : (w.word ? `Not listening: ${w.error||"starting…"}` : "Off. Tap the mic on the wall to talk.");
+  const go=$("#wake-go"); if(go && !go._wired){ go._wired=true;
+    go.onclick=async()=>{ const t=$("#wake-try").value.trim()||"set a 5 minute timer for eggs";
+      try{ await post("/api/ai/wake/test",{text:t}); toast("Sent: watch the wall"); }catch(e){ toast("Couldn't reach the wall"); } }; }
+}
 function post(url,body){ const h={"Content-Type":"application/json"}; const w=whoAmI(); if(w) h["X-FH-Who"]=w; return fetch(url,{method:"POST",headers:h,body:JSON.stringify(body)}); }
 
 /* boot */
@@ -1179,6 +1196,7 @@ function loadSettingsUI(){
   $("#set-briefhour").value=String(s.briefingHour||6); $("#set-briefhour").onchange=e=>FH.save({briefingHour:+e.target.value});
   { const r=$("#set-spvol"), v=$("#set-spvol-v"); if(r){ r.value=s.spotifyStartVolume??45; v.textContent=r.value+"%";
     r.oninput=()=>{ v.textContent=r.value+"%"; }; r.onchange=()=>{ FH.save({spotifyStartVolume:Number(r.value)}); toast("Spotify will start at "+r.value+"%"); }; } }
+  loadWake(s);
   $("#set-aname").value=s.assistantName||"Hub"; $("#set-aname").onchange=e=>{ const v=e.target.value.trim().slice(0,30)||"Hub"; FH.save({assistantName:v}); toast(`It'll answer to "${v}"`); };
   // holidays
   document.querySelectorAll("#view-settings input[data-hol]").forEach(c=>{

@@ -404,3 +404,38 @@ def test_village_learns_new_addresses_from_board_announcements():
     assert not village.heard("village-fx", "8.8.8.8")          # never anything outside the home network
     assert not village.heard("somebody-else", "192.168.68.9")
     village._found.clear()
+
+
+def test_wake_word_strips_itself_and_records_until_quiet():
+    """Hands-free: "Hey Jarvis, set a 5 minute timer for eggs" -> the command without the wake word, and the
+    recording ends once the cook stops talking (not at the 12 s cap)."""
+    import numpy as np
+    from app.services import wake
+    s = wake.strip_wake
+    assert s("Jarvis, set a 5 minute timer for eggs.", "hey_jarvis") == "Set a 5 minute timer for eggs"
+    assert s("vis. Set a timer for ten minutes", "hey_jarvis") == "Set a timer for ten minutes"
+    assert s("Hey Jarvis what's for dinner?", "hey_jarvis") == "What's for dinner"
+    assert s("Hey Hub add milk", "hey_hub_v0.1") == "Add milk"
+    assert s("Jarvis", "hey_jarvis") == ""
+    assert s("Visit grandma Sunday at 2", "hey_jarvis") == "Visit grandma Sunday at 2"    # a real word is kept
+    assert wake.pretty("hey_hub_v0.1") == "Hey Hub" and wake.pretty("hey_jarvis") == "Hey Jarvis"
+
+    rng = np.random.default_rng(1)
+    quiet = lambda: rng.normal(0, 30, wake.FRAME).astype(np.int16)
+    loud = lambda: rng.normal(0, 4000, wake.FRAME).astype(np.int16)
+    seq = [quiet() for _ in range(5)] + [loud() for _ in range(25)] + [quiet() for _ in range(200)]
+    it = iter(seq)
+    frames = wake.record_command(lambda: next(it), floor=0.001)
+    assert 30 + 12 <= len(frames) <= 30 + 16              # stops ~1.1 s after the talking ends
+    it = iter([quiet() for _ in range(200)])
+    assert wake.record_command(lambda: next(it), floor=0.001) == []     # nobody said anything after the word
+
+
+def test_wake_word_runs_once_on_one_screen(monkeypatch):
+    from app.services import wake
+    monkeypatch.setattr(wake, "_claimed", 0)
+    wake._publish("heard", "set a timer for 5 minutes")
+    n = wake.event()["n"]
+    assert wake.event()["stage"] == "heard"
+    assert wake.claim(n) is True and wake.claim(n) is False       # a second wall doesn't set a second timer
+    assert wake.claim(n - 1) is False

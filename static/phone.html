@@ -360,6 +360,11 @@
     </details>
     <details class="more sub"><summary>Voice</summary>
     <div class="srow"><span>Assistant's name</span><input id="set-aname" placeholder="Hub" style="width:46%; margin:0"></div>
+    <div class="srow"><span>Hands-free word</span><select id="set-wake" style="width:46%; margin:0"><option value="hey_jarvis">Hey Jarvis</option><option value="off">Off (tap the mic)</option></select></div>
+    <div class="srow"><span>How easily it wakes</span><select id="set-wakesens" style="width:46%; margin:0"><option value="low">Only when clear</option><option value="normal">Normal</option><option value="high">Easily (noisy kitchen)</option></select></div>
+    <div id="wake-state" class="hint" style="margin:2px 0 6px">Checking…</div>
+    <div class="srow"><input id="wake-try" placeholder="set a 5 minute timer for eggs" style="width:70%; margin:0"><button class="tool" type="button" id="wake-go" style="margin:0">Test</button></div>
+    <div class="hint" style="margin:2px 0 10px">Test makes the wall act as if it heard the word and then this.</div>
     <label class="chk"><input type="checkbox" id="set-kbd"> FamilyHub's own on-screen keyboard on the wall</label>
     <div id="cv-box" style="margin:10px 0"></div>
     <div class="hint" style="margin:10px 0 4px"><b>Try a command</b> — typed here, it runs exactly like saying it to the wall.</div>

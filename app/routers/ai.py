@@ -33,6 +33,33 @@ def voice_status():
     return speech.status()
 
 
+@router.get("/wake")
+def wake_status():
+    """Hands-free wake word: installed, running, which word, the mic, how many wakes, the last thing heard."""
+    from ..services import wake
+    return wake.status()
+
+
+class WakeClaim(BaseModel):
+    n: int
+
+
+@router.post("/wake/claim")
+def wake_claim(req: WakeClaim):
+    """The wall asks to run what the wake word heard; only the first screen gets it."""
+    from ..services import wake
+    return {"ok": wake.claim(req.n)}
+
+
+@router.post("/wake/test")
+def wake_test(req: TextReq):
+    """Pretend the wake word heard `text` (phone Settings > Voice > Test): the wall runs it like a real wake."""
+    from ..services import wake
+    wake._publish("listening")
+    wake._publish("heard", req.text.strip()[:300])
+    return {"ok": True}
+
+
 @router.get("/voice/log")
 def voice_log():
     """What the wall heard and what it did (newest first) — Settings > Advanced > Voice history."""

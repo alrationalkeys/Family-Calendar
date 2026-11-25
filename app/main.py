@@ -81,6 +81,11 @@ async def lifespan(app: FastAPI):
             _speech.warm()                  # first spoken question shouldn't pay for loading the speech model
         except Exception:
             pass
+        try:
+            from .services import wake as _wake
+            _wake.start()                   # hands-free "Hey Jarvis" (idle unless openWakeWord is installed)
+        except Exception:
+            pass
     except Exception:
         pass
 

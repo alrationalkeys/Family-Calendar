@@ -1717,7 +1717,7 @@ $("#spb-back").onclick=async()=>{ spbStack.pop(); await spbLoad(); };
 $("#spb-close").onclick=closeSpotifyBrowser;
 $("#spbrowse").onclick=(e)=>{ if(e.target.id==="spbrowse") closeSpotifyBrowser(); };
 /* ---- cameras: tap a camera tile/pin, or the doorbell rings ---- */
-let lastRing=null, _camTimer=null, _camClose=null, _camEid=null, _camStream=null;
+let lastWake=null, lastRing=null, _camTimer=null, _camClose=null, _camEid=null, _camStream=null;
 function openCamera(eid, name, opts){
   opts=opts||{}; _camEid=eid; resetSleep(); wake(); camSound(null, false);
   const ov=$("#camov"); ov.classList.toggle("ring", !!opts.ring); ov.classList.remove("live"); ov.classList.add("on");
@@ -1763,6 +1763,7 @@ FHHome.camera=(eid,name)=>openCamera(eid,name);
     try{ es=new EventSource("/api/ha/events"); }catch(e){ return; }
     es.onmessage=(m)=>{ backoff=2000; let d={}; try{ d=JSON.parse(m.data); }catch(e){ return; }
       if(d.ring!=null){ if(lastRing!==null && d.ring>lastRing) onRing(); lastRing=d.ring; }
+      if(d.wake){ if(lastWake!==null && d.wake.n>lastWake && window.wallVoice) wallVoice.wake(d.wake); lastWake=d.wake.n; } else if(lastWake===null) lastWake=0;
       if(lastV!==null && d.version!==lastV){
         if(curPage==="home" && !document.querySelector("#remote.on,#pinpad.on,#timerov.on,#lightpop.on")) loadHome();
         if(curPage==="calendar") loadHomeStatus();
@@ -2131,7 +2132,7 @@ function beep(times=3){
    has no voice installed. voiceCaps is filled at boot from /api/ai/voice/status. */
 let voiceCaps={stt:false,tts:false};
 let _ttsAudio=null, _ttsDone=null;
-async function loadVoiceCaps(){ try{ voiceCaps=await fetch("/api/ai/voice/status").then(r=>r.json()); }catch(e){} applyWallMic(); }
+async function loadVoiceCaps(){ try{ voiceCaps=await fetch("/api/ai/voice/status").then(r=>r.json()); }catch(e){} try{ voiceCaps.wake=await fetch("/api/ai/wake").then(r=>r.json()); }catch(e){} applyWallMic(); }
 function browserSpeak(s){ try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(s)); }catch(e){} }
 window.addEventListener("skin:newyear", e=>{ if(FH.get().speakAlerts!==false) sayAloud(`Happy New Year! Welcome to ${e.detail.year}!`); try{ Seasonal.force("fireworks"); }catch(err){} });
 let _sayGen=0;
@@ -2202,7 +2203,7 @@ function closeTimers(){ $("#timerov").classList.remove("on"); }
 /* ---- wall voice command (push-to-talk mic → /api/ai/command → speaks reply) ---- */
 function applyWallMic(){
   const fab=$("#voicefab"); if(!fab) return;
-  const nm=(FH.get().assistantName||"Hub"); fab.title="Ask "+nm; const h=$("#vo-hint"); if(h) h.textContent=`Ask ${nm} anything — "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"`;
+  const nm=(FH.get().assistantName||"Hub"); fab.title="Ask "+nm; const h=$("#vo-hint"); const wk=voiceCaps.wake&&voiceCaps.wake.running&&voiceCaps.wake.name; if(h) h.textContent=`${wk?`Say “${voiceCaps.wake.name}” from anywhere in the kitchen, or tap the mic. `:""}Ask ${nm} anything — "turn on the kitchen lights", "what's for dinner", "set a timer for 10 minutes", "did the Panthers win"`;
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const canRecord=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
   const on = FH.get().wallMic!==false && (!!SR || (voiceCaps.stt&&canRecord));
@@ -2307,6 +2308,30 @@ function applyWallMic(){
     if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")){ show(); return; }   // one question at a time
     finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent=""; status("Listening…"); show();
     if(useServer()) recordAndSend(); else if(rec){ try{ rec.start(); }catch(e){} } else status("Voice isn't set up — run setup/install-voice.sh"); };
+  /* hands-free: the server heard the wake word ("Hey Jarvis"), then the command. d={n, stage, text} */
+  function chime(){ try{ _beepCtx=_beepCtx||new (window.AudioContext||window.webkitAudioContext)();
+      [660,990].forEach((hz,i)=>{ const o=_beepCtx.createOscillator(), g=_beepCtx.createGain(), t=_beepCtx.currentTime+i*0.12;
+        o.type="sine"; o.frequency.value=hz; o.connect(g); g.connect(_beepCtx.destination);
+        g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.25,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); o.start(t); o.stop(t+0.18); });
+    }catch(e){} }
+  window.wallVoice={ wake: async (d)=>{
+    if(listening) return;                                // someone is already using the mic button
+    resetSleep();
+    if(d.stage==="listening"){
+      if(/^(Thinking|Working|Still thinking)/.test(($("#vo-status")||{}).textContent||"")) return;
+      clearTimeout(window._voHide); finalText=""; $("#vo-heard").textContent=""; $("#vo-reply").textContent="";
+      status("Listening…"); fab.classList.add("listening"); show(); chime();
+      clearTimeout(window._wakeStuck); window._wakeStuck=setTimeout(()=>{ fab.classList.remove("listening"); }, 15000);
+      return;
+    }
+    fab.classList.remove("listening"); clearTimeout(window._wakeStuck);
+    if(d.stage==="nothing"){ if($("#voiceov").classList.contains("on")){ status("Didn't catch that. Say the wake word and try again."); clearTimeout(window._voHide); window._voHide=setTimeout(hide, 4000); } return; }
+    if(d.stage==="heard" && d.text){
+      let ok=false; try{ ok=!!(await (await post("/api/ai/wake/claim",{n:d.n})).json()).ok; }catch(e){}
+      if(!ok) return;                                    // another screen took it
+      clearTimeout(window._voHide); $("#vo-reply").textContent=""; show(); handleText(d.text);
+    }
+  }};
   $("#vo-close").onclick=()=>{ stopAll(); hide(); };
   $("#voiceov").onclick=(e)=>{ if(e.target.id==="voiceov"){ stopAll(); hide(); } };
 })();

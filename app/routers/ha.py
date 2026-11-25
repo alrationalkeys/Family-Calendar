@@ -93,14 +93,16 @@ def version():
 async def events():
     """Server-Sent Events: one line per HA state change (plus a heartbeat every
     25 s). The wall re-renders the Home tab / status bar the moment something flips."""
+    from ..services import wake
+
     async def gen():
         v = ha_live.version()
-        yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at()})}\n\n"
+        yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at(), 'wake': wake.event()})}\n\n"
         while True:
             nv = await ha_live.wait_for_change(v, timeout=25.0)
             if nv != v:
                 v = nv
-                yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at()})}\n\n"
+                yield f"data: {json.dumps({'version': v, 'live': ha_live.connected(), 'ring': doorbell.last_at(), 'wake': wake.event()})}\n\n"
             else:
                 yield ": keepalive\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream",

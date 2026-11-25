@@ -181,6 +181,12 @@ def report(q: str = "") -> str:
     except Exception:
         pass
     try:
+        from . import outdoor_power
+        o = outdoor_power.status()
+        L.append(f"outside power watch: {len(o['watched'])} lights/plugs, down since: {datetime.fromtimestamp(o['down_since']).strftime('%H:%M') if o['down_since'] else '-'}, told: {o['told']}")
+    except Exception:
+        pass
+    try:
         from . import wake
         w = wake.status()
         L.append(f"wake word: installed {'yes' if w['installed'] else 'no'}, word {w['word'] or 'off'}, running {'yes' if w['running'] else 'no'}, "

@@ -267,7 +267,7 @@ def _loop():
         try:
             if not ha_svc.demo_mode() and ha_svc.ha_url():
                 s, now = _settings(), datetime.now()
-                from . import house_report, laundry, xmas, garage_watch, offline_watch, wx_alerts
+                from . import house_report, laundry, xmas, garage_watch, offline_watch, wx_alerts, outdoor_power
                 # each check on its own: one that keeps failing (a bad setting, say) must not silence the others
                 for name, job in (("peak", lambda: _peak_tick(s)), ("night", lambda: _night_tick(s, now)),
                                   ("weekly", lambda: _weekly_tick(s, now)),
@@ -275,6 +275,7 @@ def _loop():
                                   ("laundry", laundry.tick), ("xmas", xmas.tick),
                                   ("garage", lambda: garage_watch.tick(s, _states())),
                                   ("offline", lambda: offline_watch.tick(s, _states(), _push)),
+                                  ("outdoor power", lambda: outdoor_power.tick(s, _states(), _push)),
                                   ("weather", lambda: wx_alerts.tick(_push, s)),
                                   ("rain", lambda: wx_alerts.rain_tick(_push, s, _rain_openings))):
                     try:

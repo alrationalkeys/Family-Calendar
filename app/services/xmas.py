@@ -196,7 +196,12 @@ def tick():
             except Exception:
                 pass
     # offline = GFCI tripped / unplugged
-    if s.get("xmasOffline", True) is not False:
+    try:
+        from . import outdoor_power
+        covered = outdoor_power.covers(p) and s.get("outdoorPowerAlert", True) is not False
+    except Exception:
+        covered = False
+    if s.get("xmasOffline", True) is not False and not covered:      # else outdoor_power.py tells it (one push, not two)
         if not states or p not in states:
             pass                                               # Home Assistant itself isn't answering: not the plug's fault
         elif st == "unavailable":

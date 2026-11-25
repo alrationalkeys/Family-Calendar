@@ -477,3 +477,35 @@ def test_village_opens_with_the_holiday_lights_too(monkeypatch):
     states = [{"entity_id": "input_text.fh_outdoor_night_lights", "state": "light.front_porch_light,light.driveway_light"},
               {"entity_id": "input_text.fh_outdoor_holiday_lights", "state": "switch.exterior_lights_smart_plug"}]
     assert village.open_lights(states) == ["light.front_porch_light", "light.driveway_light", "switch.exterior_lights_smart_plug"]
+
+
+def test_outside_power_trip_alert(monkeypatch):
+    """GFCI trips: porch light, exterior plug and the Govee on the outdoor outlet go unavailable together -> one push
+    after 2 minutes, one "back on" push; an HA restart (everything unavailable) is not called a GFCI."""
+    from app.services import outdoor_power as op, village
+    monkeypatch.setattr(village, "_settings", lambda: {})
+    op._S.update(since=0.0, told=False, names=[], watched=set())
+    clock = [1000.0]
+    monkeypatch.setattr(op.time, "time", lambda: clock[0])
+    lists = [{"entity_id": "input_text.fh_outdoor_night_lights", "state": "light.front_porch_light_2"},
+             {"entity_id": "input_text.fh_outdoor_holiday_lights", "state": "light.exterior_lights_smart_plug"}]
+    def house(out, inside="on"):
+        return lists + [{"entity_id": "light.front_porch_light_2", "state": out, "attributes": {"friendly_name": "Front Porch Light"}},
+                        {"entity_id": "light.exterior_lights_smart_plug", "state": out, "attributes": {"friendly_name": "Exterior Lights Smart Plug"}},
+                        {"entity_id": "light.back_porch_back_porch_led", "state": out, "attributes": {"friendly_name": "Back Porch LED"}}] + \
+               [{"entity_id": f"light.kitchen_{i}", "state": inside} for i in range(6)]
+    pushes = []
+    push = lambda text, tag: pushes.append(text)
+    op.tick({}, house("unavailable"), push)
+    clock[0] += 60; op.tick({}, house("unavailable"), push)
+    assert pushes == []                                   # not yet: 2 minutes of grace
+    clock[0] += 70; op.tick({}, house("unavailable"), push)
+    assert len(pushes) == 1 and "Back Porch LED" in pushes[0] and "GFCI" in pushes[0]
+    clock[0] += 300; op.tick({}, house("unavailable"), push)
+    assert len(pushes) == 1                               # once per outage
+    op.tick({}, house("off"), push)
+    assert len(pushes) == 2 and "back on" in pushes[1]
+    pushes.clear()
+    for _ in range(4):                                   # Home Assistant restarting: the kitchen is unavailable too
+        clock[0] += 60; op.tick({}, house("unavailable", inside="unavailable"), push)
+    assert pushes == []

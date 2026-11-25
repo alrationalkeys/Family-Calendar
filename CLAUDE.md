@@ -170,6 +170,9 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Offline while armed (`services/offline_watch.py`, house-watch tick, settings.offlineAlert): a camera (not Blink) or the alarm panel
   unavailable ~2 min while armed -> one push per outage (grouped when several drop together), heads-up when arming with one already
   offline, "back online" push. Tell-only.
+- Outside power lost (`services/outdoor_power.py`, house-watch tick, settings.outdoorPowerAlert): the village-opening lights +
+  xmas plug + outside-named lights/plugs; 2+ of them unavailable 2 min while the indoor lights are mostly fine = the outdoor GFCI
+  tripped -> one push naming them, "back on" push. xmas.py's own plug-offline push stands down for plugs covered here.
 - Peak + dryer: `watch._peak_dryer` (settings.peakDryer): dryer running during peak -> wall announcement + push, once a day.
 - Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when
   settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every

@@ -463,3 +463,12 @@ def test_wake_word_listens_harder_while_a_timer_rings():
     assert wake._thr(0.5) == wake.RING_THRESH
     wake.ringing(False)
     assert wake._thr(0.5) == 0.5
+
+
+def test_village_opens_with_the_holiday_lights_too(monkeypatch):
+    """Christmas season: sunset turns on only the holiday plug; the porch lights wait until 11:50 PM."""
+    from app.services import village
+    monkeypatch.setattr(village, "_settings", lambda: {})
+    states = [{"entity_id": "input_text.fh_outdoor_night_lights", "state": "light.front_porch_light,light.driveway_light"},
+              {"entity_id": "input_text.fh_outdoor_holiday_lights", "state": "switch.exterior_lights_smart_plug"}]
+    assert village.open_lights(states) == ["light.front_porch_light", "light.driveway_light", "switch.exterior_lights_smart_plug"]

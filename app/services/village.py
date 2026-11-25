@@ -288,17 +288,22 @@ def _auto(update: dict | None = None) -> dict:
 
 def open_lights(states: list) -> list:
     """The outside lights that open the village: settings.villageOpenLights if picked on the phone, else the
-    nightly outdoor lights list (outdoor_lights.yaml), else lights/plugs named like outside lights. Never the
+    nightly + holiday outdoor lights lists (outdoor_lights.yaml), else lights/plugs named like outside lights. Never the
     Christmas display plug (it blinks for walk-ups) or the village itself."""
     s = _settings()
     pick = [e for e in (s.get("villageOpenLights") or []) if isinstance(e, str)]
     if pick:
         return pick
-    for st in states:
-        if st.get("entity_id") == "input_text.fh_outdoor_night_lights":
-            ids = [x.strip() for x in str(st.get("state") or "").split(",") if x.strip().startswith(("light.", "switch."))]
-            if ids:
-                return ids
+    # the nightly lights AND the holiday lights: in holiday season sunset turns on only the holiday plug (the nightly
+    # lights wait for the 11:50 PM switch-over), so watching the nightly list alone opened the village near midnight
+    ids = []
+    for key in ("input_text.fh_outdoor_night_lights", "input_text.fh_outdoor_holiday_lights"):
+        for st in states:
+            if st.get("entity_id") == key:
+                ids += [x.strip() for x in str(st.get("state") or "").split(",")
+                        if x.strip().startswith(("light.", "switch.")) and x.strip() not in ids]
+    if ids:
+        return ids
     xplug = ""
     try:
         from . import xmas

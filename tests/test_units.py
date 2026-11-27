@@ -521,3 +521,14 @@ def test_today_chart_finds_the_washer_and_dryer():
     assert laundry.state_sensors(states) == {"dryer": "sensor.d828c1_laundry_machine_state", "washer": "sensor.a11b22_laundry_machine_state"}
     assert laundry.is_running("Run") and laundry.is_running("Spin") and not laundry.is_running("End of Cycle")
     assert not laundry.is_running("unavailable") and not laundry.is_running("Off")
+
+
+def test_week_counts_laundry_loads_and_peak():
+    from app.services import timeline
+    rows = [{"kind": "laundry", "name": "Washer", "spans": [[400, 450, "on"], [600, 602, "on"], [700, 760, "on"]]},
+            {"kind": "laundry", "name": "Dryer", "spans": [[455, 520, "on"]]},
+            {"kind": "light", "name": "Porch", "spans": [[0, 120, "on"]]}, {"kind": "tv", "name": "TV", "spans": [[1200, 1290, "on"]]}]
+    st = timeline._stats(rows, (360, 540))
+    assert st["washer_loads"] == 2 and st["washer_min"] == 112 and st["washer_peak_min"] == 50   # a 2-minute blip isn't a load
+    assert st["dryer_loads"] == 1 and st["dryer_peak_min"] == 65
+    assert st["light_min"] == 120 and st["tv_min"] == 90

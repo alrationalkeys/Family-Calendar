@@ -129,7 +129,15 @@ def _stats(rows, peak):
     cool = sum(_overlap([s for s in r["spans"] if s[2] == "cool"], 0, 1440) for r in rows if r["kind"] == "climate")
     in_peak = sum(_overlap(r["spans"], *peak) for r in rows if r["kind"] == "climate")
     lights = sum(_overlap(r["spans"], 0, 1440) for r in rows if r["kind"] == "light")
-    return {"heat_min": round(heat), "cool_min": round(cool), "hvac_peak_min": round(in_peak), "light_min": round(lights)}
+    tv = sum(_overlap(r["spans"], 0, 1440) for r in rows if r["kind"] == "tv")
+    out = {"heat_min": round(heat), "cool_min": round(cool), "hvac_peak_min": round(in_peak), "light_min": round(lights),
+           "tv_min": round(tv)}
+    for m in ("washer", "dryer"):                       # minutes running, loads (cycles of 5+ min), minutes inside peak
+        sp = [s for r in rows if r["kind"] == "laundry" and r["name"].lower() == m for s in r["spans"]]
+        out[m + "_min"] = round(_overlap(sp, 0, 1440))
+        out[m + "_loads"] = sum(1 for a, b, _ in sp if b - a >= 5)
+        out[m + "_peak_min"] = round(_overlap(sp, *peak))
+    return out
 
 
 def get(day: str | None = None) -> dict:

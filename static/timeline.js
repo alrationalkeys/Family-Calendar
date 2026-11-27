@@ -3,7 +3,7 @@
    FHTimeline.render(el) — fetches /api/ha/timeline?day=…, keeps its own day + cache, refreshes each minute. */
 (function(){
   const css=`
-  .tl{--tl-heat:#d95926; --tl-cool:#3987e5; --tl-light:#c98500; --tl-plug:#199e70; --tl-tv:#9085e9; --tl-laundry:#e0609c;
+  .tl{--tl-heat:#d95926; --tl-cool:#3987e5; --tl-light:#c98500; --tl-plug:#199e70; --tl-tv:#9085e9; --tl-laundry:#e0609c; --tl-dryer:#b866d6;
       --tl-grid:rgba(255,255,255,.08); --tl-peak:rgba(255,255,255,.07); --tl-good:#3ba55c; --tl-warn:#e0a020;
       color:var(--ink,#eee); font-size:14px}
   .tl-nav{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 10px}
@@ -144,6 +144,24 @@
     });
     return `<svg viewBox="0 0 ${W} ${H}" height="${H}">${out}</svg>`;
   }
+  /* week: side-by-side columns per day for a few things (laundry: washer + dryer; lights; TVs) */
+  function dayBars(days, W, keys, tipOf, fmt){
+    const H=150, T=14, B=H-22, max=Math.max(30, ...days.map(d=>Math.max(...keys.map(k=>d[k.k]||0))))*1.15;
+    const L=30, cw=(W-L)/7, bw=Math.min(14, cw*0.32), y=v=>(B-T)*v/max;
+    let out="";
+    const step=max>1200?480:max>600?240:max>240?120:60;
+    for(let v=step; v<max; v+=step) out+=`<line x1="${L}" x2="${W}" y1="${B-y(v)}" y2="${B-y(v)}" stroke="var(--tl-grid)"/><text x="0" y="${B-y(v)+4}">${v/60} h</text>`;
+    out+=`<line x1="${L}" x2="${W}" y1="${B}" y2="${B}" stroke="var(--tl-grid)"/>`;
+    days.forEach((d,i)=>{
+      const cx=L+cw*i+cw/2, dt=new Date(d.day+"T12:00:00"), n=keys.length;
+      keys.forEach((k,j)=>{ const h=y(d[k.k]||0), x0=cx-(n*bw+(n-1)*3)/2+j*(bw+3);
+        if(h>0) out+=`<rect x="${x0}" y="${B-h}" width="${bw}" height="${h}" rx="3" fill="${k.c}"/>`; });
+      out+=`<text x="${cx}" y="${B+14}" text-anchor="middle">${dt.toLocaleDateString([], {weekday:"short"})}</text>`;
+      out+=`<rect class="hit" x="${L+cw*i}" y="0" width="${cw}" height="${H}" fill="transparent" data-tip="${esc(dt.toLocaleDateString([], {weekday:"long", month:"short", day:"numeric"})+"<br>"+tipOf(d))}"/>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" height="${H}">${out}</svg>`;
+  }
+  const loads=n=>n===1?"1 load":n+" loads";
   async function drawWeek(el, force){
     if(force||!weekData||Date.now()-weekAt>600000){ try{ weekData=(await fetch("/api/ha/timeline/week").then(r=>r.json())).days||[]; weekAt=Date.now(); }catch(e){ weekData=[]; } }
     if(host!==el||mode!=="week") return;
@@ -157,6 +175,12 @@
       ${days.length?weekChart(days,W):'<div class="tl-empty">No history yet.</div>'}
       <details><summary>Show as a list</summary><table>${days.map(d=>`<tr><td>${new Date(d.day+"T12:00:00").toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"})}</td><td>heat ${dur(d.heat_min)} · AC ${dur(d.cool_min)}${d.hvac_peak_min?" · ⚠ "+dur(d.hvac_peak_min)+" peak":""}</td></tr>`).join("")}</table></details>
       <div class="tl-tip"></div></div>
+      ${days.length?`<div class="tl-card"><h4>Washer & dryer by day</h4><div class="tl-legend"><span><i style="background:var(--tl-laundry)"></i>Washer · ${loads(sum("washer_loads"))}</span><span><i style="background:var(--tl-dryer)"></i>Dryer · ${loads(sum("dryer_loads"))}</span></div>
+        ${sum("washer_min")+sum("dryer_min")?dayBars(days,W,[{k:"washer_min",c:"var(--tl-laundry)"},{k:"dryer_min",c:"var(--tl-dryer)"}],
+          d=>`Washer ${d.washer_loads?loads(d.washer_loads)+", "+dur(d.washer_min):"—"} · Dryer ${d.dryer_loads?loads(d.dryer_loads)+", "+dur(d.dryer_min):"—"}${(d.washer_peak_min||0)+(d.dryer_peak_min||0)?`<br>⚠ ${dur((d.washer_peak_min||0)+(d.dryer_peak_min||0))} during peak`:""}`)
+          :'<div class="tl-empty">No loads this week.</div>'}<div class="tl-tip"></div></div>
+      <div class="tl-card"><h4>Lights & TVs by day</h4><div class="tl-legend"><span><i style="background:var(--tl-light)"></i>Light-hours · ${Math.round(sum("light_min")/60)} h</span><span><i style="background:var(--tl-tv)"></i>TV · ${dur(sum("tv_min"))}</span></div>
+        ${dayBars(days,W,[{k:"light_min",c:"var(--tl-light)"},{k:"tv_min",c:"var(--tl-tv)"}], d=>`Light-hours ${((d.light_min||0)/60).toFixed(1)} h · TV ${dur(d.tv_min||0)}`)}<div class="tl-tip"></div></div>`:""}
       ${days.some(d=>d.estimated)?'<div class="tl-empty" style="font-size:13px">Heat/AC times are estimated from room temperature (Alarm.com thermostats don’t report when they run).</div>':""}</div>`;
     el.innerHTML=html; bindSeg(el); el.querySelectorAll(".tl-card").forEach(bindTips);
   }

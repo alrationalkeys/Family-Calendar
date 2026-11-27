@@ -218,11 +218,15 @@ def week(end: date | None = None) -> list:
         d = end - timedelta(days=i)
         key = d.isoformat()
         cached = _WEEK_CACHE.get(key) if d < date.today() else None
+        if cached is not None and "washer_loads" not in cached:
+            cached = None                                  # cached before the week view showed laundry / lights / TVs
         if cached is None:
             r = timeline.get(key)
             st = (r or {}).get("stats") or {}
             cached = {"day": key, "heat_min": st.get("heat_min", 0), "cool_min": st.get("cool_min", 0),
                       "hvac_peak_min": st.get("hvac_peak_min", 0), "ok": bool(r and r.get("ok")),
+                      **{k: st.get(k, 0) for k in ("light_min", "tv_min", "washer_min", "washer_loads", "washer_peak_min",
+                                                   "dryer_min", "dryer_loads", "dryer_peak_min")},
                       "estimated": any(x.get("estimated") for x in (r or {}).get("rows", []))}
             if d < date.today() and cached["ok"]:
                 _WEEK_CACHE[key] = cached

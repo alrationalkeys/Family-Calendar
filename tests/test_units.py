@@ -509,3 +509,15 @@ def test_outside_power_trip_alert(monkeypatch):
     for _ in range(4):                                   # Home Assistant restarting: the kitchen is unavailable too
         clock[0] += 60; op.tick({}, house("unavailable", inside="unavailable"), push)
     assert pushes == []
+
+
+def test_today_chart_finds_the_washer_and_dryer():
+    """GE SmartHQ: each machine's state sensor is picked out (not its time / door / count sensors), and running = a cycle."""
+    from app.services import laundry
+    states = [{"entity_id": "sensor.d828c1_laundry_machine_state", "state": "Run", "attributes": {"friendly_name": "Dryer Machine State"}},
+              {"entity_id": "sensor.d828c1_laundry_time_remaining", "state": "30", "attributes": {"friendly_name": "Dryer Time Remaining"}},
+              {"entity_id": "sensor.a11b22_laundry_machine_state", "state": "End of Cycle", "attributes": {"friendly_name": "Washer Machine State"}},
+              {"entity_id": "sensor.a11b22_laundry_door", "state": "closed", "attributes": {"friendly_name": "Washer Door"}}]
+    assert laundry.state_sensors(states) == {"dryer": "sensor.d828c1_laundry_machine_state", "washer": "sensor.a11b22_laundry_machine_state"}
+    assert laundry.is_running("Run") and laundry.is_running("Spin") and not laundry.is_running("End of Cycle")
+    assert not laundry.is_running("unavailable") and not laundry.is_running("Off")

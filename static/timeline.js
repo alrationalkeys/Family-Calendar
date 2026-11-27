@@ -3,7 +3,7 @@
    FHTimeline.render(el) — fetches /api/ha/timeline?day=…, keeps its own day + cache, refreshes each minute. */
 (function(){
   const css=`
-  .tl{--tl-heat:#d95926; --tl-cool:#3987e5; --tl-light:#c98500; --tl-plug:#199e70; --tl-tv:#9085e9;
+  .tl{--tl-heat:#d95926; --tl-cool:#3987e5; --tl-light:#c98500; --tl-plug:#199e70; --tl-tv:#9085e9; --tl-laundry:#e0609c;
       --tl-grid:rgba(255,255,255,.08); --tl-peak:rgba(255,255,255,.07); --tl-good:#3ba55c; --tl-warn:#e0a020;
       color:var(--ink,#eee); font-size:14px}
   .tl-nav{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 10px}
@@ -35,8 +35,8 @@
   const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const clock=m=>{ m=Math.round(m); const h=Math.floor(m/60)%24, mm=m%60; return `${(h%12)||12}${mm?":"+String(mm).padStart(2,"0"):""} ${h<12?"AM":"PM"}`; };
   const dur=m=>{ m=Math.round(m); if(m<60) return m+" min"; const h=Math.floor(m/60), r=m%60; return h+"h"+(r?" "+r+"m":""); };
-  const COLOR={heat:"var(--tl-heat)", cool:"var(--tl-cool)", run:"#c3c2b7", light:"var(--tl-light)", plug:"var(--tl-plug)", tv:"var(--tl-tv)"};
-  const GROUP={climate:"Heating & cooling", light:"Lights", plug:"Plugs & switches", tv:"TVs"};
+  const COLOR={heat:"var(--tl-heat)", cool:"var(--tl-cool)", run:"#c3c2b7", light:"var(--tl-light)", plug:"var(--tl-plug)", tv:"var(--tl-tv)", laundry:"var(--tl-laundry)"};
+  const GROUP={climate:"Heating & cooling", laundry:"Washer & dryer", light:"Lights", plug:"Plugs & switches", tv:"TVs"};
 
   async function load(force){
     const d=day||iso(new Date());
@@ -62,8 +62,8 @@
       (r.spans||[]).forEach(([a,b,k])=>{
         const c=r.kind==="climate"?COLOR[k]:COLOR[r.kind], w=Math.max(2,x(b)-x(a));
         out+=`<rect class="sp" x="${x(a)}" y="${y+15}" width="${w}" height="10" rx="3" fill="${c}" ${r.estimated?'fill-opacity=".55" stroke="'+c+'" stroke-dasharray="3 2"':''}
-           data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
-        out+=`<rect class="hit" x="${x(a)-4}" y="${y+6}" width="${w+8}" height="24" fill="transparent" data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
+           data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):r.kind==="laundry"?"running":"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
+        out+=`<rect class="hit" x="${x(a)-4}" y="${y+6}" width="${w+8}" height="24" fill="transparent" data-tip="${esc(r.name)} · ${r.kind==="climate"?({heat:"heating",cool:"cooling",run:"running"}[k]):r.kind==="laundry"?"running":"on"}${r.estimated?" (estimated)":""}<br>${clock(a)} – ${clock(b)} (${dur(b-a)})"/>`;
       });
       y+=LANE;
     });
@@ -173,7 +173,7 @@
     html+=stats(data);
     html+=`<div class="tl-card"><h4>What ran when</h4><div class="tl-legend"><span><i style="background:var(--tl-heat)"></i>Heat</span><span><i style="background:var(--tl-cool)"></i>AC</span>
       <span><i style="background:var(--tl-light)"></i>Lights</span><span><i style="background:var(--tl-plug)"></i>Plugs</span><span><i style="background:var(--tl-tv)"></i>TVs</span>
-      <span><i style="background:rgba(255,255,255,.18)"></i>Peak hours</span></div>
+      <span><i style="background:var(--tl-laundry)"></i>Washer & dryer</span><span><i style="background:rgba(255,255,255,.18)"></i>Peak hours</span></div>
       ${(data.rows||[]).length?lanes(data,W):'<div class="tl-empty">Nothing in Home Assistant’s history for this day.</div>'}${table(data)}<div class="tl-tip"></div></div>`;
     (data.power||[]).slice(0,3).forEach(p=>{ html+=`<div class="tl-card"><h4>Power · ${esc(p.name)}</h4>${powerChart(p,data,W)}<div class="tl-tip"></div></div>`; });
     if(!(data.power||[]).length) html+=`<div class="tl-empty" style="font-size:13px">No power meter in Home Assistant yet, so this shows when things ran, not watts. Heat/AC is the big one: every heating or cooling bar is the most power the house uses.</div>`;

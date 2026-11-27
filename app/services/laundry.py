@@ -230,6 +230,30 @@ def tick():
             threading.Thread(target=_announce, args=(mach, False, f"🧺 The {mach} finished {mins} min ago, the clothes are still in there.", False), daemon=True).start()
 
 
+def state_sensors(states: list) -> dict:
+    """{"washer": entity_id, "dryer": entity_id}: each machine's run-state sensor (the Today chart draws its cycles)."""
+    _learn(states)
+    best: dict = {}
+    for st in states or []:
+        eid, a = st.get("entity_id", ""), st.get("attributes") or {}
+        if not is_state_sensor(eid, a):
+            continue
+        mach = _machine(eid, a.get("friendly_name", ""))
+        if not mach:
+            continue
+        obj, v = eid.split(".", 1)[1], str(st.get("state") or "")
+        rank = 3 if re.search(r"machine_state|machine_status|run_status|operation_state", obj) else \
+            0 if re.fullmatch(r"-?[\d.]+", v.strip()) else 2 if re.search(r"_state$|_status$", obj) else 1
+        if rank and rank > best.get(mach, ("", 0))[1]:
+            best[mach] = (eid, rank)
+    return {m: e for m, (e, _r) in best.items()}
+
+
+def is_running(value) -> bool:
+    v = str(value or "")
+    return bool(_RUN.search(v)) and not _END.search(v) and v not in ("unknown", "unavailable")
+
+
 def status() -> list:
     """Washer/dryer now: running? minutes left (from a *time_remaining* sensor when there is one)."""
     try:

@@ -1,7 +1,7 @@
 """
 "What ran when" for one day: Home Assistant's recorder history turned into on/off spans.
 
-  rows   heating / cooling per thermostat (hvac_action), then lights, plugs & switches, TVs
+  rows   heating / cooling per thermostat (hvac_action), washer + dryer cycles, then lights, plugs & switches, TVs
   power  any sensor with device_class power (W or kW): a line per sensor, in watts
   peak   the Santee Cooper demand window for that date (winter Nov-Mar 6-9 AM, summer Apr-Oct 3-6 PM)
   stats  heat / AC minutes, how much of it fell inside peak, light-hours
@@ -188,6 +188,21 @@ def get(day: str | None = None) -> dict:
                     row["estimated"] = True
             if sp or k == "climate":
                 rows.append(row)
+        # washer + dryer: when a cycle was running (from each machine's state sensor)
+        try:
+            from . import laundry
+            mach = laundry.state_sensors(all_states)
+            for lst in history(list(mach.values()), True):
+                if not lst:
+                    continue
+                eid = lst[0].get("entity_id")
+                conv = [{"last_changed": st.get("last_changed") or st.get("last_updated"),
+                         "state": "on" if laundry.is_running(st.get("state")) else "off"} for st in lst]
+                sp = _spans(conv, "laundry", t0, t1)
+                who = next((m for m, e in mach.items() if e == eid), "laundry")
+                rows.append({"entity_id": eid, "name": who.title(), "kind": "laundry", "spans": sp})
+        except Exception:
+            pass
         for lst in history(list(power)[:12], True):
             if not lst:
                 continue
@@ -209,7 +224,7 @@ def get(day: str | None = None) -> dict:
     names = {r["name"].lower() for r in rows}
     rows = [r for r in rows if not (r["kind"] == "light" and (m := _re.match(r"(.+?)\s+(main|segment\s*\d+)$", r["name"], _re.I))
                                     and m.group(1).lower() in names)]
-    order = {"climate": 0, "light": 1, "plug": 2, "tv": 3}
+    order = {"climate": 0, "laundry": 1, "light": 2, "plug": 3, "tv": 4}
     rows.sort(key=lambda r: (order[r["kind"]], r["name"].lower()))
     return {"ok": True, "day": d.isoformat(), "peak": list(peak), "rows": rows, "power": pw, "stats": _stats(rows, peak),
             "now_min": _now_min(d)}
@@ -243,6 +258,8 @@ def _demo(d, peak):
     for name, sp in (("Upstairs Smart Plugs", [(1020, 1380)]), ("Exterior Lights Plug", [(1035, 1440)])):
         rows.append({"entity_id": "switch." + name.lower().replace(" ", "_"), "name": name, "kind": "plug", "spans": [[a, b, "on"] for a, b in sp]})
     rows.append({"entity_id": "media_player.living_room_tv", "name": "Living Room TV", "kind": "tv", "spans": [[1170, 1350, "on"]]})
+    rows.append({"entity_id": "sensor.washer_machine_state", "name": "Washer", "kind": "laundry", "spans": [[600, 655, "on"]]})
+    rows.append({"entity_id": "sensor.dryer_machine_state", "name": "Dryer", "kind": "laundry", "spans": [[662, 725, "on"]]})
     pts, base = [], 350
     for m in range(0, 1440, 10):
         w = base + sum(3200 for r in rows[:2] for a, b, _ in r["spans"] if a <= m < b) + rnd.randint(-60, 80)

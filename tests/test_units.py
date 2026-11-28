@@ -614,5 +614,5 @@ def test_diag_shows_what_a_routine_switches(monkeypatch):
     by = {"light.front_porch_light_2": {"attributes": {"friendly_name": "Front Porch Light"}},
           "binary_sensor.kitchen_motion": {"attributes": {"friendly_name": "Kitchen Motion"}}}
     out = "\n".join(diag._routine_detail("fhu_x", by))
-    assert "when: state Kitchen Motion (binary_sensor.kitchen_motion)" in out and '"to"' in out
+    assert "when: state Kitchen Motion (binary_sensor.kitchen_motion)" in out and 'to="on"' in out
     assert "only if:" in out and "Front Porch Light (light.front_porch_light_2)" in out and "light.turn_on" in out

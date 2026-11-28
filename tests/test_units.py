@@ -603,3 +603,16 @@ def test_diag_names_who_switched_a_light():
         == "by Holiday Exterior Regular Lights (automation.holiday_exterior_regular_lights)"
     assert _who({"context_user_id": "u1", "context_domain": "light", "context_service": "turn_off"}) == "by a person or FamilyHub (light.turn_off)"
     assert _who({}) == "by the device / its own app"
+
+
+def test_diag_shows_what_a_routine_switches(monkeypatch):
+    from app.services import diag
+    cfg = {"triggers": [{"trigger": "state", "entity_id": "binary_sensor.kitchen_motion", "to": "on"}],
+           "conditions": [{"condition": "time", "after": "21:00"}],
+           "actions": [{"action": "light.turn_on", "target": {"entity_id": ["light.kitchen_uppers", "light.front_porch_light_2"]}}]}
+    monkeypatch.setattr(diag.ha_svc, "_request", lambda *a, **k: cfg)
+    by = {"light.front_porch_light_2": {"attributes": {"friendly_name": "Front Porch Light"}},
+          "binary_sensor.kitchen_motion": {"attributes": {"friendly_name": "Kitchen Motion"}}}
+    out = "\n".join(diag._routine_detail("fhu_x", by))
+    assert "when: state Kitchen Motion (binary_sensor.kitchen_motion)" in out and '"to"' in out
+    assert "only if:" in out and "Front Porch Light (light.front_porch_light_2)" in out and "light.turn_on" in out

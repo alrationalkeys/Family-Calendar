@@ -117,6 +117,8 @@ def report(q: str = "") -> str:
             eid = st["entity_id"]
             L.append(f"- {eid} = {st.get('state')}  (changed {_local(st.get('last_changed'))}, updated {_local(st.get('last_updated'))})")
             L.append("  attributes: " + json.dumps(_clean(st.get("attributes")), default=str))
+            if not demo and eid.startswith("automation.") and (st.get("attributes") or {}).get("id"):
+                L += _routine_detail(str(st["attributes"]["id"]), {x["entity_id"]: x for x in states})
             if not demo:
                 L.append("  device: " + _template("{{ device_attr('%s','manufacturer') }} / {{ device_attr('%s','model') }} / area {{ area_name('%s') }} / via {{ device_attr('%s','identifiers') | map('first') | list }}" % (eid, eid, eid, eid)))
                 try:
@@ -271,6 +273,32 @@ def routines(states: list) -> list:
     except Exception:
         pass
     return L
+
+
+def _routine_detail(rid: str, by: dict) -> list:
+    """What a UI routine listens for and what it switches (names, not just ids), from its saved config."""
+    try:
+        cfg = ha_svc._request(f"/api/config/automation/config/{rid}", timeout=6) or {}
+    except Exception as e:
+        return [f"  config: n/a ({str(e)[:50]})"]
+    name = lambda e: f"{(by.get(e) or {}).get('attributes', {}).get('friendly_name') or '?'} ({e})"
+    out = []
+    for t in (cfg.get("triggers") or cfg.get("trigger") or [])[:8]:
+        t = dict(t)
+        kind = t.pop("trigger", None) or t.pop("platform", "?")
+        ents = t.pop("entity_id", None)
+        ents = [ents] if isinstance(ents, str) else (ents or [])
+        bits = ", ".join(f"{k}={json.dumps(v, default=str)}" for k, v in t.items() if k not in ("id",))
+        out.append(f"  when: {kind}" + (" " + "; ".join(name(e) for e in ents) if ents else "") + (f" [{bits[:140]}]" if bits else ""))
+    for c in (cfg.get("conditions") or cfg.get("condition") or [])[:6]:
+        out.append("  only if: " + json.dumps(c, default=str)[:180])
+    acts = json.dumps(cfg.get("actions") or cfg.get("action") or [], default=str)
+    switched = sorted(set(_EID.findall(acts)) - {"light.turn_on", "light.turn_off"})
+    svc = sorted(set(re.findall(r'"(?:action|service)":\s*"([a-z_]+\.[a-z_]+)"', acts)))
+    out.append("  does: " + ", ".join(svc[:8]) + (" -> " + "; ".join(name(e) for e in switched[:14]) if switched else ""))
+    if "delay" in acts or "wait" in acts:
+        out.append("  steps: " + acts[:400])
+    return out
 
 
 def _who(e: dict) -> str:

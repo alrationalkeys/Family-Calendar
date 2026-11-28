@@ -141,7 +141,8 @@ def default_steps(mode: str) -> list:
         if s.get("nightTemp"):
             st.append({"type": "thermostat", "entities": ["*all"], "mode": "keep", "temp": s["nightTemp"]})
     elif mode == "away":
-        st = [{"type": "off", "entities": ["*lights", "*tvs"]}, {"type": "lock", "entities": ["*locks"]}] + \
+        st = [{"type": "off", "entities": (["*lights", "*tvs"] if s.get("awayLightsOff") is True else ["*tvs"])},
+              {"type": "lock", "entities": ["*locks"]}] + \
              ([{"type": "close", "entities": ["*garage"]}] if garage else []) + \
              [{"type": "arm", "arm": "away" if s.get("awayArm") == "away" else "stay"}]
         if s.get("awayTemp"):
@@ -253,11 +254,16 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                     continue
                 if k == "off":
                     ts = [t for t in ts if t["on"] or t["domain"] == "media_player" and t["state"] not in ("off", "unavailable", "standby")]
-                    if mode == "away" and s.get("awayKeepRoutineLights", True) is not False:
-                        kept = _routine_lit([t["entity_id"] for t in ts if t["domain"] in ("light", "switch")])
-                        if kept:
-                            ts = [t for t in ts if t["entity_id"] not in kept]
-                            notes.append(f"Left {_plural(len(kept), 'light')} on that a routine turned on.")
+                    if mode == "away":
+                        if s.get("awayLightsOff") is not True:
+                            # Leaving leaves every light alone (Nov 27: it undid the evening routines while we were out);
+                            # TVs still go off. settings.awayLightsOff = true brings the old "lights off" back.
+                            ts = [t for t in ts if t["domain"] not in ("light", "switch")]
+                        else:
+                            kept = _routine_lit([t["entity_id"] for t in ts if t["domain"] in ("light", "switch")])
+                            if kept:
+                                ts = [t for t in ts if t["entity_id"] not in kept]
+                                notes.append(f"Left {_plural(len(kept), 'light')} on that a routine turned on.")
                 if k == "on":
                     ts = [t for t in ts if not t["on"]]
                 for t in ts:

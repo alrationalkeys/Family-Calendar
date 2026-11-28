@@ -579,3 +579,19 @@ def test_leaving_closes_the_village_only_while_out(monkeypatch):
     assert village.back_home() == "opened the village"          # home from dinner at 9:55: open again
     store.clear(); store.update({"closed": "22:30"})
     assert village.back_home() is None                           # closed by Good night stays closed
+
+
+def test_leaving_never_touches_lights(monkeypatch):
+    from app.services import house_modes
+    monkeypatch.setattr(house_modes, "_settings", lambda: {})
+    off = [x for x in house_modes.default_steps("away") if x["type"] == "off"]
+    assert off and "*lights" not in off[0]["entities"] and "*tvs" in off[0]["entities"]
+    calls = []
+    monkeypatch.setattr(house_modes.ha_svc, "call_service", lambda d, sv, e, data=None: calls.append((d, sv, e)) or {"ok": True})
+    monkeypatch.setattr(house_modes.ha_svc, "peak_now", lambda: False)
+    tiles = [{"entity_id": "light.kitchen_uppers", "domain": "light", "name": "Kitchen Uppers", "on": True, "state": "on"},
+             {"entity_id": "media_player.living_room_tv", "domain": "media_player", "name": "Living Room TV", "on": True, "state": "on"}]
+    done, warn, notes = [], [], []
+    house_modes._run_steps("away", [{"type": "off", "entities": ["*lights", "*tvs"]}], tiles, {}, None, False, done, warn, notes)
+    assert ("light", "turn_off", "light.kitchen_uppers") not in calls          # even an older saved "lights off" step
+    assert ("media_player", "turn_off", "media_player.living_room_tv") in calls

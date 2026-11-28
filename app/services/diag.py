@@ -234,14 +234,17 @@ def routines(states: list) -> list:
             try:
                 cfg = ha_svc._request(f"/api/config/automation/config/{at['id']}", timeout=6) or {}
                 refs = set(_EID.findall(json.dumps(cfg)))
-                gone = sorted(e for e in refs if e not in have and not e.startswith(("input_", "script.", "scene.")))
+                gone = sorted(e for e in refs if e not in have and not e.startswith(("input_", "script.", "scene."))
+                              and not re.search(r"\.(turn_on|turn_off|toggle|set_\w+|lock|unlock|open_cover|close_cover|"
+                                                r"select_\w+|press|reload|trigger|alarm_\w+|media_\w+|volume_\w+|play_media)$", e))
             except Exception:
                 pass                                    # a packaged (YAML) routine: its lists are checked below
         missing_all |= set(gone)
         flag = "" if a.get("state") == "on" else f"  <-- {a.get('state', '?').upper()}"
         L.append(f"  {name}: last ran {last}{flag}" + (f"  <-- names devices HA doesn't have: {', '.join(gone[:6])}" if gone else ""))
     # the light lists the packaged routines read (outdoor / kitchen / Christmas windows): stale ids there do nothing too
-    for st in states:
+    packaged_on = any(a.get("state") == "on" and re.match(r"automation\.(outdoor|kitchen|christmas|patio)_", a["entity_id"]) for a in autos)
+    for st in states if packaged_on else []:          # lists only matter while the packaged routines that read them are on
         eid = st["entity_id"]
         if eid.startswith("input_text.fh_"):
             ids = [x.strip() for x in str(st.get("state") or "").split(",") if "." in x]

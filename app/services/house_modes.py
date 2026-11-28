@@ -203,6 +203,25 @@ def _expand(ids, tiles) -> list:
     return uniq
 
 
+def _routine_lit(ids: list) -> set:
+    """Of these lights, the ones a Home Assistant routine turned on (their state's context has a parent and no user):
+    the evening schedule (holiday lights, kitchen uppers, Christmas windows). Leaving keeps those on, so going out to
+    dinner doesn't undo the routines; it still turns off what someone left on by hand or from the app."""
+    try:
+        from . import ha_live
+        states = {x["entity_id"]: x for x in (ha_live.states() or [])}
+        if not states:
+            states = {x["entity_id"]: x for x in (ha_svc._request("/api/states") or [])}
+    except Exception:
+        return set()
+    out = set()
+    for e in ids:
+        ctx = (states.get(e) or {}).get("context") or {}
+        if ctx.get("parent_id") and not ctx.get("user_id"):
+            out.add(e)
+    return out
+
+
 def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, tapped=False):
     by = lambda dom: [t for t in tiles if t["domain"] == dom]
     in_peak = ha_svc.peak_now()
@@ -234,6 +253,11 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                     continue
                 if k == "off":
                     ts = [t for t in ts if t["on"] or t["domain"] == "media_player" and t["state"] not in ("off", "unavailable", "standby")]
+                    if mode == "away" and s.get("awayKeepRoutineLights", True) is not False:
+                        kept = _routine_lit([t["entity_id"] for t in ts if t["domain"] in ("light", "switch")])
+                        if kept:
+                            ts = [t for t in ts if t["entity_id"] not in kept]
+                            notes.append(f"Left {_plural(len(kept), 'light')} on that a routine turned on.")
                 if k == "on":
                     ts = [t for t in ts if not t["on"]]
                 for t in ts:
@@ -334,9 +358,13 @@ def _run_steps(mode, steps, tiles, s, code, open_garage, done, warnings, notes, 
                 from . import village
                 if village.status().get("reachable"):
                     if st.get("village") == "wake":
-                        village.resume(); village.command("wake"); done.append("woke the village")
+                        village.resume()
+                        v = village.back_home()               # evening: opens it again (Leaving only closed it while out)
+                        if not v:
+                            village.command("wake")
+                        done.append(v or "woke the village")
                     else:
-                        v = village.pause_for_night()
+                        v = village.pause_for_night(mode)
                         if v:
                             done.append(v)
             elif k == "scene":

@@ -173,6 +173,10 @@ Wall: http://localhost:8000/  ·  Phone: http://localhost:8000/phone.html
 - Outside power lost (`services/outdoor_power.py`, house-watch tick, settings.outdoorPowerAlert): the village-opening lights +
   xmas plug + outside-named lights/plugs; 2+ of them unavailable 2 min while the indoor lights are mostly fine = the outdoor GFCI
   tripped -> one push naming them, "back on" push. xmas.py's own plug-offline push stands down for plugs covered here.
+- Leaving vs the evening routines (Nov 27): the away "off" step skips lights a routine turned on (state context parent_id set, no
+  user_id; `house_modes._routine_lit`, settings.awayKeepRoutineLights default on). Leaving closes the village only while out
+  (`close_for_night(night=False)` clears `opened`); I'm home in the evening -> `village.back_home()` opens it again. Good night still
+  closes it until 6 AM. Diagnostics lists every HA routine (on/off, last ran, devices it names that HA lacks, HA routine errors).
 - Peak + dryer: `watch._peak_dryer` (settings.peakDryer): dryer running during peak -> wall announcement + push, once a day.
 - Nicer voice (optional): `services/cloud_voice.py` = ElevenLabs TTS (`ELEVENLABS_API_KEY` in .env only). `/api/ai/tts` uses it when
   settings.cloudVoiceId is set, or settings.santaVoiceId in Santa season (day after Thanksgiving–Dec 25, settings.santaVoice); every

@@ -208,13 +208,16 @@ def command(name: str) -> dict:
     return {"ok": True}
 
 
-def pause_for_night() -> str | None:
-    """Good night / Leaving. Returns a phrase for the spoken summary, or None if there's no village."""
+def pause_for_night(mode: str = "goodnight") -> str | None:
+    """Good night / Leaving. Returns a phrase for the spoken summary, or None if there's no village.
+    Good night = closed until morning. Leaving = closed while we're out; I'm home in the evening opens it again."""
     try:
         fx = _get("fx", "/status", 1.5)
     except Exception:
         return None
     if "follows FamilyHub" in fx:                # A-2026.11.18b and later: one "close" does it all, no manual mode
+        if mode == "away":
+            return "put the village to sleep until you're back" if close_for_night("left the house", night=False) else None
         return "put the village to sleep" if close_for_night("good night") else None
     try:
         _get("fx", "/cmd?do=sleep", 3.0)
@@ -232,6 +235,14 @@ def pause_for_night() -> str | None:
     with _lock:
         _cache["at"] = 0.0
     return "put the village to sleep"
+
+
+def back_home() -> str | None:
+    """I'm home: in the evening (and not closed for the night), open the village again."""
+    a = _auto()
+    if a.get("closed") or a.get("opened") or not _evening_now() or _bedtime_now():
+        return None
+    return "opened the village" if open_for_evening("home again") else None
 
 
 def resume() -> bool:
@@ -352,12 +363,15 @@ def open_for_evening(why: str) -> bool:
     return True
 
 
-def close_for_night(why: str) -> bool:
+def close_for_night(why: str, night: bool = True) -> bool:
+    """night=False (Leaving): close now, but coming home this evening opens it again (I'm home -> back_home)."""
     try:
         _get("fx", "/cmd?do=close", 3.0)          # lights off, rink off, train stopped (the board does it all)
     except Exception:
         return False
-    if not _daytime():
+    if not night:
+        _auto({"opened": None, "away": time.strftime("%H:%M")})
+    elif not _daytime():
         _auto({"closed": time.strftime("%H:%M"), "why_closed": why})
     else:                                           # a daytime close never keeps tonight shut; kept only for Diagnostics
         _auto({"day_close": time.strftime("%H:%M") + " " + why})

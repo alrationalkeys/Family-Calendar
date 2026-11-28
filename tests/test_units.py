@@ -543,10 +543,39 @@ def test_diag_flags_routines_pointing_at_renamed_devices(monkeypatch):
               {"entity_id": "light.front_porch_light_2", "state": "on", "attributes": {}},
               {"entity_id": "light.kitchen_uppers", "state": "off", "attributes": {}},
               {"entity_id": "input_text.fh_outdoor_night_lights", "state": "light.front_porch_light", "attributes": {"friendly_name": "Nightly lights"}}]
-    monkeypatch.setattr(diag.ha_svc, "_request", lambda path, **k: {"action": [{"target": {"entity_id": ["light.kitchen_uppers", "light.kitchen_lowers"]}}]})
+    monkeypatch.setattr(diag.ha_svc, "_request", lambda path, **k: {"action": [{"action": "light.turn_on", "target": {"entity_id": ["light.kitchen_uppers", "light.kitchen_lowers"]}}]})
     monkeypatch.setattr(diag, "_text", lambda *a, **k: "")
     out = "\n".join(diag.routines(states))
     assert "Kitchen motion: last ran never" in out and "light.kitchen_lowers" in out
+    assert "light.turn_on" not in out                    # a service name, not a missing device
     assert "Outdoor: sunset" in out and "<-- OFF" in out
     assert "Nightly lights: HA doesn't have light.front_porch_light" in out
     assert "light.front_porch_light -> light.front_porch_light_2" in out
+
+
+def test_leaving_keeps_lights_a_routine_turned_on(monkeypatch):
+    """Out to dinner at 6:17: Leaving turned off the holiday lights, kitchen uppers and Christmas windows the 5:08
+    routines had just turned on. Now it only turns off what someone left on."""
+    from app.services import house_modes, ha_live
+    st = [{"entity_id": "light.kitchen_uppers", "state": "on", "context": {"id": "a", "parent_id": "auto1", "user_id": None}},
+          {"entity_id": "light.bedroom", "state": "on", "context": {"id": "b", "parent_id": None, "user_id": "u1"}},
+          {"entity_id": "light.porch", "state": "on", "context": {"id": "c", "parent_id": None, "user_id": None}}]
+    monkeypatch.setattr(ha_live, "states", lambda: st)
+    assert house_modes._routine_lit(["light.kitchen_uppers", "light.bedroom", "light.porch"]) == {"light.kitchen_uppers"}
+
+
+def test_leaving_closes_the_village_only_while_out(monkeypatch):
+    from app.services import village
+    store = {}
+    monkeypatch.setattr(village, "_auto", lambda u=None: (store.update(u) if u else None) or dict(store))
+    monkeypatch.setattr(village, "_get", lambda *a, **k: "ok")
+    monkeypatch.setattr(village, "_evening_now", lambda: True)
+    monkeypatch.setattr(village, "_bedtime_now", lambda: False)
+    monkeypatch.setattr(village, "_daytime", lambda: False)
+    monkeypatch.setattr(village, "_settings", lambda: {})
+    store.update({"opened": "17:08"})
+    assert village.close_for_night("left the house", night=False)
+    assert not store.get("closed") and not store.get("opened")
+    assert village.back_home() == "opened the village"          # home from dinner at 9:55: open again
+    store.clear(); store.update({"closed": "22:30"})
+    assert village.back_home() is None                           # closed by Good night stays closed

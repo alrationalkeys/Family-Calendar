@@ -124,7 +124,7 @@ def report(q: str = "") -> str:
                     log = ha_svc._request(f"/api/logbook/{since}?entity={eid}", timeout=8) or []
                     L.append(f"  last 24 h ({len(log)} changes), newest last:")
                     for e in log[-12:]:
-                        who = e.get("context_user_id") and "by a person or FamilyHub" or e.get("context_event_type") or e.get("context_domain") or ""
+                        who = _who(e)
                         L.append(f"    {_local(e.get('when'))}  {e.get('state', e.get('message', ''))}  {who}")
                 except Exception as e:
                     L.append(f"  history: n/a ({str(e)[:60]})")
@@ -271,6 +271,18 @@ def routines(states: list) -> list:
     except Exception:
         pass
     return L
+
+
+def _who(e: dict) -> str:
+    """Who changed it, from HA's logbook: the routine / script by name, a person or FamilyHub, or the device itself."""
+    ent = e.get("context_entity_id") or ""
+    if ent:
+        return "by " + str(e.get("context_entity_id_name") or ent) + (f" ({ent})" if e.get("context_entity_id_name") else "")
+    if e.get("context_user_id"):
+        return "by a person or FamilyHub" + (f" ({e['context_domain']}.{e.get('context_service', '')})" if e.get("context_domain") else "")
+    if e.get("context_event_type"):
+        return "by " + str(e["context_event_type"])
+    return "by the device / its own app"
 
 
 def _hide(s: str) -> str:

@@ -595,3 +595,11 @@ def test_leaving_never_touches_lights(monkeypatch):
     house_modes._run_steps("away", [{"type": "off", "entities": ["*lights", "*tvs"]}], tiles, {}, None, False, done, warn, notes)
     assert ("light", "turn_off", "light.kitchen_uppers") not in calls          # even an older saved "lights off" step
     assert ("media_player", "turn_off", "media_player.living_room_tv") in calls
+
+
+def test_diag_names_who_switched_a_light():
+    from app.services.diag import _who
+    assert _who({"context_entity_id": "automation.holiday_exterior_regular_lights", "context_entity_id_name": "Holiday Exterior Regular Lights"}) \
+        == "by Holiday Exterior Regular Lights (automation.holiday_exterior_regular_lights)"
+    assert _who({"context_user_id": "u1", "context_domain": "light", "context_service": "turn_off"}) == "by a person or FamilyHub (light.turn_off)"
+    assert _who({}) == "by the device / its own app"

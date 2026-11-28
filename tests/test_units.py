@@ -532,3 +532,21 @@ def test_week_counts_laundry_loads_and_peak():
     assert st["washer_loads"] == 2 and st["washer_min"] == 112 and st["washer_peak_min"] == 50   # a 2-minute blip isn't a load
     assert st["dryer_loads"] == 1 and st["dryer_peak_min"] == 65
     assert st["light_min"] == 120 and st["tv_min"] == 90
+
+
+def test_diag_flags_routines_pointing_at_renamed_devices(monkeypatch):
+    """Re-adding an integration renamed light.front_porch_light to light.front_porch_light_2: the routine and the
+    outdoor list still name the old one, so nothing happens. Diagnostics must say so and suggest the new name."""
+    from app.services import diag
+    states = [{"entity_id": "automation.kitchen_motion", "state": "on", "attributes": {"friendly_name": "Kitchen motion", "id": "k1", "last_triggered": None}},
+              {"entity_id": "automation.outdoor_sunset", "state": "off", "attributes": {"friendly_name": "Outdoor: sunset"}},
+              {"entity_id": "light.front_porch_light_2", "state": "on", "attributes": {}},
+              {"entity_id": "light.kitchen_uppers", "state": "off", "attributes": {}},
+              {"entity_id": "input_text.fh_outdoor_night_lights", "state": "light.front_porch_light", "attributes": {"friendly_name": "Nightly lights"}}]
+    monkeypatch.setattr(diag.ha_svc, "_request", lambda path, **k: {"action": [{"target": {"entity_id": ["light.kitchen_uppers", "light.kitchen_lowers"]}}]})
+    monkeypatch.setattr(diag, "_text", lambda *a, **k: "")
+    out = "\n".join(diag.routines(states))
+    assert "Kitchen motion: last ran never" in out and "light.kitchen_lowers" in out
+    assert "Outdoor: sunset" in out and "<-- OFF" in out
+    assert "Nightly lights: HA doesn't have light.front_porch_light" in out
+    assert "light.front_porch_light -> light.front_porch_light_2" in out

@@ -139,6 +139,9 @@ def report(q: str = "") -> str:
             except Exception as e:
                 L.append(f"  Home Assistant log: not available on this Home Assistant ({str(e)[:40]})")
 
+    if not demo and states:
+        L += routines(states)
+
     L.append("")
     L.append("== FamilyHub ==")
     try:
@@ -208,6 +211,63 @@ def report(q: str = "") -> str:
     except Exception:
         pass
     return _hide("\n".join(L))
+
+
+_EID = re.compile(r"\b(?:light|switch|binary_sensor|sensor|cover|lock|climate|media_player|scene|script|input_boolean|"
+                  r"input_text|input_datetime|input_number|fan|camera|alarm_control_panel|event|button)\.[a-z0-9_]+\b")
+
+
+def routines(states: list) -> list:
+    """Every Home Assistant automation: on/off, when it last ran, and any device it names that HA no longer has
+    (re-adding an integration renames things to *_2, and the routine silently does nothing)."""
+    have = {s["entity_id"] for s in states}
+    autos = sorted((s for s in states if s["entity_id"].startswith("automation.")),
+                   key=lambda s: str((s.get("attributes") or {}).get("friendly_name") or s["entity_id"]).lower())
+    L = ["", f"== Home Assistant routines ({len(autos)}) =="]
+    missing_all = set()
+    for a in autos:
+        at = a.get("attributes") or {}
+        name = str(at.get("friendly_name") or a["entity_id"])
+        last = _local(at["last_triggered"]) if at.get("last_triggered") else "never"
+        gone = []
+        if at.get("id"):
+            try:
+                cfg = ha_svc._request(f"/api/config/automation/config/{at['id']}", timeout=6) or {}
+                refs = set(_EID.findall(json.dumps(cfg)))
+                gone = sorted(e for e in refs if e not in have and not e.startswith(("input_", "script.", "scene.")))
+            except Exception:
+                pass                                    # a packaged (YAML) routine: its lists are checked below
+        missing_all |= set(gone)
+        flag = "" if a.get("state") == "on" else f"  <-- {a.get('state', '?').upper()}"
+        L.append(f"  {name}: last ran {last}{flag}" + (f"  <-- names devices HA doesn't have: {', '.join(gone[:6])}" if gone else ""))
+    # the light lists the packaged routines read (outdoor / kitchen / Christmas windows): stale ids there do nothing too
+    for st in states:
+        eid = st["entity_id"]
+        if eid.startswith("input_text.fh_"):
+            ids = [x.strip() for x in str(st.get("state") or "").split(",") if "." in x]
+            gone = [x for x in ids if x not in have]
+            if gone:
+                L.append(f"  list {(st.get('attributes') or {}).get('friendly_name') or eid}: HA doesn't have {', '.join(gone)}")
+                missing_all |= set(gone)
+    if missing_all:
+        # suggest the renamed one: same name with _2 / _3 on the end, or the old name without it
+        sug = []
+        for g in sorted(missing_all):
+            base = re.sub(r"_\d+$", "", g)
+            alt = [e for e in have if e != g and (re.sub(r"_\d+$", "", e) == base)]
+            if alt:
+                sug.append(f"{g} -> {alt[0]}")
+        if sug:
+            L.append("  probably renamed: " + "; ".join(sug[:12]))
+    try:
+        lines = [ln for ln in _text("/api/error_log").splitlines()
+                 if re.search(r"automation|script|homeassistant\.helpers\.(script|service)", ln, re.I) and re.search(r"error|warning|not found|unavailable", ln, re.I)]
+        if lines:
+            L.append(f"  Home Assistant log, routine problems ({len(lines)}, newest last):")
+            L += ["    " + _hide(ln)[:240] for ln in lines[-12:]]
+    except Exception:
+        pass
+    return L
 
 
 def _hide(s: str) -> str:
